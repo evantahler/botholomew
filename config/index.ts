@@ -5,6 +5,7 @@ import { configDatabase } from "./database";
 import { configRedis } from "./redis";
 import { configSession } from "./session";
 import { configTasks } from "./tasks";
+import { configOpenAI } from "./openai";
 
 export const config = {
   process: configProcess,
@@ -14,4 +15,5 @@ export const config = {
   session: configSession,
   server: { web: configServerWeb },
   tasks: configTasks,
+  openai: configOpenAI,
 };
