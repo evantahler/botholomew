@@ -43,12 +43,12 @@ export class PubSub extends Initializer {
     async function broadcast(
       channel: string,
       message: any,
-      sender = "unknown-sender"
+      sender = "unknown-sender",
     ) {
       const payload: PubSubMessage = { channel, message, sender };
       return api.redis.redis.publish(
         redisPubSubChannel,
-        JSON.stringify(payload)
+        JSON.stringify(payload),
       );
     }
 

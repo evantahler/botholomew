@@ -47,7 +47,7 @@ export class Redis extends Initializer {
     }
 
     logger.info(
-      `redis connections established (${formatConnectionStringForLogging(config.redis.connectionString)})`
+      `redis connections established (${formatConnectionStringForLogging(config.redis.connectionString)})`,
     );
   }
 

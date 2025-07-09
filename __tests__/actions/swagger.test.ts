@@ -30,7 +30,7 @@ describe("swagger", () => {
     expect(response.servers!.length).toBeGreaterThan(0);
     const serverUrl = response.servers![0].url;
     expect(serverUrl.endsWith("/api") || serverUrl.endsWith("/api/")).toBe(
-      true
+      true,
     );
   });
 
@@ -40,7 +40,7 @@ describe("swagger", () => {
 
     // Count web actions (actions with both route and method)
     const webActions = api.actions.actions.filter(
-      (action) => action.web?.route && action.web?.method
+      (action) => action.web?.route && action.web?.method,
     );
 
     // Count unique routes (since multiple methods on same route are grouped)
@@ -55,7 +55,7 @@ describe("swagger", () => {
       expect(response.paths[path]).toBeDefined();
       expect(response.paths[path]![method]).toBeDefined();
       expect(response.paths[path]![method]!.summary).toBe(
-        action.description || action.name
+        action.description || action.name,
       );
     }
   });
@@ -66,7 +66,7 @@ describe("swagger", () => {
 
     // Find actions with Zod inputs
     const actionsWithInputs = api.actions.actions.filter(
-      (action) => action.web?.route && action.web?.method && action.inputs
+      (action) => action.web?.route && action.web?.method && action.inputs,
     );
 
     for (const action of actionsWithInputs) {
@@ -78,7 +78,7 @@ describe("swagger", () => {
       expect(pathObj.requestBody!.required).toBe(true);
       expect(pathObj.requestBody!.content["application/json"]).toBeDefined();
       expect(
-        pathObj.requestBody!.content["application/json"].schema
+        pathObj.requestBody!.content["application/json"].schema,
       ).toBeDefined();
     }
   });
@@ -98,10 +98,10 @@ describe("swagger", () => {
 
     // Verify response schemas
     expect(
-      swaggerPath.responses["200"]!.content["application/json"].schema
+      swaggerPath.responses["200"]!.content["application/json"].schema,
     ).toBeDefined();
     expect(
-      swaggerPath.responses["400"]!.content["application/json"].schema
+      swaggerPath.responses["400"]!.content["application/json"].schema,
     ).toBeDefined();
   });
 
@@ -132,7 +132,7 @@ describe("swagger", () => {
     expect(response.paths["/swagger"]).toBeDefined();
     expect(response.paths["/swagger"]!.get).toBeDefined();
     expect(response.paths["/swagger"]!.get!.summary).toBe(
-      "Return API documentation in the OpenAPI specification"
+      "Return API documentation in the OpenAPI specification",
     );
     expect(response.paths["/swagger"]!.get!.responses["200"]).toBeDefined();
   });

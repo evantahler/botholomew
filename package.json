@@ -12,8 +12,7 @@
     "start": "bun botholomew.ts start",
     "dev": "bun --watch botholomew.ts start",
     "migrations": "bun run migrations.ts",
-    "compile": "bun buildExecutable && bun types",
-    "buildExecutable": "bun build botholomew.ts --compile --outfile botholomew",
+    "compile": "bun build botholomew.ts --compile --outfile botholomew",
     "lint": "prettier --check .",
     "format": "prettier --write ."
   },

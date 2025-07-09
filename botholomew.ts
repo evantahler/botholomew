@@ -29,7 +29,7 @@ program
     const routeSpacing =
       actions
         .map((a) =>
-          a.web ? a.web.route.toString().length + a.web.method.length : 0
+          a.web ? a.web.route.toString().length + a.web.method.length : 0,
         )
         .reduce((a, b) => Math.max(a, b), 0) + 2;
 
@@ -37,7 +37,7 @@ program
       .sort((a, b) => a.name.localeCompare(b.name))
       .forEach((action) => {
         console.log(
-          `${action.name}${" ".repeat(actionSpacing - action.name.length)} ${action.web ? `[${action.web.method}] ${action.web.route}` : " "}${" ".repeat(routeSpacing - (action.web ? action.web.method.length + action.web.route.toString().length + 2 : 0))} ${action.description ?? ""}`
+          `${action.name}${" ".repeat(actionSpacing - action.name.length)} ${action.web ? `[${action.web.method}] ${action.web.route}` : " "}${" ".repeat(routeSpacing - (action.web ? action.web.method.length + action.web.route.toString().length + 2 : 0))} ${action.description ?? ""}`,
         );
       });
   });
