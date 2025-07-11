@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { api, type Action, type ActionParams, Connection } from "../api";
-import { users } from "../schema/users";
+import { users } from "../models/users";
 import { serializeUser, checkPassword } from "../ops/UserOps";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { HTTP_METHOD } from "../classes/Action";

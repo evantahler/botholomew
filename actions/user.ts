@@ -3,7 +3,7 @@ import { z } from "zod";
 import { api, Action, type ActionParams, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
 import { hashPassword, serializeUser } from "../ops/UserOps";
-import { users } from "../schema/users";
+import { users } from "../models/users";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { SessionMiddleware } from "../middleware/session";
 

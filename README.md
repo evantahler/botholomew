@@ -6,6 +6,20 @@ Botholomew is an Agent Framework for general purpose agents. It is based on [Act
 
 Ensure you have [Bun](https://bun.sh), [Redis](https://redis.io/), and [Postgres](https://www.postgresql.org/) installed.
 
+Create Databases
+
+```bash
+createdb botholomew
+createdb botholomew-test
+```
+
+Setup Env
+
+```bash
+cp .env.example .env
+# And update the values, especially the database connection strings
+```
+
 ```bash
 bun install
 bun start

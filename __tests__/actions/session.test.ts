@@ -1,7 +1,7 @@
 import { test, describe, expect, beforeAll, afterAll } from "bun:test";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
-import { users } from "../../schema/users";
+import { users } from "../../models/users";
 import { hashPassword } from "../../ops/UserOps";
 import type { SessionCreate } from "../../actions/session";
 

@@ -1,0 +1,8 @@
+---
+description: When writing tests
+alwaysApply: false
+---
+
+We use Bun's built in test framework.
+We run tets with `bun test`. We do not use jest or a similar framework
+We prefer not to write mocks for database or model operations. Instead, we really write to the database and reset it after each test (that's what `await api.db.clearDatabase()` does).
