@@ -6,6 +6,7 @@ import { messages } from "../models/message";
 import { agents } from "../models/agent";
 import { SessionMiddleware } from "../middleware/session";
 import { eq, and } from "drizzle-orm";
+import { ErrorType, TypedError } from "../classes/TypedError";
 
 export class MessageCreate implements Action {
   name = "message:create";
@@ -29,13 +30,16 @@ export class MessageCreate implements Action {
       .where(
         and(
           eq(agents.id, params.agentId),
-          eq(agents.userId, connection.session?.data.userId),
-        ),
+          eq(agents.userId, connection.session?.data.userId)
+        )
       )
       .limit(1);
 
     if (!agent) {
-      throw new Error("Agent not found or not owned by user");
+      throw new TypedError({
+        message: "Agent not found or not owned by user",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
     }
 
     const [message] = await api.db.db
@@ -75,13 +79,16 @@ export class MessageEdit implements Action {
       .where(
         and(
           eq(messages.id, params.id),
-          eq(agents.userId, connection.session?.data.userId),
-        ),
+          eq(agents.userId, connection.session?.data.userId)
+        )
       )
       .limit(1);
 
     if (!existingMessage) {
-      throw new Error("Message not found or not owned by user");
+      throw new TypedError({
+        message: "Message not found or not owned by user",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
     }
 
     const [message] = await api.db.db
@@ -112,8 +119,8 @@ export class MessageDelete implements Action {
       .where(
         and(
           eq(messages.id, params.id),
-          eq(agents.userId, connection.session?.data.userId),
-        ),
+          eq(agents.userId, connection.session?.data.userId)
+        )
       )
       .limit(1);
 
@@ -154,13 +161,16 @@ export class MessageView implements Action {
       .where(
         and(
           eq(messages.id, params.id),
-          eq(agents.userId, connection.session?.data.userId),
-        ),
+          eq(agents.userId, connection.session?.data.userId)
+        )
       )
       .limit(1);
 
     if (!message) {
-      throw new Error("Message not found or not owned by user");
+      throw new TypedError({
+        message: "Message not found or not owned by user",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
     }
 
     return { message: serializeMessage(message) };
@@ -190,7 +200,10 @@ export class MessageList implements Action {
       .limit(1);
 
     if (!agent) {
-      throw new Error("Agent not found or not owned by user");
+      throw new TypedError({
+        message: "Agent not found or not owned by user",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
     }
 
     const rows = await api.db.db

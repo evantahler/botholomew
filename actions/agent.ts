@@ -5,6 +5,7 @@ import { serializeAgent } from "../ops/AgentOps";
 import { agents } from "../models/agent";
 import { SessionMiddleware } from "../middleware/session";
 import { eq, and } from "drizzle-orm";
+import { ErrorType, TypedError } from "../classes/TypedError";
 
 export class AgentCreate implements Action {
   name = "agent:create";
@@ -95,13 +96,16 @@ export class AgentEdit implements Action {
       .where(
         and(
           eq(agents.id, params.id),
-          eq(agents.userId, connection.session?.data.userId),
-        ),
+          eq(agents.userId, connection.session?.data.userId)
+        )
       )
       .returning();
 
     if (!agent) {
-      throw new Error("Agent not found or not owned by user");
+      throw new TypedError({
+        message: "Agent not found or not owned by user",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
     }
 
     return { agent: serializeAgent(agent) };
@@ -123,8 +127,8 @@ export class AgentDelete implements Action {
       .where(
         and(
           eq(agents.id, params.id),
-          eq(agents.userId, connection.session?.data.userId),
-        ),
+          eq(agents.userId, connection.session?.data.userId)
+        )
       );
 
     return { success: result.rowCount > 0 };
@@ -147,13 +151,16 @@ export class AgentView implements Action {
       .where(
         and(
           eq(agents.id, params.id),
-          eq(agents.userId, connection.session?.data.userId),
-        ),
+          eq(agents.userId, connection.session?.data.userId)
+        )
       )
       .limit(1);
 
     if (!agent) {
-      throw new Error("Agent not found or not owned by user");
+      throw new TypedError({
+        message: "Agent not found or not owned by user",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
     }
 
     return { agent: serializeAgent(agent) };

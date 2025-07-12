@@ -3,3 +3,5 @@ alwaysApply: false
 ---
 
 Always run `bun lint` after writing tests to format the code.
+
+Whenever possible, use the `TypedError` class to throw errors.
