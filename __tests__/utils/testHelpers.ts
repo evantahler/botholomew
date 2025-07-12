@@ -4,7 +4,10 @@ import { users } from "../../models/user";
 import { hashPassword } from "../../ops/UserOps";
 import type { SessionCreate } from "../../actions/session";
 import { setMaxListeners } from "node:events";
+import type { AgentCreate } from "../../actions/agent";
+import type { MessageCreate } from "../../actions/message";
 
+// TODO: Github Actions needs this, but not locally.  Why?
 setMaxListeners(999);
 
 const url = config.server.web.applicationUrl;
@@ -20,22 +23,6 @@ export interface TestSession {
   session: ActionResponse<SessionCreate>["session"];
 }
 
-export interface TestAgent {
-  id: number;
-  name: string;
-  description: string;
-  model: string;
-  systemPrompt: string;
-  enabled: boolean;
-}
-
-export interface TestMessage {
-  id: number;
-  agentId: number;
-  role: "user" | "assistant" | "system";
-  content: string;
-}
-
 /**
  * Initialize the test environment with a clean database
  */
@@ -49,6 +36,7 @@ export async function initializeTestEnvironment() {
  */
 export async function cleanupTestEnvironment() {
   await api.stop();
+  await Bun.sleep(500);
 }
 
 /**
@@ -116,7 +104,7 @@ export async function createAgent(
     systemPrompt: string;
     enabled: boolean;
   },
-): Promise<TestAgent> {
+): Promise<ActionResponse<AgentCreate>> {
   const agentResponse = await fetch(`${url}/api/agent`, {
     method: "PUT",
     headers: {
@@ -139,7 +127,7 @@ export async function createMessage(
     role: "user" | "assistant" | "system";
     content: string;
   },
-): Promise<TestMessage> {
+): Promise<ActionResponse<MessageCreate>> {
   const messageResponse = await fetch(`${url}/api/message`, {
     method: "PUT",
     headers: {
