@@ -101,7 +101,7 @@ describe("CLI", () => {
 
       expect(exitCode).toBe(1);
       expect(stderr.toString()).toContain(
-        "required option '--password <value>' not specified"
+        "required option '--password <value>' not specified",
       );
       expect(stdout).toBeEmpty();
     });

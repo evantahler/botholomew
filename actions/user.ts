@@ -22,7 +22,7 @@ export class UserCreate implements Action {
       .min(3, "This field is required and must be at least 3 characters long")
       .refine(
         (val) => val.includes("@") && val.includes("."),
-        "This is not a valid email"
+        "This is not a valid email",
       )
       .transform((val) => val.toLowerCase())
       .describe("The user's email"),

@@ -95,8 +95,8 @@ export class AgentEdit implements Action {
       .where(
         and(
           eq(agents.id, params.id),
-          eq(agents.userId, connection.session?.data.userId)
-        )
+          eq(agents.userId, connection.session?.data.userId),
+        ),
       )
       .returning();
 
@@ -123,8 +123,8 @@ export class AgentDelete implements Action {
       .where(
         and(
           eq(agents.id, params.id),
-          eq(agents.userId, connection.session?.data.userId)
-        )
+          eq(agents.userId, connection.session?.data.userId),
+        ),
       );
 
     return { success: result.rowCount > 0 };
@@ -147,8 +147,8 @@ export class AgentView implements Action {
       .where(
         and(
           eq(agents.id, params.id),
-          eq(agents.userId, connection.session?.data.userId)
-        )
+          eq(agents.userId, connection.session?.data.userId),
+        ),
       )
       .limit(1);
 

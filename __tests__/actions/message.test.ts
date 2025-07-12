@@ -111,7 +111,7 @@ describe("message:create", () => {
     expect(messageResponse.status).toBe(200);
     expect(messageData.message.role).toBe("assistant");
     expect(messageData.message.content).toBe(
-      "I'm doing well, thank you for asking!"
+      "I'm doing well, thank you for asking!",
     );
   });
 
@@ -625,7 +625,7 @@ describe("message:view", () => {
           "Content-Type": "application/json",
           Cookie: `${viewSession.cookieName}=${viewSession.id}`,
         },
-      }
+      },
     );
     const viewData = await viewResponse.json();
     expect(viewResponse.status).toBe(200);
@@ -820,7 +820,7 @@ describe("message:list", () => {
           "Content-Type": "application/json",
           Cookie: `${listSession.cookieName}=${listSession.id}`,
         },
-      }
+      },
     );
     const data = await res.json();
     expect(res.status).toBe(200);
@@ -895,7 +895,7 @@ describe("message:list", () => {
           "Content-Type": "application/json",
           Cookie: `${listSession.cookieName}=${listSession.id}`,
         },
-      }
+      },
     );
     expect(res.status).toBe(500);
   });

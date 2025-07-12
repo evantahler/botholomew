@@ -29,8 +29,8 @@ export class MessageCreate implements Action {
       .where(
         and(
           eq(agents.id, params.agentId),
-          eq(agents.userId, connection.session?.data.userId)
-        )
+          eq(agents.userId, connection.session?.data.userId),
+        ),
       )
       .limit(1);
 
@@ -75,8 +75,8 @@ export class MessageEdit implements Action {
       .where(
         and(
           eq(messages.id, params.id),
-          eq(agents.userId, connection.session?.data.userId)
-        )
+          eq(agents.userId, connection.session?.data.userId),
+        ),
       )
       .limit(1);
 
@@ -112,8 +112,8 @@ export class MessageDelete implements Action {
       .where(
         and(
           eq(messages.id, params.id),
-          eq(agents.userId, connection.session?.data.userId)
-        )
+          eq(agents.userId, connection.session?.data.userId),
+        ),
       )
       .limit(1);
 
@@ -154,8 +154,8 @@ export class MessageView implements Action {
       .where(
         and(
           eq(messages.id, params.id),
-          eq(agents.userId, connection.session?.data.userId)
-        )
+          eq(agents.userId, connection.session?.data.userId),
+        ),
       )
       .limit(1);
 

@@ -1,0 +1,5 @@
+---
+alwaysApply: false
+---
+
+Always run `bun lint` after writing tests to format the code.
