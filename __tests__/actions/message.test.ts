@@ -11,8 +11,8 @@ import {
   createMessage,
   USERS,
   TEST_AGENTS,
-  type TestMessage,
 } from "../utils/testHelpers";
+import { MessageCreate } from "../../actions/message";
 
 const url = config.server.web.applicationUrl;
 
@@ -218,7 +218,7 @@ describe("message:create", () => {
 });
 
 describe("message:edit", () => {
-  let createdMessage: TestMessage;
+  let createdMessage: ActionResponse<MessageCreate>["message"];
   let editUser: ActionResponse<SessionCreate>["user"];
   let editSession: ActionResponse<SessionCreate>["session"];
   let editAgentId: number;
@@ -349,7 +349,7 @@ describe("message:edit", () => {
 });
 
 describe("message:delete", () => {
-  let createdMessage: TestMessage;
+  let createdMessage: ActionResponse<MessageCreate>["message"];
   let deleteUser: ActionResponse<SessionCreate>["user"];
   let deleteSession: ActionResponse<SessionCreate>["session"];
 
@@ -441,7 +441,7 @@ describe("message:delete", () => {
 });
 
 describe("message:view", () => {
-  let createdMessage: TestMessage;
+  let createdMessage: ActionResponse<MessageCreate>["message"];
   let viewUser: ActionResponse<SessionCreate>["user"];
   let viewSession: ActionResponse<SessionCreate>["session"];
 

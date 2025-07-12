@@ -36,7 +36,6 @@ export async function initializeTestEnvironment() {
  */
 export async function cleanupTestEnvironment() {
   await api.stop();
-  await Bun.sleep(500);
 }
 
 /**
@@ -104,7 +103,7 @@ export async function createAgent(
     systemPrompt: string;
     enabled: boolean;
   },
-): Promise<ActionResponse<AgentCreate>> {
+): Promise<ActionResponse<AgentCreate>["agent"]> {
   const agentResponse = await fetch(`${url}/api/agent`, {
     method: "PUT",
     headers: {
@@ -127,7 +126,7 @@ export async function createMessage(
     role: "user" | "assistant" | "system";
     content: string;
   },
-): Promise<ActionResponse<MessageCreate>> {
+): Promise<ActionResponse<MessageCreate>["message"]> {
   const messageResponse = await fetch(`${url}/api/message`, {
     method: "PUT",
     headers: {

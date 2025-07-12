@@ -1,5 +1,5 @@
 import { test, describe, expect, beforeAll, afterAll } from "bun:test";
-import { api, type ActionResponse } from "../../api";
+import { type ActionResponse } from "../../api";
 import { config } from "../../config";
 import type { SessionCreate } from "../../actions/session";
 import {
@@ -10,8 +10,8 @@ import {
   createAgent,
   USERS,
   TEST_AGENTS,
-  type TestAgent,
 } from "../utils/testHelpers";
+import { AgentCreate } from "../../actions/agent";
 
 const url = config.server.web.applicationUrl;
 
@@ -97,7 +97,7 @@ describe("agent:create", () => {
 });
 
 describe("agent:edit", () => {
-  let createdAgent: TestAgent;
+  let createdAgent: ActionResponse<AgentCreate>["agent"];
   let editUser: ActionResponse<SessionCreate>["user"];
   let editSession: ActionResponse<SessionCreate>["session"];
 
@@ -201,7 +201,7 @@ describe("agent:edit", () => {
 });
 
 describe("agent:delete", () => {
-  let createdAgent: TestAgent;
+  let createdAgent: ActionResponse<AgentCreate>["agent"];
   let deleteUser: ActionResponse<SessionCreate>["user"];
   let deleteSession: ActionResponse<SessionCreate>["session"];
 
@@ -283,7 +283,7 @@ describe("agent:delete", () => {
 });
 
 describe("agent:view", () => {
-  let createdAgent: TestAgent;
+  let createdAgent: ActionResponse<AgentCreate>["agent"];
   let viewUser: ActionResponse<SessionCreate>["user"];
   let viewSession: ActionResponse<SessionCreate>["session"];
 
