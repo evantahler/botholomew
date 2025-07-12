@@ -3,6 +3,9 @@ import { config } from "../../config";
 import { users } from "../../models/user";
 import { hashPassword } from "../../ops/UserOps";
 import type { SessionCreate } from "../../actions/session";
+import { setMaxListeners } from "node:events";
+
+setMaxListeners(999);
 
 const url = config.server.web.applicationUrl;
 
@@ -95,7 +98,7 @@ export async function createSession(userData: TestUser): Promise<TestSession> {
  * Create a user and session in one step
  */
 export async function createUserAndSession(
-  userData: TestUser,
+  userData: TestUser
 ): Promise<TestSession> {
   await createUserViaAPI(userData);
   return createSession(userData);
@@ -112,7 +115,7 @@ export async function createAgent(
     model: string;
     systemPrompt: string;
     enabled: boolean;
-  },
+  }
 ): Promise<TestAgent> {
   const agentResponse = await fetch(`${url}/api/agent`, {
     method: "PUT",
@@ -135,7 +138,7 @@ export async function createMessage(
     agentId: number;
     role: "user" | "assistant" | "system";
     content: string;
-  },
+  }
 ): Promise<TestMessage> {
   const messageResponse = await fetch(`${url}/api/message`, {
     method: "PUT",
