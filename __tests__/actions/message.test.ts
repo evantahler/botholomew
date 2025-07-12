@@ -1,24 +1,28 @@
 import { test, describe, expect, beforeAll, afterAll } from "bun:test";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
-import { users } from "../../models/user";
-import { hashPassword } from "../../ops/UserOps";
 import type { SessionCreate } from "../../actions/session";
+import {
+  initializeTestEnvironment,
+  cleanupTestEnvironment,
+  createTestUser,
+  createUserAndSession,
+  createAgent,
+  createMessage,
+  LUIGIS,
+  TEST_AGENTS,
+  type TestMessage,
+} from "../utils/testHelpers";
 
 const url = config.server.web.applicationUrl;
 
 beforeAll(async () => {
-  await api.start();
-  await api.db.clearDatabase();
-  await api.db.db.insert(users).values({
-    name: "Test User",
-    email: "test@example.com",
-    password_hash: await hashPassword("password123"),
-  });
+  await initializeTestEnvironment();
+  await createTestUser(LUIGIS.LUIGI);
 });
 
 afterAll(async () => {
-  await api.stop();
+  await cleanupTestEnvironment();
 });
 
 describe("message:create", () => {
@@ -27,46 +31,13 @@ describe("message:create", () => {
   let agentId: number;
 
   beforeAll(async () => {
-    await fetch(url + "/api/user", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: "Mario Mario",
-        email: "mario@example.com",
-        password: "mushroom1",
-      }),
-    });
-
-    const sessionRes = await fetch(url + "/api/session", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "mario@example.com",
-        password: "mushroom1",
-      }),
-    });
-    const sessionResponse =
-      (await sessionRes.json()) as ActionResponse<SessionCreate>;
-    user = sessionResponse.user;
-    session = sessionResponse.session;
+    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    user = testSession.user;
+    session = testSession.session;
 
     // Create an agent for testing messages
-    const agentResponse = await fetch(`${url}/api/agent`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${session.cookieName}=${session.id}`,
-      },
-      body: JSON.stringify({
-        name: "Test Agent",
-        description: "A test agent for messages",
-        model: "gpt-4",
-        systemPrompt: "You are a helpful assistant.",
-        enabled: true,
-      }),
-    });
-    const agentData = await agentResponse.json();
-    agentId = agentData.agent.id;
+    const agent = await createAgent({ user, session }, TEST_AGENTS.BASIC);
+    agentId = agent.id;
   });
 
   test("should create a message successfully", async () => {
@@ -111,7 +82,7 @@ describe("message:create", () => {
     expect(messageResponse.status).toBe(200);
     expect(messageData.message.role).toBe("assistant");
     expect(messageData.message.content).toBe(
-      "I'm doing well, thank you for asking!",
+      "I'm doing well, thank you for asking!"
     );
   });
 
@@ -220,41 +191,13 @@ describe("message:create", () => {
 
   test("should not allow creating message for another user's agent", async () => {
     // Create another user and agent
-    await fetch(`${url}/api/user`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: "Other User",
-        email: "other@example.com",
-        password: "password123",
-      }),
-    });
-
-    const otherSessionRes = await fetch(`${url}/api/session`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "other@example.com",
-        password: "password123",
-      }),
-    });
-    const otherSessionData = await otherSessionRes.json();
-
-    const otherAgentResponse = await fetch(`${url}/api/agent`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${otherSessionData.session.cookieName}=${otherSessionData.session.id}`,
-      },
-      body: JSON.stringify({
-        name: "Other Agent",
-        description: "Another user's agent",
-        model: "gpt-4",
-        systemPrompt: "You are a helpful assistant.",
-        enabled: true,
-      }),
-    });
-    const otherAgentData = await otherAgentResponse.json();
+    const otherUserData = {
+      name: "Other User",
+      email: "other@example.com",
+      password: "password123",
+    };
+    const otherTestSession = await createUserAndSession(otherUserData);
+    const otherAgent = await createAgent(otherTestSession, TEST_AGENTS.BASIC);
 
     // Try to create message for other user's agent
     const response = await fetch(`${url}/api/message`, {
@@ -264,7 +207,7 @@ describe("message:create", () => {
         Cookie: `${session.cookieName}=${session.id}`,
       },
       body: JSON.stringify({
-        agentId: otherAgentData.agent.id,
+        agentId: otherAgent.id,
         role: "user",
         content: "Hello",
       }),
@@ -275,59 +218,39 @@ describe("message:create", () => {
 });
 
 describe("message:edit", () => {
-  let createdMessage: any;
+  let createdMessage: TestMessage;
   let editUser: ActionResponse<SessionCreate>["user"];
   let editSession: ActionResponse<SessionCreate>["session"];
   let editAgentId: number;
 
   beforeAll(async () => {
     // Get the user and session for editing
-    const sessionRes = await fetch(url + "/api/session", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "mario@example.com",
-        password: "mushroom1",
-      }),
-    });
-    const sessionResponse =
-      (await sessionRes.json()) as ActionResponse<SessionCreate>;
-    editUser = sessionResponse.user;
-    editSession = sessionResponse.session;
+    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    editUser = testSession.user;
+    editSession = testSession.session;
 
     // Create an agent for editing messages
-    const agentResponse = await fetch(`${url}/api/agent`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${editSession.cookieName}=${editSession.id}`,
-      },
-      body: JSON.stringify({
+    const agent = await createAgent(
+      { user: editUser, session: editSession },
+      {
         name: "Edit Agent",
         description: "Agent for editing messages",
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      }),
-    });
-    const agentData = await agentResponse.json();
-    editAgentId = agentData.agent.id;
+      }
+    );
+    editAgentId = agent.id;
 
     // Create a message to edit
-    const messageResponse = await fetch(`${url}/api/message`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${editSession.cookieName}=${editSession.id}`,
-      },
-      body: JSON.stringify({
+    createdMessage = await createMessage(
+      { user: editUser, session: editSession },
+      {
         agentId: editAgentId,
         role: "user",
         content: "Original content",
-      }),
-    });
-    const messageData = await messageResponse.json();
-    createdMessage = messageData.message;
+      }
+    );
   });
 
   test("should edit a message successfully", async () => {
@@ -401,32 +324,19 @@ describe("message:edit", () => {
 
   test("should not allow editing another user's message", async () => {
     // Create another user and agent
-    await fetch(`${url}/api/user`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: "Edit Other User",
-        email: "editother@example.com",
-        password: "password123",
-      }),
-    });
-
-    const otherSessionRes = await fetch(`${url}/api/session`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "editother@example.com",
-        password: "password123",
-      }),
-    });
-    const otherSessionData = await otherSessionRes.json();
+    const otherUserData = {
+      name: "Edit Other User",
+      email: "editother@example.com",
+      password: "password123",
+    };
+    const otherTestSession = await createUserAndSession(otherUserData);
 
     // Try to edit the first user's message with the second user's session
     const response = await fetch(`${url}/api/message`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Cookie: `${otherSessionData.session.cookieName}=${otherSessionData.session.id}`,
+        Cookie: `${otherTestSession.session.cookieName}=${otherTestSession.session.id}`,
       },
       body: JSON.stringify({
         id: createdMessage.id,
@@ -439,57 +349,37 @@ describe("message:edit", () => {
 });
 
 describe("message:delete", () => {
-  let createdMessage: any;
+  let createdMessage: TestMessage;
   let deleteUser: ActionResponse<SessionCreate>["user"];
   let deleteSession: ActionResponse<SessionCreate>["session"];
 
   beforeAll(async () => {
     // Get the user and session for deleting
-    const sessionRes = await fetch(url + "/api/session", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "mario@example.com",
-        password: "mushroom1",
-      }),
-    });
-    const sessionResponse =
-      (await sessionRes.json()) as ActionResponse<SessionCreate>;
-    deleteUser = sessionResponse.user;
-    deleteSession = sessionResponse.session;
+    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    deleteUser = testSession.user;
+    deleteSession = testSession.session;
 
     // Create an agent for deleting messages
-    const agentResponse = await fetch(`${url}/api/agent`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${deleteSession.cookieName}=${deleteSession.id}`,
-      },
-      body: JSON.stringify({
+    const agent = await createAgent(
+      { user: deleteUser, session: deleteSession },
+      {
         name: "Delete Agent",
         description: "Agent for deleting messages",
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      }),
-    });
-    const agentData = await agentResponse.json();
+      }
+    );
 
     // Create a message to delete
-    const messageResponse = await fetch(`${url}/api/message`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${deleteSession.cookieName}=${deleteSession.id}`,
-      },
-      body: JSON.stringify({
-        agentId: agentData.agent.id,
+    createdMessage = await createMessage(
+      { user: deleteUser, session: deleteSession },
+      {
+        agentId: agent.id,
         role: "user",
         content: "Message to delete",
-      }),
-    });
-    const messageData = await messageResponse.json();
-    createdMessage = messageData.message;
+      }
+    );
   });
 
   test("should delete a message successfully", async () => {
@@ -528,31 +418,19 @@ describe("message:delete", () => {
 
   test("should not allow deleting another user's message", async () => {
     // Create another user and session
-    await fetch(`${url}/api/user`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: "Delete Other User",
-        email: "deleteother@example.com",
-        password: "password123",
-      }),
-    });
-    const otherSessionRes = await fetch(`${url}/api/session`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "deleteother@example.com",
-        password: "password123",
-      }),
-    });
-    const otherSessionData = await otherSessionRes.json();
+    const otherUserData = {
+      name: "Delete Other User",
+      email: "deleteother@example.com",
+      password: "password123",
+    };
+    const otherTestSession = await createUserAndSession(otherUserData);
 
     // Try to delete the first user's message with the second user's session
     const response = await fetch(`${url}/api/message`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
-        Cookie: `${otherSessionData.session.cookieName}=${otherSessionData.session.id}`,
+        Cookie: `${otherTestSession.session.cookieName}=${otherTestSession.session.id}`,
       },
       body: JSON.stringify({ id: createdMessage.id }),
     });
@@ -563,57 +441,37 @@ describe("message:delete", () => {
 });
 
 describe("message:view", () => {
-  let createdMessage: any;
+  let createdMessage: TestMessage;
   let viewUser: ActionResponse<SessionCreate>["user"];
   let viewSession: ActionResponse<SessionCreate>["session"];
 
   beforeAll(async () => {
     // Get the user and session for viewing
-    const sessionRes = await fetch(url + "/api/session", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "mario@example.com",
-        password: "mushroom1",
-      }),
-    });
-    const sessionResponse =
-      (await sessionRes.json()) as ActionResponse<SessionCreate>;
-    viewUser = sessionResponse.user;
-    viewSession = sessionResponse.session;
+    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    viewUser = testSession.user;
+    viewSession = testSession.session;
 
     // Create an agent for viewing messages
-    const agentResponse = await fetch(`${url}/api/agent`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${viewSession.cookieName}=${viewSession.id}`,
-      },
-      body: JSON.stringify({
+    const agent = await createAgent(
+      { user: viewUser, session: viewSession },
+      {
         name: "View Agent",
         description: "Agent for viewing messages",
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      }),
-    });
-    const agentData = await agentResponse.json();
+      }
+    );
 
     // Create a message to view
-    const messageResponse = await fetch(`${url}/api/message`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${viewSession.cookieName}=${viewSession.id}`,
-      },
-      body: JSON.stringify({
-        agentId: agentData.agent.id,
+    createdMessage = await createMessage(
+      { user: viewUser, session: viewSession },
+      {
+        agentId: agent.id,
         role: "user",
         content: "Message to view",
-      }),
-    });
-    const messageData = await messageResponse.json();
-    createdMessage = messageData.message;
+      }
+    );
   });
 
   test("should view a message successfully", async () => {
@@ -625,7 +483,7 @@ describe("message:view", () => {
           "Content-Type": "application/json",
           Cookie: `${viewSession.cookieName}=${viewSession.id}`,
         },
-      },
+      }
     );
     const viewData = await viewResponse.json();
     expect(viewResponse.status).toBe(200);
@@ -647,31 +505,19 @@ describe("message:view", () => {
 
   test("should not allow viewing another user's message", async () => {
     // Create another user and session
-    await fetch(`${url}/api/user`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: "View Other User",
-        email: "viewother@example.com",
-        password: "password123",
-      }),
-    });
-    const otherSessionRes = await fetch(`${url}/api/session`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "viewother@example.com",
-        password: "password123",
-      }),
-    });
-    const otherSessionData = await otherSessionRes.json();
+    const otherUserData = {
+      name: "View Other User",
+      email: "viewother@example.com",
+      password: "password123",
+    };
+    const otherTestSession = await createUserAndSession(otherUserData);
 
     // Try to view the first user's message with the second user's session
     const response = await fetch(`${url}/api/message?id=${createdMessage.id}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        Cookie: `${otherSessionData.session.cookieName}=${otherSessionData.session.id}`,
+        Cookie: `${otherTestSession.session.cookieName}=${otherTestSession.session.id}`,
       },
     });
     expect(response.status).toBe(500);
@@ -697,100 +543,54 @@ describe("message:list", () => {
 
   beforeAll(async () => {
     // Get the user and session for listing
-    const sessionRes = await fetch(url + "/api/session", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "mario@example.com",
-        password: "mushroom1",
-      }),
-    });
-    const sessionResponse =
-      (await sessionRes.json()) as ActionResponse<SessionCreate>;
-    listUser = sessionResponse.user;
-    listSession = sessionResponse.session;
+    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    listUser = testSession.user;
+    listSession = testSession.session;
 
     // Create an agent for listing messages
-    const agentResponse = await fetch(`${url}/api/agent`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${listSession.cookieName}=${listSession.id}`,
-      },
-      body: JSON.stringify({
+    const agent = await createAgent(
+      { user: listUser, session: listSession },
+      {
         name: "List Agent",
         description: "Agent for listing messages",
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      }),
-    });
-    const agentData = await agentResponse.json();
-    listAgentId = agentData.agent.id;
+      }
+    );
+    listAgentId = agent.id;
 
     // Create 5 messages for this agent
     for (let i = 0; i < 5; i++) {
-      const messageResponse = await fetch(`${url}/api/message`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: `${listSession.cookieName}=${listSession.id}`,
-        },
-        body: JSON.stringify({
+      const message = await createMessage(
+        { user: listUser, session: listSession },
+        {
           agentId: listAgentId,
           role: i % 2 === 0 ? "user" : "assistant",
           content: `Message ${i}`,
-        }),
-      });
-      const messageData = await messageResponse.json();
-      messageIds.push(messageData.message.id);
+        }
+      );
+      messageIds.push(message.id);
     }
 
     // Create another agent and messages for another user
-    await fetch(`${url}/api/user`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: "List Other User",
-        email: "listother@example.com",
-        password: "password123",
-      }),
+    const otherUserData = {
+      name: "List Other User",
+      email: "listother@example.com",
+      password: "password123",
+    };
+    const otherTestSession = await createUserAndSession(otherUserData);
+    const otherAgent = await createAgent(otherTestSession, {
+      name: "Other User Agent",
+      description: "Another user's agent",
+      model: "gpt-4",
+      systemPrompt: "You are a helpful assistant.",
+      enabled: true,
     });
-    const otherSessionRes = await fetch(`${url}/api/session`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "listother@example.com",
-        password: "password123",
-      }),
-    });
-    const otherSessionData = await otherSessionRes.json();
-    const otherAgentResponse = await fetch(`${url}/api/agent`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${otherSessionData.session.cookieName}=${otherSessionData.session.id}`,
-      },
-      body: JSON.stringify({
-        name: "Other User Agent",
-        description: "Another user's agent",
-        model: "gpt-4",
-        systemPrompt: "You are a helpful assistant.",
-        enabled: true,
-      }),
-    });
-    const otherAgentData = await otherAgentResponse.json();
-    await fetch(`${url}/api/message`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${otherSessionData.session.cookieName}=${otherSessionData.session.id}`,
-      },
-      body: JSON.stringify({
-        agentId: otherAgentData.agent.id,
-        role: "user",
-        content: "Other user message",
-      }),
+    await createMessage(otherTestSession, {
+      agentId: otherAgent.id,
+      role: "user",
+      content: "Other user message",
     });
   });
 
@@ -820,7 +620,7 @@ describe("message:list", () => {
           "Content-Type": "application/json",
           Cookie: `${listSession.cookieName}=${listSession.id}`,
         },
-      },
+      }
     );
     const data = await res.json();
     expect(res.status).toBe(200);
@@ -852,51 +652,28 @@ describe("message:list", () => {
 
   test("should not allow listing messages for another user's agent", async () => {
     // Create another user and agent
-    await fetch(`${url}/api/user`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: "List Other User 2",
-        email: "listother2@example.com",
-        password: "password123",
-      }),
+    const otherUserData = {
+      name: "List Other User 2",
+      email: "listother2@example.com",
+      password: "password123",
+    };
+    const otherTestSession = await createUserAndSession(otherUserData);
+    const otherAgent = await createAgent(otherTestSession, {
+      name: "Other User Agent 2",
+      description: "Another user's agent",
+      model: "gpt-4",
+      systemPrompt: "You are a helpful assistant.",
+      enabled: true,
     });
-    const otherSessionRes = await fetch(`${url}/api/session`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "listother2@example.com",
-        password: "password123",
-      }),
-    });
-    const otherSessionData = await otherSessionRes.json();
-    const otherAgentResponse = await fetch(`${url}/api/agent`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${otherSessionData.session.cookieName}=${otherSessionData.session.id}`,
-      },
-      body: JSON.stringify({
-        name: "Other User Agent 2",
-        description: "Another user's agent",
-        model: "gpt-4",
-        systemPrompt: "You are a helpful assistant.",
-        enabled: true,
-      }),
-    });
-    const otherAgentData = await otherAgentResponse.json();
 
     // Try to list messages for other user's agent
-    const res = await fetch(
-      `${url}/api/messages?agentId=${otherAgentData.agent.id}`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: `${listSession.cookieName}=${listSession.id}`,
-        },
+    const res = await fetch(`${url}/api/messages?agentId=${otherAgent.id}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${listSession.cookieName}=${listSession.id}`,
       },
-    );
+    });
     expect(res.status).toBe(500);
   });
 });
