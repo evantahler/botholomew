@@ -1,4 +1,4 @@
 {
   "appPort": 8080,
-  "postCreateCommand": "/bin/bash ./.devcontainer/setup.sh",
+  "postCreateCommand": "/bin/bash ./.devcontainer/setup.sh"
 }

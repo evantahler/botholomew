@@ -31,7 +31,7 @@ describe("user:create", () => {
   test("email must be unique", async () => {
     const response = await createUserViaAPI(USERS.MARIO);
     expect(response.error?.message.toLowerCase()).toMatch(
-      /user already exists/
+      /user already exists/,
     );
   });
 
@@ -48,7 +48,7 @@ describe("user:create", () => {
     const response = (await res.json()) as ActionResponse<UserCreate>;
     expect(res.status).toBe(406);
     expect(response.error?.message.toLowerCase()).toMatch(
-      /this field is required and must be at least 3 characters long/
+      /this field is required and must be at least 3 characters long/,
     );
     expect(response.error?.key).toEqual("name");
     expect(response.error?.value).toEqual("x");
@@ -75,7 +75,7 @@ describe("user:create", () => {
 
       // Find the log message that contains the action execution
       const actionLogMessage = logMessages.find(
-        (msg) => msg.includes("[ACTION:") && msg.includes("user:create")
+        (msg) => msg.includes("[ACTION:") && msg.includes("user:create"),
       );
 
       expect(actionLogMessage).toBeDefined();
@@ -123,7 +123,7 @@ describe("user:edit", () => {
     expect(response.user.name).toEqual("new name");
     expect(response.user.email).toEqual("mario@example.com");
     expect(sessionResponse.user.updatedAt).toBeLessThan(
-      response.user.updatedAt
+      response.user.updatedAt,
     );
   });
 });

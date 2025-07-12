@@ -82,7 +82,7 @@ describe("message:create", () => {
     expect(messageResponse.status).toBe(200);
     expect(messageData.message.role).toBe("assistant");
     expect(messageData.message.content).toBe(
-      "I'm doing well, thank you for asking!"
+      "I'm doing well, thank you for asking!",
     );
   });
 
@@ -238,7 +238,7 @@ describe("message:edit", () => {
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      }
+      },
     );
     editAgentId = agent.id;
 
@@ -249,7 +249,7 @@ describe("message:edit", () => {
         agentId: editAgentId,
         role: "user",
         content: "Original content",
-      }
+      },
     );
   });
 
@@ -368,7 +368,7 @@ describe("message:delete", () => {
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      }
+      },
     );
 
     // Create a message to delete
@@ -378,7 +378,7 @@ describe("message:delete", () => {
         agentId: agent.id,
         role: "user",
         content: "Message to delete",
-      }
+      },
     );
   });
 
@@ -460,7 +460,7 @@ describe("message:view", () => {
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      }
+      },
     );
 
     // Create a message to view
@@ -470,7 +470,7 @@ describe("message:view", () => {
         agentId: agent.id,
         role: "user",
         content: "Message to view",
-      }
+      },
     );
   });
 
@@ -483,7 +483,7 @@ describe("message:view", () => {
           "Content-Type": "application/json",
           Cookie: `${viewSession.cookieName}=${viewSession.id}`,
         },
-      }
+      },
     );
     const viewData = await viewResponse.json();
     expect(viewResponse.status).toBe(200);
@@ -556,7 +556,7 @@ describe("message:list", () => {
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      }
+      },
     );
     listAgentId = agent.id;
 
@@ -568,7 +568,7 @@ describe("message:list", () => {
           agentId: listAgentId,
           role: i % 2 === 0 ? "user" : "assistant",
           content: `Message ${i}`,
-        }
+        },
       );
       messageIds.push(message.id);
     }
@@ -620,7 +620,7 @@ describe("message:list", () => {
           "Content-Type": "application/json",
           Cookie: `${listSession.cookieName}=${listSession.id}`,
         },
-      }
+      },
     );
     const data = await res.json();
     expect(res.status).toBe(200);
