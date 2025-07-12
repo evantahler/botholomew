@@ -38,7 +38,7 @@ export class DB extends Initializer {
         generateMigrations: this.generateMigrations,
         clearDatabase: this.clearDatabase,
       },
-      dbContainer,
+      dbContainer
     );
   }
 
@@ -79,7 +79,7 @@ export class DB extends Initializer {
     }
 
     logger.info(
-      `database connection established (${formatConnectionStringForLogging(config.database.connectionString)})`,
+      `database connection established (${formatConnectionStringForLogging(config.database.connectionString)})`
     );
   }
 
@@ -96,7 +96,7 @@ export class DB extends Initializer {
    */
   async generateMigrations() {
     const migrationConfig = {
-      schema: path.join("schema", "*"),
+      schema: path.join("models", "*"),
       dbCredentials: {
         uri: config.database.connectionString,
       },
@@ -137,15 +137,15 @@ export class DB extends Initializer {
     }
 
     const { rows } = await api.db.db.execute(
-      sql`SELECT tablename FROM pg_tables WHERE schemaname = CURRENT_SCHEMA`,
+      sql`SELECT tablename FROM pg_tables WHERE schemaname = CURRENT_SCHEMA`
     );
 
     for (const row of rows) {
       logger.debug(`truncating table ${row.tablename}`);
       await api.db.db.execute(
         sql.raw(
-          `TRUNCATE TABLE "${row.tablename}" ${restartIdentity ? "RESTART IDENTITY" : ""} ${cascade ? "CASCADE" : ""} `,
-        ),
+          `TRUNCATE TABLE "${row.tablename}" ${restartIdentity ? "RESTART IDENTITY" : ""} ${cascade ? "CASCADE" : ""} `
+        )
       );
     }
   }

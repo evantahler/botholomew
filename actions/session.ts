@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { api, type Action, type ActionParams, Connection } from "../api";
-import { users } from "../models/users";
+import { users } from "../models/user";
 import { serializeUser, checkPassword } from "../ops/UserOps";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { HTTP_METHOD } from "../classes/Action";
@@ -20,7 +20,7 @@ export class SessionCreate implements Action {
       .min(3, "This field is required and must be at least 3 characters long")
       .refine(
         (val) => val.includes("@") && val.includes("."),
-        "This is not a valid email",
+        "This is not a valid email"
       )
       .transform((val) => val.toLowerCase())
       .describe("The user's email"),
@@ -34,7 +34,7 @@ export class SessionCreate implements Action {
   // @ts-ignore - this is a valid action and response type, but sometimes the compiler doesn't like it
   run = async (
     params: ActionParams<SessionCreate>,
-    connection: Connection<SessionImpl>,
+    connection: Connection<SessionImpl>
   ): Promise<{
     user: Awaited<ReturnType<typeof serializeUser>>;
     session: SessionData<SessionImpl>;
@@ -76,7 +76,7 @@ export class SessionDestroy implements Action {
 
   async run(
     params: ActionParams<SessionDestroy>,
-    connection: Connection<SessionImpl>,
+    connection: Connection<SessionImpl>
   ) {
     await api.session.destroy(connection);
     return { success: true };

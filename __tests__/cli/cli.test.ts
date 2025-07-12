@@ -1,5 +1,5 @@
 import { $ } from "bun";
-import { test, expect, describe, beforeAll, beforeEach } from "bun:test";
+import { test, expect, describe, beforeAll } from "bun:test";
 import pkg from "./../../package.json";
 import { api } from "../../api";
 
@@ -101,7 +101,7 @@ describe("CLI", () => {
 
       expect(exitCode).toBe(1);
       expect(stderr.toString()).toContain(
-        "required option '--password <value>' not specified",
+        "required option '--password <value>' not specified"
       );
       expect(stdout).toBeEmpty();
     });

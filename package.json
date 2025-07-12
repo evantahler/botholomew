@@ -11,7 +11,6 @@
   "scripts": {
     "start": "bun botholomew.ts start",
     "dev": "bun --watch botholomew.ts start",
-    "migrations": "bun run migrations.ts",
     "compile": "bun build botholomew.ts --compile --outfile botholomew",
     "lint": "prettier --check .",
     "format": "prettier --write ."

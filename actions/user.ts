@@ -3,7 +3,7 @@ import { z } from "zod";
 import { api, Action, type ActionParams, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
 import { hashPassword, serializeUser } from "../ops/UserOps";
-import { users } from "../models/users";
+import { users } from "../models/user";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { SessionMiddleware } from "../middleware/session";
 
@@ -22,7 +22,7 @@ export class UserCreate implements Action {
       .min(3, "This field is required and must be at least 3 characters long")
       .refine(
         (val) => val.includes("@") && val.includes("."),
-        "This is not a valid email",
+        "This is not a valid email"
       )
       .transform((val) => val.toLowerCase())
       .describe("The user's email"),

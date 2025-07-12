@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { hashPassword, checkPassword, serializeUser } from "../../ops/UserOps";
-import type { User } from "../../models/users";
+import type { User } from "../../models/user";
 
 describe("hashPassword", () => {
   test("produces different hashes for different passwords", async () => {
