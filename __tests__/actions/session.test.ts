@@ -1,17 +1,14 @@
 import { test, describe, expect, beforeAll, afterAll } from "bun:test";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
-import {
-  initializeTestEnvironment,
-  createTestUser,
-  USERS,
-} from "../utils/testHelpers";
+import { createTestUser, USERS } from "../utils/testHelpers";
 import type { SessionCreate } from "../../actions/session";
 
 const url = config.server.web.applicationUrl;
 
 beforeAll(async () => {
-  await initializeTestEnvironment();
+  await api.start();
+  await api.db.clearDatabase();
   await createTestUser(USERS.MARIO);
 });
 

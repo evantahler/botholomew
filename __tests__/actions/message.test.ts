@@ -3,7 +3,6 @@ import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
 import type { SessionCreate } from "../../actions/session";
 import {
-  initializeTestEnvironment,
   createTestUser,
   createUserAndSession,
   createAgent,
@@ -16,7 +15,8 @@ import { MessageCreate } from "../../actions/message";
 const url = config.server.web.applicationUrl;
 
 beforeAll(async () => {
-  await initializeTestEnvironment();
+  await api.start();
+  await api.db.clearDatabase();
   await createTestUser(USERS.LUIGI);
 });
 

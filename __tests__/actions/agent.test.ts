@@ -1,10 +1,8 @@
 import { test, describe, expect, beforeAll, afterAll } from "bun:test";
-import { type ActionResponse } from "../../api";
+import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
 import type { SessionCreate } from "../../actions/session";
 import {
-  initializeTestEnvironment,
-  cleanupTestEnvironment,
   createTestUser,
   createUserAndSession,
   createAgent,
@@ -16,12 +14,13 @@ import { AgentCreate } from "../../actions/agent";
 const url = config.server.web.applicationUrl;
 
 beforeAll(async () => {
-  await initializeTestEnvironment();
+  await api.start();
+  await api.db.clearDatabase();
   await createTestUser(USERS.LUIGI);
 });
 
 afterAll(async () => {
-  await cleanupTestEnvironment();
+  await api.stop();
 });
 
 describe("agent:create", () => {

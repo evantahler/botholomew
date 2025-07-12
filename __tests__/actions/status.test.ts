@@ -2,12 +2,12 @@ import { test, describe, expect, beforeAll, afterAll } from "bun:test";
 import { api, type ActionResponse } from "../../api";
 import type { Status } from "../../actions/status";
 import { config } from "../../config";
-import { initializeTestEnvironment } from "../utils/testHelpers";
 
 const url = config.server.web.applicationUrl;
 
 beforeAll(async () => {
-  await initializeTestEnvironment();
+  await api.start();
+  await api.db.clearDatabase();
 });
 
 afterAll(async () => {

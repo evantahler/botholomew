@@ -24,14 +24,6 @@ export interface TestSession {
 }
 
 /**
- * Initialize the test environment with a clean database
- */
-export async function initializeTestEnvironment() {
-  await api.start();
-  await api.db.clearDatabase();
-}
-
-/**
  * Create a test user in the database
  */
 export async function createTestUser(userData: TestUser) {

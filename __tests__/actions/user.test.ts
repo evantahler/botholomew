@@ -3,17 +3,13 @@ import { api, type ActionResponse } from "../../api";
 import type { UserCreate, UserEdit } from "../../actions/user";
 import { config } from "../../config";
 import { logger } from "../../api";
-import {
-  initializeTestEnvironment,
-  createUserViaAPI,
-  createSession,
-  USERS,
-} from "../utils/testHelpers";
+import { createUserViaAPI, createSession, USERS } from "../utils/testHelpers";
 
 const url = config.server.web.applicationUrl;
 
 beforeAll(async () => {
-  await initializeTestEnvironment();
+  await api.start();
+  await api.db.clearDatabase();
 });
 
 afterAll(async () => {
