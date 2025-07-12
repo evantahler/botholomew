@@ -98,7 +98,7 @@ export async function createSession(userData: TestUser): Promise<TestSession> {
  * Create a user and session in one step
  */
 export async function createUserAndSession(
-  userData: TestUser,
+  userData: TestUser
 ): Promise<TestSession> {
   await createUserViaAPI(userData);
   return createSession(userData);
@@ -115,7 +115,7 @@ export async function createAgent(
     model: string;
     systemPrompt: string;
     enabled: boolean;
-  },
+  }
 ): Promise<TestAgent> {
   const agentResponse = await fetch(`${url}/api/agent`, {
     method: "PUT",
@@ -138,7 +138,7 @@ export async function createMessage(
     agentId: number;
     role: "user" | "assistant" | "system";
     content: string;
-  },
+  }
 ): Promise<TestMessage> {
   const messageResponse = await fetch(`${url}/api/message`, {
     method: "PUT",
@@ -155,7 +155,7 @@ export async function createMessage(
 /**
  * Common test user data
  */
-export const LUIGIS = {
+export const USERS = {
   MARIO: {
     name: "Mario Mario",
     email: "mario@example.com",

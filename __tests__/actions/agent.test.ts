@@ -8,7 +8,7 @@ import {
   createTestUser,
   createUserAndSession,
   createAgent,
-  LUIGIS,
+  USERS,
   TEST_AGENTS,
   type TestAgent,
 } from "../utils/testHelpers";
@@ -17,7 +17,7 @@ const url = config.server.web.applicationUrl;
 
 beforeAll(async () => {
   await initializeTestEnvironment();
-  await createTestUser(LUIGIS.LUIGI);
+  await createTestUser(USERS.LUIGI);
 });
 
 afterAll(async () => {
@@ -29,7 +29,7 @@ describe("agent:create", () => {
   let session: ActionResponse<SessionCreate>["session"];
 
   beforeAll(async () => {
-    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    const testSession = await createUserAndSession(USERS.MARIO);
     user = testSession.user;
     session = testSession.session;
   });
@@ -103,14 +103,14 @@ describe("agent:edit", () => {
 
   beforeAll(async () => {
     // Get the user and session for editing
-    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    const testSession = await createUserAndSession(USERS.MARIO);
     editUser = testSession.user;
     editSession = testSession.session;
 
     // Create an agent to edit
     createdAgent = await createAgent(
       { user: editUser, session: editSession },
-      TEST_AGENTS.EDITABLE,
+      TEST_AGENTS.EDITABLE
     );
   });
 
@@ -207,7 +207,7 @@ describe("agent:delete", () => {
 
   beforeAll(async () => {
     // Get the user and session for deleting
-    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    const testSession = await createUserAndSession(USERS.MARIO);
     deleteUser = testSession.user;
     deleteSession = testSession.session;
 
@@ -220,7 +220,7 @@ describe("agent:delete", () => {
         model: "gpt-3.5-turbo",
         systemPrompt: "Delete me",
         enabled: false,
-      },
+      }
     );
   });
 
@@ -289,7 +289,7 @@ describe("agent:view", () => {
 
   beforeAll(async () => {
     // Get the user and session for viewing
-    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    const testSession = await createUserAndSession(USERS.MARIO);
     viewUser = testSession.user;
     viewSession = testSession.session;
 
@@ -302,7 +302,7 @@ describe("agent:view", () => {
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      },
+      }
     );
   });
 
@@ -375,7 +375,7 @@ describe("agent:list", () => {
 
   beforeAll(async () => {
     // Get the user and session for listing
-    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    const testSession = await createUserAndSession(USERS.MARIO);
     listUser = testSession.user;
     listSession = testSession.session;
 
@@ -389,12 +389,12 @@ describe("agent:list", () => {
           model: "gpt-3.5-turbo",
           systemPrompt: `Agent ${i} system prompt`,
           enabled: false,
-        },
+        }
       );
       agentIds.push(agent.id);
     }
     // Create an agent for another user
-    const otherSession = await createUserAndSession(LUIGIS.BOWSER);
+    const otherSession = await createUserAndSession(USERS.BOWSER);
     await createAgent(otherSession, {
       name: "Other User Agent",
       description: "Another user's agent",

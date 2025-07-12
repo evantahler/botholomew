@@ -9,7 +9,7 @@ import {
   createUserAndSession,
   createAgent,
   createMessage,
-  LUIGIS,
+  USERS,
   TEST_AGENTS,
   type TestMessage,
 } from "../utils/testHelpers";
@@ -18,7 +18,7 @@ const url = config.server.web.applicationUrl;
 
 beforeAll(async () => {
   await initializeTestEnvironment();
-  await createTestUser(LUIGIS.LUIGI);
+  await createTestUser(USERS.LUIGI);
 });
 
 afterAll(async () => {
@@ -31,7 +31,7 @@ describe("message:create", () => {
   let agentId: number;
 
   beforeAll(async () => {
-    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    const testSession = await createUserAndSession(USERS.MARIO);
     user = testSession.user;
     session = testSession.session;
 
@@ -82,7 +82,7 @@ describe("message:create", () => {
     expect(messageResponse.status).toBe(200);
     expect(messageData.message.role).toBe("assistant");
     expect(messageData.message.content).toBe(
-      "I'm doing well, thank you for asking!",
+      "I'm doing well, thank you for asking!"
     );
   });
 
@@ -225,7 +225,7 @@ describe("message:edit", () => {
 
   beforeAll(async () => {
     // Get the user and session for editing
-    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    const testSession = await createUserAndSession(USERS.MARIO);
     editUser = testSession.user;
     editSession = testSession.session;
 
@@ -238,7 +238,7 @@ describe("message:edit", () => {
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      },
+      }
     );
     editAgentId = agent.id;
 
@@ -249,7 +249,7 @@ describe("message:edit", () => {
         agentId: editAgentId,
         role: "user",
         content: "Original content",
-      },
+      }
     );
   });
 
@@ -355,7 +355,7 @@ describe("message:delete", () => {
 
   beforeAll(async () => {
     // Get the user and session for deleting
-    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    const testSession = await createUserAndSession(USERS.MARIO);
     deleteUser = testSession.user;
     deleteSession = testSession.session;
 
@@ -368,7 +368,7 @@ describe("message:delete", () => {
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      },
+      }
     );
 
     // Create a message to delete
@@ -378,7 +378,7 @@ describe("message:delete", () => {
         agentId: agent.id,
         role: "user",
         content: "Message to delete",
-      },
+      }
     );
   });
 
@@ -447,7 +447,7 @@ describe("message:view", () => {
 
   beforeAll(async () => {
     // Get the user and session for viewing
-    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    const testSession = await createUserAndSession(USERS.MARIO);
     viewUser = testSession.user;
     viewSession = testSession.session;
 
@@ -460,7 +460,7 @@ describe("message:view", () => {
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      },
+      }
     );
 
     // Create a message to view
@@ -470,7 +470,7 @@ describe("message:view", () => {
         agentId: agent.id,
         role: "user",
         content: "Message to view",
-      },
+      }
     );
   });
 
@@ -483,7 +483,7 @@ describe("message:view", () => {
           "Content-Type": "application/json",
           Cookie: `${viewSession.cookieName}=${viewSession.id}`,
         },
-      },
+      }
     );
     const viewData = await viewResponse.json();
     expect(viewResponse.status).toBe(200);
@@ -543,7 +543,7 @@ describe("message:list", () => {
 
   beforeAll(async () => {
     // Get the user and session for listing
-    const testSession = await createUserAndSession(LUIGIS.MARIO);
+    const testSession = await createUserAndSession(USERS.MARIO);
     listUser = testSession.user;
     listSession = testSession.session;
 
@@ -556,7 +556,7 @@ describe("message:list", () => {
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      },
+      }
     );
     listAgentId = agent.id;
 
@@ -568,7 +568,7 @@ describe("message:list", () => {
           agentId: listAgentId,
           role: i % 2 === 0 ? "user" : "assistant",
           content: `Message ${i}`,
-        },
+        }
       );
       messageIds.push(message.id);
     }
@@ -620,7 +620,7 @@ describe("message:list", () => {
           "Content-Type": "application/json",
           Cookie: `${listSession.cookieName}=${listSession.id}`,
         },
-      },
+      }
     );
     const data = await res.json();
     expect(res.status).toBe(200);

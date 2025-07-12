@@ -1,24 +1,23 @@
 import { test, describe, expect, beforeAll, afterAll } from "bun:test";
-import { api, type ActionResponse } from "../../api";
+import { type ActionResponse } from "../../api";
 import { config } from "../../config";
-import { users } from "../../models/user";
-import { hashPassword } from "../../ops/UserOps";
+import {
+  initializeTestEnvironment,
+  cleanupTestEnvironment,
+  createTestUser,
+  USERS,
+} from "../utils/testHelpers";
 import type { SessionCreate } from "../../actions/session";
 
 const url = config.server.web.applicationUrl;
 
 beforeAll(async () => {
-  await api.start();
-  await api.db.clearDatabase();
-  await api.db.db.insert(users).values({
-    name: "Mario Mario",
-    email: "mario@example.com",
-    password_hash: await hashPassword("mushroom1"),
-  });
+  await initializeTestEnvironment();
+  await createTestUser(USERS.MARIO);
 });
 
 afterAll(async () => {
-  await api.stop();
+  await cleanupTestEnvironment();
 });
 
 describe("session:create", () => {
