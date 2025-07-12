@@ -84,9 +84,13 @@ export class DB extends Initializer {
   }
 
   async stop() {
-    if (api.db.db) {
-      await api.db.pool.end();
-      logger.info("database connection closed");
+    if (api.db.db && api.db.pool) {
+      try {
+        await api.db.pool.end();
+        logger.info("database connection closed");
+      } catch (e) {
+        logger.error("error closing database connection", e);
+      }
     }
   }
 
