@@ -10,7 +10,7 @@ Create Databases
 
 ```bash
 createdb botholomew
-createdb botholomew-test
+createdb botholomew_test
 ```
 
 Setup Env
