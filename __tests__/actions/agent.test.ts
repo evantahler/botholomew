@@ -110,7 +110,7 @@ describe("agent:edit", () => {
     // Create an agent to edit
     createdAgent = await createAgent(
       { user: editUser, session: editSession },
-      TEST_AGENTS.EDITABLE
+      TEST_AGENTS.EDITABLE,
     );
   });
 
@@ -220,7 +220,7 @@ describe("agent:delete", () => {
         model: "gpt-3.5-turbo",
         systemPrompt: "Delete me",
         enabled: false,
-      }
+      },
     );
   });
 
@@ -302,7 +302,7 @@ describe("agent:view", () => {
         model: "gpt-4",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
-      }
+      },
     );
   });
 
@@ -389,7 +389,7 @@ describe("agent:list", () => {
           model: "gpt-3.5-turbo",
           systemPrompt: `Agent ${i} system prompt`,
           enabled: false,
-        }
+        },
       );
       agentIds.push(agent.id);
     }
