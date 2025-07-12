@@ -7,6 +7,7 @@ sudo apt-get update -y
 # configure bun
 curl -fsSL https://bun.com/install | bash
 bun install
+cp .env.example .env
 
 # configure redis
 sudo apt-get install redis-tools -y
