@@ -4,7 +4,6 @@ import { config } from "../../config";
 import type { SessionCreate } from "../../actions/session";
 import {
   initializeTestEnvironment,
-  cleanupTestEnvironment,
   createTestUser,
   createUserAndSession,
   createAgent,
@@ -22,7 +21,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await cleanupTestEnvironment();
+  await api.stop();
 });
 
 describe("message:create", () => {

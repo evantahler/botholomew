@@ -32,13 +32,6 @@ export async function initializeTestEnvironment() {
 }
 
 /**
- * Clean up the test environment
- */
-export async function cleanupTestEnvironment() {
-  await api.stop();
-}
-
-/**
  * Create a test user in the database
  */
 export async function createTestUser(userData: TestUser) {

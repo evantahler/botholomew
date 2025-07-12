@@ -1,11 +1,10 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { type ActionResponse } from "../../api";
+import { api, type ActionResponse } from "../../api";
 import type { UserCreate, UserEdit } from "../../actions/user";
 import { config } from "../../config";
 import { logger } from "../../api";
 import {
   initializeTestEnvironment,
-  cleanupTestEnvironment,
   createUserViaAPI,
   createSession,
   USERS,
@@ -18,7 +17,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await cleanupTestEnvironment();
+  await api.stop();
 });
 
 describe("user:create", () => {

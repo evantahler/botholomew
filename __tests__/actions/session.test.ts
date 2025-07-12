@@ -1,9 +1,8 @@
 import { test, describe, expect, beforeAll, afterAll } from "bun:test";
-import { type ActionResponse } from "../../api";
+import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
 import {
   initializeTestEnvironment,
-  cleanupTestEnvironment,
   createTestUser,
   USERS,
 } from "../utils/testHelpers";
@@ -17,7 +16,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await cleanupTestEnvironment();
+  await api.stop();
 });
 
 describe("session:create", () => {

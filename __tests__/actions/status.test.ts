@@ -1,11 +1,8 @@
 import { test, describe, expect, beforeAll, afterAll } from "bun:test";
-import { type ActionResponse } from "../../api";
+import { api, type ActionResponse } from "../../api";
 import type { Status } from "../../actions/status";
 import { config } from "../../config";
-import {
-  initializeTestEnvironment,
-  cleanupTestEnvironment,
-} from "../utils/testHelpers";
+import { initializeTestEnvironment } from "../utils/testHelpers";
 
 const url = config.server.web.applicationUrl;
 
@@ -14,7 +11,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await cleanupTestEnvironment();
+  await api.stop();
 });
 
 describe("status", () => {
