@@ -12,22 +12,19 @@ import { USERS } from "../utils/testHelpers";
 
 const url = config.server.web.applicationUrl;
 const wsUrl = url.replace("http", "ws") + "/ws";
+let ws: WebSocket;
 
 describe("WebSocket Server", () => {
-  let ws: WebSocket;
-
   beforeAll(async () => {
     await api.start();
     await api.db.clearDatabase();
   });
 
   afterAll(async () => {
-    await Bun.sleep(500);
     await api.stop();
   });
 
   afterEach(async () => {
-    await Bun.sleep(100);
     if (ws) ws.close();
   });
 

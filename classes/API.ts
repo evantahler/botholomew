@@ -125,6 +125,8 @@ export class API {
     this.stopped = true;
     this.started = false;
     this.logger.warn("--- 🔽  Stopping complete ---");
+
+    await Bun.sleep(500);
   }
 
   async restart() {
