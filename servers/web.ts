@@ -17,8 +17,6 @@ import type {
   PubSubMessage,
 } from "../initializers/pubsub";
 
-const MAX_STARTUP_ATTEMPTS = 5;
-
 interface WebSocketData {
   ip: string;
   id: string;
@@ -38,39 +36,20 @@ export class WebServer extends Server<ReturnType<typeof createServer>> {
   async start() {
     if (config.server.web.enabled !== true) return;
 
-    let startupAttempts = 0;
-    while (startupAttempts < MAX_STARTUP_ATTEMPTS) {
-      try {
-        this.server = createServer(this.handleIncomingConnection.bind(this));
+    this.server = createServer(this.handleIncomingConnection.bind(this));
 
-        // Create WebSocket server
-        this.wss = new WebSocketServer({
-          server: this.server,
-          path: "/ws", // You can adjust this path as needed
-        });
+    // Create WebSocket server
+    this.wss = new WebSocketServer({
+      server: this.server,
+      path: "/ws", // You can adjust this path as needed
+    });
 
-        this.wss.on(
-          "connection",
-          this.handleWebSocketConnectionOpen.bind(this),
-        );
+    this.wss.on("connection", this.handleWebSocketConnectionOpen.bind(this));
 
-        this.server.listen(
-          config.server.web.port,
-          config.server.web.host,
-          () => {
-            const startMessage = `started server @ http://${config.server.web.host}:${config.server.web.port}`;
-            logger.info(
-              logger.colorize ? colors.bgBlue(startMessage) : startMessage,
-            );
-          },
-        );
-
-        break;
-      } catch (e) {
-        await Bun.sleep(1000);
-        startupAttempts++;
-      }
-    }
+    this.server.listen(config.server.web.port, config.server.web.host, () => {
+      const startMessage = `started server @ http://${config.server.web.host}:${config.server.web.port}`;
+      logger.info(logger.colorize ? colors.bgBlue(startMessage) : startMessage);
+    });
   }
 
   async stop() {
