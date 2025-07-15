@@ -12,4 +12,7 @@ afterAll(async () => {
 test("the server process is set", async () => {
   expect(api.process.name).toContain("test-server");
   expect(api.process.pid).toBeGreaterThan(0);
+
+  // TODO: WHY???
+  await Bun.sleep(1000);
 });
