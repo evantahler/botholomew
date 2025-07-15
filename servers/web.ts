@@ -63,6 +63,8 @@ export class WebServer extends Server<ReturnType<typeof createServer>> {
         resolve();
       });
     });
+
+    await Bun.sleep(100);
   }
 
   async stop() {
@@ -89,6 +91,8 @@ export class WebServer extends Server<ReturnType<typeof createServer>> {
         `stopped app server @ ${config.server.web.host}:${config.server.web.port}`,
       );
     }
+
+    await Bun.sleep(100);
   }
 
   async handleIncomingConnection(req: IncomingMessage, res: ServerResponse) {
