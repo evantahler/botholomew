@@ -27,7 +27,11 @@ describe("WebSocket Server", () => {
 
   afterEach(async () => {
     if (ws) {
-      ws.close();
+      try {
+        ws.close();
+      } catch (error) {
+        console.error("Error closing WebSocket", error);
+      }
     }
   });
 
