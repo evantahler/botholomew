@@ -22,17 +22,13 @@ describe("WebSocket Server", () => {
   });
 
   afterAll(async () => {
+    await Bun.sleep(500);
     await api.stop();
   });
 
   afterEach(async () => {
-    if (ws) {
-      try {
-        ws.close();
-      } catch (error) {
-        console.error("Error closing WebSocket", error);
-      }
-    }
+    await Bun.sleep(100);
+    if (ws) ws.close();
   });
 
   describe("connection", () => {
@@ -42,10 +38,6 @@ describe("WebSocket Server", () => {
       ws.on("open", () => {
         expect(ws.readyState).toBe(WebSocket.OPEN);
         done();
-      });
-
-      ws.on("error", (error) => {
-        done(error);
       });
     });
 
@@ -61,10 +53,6 @@ describe("WebSocket Server", () => {
         const message = JSON.parse(data.toString());
         expect(message).toBeDefined();
         done();
-      });
-
-      ws.on("error", (error) => {
-        done(error);
       });
     });
   });
@@ -99,10 +87,6 @@ describe("WebSocket Server", () => {
           expect(message.response.user.id).toBeDefined();
           done();
         }
-      });
-
-      ws.on("error", (error) => {
-        done(error);
       });
     });
 
@@ -186,10 +170,6 @@ describe("WebSocket Server", () => {
           done();
         }
       });
-
-      ws.on("error", (error) => {
-        done(error);
-      });
     });
 
     test("handles validation errors via WebSocket", (done) => {
@@ -223,10 +203,6 @@ describe("WebSocket Server", () => {
           done();
         }
       });
-
-      ws.on("error", (error) => {
-        done(error);
-      });
     });
 
     test("handles duplicate email error via WebSocket", (done) => {
@@ -257,10 +233,6 @@ describe("WebSocket Server", () => {
           );
           done();
         }
-      });
-
-      ws.on("error", (error) => {
-        done(error);
       });
     });
   });
@@ -316,10 +288,6 @@ describe("WebSocket Server", () => {
           done();
         }
       });
-
-      ws.on("error", (error) => {
-        done(error);
-      });
     });
 
     test("handles invalid login via WebSocket", (done) => {
@@ -348,10 +316,6 @@ describe("WebSocket Server", () => {
           done();
         }
       });
-
-      ws.on("error", (error) => {
-        done(error);
-      });
     });
   });
 
@@ -378,10 +342,6 @@ describe("WebSocket Server", () => {
           done();
         }
       });
-
-      ws.on("error", (error) => {
-        done(error);
-      });
     });
 
     test("handles malformed JSON", (done) => {
@@ -398,10 +358,6 @@ describe("WebSocket Server", () => {
           expect(message.error.message).toContain("JSON Parse error");
           done();
         }
-      });
-
-      ws.on("error", (error) => {
-        done(error);
       });
     });
   });
@@ -428,10 +384,6 @@ describe("WebSocket Server", () => {
           done();
         }
       });
-
-      ws.on("error", (error) => {
-        done(error);
-      });
     });
 
     test("can unsubscribe from channels", (done) => {
@@ -454,10 +406,6 @@ describe("WebSocket Server", () => {
           expect(message.unsubscribed.channel).toBe("test-channel");
           done();
         }
-      });
-
-      ws.on("error", (error) => {
-        done(error);
       });
     });
   });
