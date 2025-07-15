@@ -53,11 +53,25 @@ export class WebServer extends Server<ReturnType<typeof createServer>> {
   }
 
   async stop() {
-    if (this.wss) {
-      this.wss.close();
-    }
+    await new Promise<void>((resolve, reject) => {
+      if (!this.wss) return resolve();
+
+      this.wss.close((error) => {
+        if (error) return reject(error);
+        return resolve();
+      });
+    });
+
     if (this.server) {
-      this.server.close();
+      await new Promise<void>((resolve, reject) => {
+        if (!this.server) return resolve();
+
+        this.server.close((error) => {
+          if (error) return reject(error);
+          return resolve();
+        });
+      });
+
       logger.info(
         `stopped app server @ ${config.server.web.host}:${config.server.web.port}`,
       );
