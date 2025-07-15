@@ -1,298 +1,450 @@
-// import { test, expect, describe, beforeAll, afterAll } from "bun:test";
-// import { api, config } from "../../api";
+import { test, expect, describe, beforeAll, afterAll } from "bun:test";
+import { api, config } from "../../api";
+import { WebSocket } from "ws";
+import { USERS } from "../utils/testHelpers";
 
-// const wsUrl = config.server.web.applicationUrl
-//   .replace("https://", "wss://")
-//   .replace("http://", "ws://");
+const url = config.server.web.applicationUrl;
+const wsUrl = url.replace("http", "ws") + "/ws";
 
-// beforeAll(async () => {
-//   await api.start();
-//   await api.db.clearDatabase();
-// });
+describe("WebSocket Server", () => {
+  let ws: WebSocket;
 
-// afterAll(async () => {
-//   await api.stop();
-// });
+  beforeAll(async () => {
+    await api.start();
+    await api.db.clearDatabase();
+  });
 
-// const buildWebSocket = async () => {
-//   const socket = new WebSocket(wsUrl);
-//   const messages: MessageEvent[] = [];
-//   socket.addEventListener("message", (event) => {
-//     messages.push(event);
-//   });
-//   socket.addEventListener("error", (event) => {
-//     console.error(event);
-//   });
-//   await new Promise((resolve) => {
-//     socket.addEventListener("open", resolve);
-//   });
-//   return { socket, messages };
-// };
+  afterAll(async () => {
+    if (ws) {
+      ws.close();
+    }
+    await api.stop();
+  });
 
-// describe("actions", () => {
-//   test("request to an action", async () => {
-//     const { socket, messages } = await buildWebSocket();
+  describe("connection", () => {
+    test("can connect to WebSocket server", (done) => {
+      ws = new WebSocket(wsUrl);
 
-//     socket.send(
-//       JSON.stringify({
-//         messageType: "action",
-//         action: "status",
-//         messageId: 1,
-//         params: {},
-//       }),
-//     );
+      ws.on("open", () => {
+        expect(ws.readyState).toBe(WebSocket.OPEN);
+        done();
+      });
 
-//     while (messages.length === 0) await Bun.sleep(10);
+      ws.on("error", (error) => {
+        done(error);
+      });
+    });
 
-//     expect(messages.length).toBe(1);
-//     const message = JSON.parse(messages[0].data);
-//     expect(message.messageId).toBe(1);
-//     expect(message.response.name).toBe("test-server");
-//     socket.close();
-//   });
+    test("receives connection confirmation", (done) => {
+      ws = new WebSocket(wsUrl);
 
-//   test("request to an action with params", async () => {
-//     const { socket, messages } = await buildWebSocket();
+      ws.on("open", () => {
+        // Send a ping to test the connection
+        ws.send(JSON.stringify({ messageType: "ping" }));
+      });
 
-//     socket.send(
-//       JSON.stringify({
-//         messageType: "action",
-//         action: "user:create",
-//         messageId: 1,
-//         params: {
-//           name: "Mario Mario",
-//           email: "mario@example.com",
-//           password: "mushroom1",
-//         },
-//       }),
-//     );
+      ws.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+        expect(message).toBeDefined();
+        done();
+      });
 
-//     while (messages.length === 0) await Bun.sleep(10);
+      ws.on("error", (error) => {
+        done(error);
+      });
+    });
+  });
 
-//     expect(messages.length).toBe(1);
-//     const message = JSON.parse(messages[0].data);
-//     expect(message.messageId).toBe(1);
-//     expect(message.response.user.id).toBeGreaterThan(0);
-//     expect(message.response.user.email).toBe("mario@example.com");
-//     socket.close();
-//   });
+  describe("user actions", () => {
+    test("can create user via WebSocket", (done) => {
+      ws = new WebSocket(wsUrl);
 
-//   test("action with errors", async () => {
-//     const { socket, messages } = await buildWebSocket();
+      ws.on("open", () => {
+        const messageId = "test-create-user-" + Date.now();
+        const createUserMessage = {
+          messageType: "action",
+          messageId,
+          action: "user:create",
+          params: {
+            name: USERS.MARIO.name,
+            email: USERS.MARIO.email,
+            password: USERS.MARIO.password,
+          },
+        };
 
-//     socket.send(
-//       JSON.stringify({
-//         messageType: "action",
-//         action: "user:create",
-//         messageId: 1,
-//         params: {
-//           name: "Mario Mario",
-//           email: "mario@example.com",
-//           password: undefined,
-//         },
-//       }),
-//     );
+        ws.send(JSON.stringify(createUserMessage));
+      });
 
-//     while (messages.length === 0) await Bun.sleep(10);
+      ws.on("message", (data) => {
+        const message = JSON.parse(data.toString());
 
-//     expect(messages.length).toBe(1);
-//     const message = JSON.parse(messages[0].data);
-//     expect(message.messageId).toBe(1);
-//     expect(message.error.message).toBe("Missing required param: password");
-//     expect(message.error.key).toBe("password");
-//     expect(message.error.type).toBe("CONNECTION_ACTION_PARAM_REQUIRED");
-//     socket.close();
-//   });
+        if (message.messageId && message.response) {
+          expect(message.response.user).toBeDefined();
+          expect(message.response.user.name).toBe(USERS.MARIO.name);
+          expect(message.response.user.email).toBe(USERS.MARIO.email);
+          expect(message.response.user.id).toBeDefined();
+          done();
+        }
+      });
 
-//   test("unknown actions", async () => {
-//     const { socket, messages } = await buildWebSocket();
+      ws.on("error", (error) => {
+        done(error);
+      });
+    });
 
-//     socket.send(
-//       JSON.stringify({
-//         messageType: "action",
-//         action: "unknown",
-//         messageId: 1,
-//         params: {},
-//       }),
-//     );
+    test("can edit user via WebSocket", (done) => {
+      ws = new WebSocket(wsUrl);
 
-//     while (messages.length === 0) await Bun.sleep(10);
+      ws.on("open", async () => {
+        // First create a user
+        const createMessageId = "test-create-user-" + Date.now();
+        const createUserMessage = {
+          messageType: "action",
+          messageId: createMessageId,
+          action: "user:create",
+          params: {
+            name: USERS.LUIGI.name,
+            email: USERS.LUIGI.email,
+            password: USERS.LUIGI.password,
+          },
+        };
 
-//     expect(messages.length).toBe(1);
-//     const message = JSON.parse(messages[0].data);
-//     expect(message.messageId).toBe(1);
-//     expect(message.error.message).toBe("Action not found: unknown");
-//     expect(message.error.type).toBe("CONNECTION_ACTION_NOT_FOUND");
-//     socket.close();
-//   });
+        ws.send(JSON.stringify(createUserMessage));
+      });
 
-//   describe("chat", () => {
-//     test("integration-test", async () => {
-//       const { socket: socket1, messages: messages1 } = await buildWebSocket();
-//       const { socket: socket2, messages: messages2 } = await buildWebSocket();
+      let userCreated = false;
+      let sessionCreated = false;
+      let userId: number;
+      let sessionId: string;
 
-//       socket1.send(
-//         JSON.stringify({
-//           messageType: "action",
-//           action: "user:create",
-//           messageId: 1,
-//           params: {
-//             name: "Marco",
-//             email: "marco@example.com",
-//             password: "abc12345",
-//           },
-//         }),
-//       );
+      ws.on("message", (data) => {
+        const message = JSON.parse(data.toString());
 
-//       socket2.send(
-//         JSON.stringify({
-//           messageType: "action",
-//           action: "user:create",
-//           messageId: 1,
-//           params: {
-//             name: "Polo",
-//             email: "polo@example.com",
-//             password: "abc12345",
-//           },
-//         }),
-//       );
+        if (message.messageId && message.response && !userCreated) {
+          // User was created, now create a session
+          userCreated = true;
+          userId = message.response.user.id;
 
-//       while (messages1.length < 1 || messages2.length < 1) {
-//         await Bun.sleep(10);
-//       }
+          const sessionMessageId = "test-create-session-" + Date.now();
+          const createSessionMessage = {
+            messageType: "action",
+            messageId: sessionMessageId,
+            action: "session:create",
+            params: {
+              email: USERS.LUIGI.email,
+              password: USERS.LUIGI.password,
+            },
+          };
 
-//       const socket1UserId = JSON.parse(messages1[0].data).response.user.id;
-//       const socket2UserId = JSON.parse(messages2[0].data).response.user.id;
-//       expect(socket1UserId).toBeGreaterThan(0);
-//       expect(socket2UserId).toBeGreaterThan(0);
-//       expect(socket1UserId).not.toBe(socket2UserId);
-//       expect(JSON.parse(messages1[0].data).response.user.email).toBe(
-//         "marco@example.com",
-//       );
-//       expect(JSON.parse(messages2[0].data).response.user.email).toBe(
-//         "polo@example.com",
-//       );
+          ws.send(JSON.stringify(createSessionMessage));
+        } else if (
+          message.messageId &&
+          message.response &&
+          userCreated &&
+          !sessionCreated
+        ) {
+          // Session was created, now edit the user
+          sessionCreated = true;
+          sessionId = message.response.session.id;
 
-//       socket1.send(
-//         JSON.stringify({
-//           messageType: "action",
-//           action: "session:create",
-//           messageId: 2,
-//           params: {
-//             email: "marco@example.com",
-//             password: "abc12345",
-//           },
-//         }),
-//       );
+          const editMessageId = "test-edit-user-" + Date.now();
+          const editUserMessage = {
+            messageType: "action",
+            messageId: editMessageId,
+            action: "user:edit",
+            params: {
+              name: "Luigi Mario Updated",
+            },
+          };
 
-//       socket2.send(
-//         JSON.stringify({
-//           messageType: "action",
-//           action: "session:create",
-//           messageId: 2,
-//           params: {
-//             email: "polo@example.com",
-//             password: "abc12345",
-//           },
-//         }),
-//       );
+          ws.send(JSON.stringify(editUserMessage));
+        } else if (
+          message.messageId &&
+          message.response &&
+          userCreated &&
+          sessionCreated
+        ) {
+          // User was edited
+          expect(message.response.user).toBeDefined();
+          expect(message.response.user.name).toBe("Luigi Mario Updated");
+          expect(message.response.user.email).toBe(USERS.LUIGI.email);
+          expect(message.response.user.id).toBe(userId);
+          done();
+        }
+      });
 
-//       while (messages1.length < 2 || messages2.length < 2) {
-//         await Bun.sleep(10);
-//       }
+      ws.on("error", (error) => {
+        done(error);
+      });
+    });
 
-//       const sessionMessage1 = JSON.parse(messages1[1].data);
-//       const sessionMessage2 = JSON.parse(messages2[1].data);
+    test("handles validation errors via WebSocket", (done) => {
+      ws = new WebSocket(wsUrl);
 
-//       expect(sessionMessage1.response.user.id).toEqual(1);
-//       expect(sessionMessage1.response.user.email).toEqual("marco@example.com");
-//       expect(sessionMessage1.response.session.data.userId).toEqual(1);
-//       expect(sessionMessage2.response.user.id).toEqual(2);
-//       expect(sessionMessage2.response.user.email).toEqual("polo@example.com");
-//       expect(sessionMessage2.response.session.data.userId).toEqual(2);
+      ws.on("open", () => {
+        const messageId = "test-validation-error-" + Date.now();
+        const invalidUserMessage = {
+          messageType: "action",
+          messageId,
+          action: "user:create",
+          params: {
+            name: "x", // Too short
+            email: "invalid-email",
+            password: "z", // Too short
+          },
+        };
 
-//       socket1.send(
-//         JSON.stringify({ messageType: "subscribe", channel: "messages" }),
-//       );
-//       socket2.send(
-//         JSON.stringify({ messageType: "subscribe", channel: "messages" }),
-//       );
+        ws.send(JSON.stringify(invalidUserMessage));
+      });
 
-//       while (messages1.length < 3 || messages2.length < 3) {
-//         await Bun.sleep(10);
-//       }
+      ws.on("message", (data) => {
+        const message = JSON.parse(data.toString());
 
-//       const subscribeMessage1 = JSON.parse(messages1[2].data);
-//       const subscribeMessage2 = JSON.parse(messages2[2].data);
+        if (message.messageId && message.error) {
+          expect(message.error.message).toContain(
+            "This field is required and must be at least 3 characters long",
+          );
+          expect(message.error.key).toBe("name");
+          expect(message.error.value).toBe("x");
+          done();
+        }
+      });
 
-//       expect(subscribeMessage1).toEqual({
-//         subscribed: { channel: "messages" },
-//       });
-//       expect(subscribeMessage2).toEqual({
-//         subscribed: { channel: "messages" },
-//       });
+      ws.on("error", (error) => {
+        done(error);
+      });
+    });
 
-//       socket1.send(
-//         JSON.stringify({
-//           messageType: "action",
-//           action: "message:create",
-//           messageId: "A",
-//           params: { body: "Marco" },
-//         }),
-//       );
+    test("handles duplicate email error via WebSocket", (done) => {
+      ws = new WebSocket(wsUrl);
 
-//       while (messages1.length < 5 || messages2.length < 4) {
-//         await Bun.sleep(10);
-//       }
+      ws.on("open", () => {
+        const messageId = "test-duplicate-email-" + Date.now();
+        const duplicateUserMessage = {
+          messageType: "action",
+          messageId,
+          action: "user:create",
+          params: {
+            name: USERS.MARIO.name,
+            email: USERS.MARIO.email, // This email already exists
+            password: USERS.MARIO.password,
+          },
+        };
 
-//       socket2.send(
-//         JSON.stringify({
-//           messageType: "action",
-//           action: "message:create",
-//           messageId: "B",
-//           params: { body: "Polo" },
-//         }),
-//       );
+        ws.send(JSON.stringify(duplicateUserMessage));
+      });
 
-//       while (messages1.length < 6 || messages2.length < 6) {
-//         await Bun.sleep(10);
-//       }
+      ws.on("message", (data) => {
+        const message = JSON.parse(data.toString());
 
-//       // messages may arrive out of order
-//       let sendResponse1: Record<string, any> | null = null;
-//       let sendResponse2: Record<string, any> | null = null;
-//       let receivedMessages1: Record<string, any>[] = [];
-//       let receivedMessages2: Record<string, any>[] = [];
+        if (message.messageId && message.error) {
+          expect(message.error.message.toLowerCase()).toMatch(
+            /user already exists/,
+          );
+          done();
+        }
+      });
 
-//       for (const message of messages1.slice(3)) {
-//         const parsedMessage = JSON.parse(message.data);
-//         if (parsedMessage.messageId) sendResponse1 = parsedMessage;
-//         else receivedMessages1.push(parsedMessage);
-//       }
+      ws.on("error", (error) => {
+        done(error);
+      });
+    });
+  });
 
-//       for (const message of messages2.slice(3)) {
-//         const parsedMessage = JSON.parse(message.data);
-//         if (parsedMessage.messageId) sendResponse2 = parsedMessage;
-//         else receivedMessages2.push(parsedMessage);
-//       }
+  describe("session actions", () => {
+    test("can create session via WebSocket", (done) => {
+      ws = new WebSocket(wsUrl);
 
-//       expect(sendResponse1?.response.message.body).toEqual("Marco");
-//       expect(sendResponse2?.response.message.body).toEqual("Polo");
+      ws.on("open", async () => {
+        // First create a user
+        const createMessageId = "test-create-user-session-" + Date.now();
+        const createUserMessage = {
+          messageType: "action",
+          messageId: createMessageId,
+          action: "user:create",
+          params: {
+            name: USERS.BOWSER.name,
+            email: USERS.BOWSER.email,
+            password: USERS.BOWSER.password,
+          },
+        };
 
-//       expect(receivedMessages1.length).toEqual(2);
-//       expect(receivedMessages2.length).toEqual(2);
+        ws.send(JSON.stringify(createUserMessage));
+      });
 
-//       expect(receivedMessages1[0].message.message.message.body).toEqual(
-//         "Marco",
-//       );
-//       expect(receivedMessages2[0].message.message.message.body).toEqual(
-//         "Marco",
-//       );
-//       expect(receivedMessages1[1].message.message.message.body).toEqual("Polo");
-//       expect(receivedMessages2[1].message.message.message.body).toEqual("Polo");
+      let userCreated = false;
 
-//       socket1.close();
-//       socket2.close();
-//     });
-//   });
-// });
+      ws.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+
+        if (message.messageId && message.response && !userCreated) {
+          // User was created, now create a session
+          userCreated = true;
+
+          const sessionMessageId = "test-create-session-" + Date.now();
+          const createSessionMessage = {
+            messageType: "action",
+            messageId: sessionMessageId,
+            action: "session:create",
+            params: {
+              email: USERS.BOWSER.email,
+              password: USERS.BOWSER.password,
+            },
+          };
+
+          ws.send(JSON.stringify(createSessionMessage));
+        } else if (message.messageId && message.response && userCreated) {
+          // Session was created
+          expect(message.response.user).toBeDefined();
+          expect(message.response.session).toBeDefined();
+          expect(message.response.user.email).toBe(USERS.BOWSER.email);
+          expect(message.response.session.id).toBeDefined();
+          done();
+        }
+      });
+
+      ws.on("error", (error) => {
+        done(error);
+      });
+    });
+
+    test("handles invalid login via WebSocket", (done) => {
+      ws = new WebSocket(wsUrl);
+
+      ws.on("open", () => {
+        const messageId = "test-invalid-login-" + Date.now();
+        const invalidLoginMessage = {
+          messageType: "action",
+          messageId,
+          action: "session:create",
+          params: {
+            email: "nonexistent@example.com",
+            password: "wrongpassword",
+          },
+        };
+
+        ws.send(JSON.stringify(invalidLoginMessage));
+      });
+
+      ws.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+
+        if (message.messageId && message.error) {
+          expect(message.error.message.toLowerCase()).toMatch(/user not found/);
+          done();
+        }
+      });
+
+      ws.on("error", (error) => {
+        done(error);
+      });
+    });
+  });
+
+  describe("message handling", () => {
+    test("handles invalid message type", (done) => {
+      ws = new WebSocket(wsUrl);
+
+      ws.on("open", () => {
+        const invalidMessage = {
+          messageType: "invalid-type",
+          messageId: "test-invalid-" + Date.now(),
+        };
+
+        ws.send(JSON.stringify(invalidMessage));
+      });
+
+      ws.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+
+        if (message.error) {
+          expect(message.error.message).toContain(
+            "messageType either missing or unknown",
+          );
+          done();
+        }
+      });
+
+      ws.on("error", (error) => {
+        done(error);
+      });
+    });
+
+    test("handles malformed JSON", (done) => {
+      ws = new WebSocket(wsUrl);
+
+      ws.on("open", () => {
+        ws.send("invalid json message");
+      });
+
+      ws.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+
+        if (message.error) {
+          expect(message.error.message).toContain("JSON Parse error");
+          done();
+        }
+      });
+
+      ws.on("error", (error) => {
+        done(error);
+      });
+    });
+  });
+
+  describe("subscription handling", () => {
+    test("can subscribe to channels", (done) => {
+      ws = new WebSocket(wsUrl);
+
+      ws.on("open", () => {
+        const subscribeMessage = {
+          messageType: "subscribe",
+          messageId: "test-subscribe-" + Date.now(),
+          channel: "test-channel",
+        };
+
+        ws.send(JSON.stringify(subscribeMessage));
+      });
+
+      ws.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+
+        if (message.messageId && message.subscribed) {
+          expect(message.subscribed.channel).toBe("test-channel");
+          done();
+        }
+      });
+
+      ws.on("error", (error) => {
+        done(error);
+      });
+    });
+
+    test("can unsubscribe from channels", (done) => {
+      ws = new WebSocket(wsUrl);
+
+      ws.on("open", () => {
+        const unsubscribeMessage = {
+          messageType: "unsubscribe",
+          messageId: "test-unsubscribe-" + Date.now(),
+          channel: "test-channel",
+        };
+
+        ws.send(JSON.stringify(unsubscribeMessage));
+      });
+
+      ws.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+
+        if (message.messageId && message.unsubscribed) {
+          expect(message.unsubscribed.channel).toBe("test-channel");
+          done();
+        }
+      });
+
+      ws.on("error", (error) => {
+        done(error);
+      });
+    });
+  });
+});
