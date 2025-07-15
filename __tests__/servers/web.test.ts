@@ -34,3 +34,25 @@ describe("actions", () => {
     expect(response.error?.stack).toContain("/botholomew/");
   });
 });
+
+describe("static files", () => {
+  test("the web server can serve static files", async () => {
+    const res = await fetch(url + "/");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const html = await res.text();
+    expect(html).toContain("Botholomew");
+  });
+
+  test("the web server serves index.html for directory requests", async () => {
+    const res = await fetch(url + "/");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Botholomew - The Greatest Agent Framework");
+  });
+
+  test("the web server returns 404 for non-existent static files", async () => {
+    const res = await fetch(url + "/non-existent-file.html");
+    expect(res.status).toBe(404);
+  });
+});

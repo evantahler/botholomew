@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebSocket Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .status {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 5px;
+      }
+      .connected {
+        background: #d4edda;
+        color: #155724;
+      }
+      .disconnected {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      .messages {
+        border: 1px solid #ccc;
+        padding: 10px;
+        height: 300px;
+        overflow-y: auto;
+        background: #f8f9fa;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      .send {
+        background: #007bff;
+        color: white;
+      }
+      .subscribe {
+        background: #28a745;
+        color: white;
+      }
+      .unsubscribe {
+        background: #dc3545;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>WebSocket Test</h1>
+
+    <div id="status" class="status disconnected">
+      Status: <span id="connection-status">Disconnected</span>
+    </div>
+
+    <div>
+      <button class="send" onclick="sendTestMessage()">
+        Send Test Message
+      </button>
+      <button class="subscribe" onclick="subscribe('test-channel')">
+        Subscribe to 'test-channel'
+      </button>
+      <button class="unsubscribe" onclick="unsubscribe('test-channel')">
+        Unsubscribe from 'test-channel'
+      </button>
+    </div>
+
+    <h3>Messages:</h3>
+    <div id="messages" class="messages"></div>
+
+    <script>
+      const statusDiv = document.getElementById("status");
+      const statusSpan = document.getElementById("connection-status");
+      const messagesDiv = document.getElementById("messages");
+      let ws = null;
+      let messageId = 1;
+
+      function connect() {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = function () {
+          statusSpan.textContent = "Connected";
+          statusDiv.className = "status connected";
+          addMessage("Connected to WebSocket server");
+        };
+
+        ws.onclose = function () {
+          statusSpan.textContent = "Disconnected";
+          statusDiv.className = "status disconnected";
+          addMessage("Disconnected from WebSocket server");
+          // Try to reconnect after 5 seconds
+          setTimeout(connect, 5000);
+        };
+
+        ws.onerror = function (error) {
+          statusSpan.textContent = "Connection Error";
+          statusDiv.className = "status disconnected";
+          addMessage("WebSocket connection error: " + error);
+        };
+
+        ws.onmessage = function (event) {
+          const data = JSON.parse(event.data);
+          addMessage("Received: " + JSON.stringify(data, null, 2));
+        };
+      }
+
+      function addMessage(message) {
+        const div = document.createElement("div");
+        div.textContent = new Date().toLocaleTimeString() + ": " + message;
+        messagesDiv.appendChild(div);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }
+
+      function sendTestMessage() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          addMessage("WebSocket not connected");
+          return;
+        }
+
+        const message = {
+          messageType: "action",
+          messageId: messageId++,
+          action: "status",
+          params: {},
+        };
+
+        ws.send(JSON.stringify(message));
+        addMessage("Sent: " + JSON.stringify(message));
+      }
+
+      function subscribe(channel) {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          addMessage("WebSocket not connected");
+          return;
+        }
+
+        const message = {
+          messageType: "subscribe",
+          messageId: messageId++,
+          channel: channel,
+        };
+
+        ws.send(JSON.stringify(message));
+        addMessage("Sent subscribe: " + JSON.stringify(message));
+      }
+
+      function unsubscribe(channel) {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          addMessage("WebSocket not connected");
+          return;
+        }
+
+        const message = {
+          messageType: "unsubscribe",
+          messageId: messageId++,
+          channel: channel,
+        };
+
+        ws.send(JSON.stringify(message));
+        addMessage("Sent unsubscribe: " + JSON.stringify(message));
+      }
+
+      // Connect when page loads
+      connect();
+    </script>
+  </body>
+</html>

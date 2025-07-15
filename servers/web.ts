@@ -5,6 +5,9 @@ import { WebSocketServer, WebSocket } from "ws";
 import { parse } from "node:url";
 import { randomUUID } from "crypto";
 import formidable from "formidable";
+import { readFile, stat } from "node:fs/promises";
+import { join, extname } from "node:path";
+import { existsSync } from "node:fs";
 import { Connection } from "../classes/Connection";
 import { ErrorStatusCodes, ErrorType, TypedError } from "../classes/TypedError";
 import { Server } from "../classes/Server";
@@ -105,6 +108,11 @@ export class WebServer extends Server<ReturnType<typeof createServer>> {
     }
 
     const parsedUrl = parse(req.url!, true);
+
+    // Try to serve static files first
+    const staticServed = await this.serveStaticFile(req, res, parsedUrl);
+    if (staticServed) return;
+
     return this.handleWebAction(req, res, parsedUrl, ip, id);
   }
 
@@ -426,6 +434,101 @@ export class WebServer extends Server<ReturnType<typeof createServer>> {
         return action.name;
       }
     }
+  }
+
+  private async serveStaticFile(
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: ReturnType<typeof parse>,
+  ): Promise<boolean> {
+    if (!url.pathname) return false;
+
+    // Serve from configured static files directory
+    const staticPath = join(
+      process.cwd(),
+      config.server.web.staticFilesDir,
+      url.pathname,
+    );
+
+    // Security check: ensure the path is within the static files directory
+    const staticDir = join(process.cwd(), config.server.web.staticFilesDir);
+    if (!staticPath.startsWith(staticDir)) {
+      return false;
+    }
+
+    try {
+      // Check if file exists
+      if (!existsSync(staticPath)) {
+        // If the path doesn't exist, try serving index.html for directory requests
+        if (url.pathname.endsWith("/") || url.pathname === "") {
+          const indexPath = join(staticPath, "index.html");
+          if (existsSync(indexPath)) {
+            return await this.serveFile(indexPath, res);
+          }
+        }
+        return false;
+      }
+
+      const stats = await stat(staticPath);
+      if (stats.isDirectory()) {
+        // Try to serve index.html from directory
+        const indexPath = join(staticPath, "index.html");
+        if (existsSync(indexPath)) {
+          return await this.serveFile(indexPath, res);
+        }
+        return false;
+      }
+
+      return await this.serveFile(staticPath, res);
+    } catch (error) {
+      logger.error(`Error serving static file ${staticPath}: ${error}`);
+      return false;
+    }
+  }
+
+  private async serveFile(
+    filePath: string,
+    res: ServerResponse,
+  ): Promise<boolean> {
+    try {
+      const content = await readFile(filePath);
+      const ext = extname(filePath).toLowerCase();
+
+      const contentType = this.getContentType(ext);
+
+      res.writeHead(200, {
+        "Content-Type": contentType,
+        "Content-Length": content.length.toString(),
+      });
+
+      res.end(content);
+      return true;
+    } catch (error) {
+      logger.error(`Error reading file ${filePath}: ${error}`);
+      return false;
+    }
+  }
+
+  private getContentType(ext: string): string {
+    const mimeTypes: Record<string, string> = {
+      ".html": "text/html",
+      ".css": "text/css",
+      ".js": "application/javascript",
+      ".json": "application/json",
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".gif": "image/gif",
+      ".svg": "image/svg+xml",
+      ".ico": "image/x-icon",
+      ".woff": "font/woff",
+      ".woff2": "font/woff2",
+      ".ttf": "font/ttf",
+      ".eot": "application/vnd.ms-fontobject",
+      ".txt": "text/plain",
+    };
+
+    return mimeTypes[ext] || "application/octet-stream";
   }
 }
 
