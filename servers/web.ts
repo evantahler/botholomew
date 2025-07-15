@@ -1,4 +1,5 @@
 import cookie from "cookie";
+import colors from "colors";
 import { Connection } from "../classes/Connection";
 import { ErrorStatusCodes, ErrorType, TypedError } from "../classes/TypedError";
 import { Server } from "../classes/Server";
@@ -43,8 +44,9 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
             close: this.handleWebSocketConnectionClose.bind(this),
           },
         });
+        const startMessage = `started server @ http://${config.server.web.host}:${config.server.web.port}`;
         logger.info(
-          `started app server @ http://${config.server.web.host}:${config.server.web.port}`,
+          logger.colorize ? colors.bgBlue(startMessage) : startMessage,
         );
         break;
       } catch (e) {
