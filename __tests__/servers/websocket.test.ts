@@ -1,4 +1,11 @@
-import { test, expect, describe, beforeAll, afterAll } from "bun:test";
+import {
+  test,
+  expect,
+  describe,
+  beforeAll,
+  afterAll,
+  afterEach,
+} from "bun:test";
 import { api, config } from "../../api";
 import { WebSocket } from "ws";
 import { USERS } from "../utils/testHelpers";
@@ -15,10 +22,13 @@ describe("WebSocket Server", () => {
   });
 
   afterAll(async () => {
+    await api.stop();
+  });
+
+  afterEach(async () => {
     if (ws) {
       ws.close();
     }
-    await api.stop();
   });
 
   describe("connection", () => {
