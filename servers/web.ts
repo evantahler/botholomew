@@ -46,25 +46,24 @@ export class WebServer extends Server<ReturnType<typeof createServer>> {
 
     this.wss.on("connection", this.handleWebSocketConnectionOpen.bind(this));
 
-    await new Promise<void>((resolve, reject) => {
-      if (!this.server)
+    await new Promise<void>(async (resolve, reject) => {
+      if (!this.server) {
         return reject(
           new TypedError({
             message: "Server not initialized",
             type: ErrorType.SERVER_START,
           }),
         );
+      }
 
       this.server.listen(config.server.web.port, config.server.web.host, () => {
         const startMessage = `started server @ http://${config.server.web.host}:${config.server.web.port}`;
         logger.info(
           logger.colorize ? colors.bgBlue(startMessage) : startMessage,
         );
-        resolve();
+        return resolve();
       });
     });
-
-    await Bun.sleep(100);
   }
 
   async stop() {
@@ -91,8 +90,6 @@ export class WebServer extends Server<ReturnType<typeof createServer>> {
         `stopped app server @ ${config.server.web.host}:${config.server.web.port}`,
       );
     }
-
-    await Bun.sleep(100);
   }
 
   async handleIncomingConnection(req: IncomingMessage, res: ServerResponse) {
