@@ -45,7 +45,7 @@ export class WebServer extends Server<ReturnType<typeof createServer>> {
       // Create WebSocket server
       this.wss = new WebSocketServer({
         server: this.server,
-        path: "/ws", // You can adjust this path as needed
+        path: config.server.web.websocketPath,
       });
 
       this.wss.on("connection", this.handleWebSocketConnectionOpen.bind(this));
