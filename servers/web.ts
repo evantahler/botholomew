@@ -39,25 +39,16 @@ export class WebServer extends Server<ReturnType<typeof createServer>> {
   async start() {
     if (config.server.web.enabled !== true) return;
 
-    this.server = createServer(this.handleIncomingConnection.bind(this));
+    await new Promise<void>((resolve) => {
+      this.server = createServer(this.handleIncomingConnection.bind(this));
 
-    // Create WebSocket server
-    this.wss = new WebSocketServer({
-      server: this.server,
-      path: "/ws", // You can adjust this path as needed
-    });
+      // Create WebSocket server
+      this.wss = new WebSocketServer({
+        server: this.server,
+        path: "/ws", // You can adjust this path as needed
+      });
 
-    this.wss.on("connection", this.handleWebSocketConnectionOpen.bind(this));
-
-    await new Promise<void>(async (resolve, reject) => {
-      if (!this.server) {
-        return reject(
-          new TypedError({
-            message: "Server not initialized",
-            type: ErrorType.SERVER_START,
-          }),
-        );
-      }
+      this.wss.on("connection", this.handleWebSocketConnectionOpen.bind(this));
 
       this.server.listen(config.server.web.port, config.server.web.host, () => {
         const startMessage = `started server @ http://${config.server.web.host}:${config.server.web.port}`;
@@ -97,7 +88,6 @@ export class WebServer extends Server<ReturnType<typeof createServer>> {
 
   async handleIncomingConnection(req: IncomingMessage, res: ServerResponse) {
     const ip = req.socket.remoteAddress || "unknown-IP";
-    const headers = req.headers;
     const cookies = cookie.parse(req.headers.cookie ?? "");
     const id = cookies[config.session.cookieName] || randomUUID();
 
