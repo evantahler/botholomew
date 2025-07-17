@@ -12,6 +12,8 @@ export const configServerWeb = {
     `http://${host}:${port}`,
   ),
   apiRoute: await loadFromEnvIfSet("WEB_SERVER_API_ROUTE", "/api"),
+  websocketPath: await loadFromEnvIfSet("WEB_SERVER_WEBSOCKET_PATH", "/ws"),
+  staticFilesDir: await loadFromEnvIfSet("WEB_SERVER_STATIC_DIR", "frontend"),
   allowedOrigins: await loadFromEnvIfSet("WEB_SERVER_ALLOWED_ORIGINS", "*"),
   allowedMethods: await loadFromEnvIfSet(
     "WEB_SERVER_ALLOWED_METHODS",

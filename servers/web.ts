@@ -1,23 +1,35 @@
 import cookie from "cookie";
 import colors from "colors";
+import { createServer, IncomingMessage, ServerResponse } from "node:http";
+import { WebSocketServer, WebSocket } from "ws";
+import { parse } from "node:url";
+import { randomUUID } from "crypto";
+import formidable from "formidable";
+import { readFile, stat } from "node:fs/promises";
+import { join, extname } from "node:path";
+import { existsSync } from "node:fs";
 import { Connection } from "../classes/Connection";
 import { ErrorStatusCodes, ErrorType, TypedError } from "../classes/TypedError";
 import { Server } from "../classes/Server";
 import { config } from "../config";
 import { logger, api } from "../api";
-import { parse } from "node:url";
-import { randomUUID } from "crypto";
 import { type HTTP_METHOD, type ActionParams } from "../classes/Action";
-import type { ServerWebSocket } from "bun";
 import type {
   ClientSubscribeMessage,
   ClientUnsubscribeMessage,
   PubSubMessage,
 } from "../initializers/pubsub";
 
-const MAX_STARTUP_ATTEMPTS = 5;
+interface WebSocketData {
+  ip: string;
+  id: string;
+  headers: any;
+  cookies: any;
+}
 
-export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
+export class WebServer extends Server<ReturnType<typeof createServer>> {
+  private wss: WebSocketServer | null = null;
+
   constructor() {
     super("web");
   }
@@ -27,80 +39,108 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
   async start() {
     if (config.server.web.enabled !== true) return;
 
-    let startupAttempts = 0;
-    while (startupAttempts < MAX_STARTUP_ATTEMPTS) {
-      try {
-        this.server = Bun.serve({
-          port: config.server.web.port,
-          hostname: config.server.web.host,
+    await new Promise<void>((resolve) => {
+      this.server = createServer(this.handleIncomingConnection.bind(this));
 
-          // error: (error) => {
-          //   return new Response(`Error: ${error.message}`);
-          // },
-          fetch: this.handleIncomingConnection.bind(this),
-          websocket: {
-            open: this.handleWebSocketConnectionOpen.bind(this),
-            message: this.handleWebSocketConnectionMessage.bind(this),
-            close: this.handleWebSocketConnectionClose.bind(this),
-          },
-        });
+      // Create WebSocket server
+      this.wss = new WebSocketServer({
+        server: this.server,
+        path: config.server.web.websocketPath,
+      });
+
+      this.wss.on("connection", this.handleWebSocketConnectionOpen.bind(this));
+
+      this.server.listen(config.server.web.port, config.server.web.host, () => {
         const startMessage = `started server @ http://${config.server.web.host}:${config.server.web.port}`;
         logger.info(
           logger.colorize ? colors.bgBlue(startMessage) : startMessage,
         );
-        break;
-      } catch (e) {
-        await Bun.sleep(1000);
-        startupAttempts++;
-      }
-    }
+        return resolve();
+      });
+    });
   }
 
   async stop() {
+    await new Promise<void>((resolve, reject) => {
+      if (!this.wss) return resolve();
+
+      this.wss.close((error) => {
+        if (error) return reject(error);
+        return resolve();
+      });
+    });
+
     if (this.server) {
-      this.server.stop(true);
+      await new Promise<void>((resolve, reject) => {
+        if (!this.server) return resolve();
+
+        this.server.close((error) => {
+          if (error) return reject(error);
+          return resolve();
+        });
+      });
+
       logger.info(
-        `stopped app server @ ${config.server.web.host}:${config.server.web.port + 1}`,
+        `stopped app server @ ${config.server.web.host}:${config.server.web.port}`,
       );
     }
   }
 
-  async handleIncomingConnection(
-    req: Request,
-    server: ReturnType<typeof Bun.serve>,
-  ) {
-    const ip = server.requestIP(req)?.address || "unknown-IP";
-    const headers = req.headers;
-    const cookies = cookie.parse(req.headers.get("cookie") ?? "");
+  async handleIncomingConnection(req: IncomingMessage, res: ServerResponse) {
+    const ip = req.socket.remoteAddress || "unknown-IP";
+    const cookies = cookie.parse(req.headers.cookie ?? "");
     const id = cookies[config.session.cookieName] || randomUUID();
 
-    if (server.upgrade(req, { data: { ip, id, headers, cookies } })) return; // upgrade the request to a WebSocket
+    // Check if this is a WebSocket upgrade request
+    if (req.headers.upgrade === "websocket") {
+      // Let the WebSocket server handle it
+      return;
+    }
 
     const parsedUrl = parse(req.url!, true);
-    return this.handleWebAction(req, parsedUrl, ip, id);
+
+    // Try to serve static files first
+    const staticServed = await this.serveStaticFile(req, res, parsedUrl);
+    if (staticServed) return;
+
+    return this.handleWebAction(req, res, parsedUrl, ip, id);
   }
 
-  handleWebSocketConnectionOpen(ws: ServerWebSocket) {
-    //@ts-expect-error (ws.data is not defined in the bun types)
-    const connection = new Connection("websocket", ws.data.ip, ws.data.id, ws);
+  handleWebSocketConnectionOpen(ws: WebSocket, req: IncomingMessage) {
+    const ip = req.socket.remoteAddress || "unknown-IP";
+    const headers = req.headers;
+    const cookies = cookie.parse(req.headers.cookie ?? "");
+    const id = cookies[config.session.cookieName] || randomUUID();
+
+    // Store connection data
+    (ws as any).data = { ip, id, headers, cookies } as WebSocketData;
+
+    const connection = new Connection("websocket", ip, id, ws);
     connection.onBroadcastMessageReceived = function (payload: PubSubMessage) {
       ws.send(JSON.stringify({ message: payload }));
     };
     logger.info(
       `New websocket connection from ${connection.identifier} (${connection.id})`,
     );
+
+    ws.on("message", (message) => {
+      this.handleWebSocketConnectionMessage(ws, message.toString());
+    });
+
+    ws.on("close", () => {
+      this.handleWebSocketConnectionClose(ws);
+    });
   }
 
   async handleWebSocketConnectionMessage(
-    ws: ServerWebSocket,
+    ws: WebSocket,
     message: string | Buffer,
   ) {
+    const wsData = (ws as any).data as WebSocketData;
     const { connection } = api.connections.find(
       "websocket",
-      //@ts-expect-error
-      ws.data.ip,
-      //@ts-expect-error
-      ws.data.id,
+      wsData.ip,
+      wsData.id,
     );
 
     if (!connection) {
@@ -138,13 +178,12 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
     }
   }
 
-  handleWebSocketConnectionClose(ws: ServerWebSocket) {
+  handleWebSocketConnectionClose(ws: WebSocket) {
+    const wsData = (ws as any).data as WebSocketData;
     const { connection } = api.connections.find(
       "websocket",
-      //@ts-expect-error
-      ws.data.ip,
-      //@ts-expect-error
-      ws.data.id,
+      wsData.ip,
+      wsData.id,
     );
     try {
       connection.destroy();
@@ -158,7 +197,7 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
 
   async handleWebsocketAction(
     connection: Connection,
-    ws: ServerWebSocket,
+    ws: WebSocket,
     formattedMessage: ActionParams<any>,
   ) {
     const params = new FormData();
@@ -191,7 +230,7 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
 
   async handleWebsocketSubscribe(
     connection: Connection,
-    ws: ServerWebSocket,
+    ws: WebSocket,
     formattedMessage: ClientSubscribeMessage,
   ) {
     connection.subscribe(formattedMessage.channel);
@@ -205,7 +244,7 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
 
   async handleWebsocketUnsubscribe(
     connection: Connection,
-    ws: ServerWebSocket,
+    ws: WebSocket,
     formattedMessage: ClientUnsubscribeMessage,
   ) {
     connection.unsubscribe(formattedMessage.channel);
@@ -218,7 +257,8 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
   }
 
   async handleWebAction(
-    req: Request,
+    req: IncomingMessage,
+    res: ServerResponse,
     url: ReturnType<typeof parse>,
     ip: string,
     id: string,
@@ -237,7 +277,9 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
 
     // Handle OPTIONS requests.
     // As we don't really know what action the client wants (HTTP Method is always OPTIONS), we just return a 200 response.
-    if (httpMethod === "OPTIONS") return buildResponse(connection, {});
+    if (httpMethod === "OPTIONS") {
+      return buildResponse(connection, {}, res);
+    }
 
     const actionName = await this.determineActionName(url, httpMethod);
     if (!actionName) errorStatusCode = 404;
@@ -245,12 +287,13 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
     // param load order: url params -> body params -> query params
     let params = new FormData();
 
+    // Handle different content types
     if (
       req.method !== "GET" &&
-      req.headers.get("content-type") === "application/json"
+      req.headers["content-type"] === "application/json"
     ) {
       try {
-        const bodyContent = await req.json();
+        const bodyContent = await this.parseJsonBody(req);
         for (const [key, value] of Object.entries(bodyContent)) {
           params.set(key, value as any);
         }
@@ -263,15 +306,15 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
       }
     } else if (
       req.method !== "GET" &&
-      (req.headers.get("content-type")?.includes("multipart/form-data") ||
-        req.headers
-          .get("content-type")
-          ?.includes("application/x-www-form-urlencoded"))
+      (req.headers["content-type"]?.includes("multipart/form-data") ||
+        req.headers["content-type"]?.includes(
+          "application/x-www-form-urlencoded",
+        ))
     ) {
-      const f = await req.formData();
-      f.forEach((value, key) => {
+      const formData = await this.parseFormData(req);
+      for (const [key, value] of formData.entries()) {
         params.append(key, value);
-      });
+      }
     }
 
     if (url.query) {
@@ -300,8 +343,60 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
     }
 
     return error
-      ? buildError(connection, error, errorStatusCode)
-      : buildResponse(connection, response);
+      ? buildError(connection, error, res, errorStatusCode)
+      : buildResponse(connection, response, res);
+  }
+
+  private async parseJsonBody(req: IncomingMessage): Promise<any> {
+    return new Promise((resolve, reject) => {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += chunk.toString();
+      });
+      req.on("end", () => {
+        try {
+          resolve(JSON.parse(body));
+        } catch (e) {
+          reject(e);
+        }
+      });
+      req.on("error", reject);
+    });
+  }
+
+  private async parseFormData(req: IncomingMessage): Promise<FormData> {
+    return new Promise((resolve, reject) => {
+      const form = formidable({
+        keepExtensions: false,
+        allowEmptyFiles: false,
+        maxFileSize: 0, // No file uploads for now
+      });
+
+      form.parse(req, (err, fields, files) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        const formData = new FormData();
+
+        // Add fields to FormData
+        for (const [key, value] of Object.entries(fields)) {
+          if (Array.isArray(value)) {
+            // Handle multiple values with the same key
+            for (const val of value) {
+              if (val !== undefined) {
+                formData.append(key, val);
+              }
+            }
+          } else if (value !== undefined) {
+            formData.append(key, value);
+          }
+        }
+
+        resolve(formData);
+      });
+    });
   }
 
   async determineActionName(
@@ -330,6 +425,101 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
       }
     }
   }
+
+  private async serveStaticFile(
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: ReturnType<typeof parse>,
+  ): Promise<boolean> {
+    if (!url.pathname) return false;
+
+    // Serve from configured static files directory
+    const staticPath = join(
+      process.cwd(),
+      config.server.web.staticFilesDir,
+      url.pathname,
+    );
+
+    // Security check: ensure the path is within the static files directory
+    const staticDir = join(process.cwd(), config.server.web.staticFilesDir);
+    if (!staticPath.startsWith(staticDir)) {
+      return false;
+    }
+
+    try {
+      // Check if file exists
+      if (!existsSync(staticPath)) {
+        // If the path doesn't exist, try serving index.html for directory requests
+        if (url.pathname.endsWith("/") || url.pathname === "") {
+          const indexPath = join(staticPath, "index.html");
+          if (existsSync(indexPath)) {
+            return await this.serveFile(indexPath, res);
+          }
+        }
+        return false;
+      }
+
+      const stats = await stat(staticPath);
+      if (stats.isDirectory()) {
+        // Try to serve index.html from directory
+        const indexPath = join(staticPath, "index.html");
+        if (existsSync(indexPath)) {
+          return await this.serveFile(indexPath, res);
+        }
+        return false;
+      }
+
+      return await this.serveFile(staticPath, res);
+    } catch (error) {
+      logger.error(`Error serving static file ${staticPath}: ${error}`);
+      return false;
+    }
+  }
+
+  private async serveFile(
+    filePath: string,
+    res: ServerResponse,
+  ): Promise<boolean> {
+    try {
+      const content = await readFile(filePath);
+      const ext = extname(filePath).toLowerCase();
+
+      const contentType = this.getContentType(ext);
+
+      res.writeHead(200, {
+        "Content-Type": contentType,
+        "Content-Length": content.length.toString(),
+      });
+
+      res.end(content);
+      return true;
+    } catch (error) {
+      logger.error(`Error reading file ${filePath}: ${error}`);
+      return false;
+    }
+  }
+
+  private getContentType(ext: string): string {
+    const mimeTypes: Record<string, string> = {
+      ".html": "text/html",
+      ".css": "text/css",
+      ".js": "application/javascript",
+      ".json": "application/json",
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".gif": "image/gif",
+      ".svg": "image/svg+xml",
+      ".ico": "image/x-icon",
+      ".woff": "font/woff",
+      ".woff2": "font/woff2",
+      ".ttf": "font/ttf",
+      ".eot": "application/vnd.ms-fontobject",
+      ".txt": "text/plain",
+    };
+
+    return mimeTypes[ext] || "application/octet-stream";
+  }
 }
 
 const buildHeaders = (connection?: Connection) => {
@@ -349,25 +539,26 @@ const buildHeaders = (connection?: Connection) => {
   return headers;
 };
 
-function buildResponse(connection: Connection, response: Object, status = 200) {
-  return new Response(JSON.stringify(response, null, 2) + EOL, {
-    status,
-    headers: buildHeaders(connection),
-  });
+function buildResponse(
+  connection: Connection,
+  response: Object,
+  res: ServerResponse,
+  status = 200,
+) {
+  const headers = buildHeaders(connection);
+  res.writeHead(status, headers);
+  res.end(JSON.stringify(response, null, 2) + EOL);
 }
 
 function buildError(
   connection: Connection | undefined,
   error: TypedError,
+  res: ServerResponse,
   status = 500,
 ) {
-  return new Response(
-    JSON.stringify({ error: buildErrorPayload(error) }, null, 2) + EOL,
-    {
-      status,
-      headers: buildHeaders(connection),
-    },
-  );
+  const headers = buildHeaders(connection);
+  res.writeHead(status, headers);
+  res.end(JSON.stringify({ error: buildErrorPayload(error) }, null, 2) + EOL);
 }
 
 function buildErrorPayload(error: TypedError) {
