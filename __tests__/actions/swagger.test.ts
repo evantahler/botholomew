@@ -75,11 +75,20 @@ describe("swagger", () => {
       const pathObj = response.paths[path]![method]!;
 
       expect(pathObj.requestBody).toBeDefined();
-      expect(pathObj.requestBody!.required).toBe(true);
+      // Only require requestBody for non-GET methods
+      if (method !== "get") {
+        expect(pathObj.requestBody!.required).toBe(true);
+      } else {
+        expect(pathObj.requestBody!.required).toBe(false);
+      }
       expect(pathObj.requestBody!.content["application/json"]).toBeDefined();
-      expect(
-        pathObj.requestBody!.content["application/json"].schema,
-      ).toBeDefined();
+      const schema = pathObj.requestBody!.content["application/json"].schema;
+      expect(schema).toBeDefined();
+      // Should be a $ref
+      expect(typeof schema.$ref).toBe("string");
+      // The referenced schema should exist in components.schemas
+      const refName = schema.$ref.replace("#/components/schemas/", "");
+      expect(response.components.schemas[refName]).toBeDefined();
     }
   });
 
@@ -135,5 +144,40 @@ describe("swagger", () => {
       "Return API documentation in the OpenAPI specification",
     );
     expect(response.paths["/swagger"]!.get!.responses["200"]).toBeDefined();
+  });
+
+  test("swagger properly enumerates UserCreate action parameters", async () => {
+    const res = await fetch(url + "/api/swagger");
+    const response = (await res.json()) as ActionResponse<Swagger>;
+
+    // Check the UserCreate action (PUT /user)
+    const userCreatePath = response.paths["/user"]!.put!;
+
+    expect(userCreatePath.requestBody).toBeDefined();
+    const requestBody = userCreatePath.requestBody as any;
+    expect(requestBody.required).toBe(true);
+    expect(requestBody.content["application/json"]).toBeDefined();
+    const schema = requestBody.content["application/json"].schema;
+    expect(schema).toBeDefined();
+    // Should be a $ref
+    expect(typeof schema.$ref).toBe("string");
+    const refName = schema.$ref.replace("#/components/schemas/", "");
+    const resolved = response.components.schemas[refName];
+    expect(resolved).toBeDefined();
+    // Check that the schema is an object with properties
+    expect(resolved.type).toBe("object");
+    expect(resolved.properties).toBeDefined();
+    // Check that all expected UserCreate parameters are present
+    expect(resolved.properties.name).toBeDefined();
+    expect(resolved.properties.email).toBeDefined();
+    expect(resolved.properties.password).toBeDefined();
+    // Check parameter types
+    expect(resolved.properties.name.type).toBe("string");
+    expect(resolved.properties.email.type).toBe("string");
+    expect(resolved.properties.password.type).toBe("string");
+    // Check required fields
+    expect(resolved.required).toContain("name");
+    expect(resolved.required).toContain("email");
+    expect(resolved.required).toContain("password");
   });
 });
