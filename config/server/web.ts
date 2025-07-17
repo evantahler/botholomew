@@ -8,7 +8,7 @@ export const configServerWeb = {
   port,
   host,
   applicationUrl: await loadFromEnvIfSet(
-    "APPLICATION_URL", // NOte - this is loaded by foreman, injected by the top-level env
+    "APPLICATION_URL",
     `http://${host}:${port}`,
   ),
   apiRoute: await loadFromEnvIfSet("WEB_SERVER_API_ROUTE", "/api"),
@@ -17,4 +17,10 @@ export const configServerWeb = {
     "WEB_SERVER_ALLOWED_METHODS",
     "GET, POST, PUT, DELETE, OPTIONS",
   ),
+  staticFilesEnabled: await loadFromEnvIfSet("WEB_SERVER_STATIC_ENABLED", true),
+  staticFilesDirectory: await loadFromEnvIfSet(
+    "WEB_SERVER_STATIC_DIRECTORY",
+    "frontend",
+  ),
+  staticFilesRoute: await loadFromEnvIfSet("WEB_SERVER_STATIC_ROUTE", "/"),
 };

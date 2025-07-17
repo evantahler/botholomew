@@ -7,6 +7,7 @@ import { config } from "../config";
 import { logger, api } from "../api";
 import { parse } from "node:url";
 import { randomUUID } from "crypto";
+import path from "node:path";
 import { type HTTP_METHOD, type ActionParams } from "../classes/Action";
 import type { ServerWebSocket } from "bun";
 import type {
@@ -14,8 +15,6 @@ import type {
   ClientUnsubscribeMessage,
   PubSubMessage,
 } from "../initializers/pubsub";
-
-const MAX_STARTUP_ATTEMPTS = 5;
 
 export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
   constructor() {
@@ -28,31 +27,22 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
     if (config.server.web.enabled !== true) return;
 
     let startupAttempts = 0;
-    while (startupAttempts < MAX_STARTUP_ATTEMPTS) {
-      try {
-        this.server = Bun.serve({
-          port: config.server.web.port,
-          hostname: config.server.web.host,
-
-          // error: (error) => {
-          //   return new Response(`Error: ${error.message}`);
-          // },
-          fetch: this.handleIncomingConnection.bind(this),
-          websocket: {
-            open: this.handleWebSocketConnectionOpen.bind(this),
-            message: this.handleWebSocketConnectionMessage.bind(this),
-            close: this.handleWebSocketConnectionClose.bind(this),
-          },
-        });
-        const startMessage = `started server @ http://${config.server.web.host}:${config.server.web.port}`;
-        logger.info(
-          logger.colorize ? colors.bgBlue(startMessage) : startMessage,
-        );
-        break;
-      } catch (e) {
-        await Bun.sleep(1000);
-        startupAttempts++;
-      }
+    try {
+      this.server = Bun.serve({
+        port: config.server.web.port,
+        hostname: config.server.web.host,
+        fetch: this.handleIncomingConnection.bind(this),
+        websocket: {
+          open: this.handleWebSocketConnectionOpen.bind(this),
+          message: this.handleWebSocketConnectionMessage.bind(this),
+          close: this.handleWebSocketConnectionClose.bind(this),
+        },
+      });
+      const startMessage = `started server @ http://${config.server.web.host}:${config.server.web.port}`;
+      logger.info(logger.colorize ? colors.bgBlue(startMessage) : startMessage);
+    } catch (e) {
+      await Bun.sleep(1000);
+      startupAttempts++;
     }
   }
 
@@ -77,6 +67,13 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
     if (server.upgrade(req, { data: { ip, id, headers, cookies } })) return; // upgrade the request to a WebSocket
 
     const parsedUrl = parse(req.url!, true);
+
+    // Handle static file serving
+    if (config.server.web.staticFilesEnabled && req.method === "GET") {
+      const staticResponse = await this.handleStaticFile(req, parsedUrl);
+      if (staticResponse) return staticResponse;
+    }
+
     return this.handleWebAction(req, parsedUrl, ip, id);
   }
 
@@ -329,6 +326,67 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
         return action.name;
       }
     }
+  }
+
+  async handleStaticFile(
+    req: Request,
+    url: ReturnType<typeof parse>,
+  ): Promise<Response | null> {
+    const staticRoute = config.server.web.staticFilesRoute;
+    const staticDir = config.server.web.staticFilesDirectory;
+
+    if (!url.pathname?.startsWith(staticRoute)) {
+      return null;
+    }
+
+    const filePath = url.pathname.replace(staticRoute, "");
+
+    // Default to index.html for root requests
+    const finalPath =
+      filePath === "" || filePath === "/" ? "/index.html" : filePath;
+
+    try {
+      // Construct the full file path, ensuring proper path joining
+      const fullPath = path.join(staticDir, finalPath);
+
+      // Check if file exists
+      const file = Bun.file(fullPath);
+      const exists = await file.exists();
+
+      if (!exists) {
+        // Try serving index.html for directory requests
+        if (!finalPath.endsWith(".html")) {
+          const indexFile = Bun.file(
+            path.join(staticDir, finalPath, "index.html"),
+          );
+          const indexExists = await indexFile.exists();
+          if (indexExists) {
+            return new Response(indexFile, {
+              headers: this.getStaticFileHeaders(finalPath + "/index.html"),
+            });
+          }
+        }
+        return null; // File not found, let other handlers deal with it
+      }
+
+      return new Response(file, {
+        headers: this.getStaticFileHeaders(finalPath),
+      });
+    } catch (error) {
+      logger.error(`Error serving static file ${finalPath}: ${error}`);
+      return null;
+    }
+  }
+
+  private getStaticFileHeaders(filePath: string): Record<string, string> {
+    const headers: Record<string, string> = {
+      "X-SERVER-NAME": config.process.name,
+    };
+
+    const mimeType = Bun.file(filePath).type || "application/octet-stream";
+    headers["Content-Type"] = mimeType;
+
+    return headers;
   }
 }
 

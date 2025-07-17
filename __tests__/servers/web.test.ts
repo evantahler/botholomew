@@ -34,3 +34,32 @@ describe("actions", () => {
     expect(response.error?.stack).toContain("/botholomew/");
   });
 });
+
+describe("static files", () => {
+  test("the web server can serve static files from the frontend directory", async () => {
+    const res = await fetch(url + "/");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const html = await res.text();
+    expect(html).toContain("<html");
+  });
+
+  test("the web server serves index.html for root requests", async () => {
+    const res = await fetch(url + "/index.html");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+  });
+
+  test("the web server can serve other static files", async () => {
+    const res = await fetch(url + "/test-ws.html");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const html = await res.text();
+    expect(html).toContain("<html");
+  });
+
+  test("non-existent static files return 404", async () => {
+    const res = await fetch(url + "/non-existent-file.html");
+    expect(res.status).toBe(404);
+  });
+});
