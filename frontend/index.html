@@ -4,238 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Botholomew - The Greatest Agent Framework</title>
-    <style>
-      body {
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-          Cantarell, sans-serif;
-        margin: 0;
-        padding: 0;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .container {
-        background: rgba(255, 255, 255, 0.95);
-        border-radius: 20px;
-        padding: 3rem;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        max-width: 600px;
-        margin: 2rem;
-      }
-      h1 {
-        color: #333;
-        margin-bottom: 1rem;
-        font-size: 2.5rem;
-        font-weight: 700;
-      }
-      .subtitle {
-        color: #666;
-        font-size: 1.2rem;
-        margin-bottom: 2rem;
-      }
-      .status {
-        background: #e8f5e8;
-        border: 1px solid #4caf50;
-        border-radius: 10px;
-        padding: 1rem;
-        margin: 1rem 0;
-        color: #2e7d32;
-      }
-      .status.error {
-        background: #ffebee;
-        border-color: #f44336;
-        color: #c62828;
-      }
-      .status.loading {
-        background: #e3f2fd;
-        border-color: #2196f3;
-        color: #1565c0;
-      }
-      .status-details {
-        text-align: left;
-        margin-top: 1rem;
-        font-size: 0.9rem;
-      }
-      .status-details div {
-        margin: 0.25rem 0;
-        display: flex;
-        justify-content: space-between;
-      }
-      .status-details .label {
-        font-weight: 600;
-        color: #555;
-      }
-      .status-details .value {
-        color: #333;
-      }
-      .api-link {
-        display: inline-block;
-        background: #667eea;
-        color: white;
-        padding: 0.75rem 1.5rem;
-        text-decoration: none;
-        border-radius: 8px;
-        margin: 0.5rem;
-        transition: background 0.3s ease;
-      }
-      .api-link:hover {
-        background: #5a6fd8;
-      }
-      .websocket-status {
-        margin-top: 2rem;
-        padding: 1rem;
-        border-radius: 8px;
-        background: #f5f5f5;
-      }
-      .connected {
-        background: #e8f5e8;
-        color: #2e7d32;
-      }
-      .disconnected {
-        background: #ffebee;
-        color: #c62828;
-      }
-    </style>
+    <link rel="stylesheet" href="css/shared.css" />
   </head>
   <body>
-    <div class="container">
-      <h1>🤖 Botholomew</h1>
-      <p class="subtitle">The Greatest Agent Framework</p>
+    <div class="page-container">
+      <div class="container">
+        <h1>🤖 Botholomew</h1>
+        <p class="subtitle">The Greatest Agent Framework</p>
 
-      <div class="status" id="server-status">
-        <div id="status-message">Loading server status...</div>
-        <div class="status-details" id="status-details" style="display: none">
-          <!-- Status details will be populated here -->
+        <server-status></server-status>
+
+        <div>
+          <a href="/swagger.html" class="btn btn-primary">OpenAPI Swagger UI</a>
+          <a href="/test-ws.html" class="btn btn-info">WebSocket Test</a>
         </div>
-      </div>
 
-      <div>
-        <a href="/api" class="api-link">API Documentation</a>
-        <a href="/swagger.html" class="api-link">OpenAPI Swagger UI</a>
-      </div>
-
-      <div class="websocket-status" id="ws-status">
-        <strong>WebSocket Status:</strong>
-        <span id="ws-connection">Connecting...</span>
+        <websocket-status></websocket-status>
       </div>
     </div>
 
-    <script>
-      // Load and display server status
-      async function loadServerStatus() {
-        const statusElement = document.getElementById("server-status");
-        const statusMessage = document.getElementById("status-message");
-        const statusDetails = document.getElementById("status-details");
-
-        try {
-          statusElement.className = "status loading";
-          statusMessage.textContent = "Loading server status...";
-
-          const response = await fetch("/api/status");
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-
-          statusElement.className = "status";
-          statusMessage.textContent = "✅ Server is running successfully";
-
-          // Display status details dynamically
-          const detailsHtml = Object.entries(data)
-            .map(([key, value]) => {
-              const label =
-                key.charAt(0).toUpperCase() +
-                key.slice(1).replace(/([A-Z])/g, " $1");
-              let displayValue = value;
-
-              // Special formatting for specific fields
-              if (key === "uptime") {
-                displayValue = formatUptime(value);
-              } else if (key === "consumedMemoryMB") {
-                displayValue = `${value} MB`;
-              }
-
-              return `
-                <div>
-                  <span class="label">${label}:</span>
-                  <span class="value">${displayValue}</span>
-                </div>
-              `;
-            })
-            .join("");
-
-          statusDetails.innerHTML = detailsHtml;
-          statusDetails.style.display = "block";
-        } catch (error) {
-          console.error("Error loading server status:", error);
-          statusElement.className = "status error";
-          statusMessage.textContent = "❌ Failed to load server status";
-          statusDetails.style.display = "none";
-        }
-      }
-
-      // Format uptime in a human-readable format
-      function formatUptime(ms) {
-        const seconds = Math.floor(ms / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
-
-        if (days > 0) {
-          return `${days}d ${hours % 24}h ${minutes % 60}m`;
-        } else if (hours > 0) {
-          return `${hours}h ${minutes % 60}m`;
-        } else if (minutes > 0) {
-          return `${minutes}m ${seconds % 60}s`;
-        } else {
-          return `${seconds}s`;
-        }
-      }
-
-      // WebSocket connection status
-      const wsStatus = document.getElementById("ws-status");
-      const wsConnection = document.getElementById("ws-connection");
-
-      function connectWebSocket() {
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const wsUrl = `${protocol}//${window.location.host}/ws`;
-
-        const ws = new WebSocket(wsUrl);
-
-        ws.onopen = function () {
-          wsConnection.textContent = "Connected";
-          wsStatus.className = "websocket-status connected";
-        };
-
-        ws.onclose = function () {
-          wsConnection.textContent = "Disconnected";
-          wsStatus.className = "websocket-status disconnected";
-          // Try to reconnect after 5 seconds
-          setTimeout(connectWebSocket, 5000);
-        };
-
-        ws.onerror = function () {
-          wsConnection.textContent = "Connection Error";
-          wsStatus.className = "websocket-status disconnected";
-        };
-
-        ws.onmessage = function (event) {
-          const data = JSON.parse(event.data);
-          console.log("WebSocket message received:", data);
-        };
-      }
-
-      // Load server status and connect to WebSocket when page loads
-      loadServerStatus();
-      connectWebSocket();
-
-      // Refresh server status every 30 seconds
-      setInterval(loadServerStatus, 30000);
-    </script>
+    <script src="js/components/server-status.js"></script>
+    <script src="js/components/websocket-status.js"></script>
+    <script src="js/utils.js"></script>
   </body>
 </html>
