@@ -71,16 +71,21 @@ export class Swagger implements Action {
       const tag = action.name.split(":")[0];
       const summary = action.description || action.name;
 
-      // Build requestBody if Zod inputs exist
+      // Build requestBody if Zod inputs exist and method supports body
       let requestBody: any = undefined;
-      if (action.inputs && typeof action.inputs.parse === "function") {
+      if (
+        action.inputs &&
+        typeof action.inputs.parse === "function" &&
+        method !== "get" &&
+        method !== "head"
+      ) {
         const zodSchema = action.inputs;
         const schemaName = `${action.name.replace(/:/g, "_")}_Request`;
         const jsonSchema = zodToJsonSchema(zodSchema, schemaName);
         components.schemas[schemaName] =
           jsonSchema.definitions?.[schemaName] || jsonSchema;
         requestBody = {
-          required: method !== "get",
+          required: true,
           content: {
             "application/json": {
               schema: { $ref: `#/components/schemas/${schemaName}` },
