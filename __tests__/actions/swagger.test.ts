@@ -34,6 +34,11 @@ describe("swagger", () => {
     );
   });
 
+  // Helper function to convert route format for swagger tests
+  const convertRouteForSwagger = (route: string): string => {
+    return route.replace(/:\w+/g, (match) => `{${match.slice(1)}}`);
+  };
+
   test("swagger documents all web actions", async () => {
     const res = await fetch(url + "/api/swagger");
     const response = (await res.json()) as ActionResponse<Swagger>;
@@ -44,12 +49,14 @@ describe("swagger", () => {
     );
 
     // Count unique routes (since multiple methods on same route are grouped)
-    const uniqueRoutes = new Set(webActions.map((action) => action.web!.route));
+    const uniqueRoutes = new Set(
+      webActions.map((action) => convertRouteForSwagger(action.web!.route)),
+    );
     expect(Object.keys(response.paths).length).toBe(uniqueRoutes.size);
 
     // Verify each web action is documented
     for (const action of webActions) {
-      const path = action.web!.route;
+      const path = convertRouteForSwagger(action.web!.route);
       const method = action.web!.method.toLowerCase();
 
       expect(response.paths[path]).toBeDefined();
@@ -70,7 +77,7 @@ describe("swagger", () => {
     );
 
     for (const action of actionsWithInputs) {
-      const path = action.web!.route;
+      const path = convertRouteForSwagger(action.web!.route);
       const method = action.web!.method.toLowerCase();
       const pathObj = response.paths[path]![method]!;
 
@@ -122,7 +129,7 @@ describe("swagger", () => {
     for (const action of api.actions.actions) {
       if (!action.web?.route || !action.web?.method) continue;
 
-      const path = action.web.route;
+      const path = convertRouteForSwagger(action.web.route);
       const method = action.web.method.toLowerCase();
       const pathObj = response.paths[path]![method]!;
 

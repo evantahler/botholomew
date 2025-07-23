@@ -66,10 +66,28 @@ export class Swagger implements Action {
 
     for (const action of api.actions.actions) {
       if (!action.web?.route || !action.web?.method) continue;
-      const path = action.web.route;
+      // Convert :param format to OpenAPI {param} format
+      const path = action.web.route.replace(
+        /:\w+/g,
+        (match) => `{${match.slice(1)}}`,
+      );
       const method = action.web.method.toLowerCase();
       const tag = action.name.split(":")[0];
       const summary = action.description || action.name;
+
+      // Extract path parameters from the original route
+      const pathParams: any[] = [];
+      const pathParamMatches = action.web.route.match(/:\w+/g) || [];
+      for (const paramMatch of pathParamMatches) {
+        const paramName = paramMatch.slice(1); // Remove the colon
+        pathParams.push({
+          name: paramName,
+          in: "path",
+          required: true,
+          schema: { type: "string" },
+          description: `The ${paramName} parameter`,
+        });
+      }
 
       // Build requestBody if Zod inputs exist and method supports body
       let requestBody: any = undefined;
@@ -101,6 +119,7 @@ export class Swagger implements Action {
       if (!paths[path]) paths[path] = {};
       paths[path][method] = {
         summary,
+        ...(pathParams.length > 0 ? { parameters: pathParams } : {}),
         ...(requestBody ? { requestBody } : {}),
         responses,
         tags: [tag],
