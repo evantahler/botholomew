@@ -1,4 +1,4 @@
-import { type User } from "../models/users";
+import type { User } from "../models/user";
 
 export async function hashPassword(password: string) {
   const hash = await Bun.password.hash(password);
