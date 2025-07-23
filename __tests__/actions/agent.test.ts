@@ -477,3 +477,118 @@ describe("agent:list", () => {
     }
   });
 });
+
+describe("agent:tick", () => {
+  let tickUser: ActionResponse<SessionCreate>["user"];
+  let tickSession: ActionResponse<SessionCreate>["session"];
+  let enabledAgent: ActionResponse<AgentCreate>["agent"];
+  let disabledAgent: ActionResponse<AgentCreate>["agent"];
+
+  beforeAll(async () => {
+    // Get the user and session for ticking
+    const testSession = await createUserAndSession(USERS.MARIO);
+    tickUser = testSession.user;
+    tickSession = testSession.session;
+
+    // Create an enabled agent for testing
+    enabledAgent = await createAgent(
+      { user: tickUser, session: tickSession },
+      {
+        name: "Tick Agent",
+        description: "Agent to tick",
+        model: "gpt-3.5-turbo",
+        systemPrompt:
+          "You are a helpful assistant. Respond with a simple greeting.",
+        enabled: true,
+      },
+    );
+
+    // Create a disabled agent for testing
+    disabledAgent = await createAgent(
+      { user: tickUser, session: tickSession },
+      {
+        name: "Disabled Tick Agent",
+        description: "Disabled agent to tick",
+        model: "gpt-3.5-turbo",
+        systemPrompt: "You are a helpful assistant.",
+        enabled: false,
+      },
+    );
+  });
+
+  test("should tick an enabled agent successfully", async () => {
+    const tickResponse = await fetch(`${url}/api/agent/tick`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${tickSession.cookieName}=${tickSession.id}`,
+      },
+      body: JSON.stringify({ id: enabledAgent.id }),
+    });
+
+    const tickData = await tickResponse.json();
+    expect(tickResponse.status).toBe(200);
+    expect(tickData.agent).toBeDefined();
+    expect(tickData.agent.id).toBe(enabledAgent.id);
+    expect(tickData.response).toBeDefined();
+    expect(tickData.message).toBeDefined();
+    expect(tickData.message.agentId).toBe(enabledAgent.id);
+    expect(tickData.message.role).toBe("assistant");
+    expect(tickData.message.content).toBeDefined();
+  });
+
+  test("should not tick a disabled agent", async () => {
+    const tickResponse = await fetch(`${url}/api/agent/tick`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${tickSession.cookieName}=${tickSession.id}`,
+      },
+      body: JSON.stringify({ id: disabledAgent.id }),
+    });
+
+    expect(tickResponse.status).toBe(500);
+  });
+
+  test("should require authentication", async () => {
+    const response = await fetch(`${url}/api/agent/tick`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: enabledAgent.id }),
+    });
+    expect(response.status).toBe(401);
+  });
+
+  test("should not allow ticking another user's agent", async () => {
+    // Create another user and session
+    const otherUser = {
+      name: "Tick Other User",
+      email: "tickother@example.com",
+      password: "password123",
+    };
+    const otherSession = await createUserAndSession(otherUser);
+
+    // Try to tick the first user's agent with the second user's session
+    const response = await fetch(`${url}/api/agent/tick`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${otherSession.session.cookieName}=${otherSession.session.id}`,
+      },
+      body: JSON.stringify({ id: enabledAgent.id }),
+    });
+    expect(response.status).toBe(500);
+  });
+
+  test("should return not found for non-existent agent", async () => {
+    const response = await fetch(`${url}/api/agent/tick`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${tickSession.cookieName}=${tickSession.id}`,
+      },
+      body: JSON.stringify({ id: 999999 }),
+    });
+    expect(response.status).toBe(500);
+  });
+});

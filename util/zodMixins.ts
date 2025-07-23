@@ -62,3 +62,19 @@ z.ZodDefault.prototype.secret = function () {
   this._def.isSecret = true;
   return this;
 };
+
+/**
+ * Creates a Zod schema that accepts both boolean and string values,
+ * transforming string representations of booleans to actual booleans.
+ * Useful for handling form data where booleans come as strings.
+ */
+export function zBooleanFromString() {
+  return z.union([z.boolean(), z.string()]).transform((val) => {
+    if (typeof val === "boolean") return val;
+    if (typeof val === "string") {
+      if (val.toLowerCase() === "true") return true;
+      if (val.toLowerCase() === "false") return false;
+    }
+    return false;
+  });
+}

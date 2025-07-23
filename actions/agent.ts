@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { api, Action, type ActionParams, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
-import { serializeAgent } from "../ops/AgentOps";
+import { serializeAgent, agentTick } from "../ops/AgentOps";
 import { agents } from "../models/agent";
 import { SessionMiddleware } from "../middleware/session";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { ErrorType, TypedError } from "../classes/TypedError";
+import { messages } from "../models/message";
+import { serializeMessage } from "../ops/MessageOps";
+import { zBooleanFromString } from "../util/zodMixins";
 
 export class AgentCreate implements Action {
   name = "agent:create";
@@ -32,8 +35,7 @@ export class AgentCreate implements Action {
       .string()
       .optional()
       .describe("A summary of the agent's context"),
-    enabled: z.coerce
-      .boolean()
+    enabled: zBooleanFromString()
       .default(false)
       .describe("Whether the agent is enabled"),
     schedule: z
@@ -73,7 +75,7 @@ export class AgentEdit implements Action {
     model: z.string().min(1).max(256).optional(),
     systemPrompt: z.string().optional(),
     contextSummary: z.string().optional(),
-    enabled: z.coerce.boolean().optional(),
+    enabled: zBooleanFromString().optional(),
     schedule: z.string().optional(),
   });
 
@@ -187,5 +189,60 @@ export class AgentList implements Action {
       .limit(limit)
       .offset(offset);
     return { agents: rows.map(serializeAgent) };
+  }
+}
+
+export class AgentTick implements Action {
+  name = "agent:tick";
+  description = "Run an agent using the OpenAI agents API";
+  web = { route: "/agent/tick", method: HTTP_METHOD.POST };
+  middleware = [SessionMiddleware];
+  inputs = z.object({
+    id: z.coerce.number().int().describe("The agent's id"),
+  });
+
+  async run(params: ActionParams<AgentTick>, connection: Connection) {
+    // Get the agent and verify ownership
+    const [agent] = await api.db.db
+      .select()
+      .from(agents)
+      .where(
+        and(
+          eq(agents.id, params.id),
+          eq(agents.userId, connection.session?.data.userId),
+        ),
+      )
+      .limit(1);
+
+    if (!agent) {
+      throw new TypedError({
+        message: "Agent not found or not owned by user",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
+    }
+
+    if (!agent.enabled) {
+      throw new TypedError({
+        message: "Agent is not enabled",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
+    }
+
+    // Run the agent tick
+    const result = await agentTick(agent);
+
+    // Get the latest message that was created
+    const [latestMessage] = await api.db.db
+      .select()
+      .from(messages)
+      .where(eq(messages.agentId, agent.id))
+      .orderBy(desc(messages.createdAt))
+      .limit(1);
+
+    return {
+      agent: serializeAgent(agent),
+      response: result.output,
+      message: serializeMessage(latestMessage),
+    };
   }
 }

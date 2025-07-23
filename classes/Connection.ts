@@ -6,7 +6,7 @@ import { ErrorType, TypedError } from "./TypedError";
 import type { SessionData } from "../initializers/session";
 import { randomUUID } from "crypto";
 import type { PubSubMessage } from "../initializers/pubsub";
-import "../util/zodSecretsMixin";
+import "../util/zodMixins";
 
 export class Connection<T extends Record<string, any> = Record<string, any>> {
   type: string;
