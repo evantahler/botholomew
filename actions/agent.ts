@@ -140,7 +140,7 @@ export class AgentDelete implements Action {
 export class AgentView implements Action {
   name = "agent:view";
   description = "View an agent";
-  web = { route: "/agent", method: HTTP_METHOD.GET };
+  web = { route: "/agent/:id", method: HTTP_METHOD.GET };
   middleware = [SessionMiddleware];
   inputs = z.object({
     id: z.coerce.number().int().describe("The agent's id"),

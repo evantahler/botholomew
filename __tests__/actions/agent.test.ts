@@ -306,7 +306,7 @@ describe("agent:view", () => {
   });
 
   test("should view an agent successfully", async () => {
-    const viewResponse = await fetch(`${url}/api/agent?id=${createdAgent.id}`, {
+    const viewResponse = await fetch(`${url}/api/agent/${createdAgent.id}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -328,7 +328,7 @@ describe("agent:view", () => {
   });
 
   test("should require authentication", async () => {
-    const response = await fetch(`${url}/api/agent?id=${createdAgent.id}`, {
+    const response = await fetch(`${url}/api/agent/${createdAgent.id}`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     });
@@ -345,7 +345,7 @@ describe("agent:view", () => {
     const otherSession = await createUserAndSession(otherUser);
 
     // Try to view the first user's agent with the second user's session
-    const response = await fetch(`${url}/api/agent?id=${createdAgent.id}`, {
+    const response = await fetch(`${url}/api/agent/${createdAgent.id}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -356,7 +356,7 @@ describe("agent:view", () => {
   });
 
   test("should return not found for non-existent agent", async () => {
-    const response = await fetch(`${url}/api/agent?id=999999`, {
+    const response = await fetch(`${url}/api/agent/999999`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

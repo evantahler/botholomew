@@ -140,7 +140,7 @@ export class MessageDelete implements Action {
 export class MessageView implements Action {
   name = "message:view";
   description = "View a message";
-  web = { route: "/message", method: HTTP_METHOD.GET };
+  web = { route: "/message/:id", method: HTTP_METHOD.GET };
   middleware = [SessionMiddleware];
   inputs = z.object({
     id: z.coerce.number().int().describe("The message's id"),

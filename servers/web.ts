@@ -236,11 +236,21 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
     // As we don't really know what action the client wants (HTTP Method is always OPTIONS), we just return a 200 response.
     if (httpMethod === "OPTIONS") return buildResponse(connection, {});
 
-    const actionName = await this.determineActionName(url, httpMethod);
+    const { actionName, pathParams } = await this.determineActionName(
+      url,
+      httpMethod,
+    );
     if (!actionName) errorStatusCode = 404;
 
-    // param load order: url params -> body params -> query params
+    // param load order: path params -> url params -> body params -> query params
     let params = new FormData();
+
+    // Add path parameters
+    if (pathParams) {
+      for (const [key, value] of Object.entries(pathParams)) {
+        params.set(key, String(value));
+      }
+    }
 
     if (
       req.method !== "GET" &&
@@ -284,7 +294,7 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
     }
 
     const { response, error } = await connection.act(
-      actionName,
+      actionName!,
       params,
       httpMethod,
       req.url,
@@ -304,7 +314,10 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
   async determineActionName(
     url: ReturnType<typeof parse>,
     method: HTTP_METHOD,
-  ) {
+  ): Promise<
+    | { actionName: string; pathParams?: Record<string, string> }
+    | { actionName: null; pathParams: null }
+  > {
     const pathToMatch = url.pathname?.replace(
       new RegExp(`${config.server.web.apiRoute}`),
       "",
@@ -313,19 +326,44 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
     for (const action of api.actions.actions) {
       if (!action?.web?.route) continue;
 
+      // Convert route with path parameters to regex
+      const routeWithParams = action.web.route.replace(/:\w+/g, "([^/]+)");
       const matcher =
         action.web.route instanceof RegExp
           ? action.web.route
-          : new RegExp(`^${action.web.route}$`);
+          : new RegExp(`^${routeWithParams}$`);
 
       if (
         pathToMatch &&
         pathToMatch.match(matcher) &&
         method.toUpperCase() === action.web.method
       ) {
-        return action.name;
+        // Extract path parameters if the route has them
+        const pathParams: Record<string, string> = {};
+        const paramNames = (action.web.route.match(/:\w+/g) || []).map((name) =>
+          name.slice(1),
+        );
+        const match = pathToMatch.match(matcher);
+
+        if (match && paramNames.length > 0) {
+          // Skip the first match (full string) and use the captured groups
+          for (let i = 0; i < paramNames.length; i++) {
+            const value = match[i + 1];
+            if (value !== undefined) {
+              pathParams[paramNames[i]] = value;
+            }
+          }
+        }
+
+        return {
+          actionName: action.name,
+          pathParams:
+            Object.keys(pathParams).length > 0 ? pathParams : undefined,
+        };
       }
     }
+
+    return { actionName: null, pathParams: null };
   }
 
   async handleStaticFile(

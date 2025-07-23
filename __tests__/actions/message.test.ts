@@ -475,7 +475,7 @@ describe("message:view", () => {
 
   test("should view a message successfully", async () => {
     const viewResponse = await fetch(
-      `${url}/api/message?id=${createdMessage.id}`,
+      `${url}/api/message/${createdMessage.id}`,
       {
         method: "GET",
         headers: {
@@ -495,7 +495,7 @@ describe("message:view", () => {
   });
 
   test("should require authentication", async () => {
-    const response = await fetch(`${url}/api/message?id=${createdMessage.id}`, {
+    const response = await fetch(`${url}/api/message/${createdMessage.id}`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     });
@@ -512,7 +512,7 @@ describe("message:view", () => {
     const otherTestSession = await createUserAndSession(otherUserData);
 
     // Try to view the first user's message with the second user's session
-    const response = await fetch(`${url}/api/message?id=${createdMessage.id}`, {
+    const response = await fetch(`${url}/api/message/${createdMessage.id}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -523,7 +523,7 @@ describe("message:view", () => {
   });
 
   test("should return not found for non-existent message", async () => {
-    const response = await fetch(`${url}/api/message?id=999999`, {
+    const response = await fetch(`${url}/api/message/999999`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

@@ -74,21 +74,21 @@ describe("swagger", () => {
       const method = action.web!.method.toLowerCase();
       const pathObj = response.paths[path]![method]!;
 
-      expect(pathObj.requestBody).toBeDefined();
-      // Only require requestBody for non-GET methods
-      if (method !== "get") {
-        expect(pathObj.requestBody!.required).toBe(true);
+      // GET and HEAD methods should not have requestBody
+      if (method === "get" || method === "head") {
+        expect(pathObj.requestBody).toBeUndefined();
       } else {
-        expect(pathObj.requestBody!.required).toBe(false);
+        expect(pathObj.requestBody).toBeDefined();
+        expect(pathObj.requestBody!.required).toBe(true);
+        expect(pathObj.requestBody!.content["application/json"]).toBeDefined();
+        const schema = pathObj.requestBody!.content["application/json"].schema;
+        expect(schema).toBeDefined();
+        // Should be a $ref
+        expect(typeof schema.$ref).toBe("string");
+        // The referenced schema should exist in components.schemas
+        const refName = schema.$ref.replace("#/components/schemas/", "");
+        expect(response.components.schemas[refName]).toBeDefined();
       }
-      expect(pathObj.requestBody!.content["application/json"]).toBeDefined();
-      const schema = pathObj.requestBody!.content["application/json"].schema;
-      expect(schema).toBeDefined();
-      // Should be a $ref
-      expect(typeof schema.$ref).toBe("string");
-      // The referenced schema should exist in components.schemas
-      const refName = schema.$ref.replace("#/components/schemas/", "");
-      expect(response.components.schemas[refName]).toBeDefined();
     }
   });
 
