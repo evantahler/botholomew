@@ -1,9 +1,17 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+import { eq } from "drizzle-orm";
 import { api, type ActionResponse } from "../../api";
-import type { UserCreate, UserEdit } from "../../actions/user";
+import type { UserCreate, UserEdit, UserView } from "../../actions/user";
 import { config } from "../../config";
 import { logger } from "../../api";
-import { createUserViaAPI, createSession, USERS } from "../utils/testHelpers";
+import {
+  createUserViaAPI,
+  createSession,
+  createUserAndSession,
+  USERS,
+} from "../utils/testHelpers";
+import { users } from "../../models/user";
+import { ErrorType } from "../../classes/TypedError";
 
 const url = config.server.web.applicationUrl;
 
@@ -82,6 +90,54 @@ describe("user:create", () => {
       // Restore original logger
       logger.info = originalInfo;
     }
+  });
+});
+
+describe("user:view", () => {
+  test("it fails without a session", async () => {
+    const res = await fetch(url + "/api/user", {
+      method: "GET",
+    });
+    const response = (await res.json()) as ActionResponse<UserView>;
+    expect(res.status).toBe(401);
+    expect(response.error?.message).toMatch(/Session not found/);
+  });
+
+  test("it returns the user when session is valid", async () => {
+    // First create a user and session
+    const sessionResponse = await createUserAndSession(USERS.MARIO);
+
+    const res = await fetch(url + "/api/user", {
+      method: "GET",
+      headers: {
+        Cookie: `${config.session.cookieName}=${sessionResponse.session.id}`,
+      },
+    });
+    const response = (await res.json()) as ActionResponse<UserView>;
+    expect(res.status).toBe(200);
+    expect(response.user.id).toEqual(sessionResponse.user.id);
+    expect(response.user.name).toEqual("Mario Mario");
+    expect(response.user.email).toEqual("mario@example.com");
+  });
+
+  test("it fails when user is not found", async () => {
+    // Create a user and session
+    const sessionResponse = await createUserAndSession(USERS.MARIO);
+
+    // Delete the user from the database directly
+    await api.db.db.delete(users).where(eq(users.id, sessionResponse.user.id));
+
+    // Try to view the user with the existing session
+    const res = await fetch(url + "/api/user", {
+      method: "GET",
+      headers: {
+        Cookie: `${config.session.cookieName}=${sessionResponse.session.id}`,
+      },
+    });
+    const response = (await res.json()) as ActionResponse<UserView>;
+    expect(res.status).toBe(500);
+    expect(response.error?.message).toEqual("User not found");
+    expect(response.error?.type).toEqual(ErrorType.CONNECTION_ACTION_RUN);
   });
 });
 

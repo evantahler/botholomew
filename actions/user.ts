@@ -102,6 +102,13 @@ export class UserView implements Action {
       .where(eq(users.id, connection.session?.data.userId))
       .limit(1);
 
+    if (!user) {
+      throw new TypedError({
+        message: "User not found",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
+    }
+
     return { user: serializeUser(user) };
   }
 }
