@@ -51,7 +51,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - run: cp .env.example .env
-      - run: bun test
+      - run: cd backend && bun test
 
   complete:
     runs-on: ubuntu-latest

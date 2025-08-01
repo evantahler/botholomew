@@ -1,0 +1,144 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { Alert, Button, Card, Badge } from "react-bootstrap";
+import { getApiUrl } from "../lib/config";
+
+interface ServerStatusData {
+  uptime: number;
+  consumedMemoryMB: number;
+  [key: string]: string | number | boolean;
+}
+
+export default function ServerStatus() {
+  const [status, setStatus] = useState<"loading" | "success" | "error">(
+    "loading"
+  );
+  const [statusData, setStatusData] = useState<ServerStatusData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadStatus = async () => {
+    try {
+      setStatus("loading");
+      setError(null);
+
+      const response = await fetch(getApiUrl("/api/status"));
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setStatusData(data);
+      setStatus("success");
+    } catch (error) {
+      console.error("Error loading server status:", error);
+      setError(error instanceof Error ? error.message : "Unknown error");
+      setStatus("error");
+    }
+  };
+
+  useEffect(() => {
+    loadStatus();
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(loadStatus, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatUptime = (ms: number) => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) {
+      return `${days}d ${hours % 24}h ${minutes % 60}m`;
+    } else if (hours > 0) {
+      return `${hours}h ${minutes % 60}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  };
+
+  const getStatusVariant = () => {
+    switch (status) {
+      case "success":
+        return "success";
+      case "error":
+        return "danger";
+      default:
+        return "info";
+    }
+  };
+
+  const getStatusMessage = () => {
+    switch (status) {
+      case "success":
+        return "✅ Server is running successfully";
+      case "error":
+        return "❌ Failed to load server status";
+      default:
+        return "Loading server status...";
+    }
+  };
+
+  return (
+    <Card className="mb-3">
+      <Card.Body>
+        <div className="d-flex justify-content-between align-items-center mb-2">
+          <h5 className="mb-0">Server Status</h5>
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            onClick={loadStatus}
+            disabled={status === "loading"}
+          >
+            Refresh
+          </Button>
+        </div>
+
+        <Alert variant={getStatusVariant()}>{getStatusMessage()}</Alert>
+
+        {status === "success" && statusData && (
+          <div className="mt-3">
+            <h6>Status Details:</h6>
+            <div className="row">
+              {Object.entries(statusData).map(([key, value]) => {
+                const label =
+                  key.charAt(0).toUpperCase() +
+                  key.slice(1).replace(/([A-Z])/g, " $1");
+                let displayValue = value;
+
+                if (key === "uptime") {
+                  displayValue = formatUptime(value as number);
+                } else if (key === "consumedMemoryMB") {
+                  displayValue = `${value} MB`;
+                }
+
+                return (
+                  <div key={key} className="col-md-6 mb-2">
+                    <div className="d-flex justify-content-between">
+                      <span className="fw-semibold text-muted">{label}:</span>
+                      <Badge bg="light" text="dark">
+                        {displayValue}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {status === "error" && error && (
+          <div className="mt-2">
+            <small className="text-muted">Error: {error}</small>
+          </div>
+        )}
+      </Card.Body>
+    </Card>
+  );
+}
