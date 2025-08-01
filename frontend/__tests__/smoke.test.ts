@@ -41,13 +41,13 @@ describe("Frontend Smoke Test", () => {
     });
 
     // Give the server a moment to fully initialize
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
   });
 
   afterAll(async () => {
     if (serverProcess) {
       serverProcess.kill("SIGTERM");
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   });
 
