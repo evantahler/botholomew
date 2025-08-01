@@ -20,7 +20,7 @@ export const configServerWeb = {
   staticFilesEnabled: await loadFromEnvIfSet("WEB_SERVER_STATIC_ENABLED", true),
   staticFilesDirectory: await loadFromEnvIfSet(
     "WEB_SERVER_STATIC_DIRECTORY",
-    "frontend",
+    "assets",
   ),
   staticFilesRoute: await loadFromEnvIfSet("WEB_SERVER_STATIC_ROUTE", "/"),
 };
