@@ -56,7 +56,7 @@ const MessageLog = forwardRef<MessageLogRef, MessageLogProps>(
         timestamp,
       };
 
-      setMessages((prev) => {
+      setMessages(prev => {
         const newMessages = [...prev, message];
         // Limit the number of messages
         if (newMessages.length > maxMessages) {
@@ -87,7 +87,7 @@ const MessageLog = forwardRef<MessageLogRef, MessageLogProps>(
     };
 
     const removeMessage = (messageId: string) => {
-      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
     };
 
     // Expose methods to parent component
@@ -156,7 +156,7 @@ const MessageLog = forwardRef<MessageLogRef, MessageLogProps>(
               <div className="text-center text-muted p-4">No messages yet</div>
             ) : (
               <ListGroup variant="flush">
-                {messages.map((message) => (
+                {messages.map(message => (
                   <ListGroup.Item
                     key={message.id}
                     className="border-0 border-bottom"
@@ -165,10 +165,10 @@ const MessageLog = forwardRef<MessageLogRef, MessageLogProps>(
                         message.type === "error"
                           ? "#dc3545"
                           : message.type === "success"
-                          ? "#28a745"
-                          : message.type === "warning"
-                          ? "#ffc107"
-                          : "#17a2b8"
+                            ? "#28a745"
+                            : message.type === "warning"
+                              ? "#ffc107"
+                              : "#17a2b8"
                       } !important`,
                     }}
                   >

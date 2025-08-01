@@ -49,13 +49,13 @@ export default function WebSocketStatus({
       reconnectTimeoutRef.current = setTimeout(() => connect(), 5000);
     };
 
-    wsRef.current.onerror = (error) => {
+    wsRef.current.onerror = error => {
       setStatus("error");
       setDetails("Failed to establish connection");
       console.error("WebSocket error:", error);
     };
 
-    wsRef.current.onmessage = (event) => {
+    wsRef.current.onmessage = event => {
       try {
         const data = JSON.parse(event.data) as WebSocketMessage;
         onMessage?.(data);

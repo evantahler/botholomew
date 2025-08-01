@@ -73,7 +73,7 @@ export default function SwaggerPage() {
           document.title = "API Documentation - Botholomew";
           loadSwaggerDoc();
         })
-        .catch((err) => {
+        .catch(err => {
           setError("Failed to load Swagger UI: " + err.message);
           setIsLoading(false);
         });
@@ -168,10 +168,10 @@ export default function SwaggerPage() {
                 cursor: "pointer",
                 fontSize: "16px",
               }}
-              onMouseOver={(e) => {
+              onMouseOver={e => {
                 e.currentTarget.style.background = "#1565c0";
               }}
-              onMouseOut={(e) => {
+              onMouseOut={e => {
                 e.currentTarget.style.background = "#1976d2";
               }}
             >
