@@ -82,42 +82,7 @@ export async function agentTick(agent: Agent) {
     });
 
     const result = await OpenAiAgentRun(_agent, thread);
-
-    // Always extract a string from result.output, handling array, string, and object cases
-    const outputText = Array.isArray(result.output)
-      ? (result.output as any[])
-          .map((item) => {
-            if (typeof item === "string") return item;
-            if (
-              item &&
-              typeof item === "object" &&
-              "text" in item &&
-              typeof item.text === "string"
-            )
-              return item.text;
-            if (
-              item &&
-              typeof item === "object" &&
-              "content" in item &&
-              typeof item.content === "string"
-            )
-              return item.content;
-            return JSON.stringify(item);
-          })
-          .join("\n")
-      : typeof result.output === "string"
-        ? result.output
-        : (result.output &&
-            typeof result.output === "object" &&
-            "text" in result.output &&
-            typeof (result.output as any).text === "string" &&
-            (result.output as any).text) ||
-          (result.output &&
-            typeof result.output === "object" &&
-            "content" in result.output &&
-            typeof (result.output as any).content === "string" &&
-            (result.output as any).content) ||
-          JSON.stringify(result.output);
+    const outputText = result.finalOutput;
 
     await api.db.db.insert(messages).values({
       agentId: agent.id,

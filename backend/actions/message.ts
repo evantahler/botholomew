@@ -5,7 +5,7 @@ import { serializeMessage } from "../ops/MessageOps";
 import { messages } from "../models/message";
 import { agents } from "../models/agent";
 import { SessionMiddleware } from "../middleware/session";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { ErrorType, TypedError } from "../classes/TypedError";
 
 export class MessageCreate implements Action {
@@ -133,7 +133,7 @@ export class MessageDelete implements Action {
       .delete(messages)
       .where(eq(messages.id, params.id));
 
-    return { success: result.rowCount > 0 };
+    return { success: (result.rowCount ?? 0) > 0 };
   }
 }
 
@@ -206,14 +206,23 @@ export class MessageList implements Action {
       });
     }
 
+    // Get total count
+    const [{ count }] = await api.db.db
+      .select({ count: sql<number>`count(*)` })
+      .from(messages)
+      .where(eq(messages.agentId, agentId));
+
     const rows = await api.db.db
       .select()
       .from(messages)
       .where(eq(messages.agentId, agentId))
-      .orderBy(messages.createdAt)
+      .orderBy(desc(messages.createdAt))
       .limit(limit)
       .offset(offset);
 
-    return { messages: rows.map(serializeMessage) };
+    return {
+      messages: rows.map(serializeMessage),
+      total: count,
+    };
   }
 }
