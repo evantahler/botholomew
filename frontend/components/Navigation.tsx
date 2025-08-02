@@ -111,13 +111,24 @@ export default function Navigation() {
                 </Button>
               </div>
             ) : (
-              <div className="d-flex gap-2">
-                <Link href="/signin" className="btn btn-light btn-sm">
+              <div className="d-flex align-items-center">
+                <Button
+                  variant="outline-light"
+                  className="text-light"
+                  size="sm"
+                  onClick={() => router.push("/signin")}
+                >
                   Sign In
-                </Link>
-                <Link href="/signup" className="btn btn-light btn-sm">
+                </Button>
+                &nbsp;&nbsp;
+                <Button
+                  variant="outline-light"
+                  className="text-light"
+                  size="sm"
+                  onClick={() => router.push("/signup")}
+                >
                   Sign Up
-                </Link>
+                </Button>
               </div>
             )}
           </Nav>
