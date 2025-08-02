@@ -37,6 +37,13 @@ export default function Navigation() {
             </Nav.Link>
             <Nav.Link
               as={Link}
+              href="/status"
+              className={isActive("/status") ? "active" : ""}
+            >
+              Server Status
+            </Nav.Link>
+            <Nav.Link
+              as={Link}
               href="/swagger"
               className={isActive("/swagger") ? "active" : ""}
             >

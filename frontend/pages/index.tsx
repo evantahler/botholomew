@@ -1,7 +1,6 @@
 import React from "react";
 import Head from "next/head";
 import { Container, Row, Col, Card } from "react-bootstrap";
-import ServerStatus from "../components/ServerStatus";
 
 export default function Home() {
   return (
@@ -32,9 +31,36 @@ export default function Home() {
 
                   <Row className="g-4">
                     <Col md={6}>
-                      <ServerStatus />
+                      <Card className="h-100">
+                        <Card.Body className="text-center">
+                          <h5 className="card-title">Welcome to Botholomew</h5>
+                          <p className="card-text">
+                            The greatest agent framework for building
+                            intelligent applications.
+                          </p>
+                          <a href="/status" className="btn btn-primary">
+                            View Server Status
+                          </a>
+                        </Card.Body>
+                      </Card>
                     </Col>
-                    <Col md={6}></Col>
+                    <Col md={6}>
+                      <Card className="h-100">
+                        <Card.Body className="text-center">
+                          <h5 className="card-title">API Documentation</h5>
+                          <p className="card-text">
+                            Explore the comprehensive API documentation and
+                            endpoints.
+                          </p>
+                          <a
+                            href="/swagger"
+                            className="btn btn-outline-primary"
+                          >
+                            View API Docs
+                          </a>
+                        </Card.Body>
+                      </Card>
+                    </Col>
                   </Row>
                 </Card.Body>
               </Card>
