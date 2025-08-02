@@ -435,6 +435,7 @@ const buildHeaders = (connection?: Connection) => {
   headers["X-SERVER-NAME"] = config.process.name;
   headers["Access-Control-Allow-Origin"] = config.server.web.allowedOrigins;
   headers["Access-Control-Allow-Methods"] = config.server.web.allowedMethods;
+  headers["Access-Control-Allow-Headers"] = config.server.web.allowedHeaders;
   headers["Access-Control-Allow-Credentials"] = "true";
 
   if (connection) {

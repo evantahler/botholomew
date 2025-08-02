@@ -4,4 +4,17 @@ alwaysApply: false
 ---
 
 Always, load the type type definitions from the Actions in the backend. Do not write your own types.
+
+For form inputs, use the type from the backend action. For example, if the backend action is `SessionCreate`, the input type is `SessionCreate["inputs"]["_type"]`.
+
+```
+type SigninFormData = SessionCreate["inputs"]["_type"];
+```
+
+For api responses, use the type from the backend action. For example, if the backend action is `SessionCreate`, the response type is `ActionResponse<SessionCreate>`.
+
+```
+type SigninResponse = ActionResponse<SessionCreate>;
+```
+
 We write scss files for styling, not css.

@@ -17,6 +17,10 @@ export const configServerWeb = {
     "WEB_SERVER_ALLOWED_METHODS",
     "GET, POST, PUT, DELETE, OPTIONS",
   ),
+  allowedHeaders: await loadFromEnvIfSet(
+    "WEB_SERVER_ALLOWED_HEADERS",
+    "Content-Type, Authorization, X-Requested-With",
+  ),
   staticFilesEnabled: await loadFromEnvIfSet("WEB_SERVER_STATIC_ENABLED", true),
   staticFilesDirectory: await loadFromEnvIfSet(
     "WEB_SERVER_STATIC_DIRECTORY",
