@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Navbar, Nav, Container, Button } from "react-bootstrap";
+import { Navbar, Nav, Container, Button, NavDropdown } from "react-bootstrap";
 import { useAuth } from "../lib/auth";
 
 export default function Navigation() {
@@ -42,20 +42,6 @@ export default function Navigation() {
             >
               Home
             </Nav.Link>
-            <Nav.Link
-              as={Link}
-              href="/status"
-              className={isActive("/status") ? "active" : ""}
-            >
-              Server Status
-            </Nav.Link>
-            <Nav.Link
-              as={Link}
-              href="/swagger"
-              className={isActive("/swagger") ? "active" : ""}
-            >
-              API Documentation
-            </Nav.Link>
             {user && (
               <Nav.Link
                 as={Link}
@@ -67,11 +53,38 @@ export default function Navigation() {
             )}
           </Nav>
           <Nav>
+            <NavDropdown
+              title="System"
+              id="system-dropdown"
+              className={
+                isActive("/status") || isActive("/swagger") ? "active" : ""
+              }
+            >
+              <NavDropdown.Item
+                as={Link}
+                href="/status"
+                className={`dropdown-item-custom ${
+                  isActive("/status") ? "active" : ""
+                }`}
+              >
+                Server Status
+              </NavDropdown.Item>
+              <NavDropdown.Item
+                as={Link}
+                href="/swagger"
+                className={`dropdown-item-custom ${
+                  isActive("/swagger") ? "active" : ""
+                }`}
+              >
+                API Documentation
+              </NavDropdown.Item>
+            </NavDropdown>
             {user ? (
               <div className="d-flex align-items-center">
                 <span className="text-light me-3">Welcome, {user.name}</span>
                 <Button
                   variant="outline-light"
+                  className="text-light"
                   size="sm"
                   onClick={handleSignout}
                 >
@@ -80,7 +93,7 @@ export default function Navigation() {
               </div>
             ) : (
               <div className="d-flex gap-2">
-                <Link href="/signin" className="btn btn-outline-light btn-sm">
+                <Link href="/signin" className="btn btn-light btn-sm">
                   Sign In
                 </Link>
                 <Link href="/signup" className="btn btn-light btn-sm">
