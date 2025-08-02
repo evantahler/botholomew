@@ -1,33 +1,9 @@
-import React, { useRef } from "react";
+import React from "react";
 import Head from "next/head";
-import Link from "next/link";
-import { Container, Row, Col, Button, Card } from "react-bootstrap";
+import { Container, Row, Col, Card } from "react-bootstrap";
 import ServerStatus from "../components/ServerStatus";
-import WebSocketStatus from "../components/WebSocketStatus";
-import MessageLog, { MessageLogRef } from "../components/MessageLog";
-
-interface WebSocketMessage {
-  [key: string]: unknown;
-}
 
 export default function Home() {
-  const messageLogRef = useRef<MessageLogRef>(null);
-
-  const handleWebSocketMessage = (data: WebSocketMessage) => {
-    messageLogRef.current?.addMessage(JSON.stringify(data, null, 2), "info");
-  };
-
-  const handleWebSocketConnect = () => {
-    messageLogRef.current?.addMessage(
-      "WebSocket connected successfully",
-      "success"
-    );
-  };
-
-  const handleWebSocketDisconnect = () => {
-    messageLogRef.current?.addMessage("WebSocket disconnected", "warning");
-  };
-
   return (
     <>
       <Head>
@@ -37,7 +13,7 @@ export default function Home() {
         style={{
           minHeight: "100vh",
           background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-          padding: "2rem 0",
+          padding: "5rem 0 2rem 0", // Adjusted padding for fixed navbar
         }}
       >
         <Container fluid>
@@ -58,26 +34,8 @@ export default function Home() {
                     <Col md={6}>
                       <ServerStatus />
                     </Col>
-                    <Col md={6}>
-                      <WebSocketStatus
-                        onMessage={handleWebSocketMessage}
-                        onConnect={handleWebSocketConnect}
-                        onDisconnect={handleWebSocketDisconnect}
-                      />
-                    </Col>
+                    <Col md={6}></Col>
                   </Row>
-
-                  <div className="mt-4">
-                    <div className="d-flex gap-2 mb-3">
-                      <Link href="/swagger" passHref>
-                        <Button variant="primary">OpenAPI Swagger UI</Button>
-                      </Link>
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <MessageLog ref={messageLogRef} maxMessages={100} />
-                  </div>
                 </Card.Body>
               </Card>
             </Col>

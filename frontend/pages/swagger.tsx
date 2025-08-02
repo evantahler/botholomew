@@ -106,7 +106,7 @@ export default function SwaggerPage() {
           deepLinking: true,
           presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
           plugins: [SwaggerUIBundle.plugins.DownloadUrl],
-          layout: "StandaloneLayout",
+          layout: "BaseLayout",
           tryItOutEnabled: true,
         });
       }
@@ -120,7 +120,13 @@ export default function SwaggerPage() {
 
   return (
     <>
-      <div style={{ background: "#fafafa", minHeight: "100vh" }}>
+      <div
+        style={{
+          background: "#fafafa",
+          minHeight: "100vh",
+          paddingTop: "76px",
+        }}
+      >
         {isLoading && (
           <div
             className="loading"

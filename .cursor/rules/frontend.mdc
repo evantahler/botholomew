@@ -4,3 +4,4 @@ alwaysApply: false
 ---
 
 Always, load the type type definitions from the Actions in the backend. Do not write your own types.
+We write scss files for styling, not css.
