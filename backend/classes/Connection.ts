@@ -174,7 +174,7 @@ export class Connection<T extends Record<string, any> = Record<string, any>> {
   }
 
   private findAction(actionName: string | undefined) {
-    return api.actions.actions.find((a) => a.name === actionName);
+    return api.actions.actions.find((a: Action) => a.name === actionName);
   }
 
   private async formatParams(params: FormData, action: Action) {

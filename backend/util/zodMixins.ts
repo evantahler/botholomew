@@ -31,35 +31,35 @@ declare module "zod" {
 }
 
 z.ZodString.prototype.secret = function () {
-  this._def.isSecret = true;
+  (this._def as any).isSecret = true;
   return this;
 };
 z.ZodNumber.prototype.secret = function () {
-  this._def.isSecret = true;
+  (this._def as any).isSecret = true;
   return this;
 };
 z.ZodBoolean.prototype.secret = function () {
-  this._def.isSecret = true;
+  (this._def as any).isSecret = true;
   return this;
 };
 z.ZodArray.prototype.secret = function () {
-  this._def.isSecret = true;
+  (this._def as any).isSecret = true;
   return this;
 };
 z.ZodObject.prototype.secret = function () {
-  this._def.isSecret = true;
+  (this._def as any).isSecret = true;
   return this;
 };
 z.ZodOptional.prototype.secret = function () {
-  this._def.isSecret = true;
+  (this._def as any).isSecret = true;
   return this;
 };
 z.ZodNullable.prototype.secret = function () {
-  this._def.isSecret = true;
+  (this._def as any).isSecret = true;
   return this;
 };
 z.ZodDefault.prototype.secret = function () {
-  this._def.isSecret = true;
+  (this._def as any).isSecret = true;
   return this;
 };
 

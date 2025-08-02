@@ -15,11 +15,11 @@ export const configServerWeb = {
   allowedOrigins: await loadFromEnvIfSet("WEB_SERVER_ALLOWED_ORIGINS", "*"),
   allowedMethods: await loadFromEnvIfSet(
     "WEB_SERVER_ALLOWED_METHODS",
-    "GET, POST, PUT, DELETE, OPTIONS",
+    "HEAD, GET, POST, PUT, PATCH, DELETE, OPTIONS",
   ),
   allowedHeaders: await loadFromEnvIfSet(
     "WEB_SERVER_ALLOWED_HEADERS",
-    "Content-Type, Authorization, X-Requested-With",
+    "Content-Type",
   ),
   staticFilesEnabled: await loadFromEnvIfSet("WEB_SERVER_STATIC_ENABLED", true),
   staticFilesDirectory: await loadFromEnvIfSet(
