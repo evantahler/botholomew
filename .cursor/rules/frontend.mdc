@@ -17,4 +17,6 @@ For api responses, use the type from the backend action. For example, if the bac
 type SigninResponse = ActionResponse<SessionCreate>;
 ```
 
+When making API calls, use the APIWrapper class. For example, if the backend action is `SessionCreate`, the API call is `APIWrapper.post<SessionCreate>(SessionCreate)`.
+
 We write scss files for styling, not css.

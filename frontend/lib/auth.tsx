@@ -1,12 +1,9 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { getApiUrl } from "./config";
+import { APIWrapper } from "./api";
 import type { UserCreate, UserView } from "../../backend/actions/user";
-import type {
-  SessionCreate,
-  SessionDestroy,
-} from "../../backend/actions/session";
+import type { SessionCreate } from "../../backend/actions/session";
 import type {
   ActionResponse,
   ActionParams,
@@ -37,19 +34,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const response = await fetch(getApiUrl("/user"), {
-        method: "GET",
-        credentials: "include",
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.user);
-      } else {
-        setUser(null);
-      }
+      const data = await APIWrapper.get("/user");
+      setUser(data.user);
     } catch (error) {
-      console.error("Auth check failed:", error);
+      console.log("Auth check failed:", error);
       setUser(null);
     } finally {
       setLoading(false);
@@ -57,49 +45,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signup = async (data: SignupInput) => {
-    const response = await fetch(getApiUrl("/user"), {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "Signup failed");
-    }
-
-    const responseData: SignupResponse = await response.json();
+    const responseData: SignupResponse = await APIWrapper.put("/user", data);
     setUser(responseData.user);
   };
 
   const signin = async (data: SigninInput) => {
-    const response = await fetch(getApiUrl("/session"), {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "Signin failed");
-    }
-
-    const responseData: SigninResponse = await response.json();
+    const responseData: SigninResponse = await APIWrapper.put("/session", data);
     setUser(responseData.user);
   };
 
   const signout = async () => {
     try {
-      await fetch(getApiUrl("/session"), {
-        method: "DELETE",
-        credentials: "include",
-      });
+      await APIWrapper.delete("/session");
     } catch (error) {
       console.error("Signout error:", error);
     } finally {

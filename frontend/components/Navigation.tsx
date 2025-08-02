@@ -2,16 +2,17 @@
 
 import React from "react";
 import Link from "next/link";
-import { useRouter } from "next/router";
+import { useRouter, usePathname } from "next/navigation";
 import { Navbar, Nav, Container, Button, NavDropdown } from "react-bootstrap";
 import { useAuth } from "../lib/auth";
 
 export default function Navigation() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, signout } = useAuth();
 
   const isActive = (path: string) => {
-    return router.pathname === path;
+    return pathname === path;
   };
 
   const handleSignout = async () => {
@@ -21,6 +22,7 @@ export default function Navigation() {
 
   return (
     <Navbar
+      key={pathname}
       bg="dark"
       variant="dark"
       expand="lg"
@@ -35,21 +37,38 @@ export default function Navigation() {
         <Navbar.Toggle aria-controls="basic-navbar-nav" />
         <Navbar.Collapse id="basic-navbar-nav">
           <Nav className="me-auto">
-            <Nav.Link
-              as={Link}
-              href="/"
-              className={isActive("/") ? "active" : ""}
-            >
-              Home
-            </Nav.Link>
-            {user && (
+            {!user && (
               <Nav.Link
                 as={Link}
-                href="/dashboard"
-                className={isActive("/dashboard") ? "active" : ""}
+                href="/"
+                className={isActive("/") ? "active" : ""}
               >
-                Dashboard
+                Home
               </Nav.Link>
+            )}
+            {user && (
+              <>
+                <Nav.Link
+                  as={Link}
+                  href="/dashboard"
+                  className={isActive("/dashboard") ? "active" : ""}
+                >
+                  Dashboard
+                </Nav.Link>
+                <Nav.Link
+                  as={Link}
+                  href="/agents"
+                  className={
+                    isActive("/agents") ||
+                    isActive("/agents/create") ||
+                    isActive("/agents/[id]")
+                      ? "active"
+                      : ""
+                  }
+                >
+                  Agents
+                </Nav.Link>
+              </>
             )}
           </Nav>
           <Nav>
