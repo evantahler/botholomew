@@ -1,8 +1,14 @@
+"use client";
+
 import React from "react";
 import Head from "next/head";
-import { Container, Row, Col, Card } from "react-bootstrap";
+import { Container, Row, Col, Card, Button } from "react-bootstrap";
+import { useAuth } from "../lib/auth";
+import Link from "next/link";
 
 export default function Home() {
+  const { user, loading } = useAuth();
+
   return (
     <>
       <Head>
@@ -27,6 +33,13 @@ export default function Home() {
                     <p className="lead text-muted">
                       The Greatest Agent Framework
                     </p>
+                    {user && (
+                      <div className="mt-3">
+                        <p className="text-success mb-0">
+                          Welcome back, {user.name}!
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <Row className="g-4">
@@ -38,9 +51,15 @@ export default function Home() {
                             The greatest agent framework for building
                             intelligent applications.
                           </p>
-                          <a href="/status" className="btn btn-primary">
-                            View Server Status
-                          </a>
+                          {user ? (
+                            <Link href="/dashboard" className="btn btn-primary">
+                              Go to Dashboard
+                            </Link>
+                          ) : (
+                            <Link href="/signup" className="btn btn-primary">
+                              Get Started
+                            </Link>
+                          )}
                         </Card.Body>
                       </Card>
                     </Col>
@@ -62,6 +81,22 @@ export default function Home() {
                       </Card>
                     </Col>
                   </Row>
+
+                  {!user && !loading && (
+                    <Row className="mt-4">
+                      <Col className="text-center">
+                        <p className="text-muted mb-2">
+                          Already have an account?
+                        </p>
+                        <Link
+                          href="/signin"
+                          className="btn btn-outline-secondary"
+                        >
+                          Sign In
+                        </Link>
+                      </Col>
+                    </Row>
+                  )}
                 </Card.Body>
               </Card>
             </Col>

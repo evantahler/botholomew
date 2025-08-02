@@ -20,7 +20,9 @@ export default function ServerStatus() {
       setStatus("loading");
       setError(null);
 
-      const response = await fetch(getApiUrl("/api/status"));
+      const response = await fetch(getApiUrl("/api/status"), {
+        credentials: "include",
+      });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

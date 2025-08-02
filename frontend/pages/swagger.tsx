@@ -87,7 +87,9 @@ export default function SwaggerPage() {
     setError(null);
 
     try {
-      const response = await fetch(getApiUrl("/api/swagger"));
+      const response = await fetch(getApiUrl("/api/swagger"), {
+        credentials: "include",
+      });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
