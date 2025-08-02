@@ -3,12 +3,10 @@
 import React, { useState, useEffect } from "react";
 import { Alert, Button, Card, Badge } from "react-bootstrap";
 import { getApiUrl } from "../lib/config";
+import type { ActionResponse } from "../../backend/api";
+import type { Status } from "../../backend/actions/status";
 
-interface ServerStatusData {
-  uptime: number;
-  consumedMemoryMB: number;
-  [key: string]: string | number | boolean;
-}
+type ServerStatusData = ActionResponse<Status>;
 
 export default function ServerStatus() {
   const [status, setStatus] = useState<"loading" | "success" | "error">(
@@ -39,10 +37,7 @@ export default function ServerStatus() {
 
   useEffect(() => {
     loadStatus();
-
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(loadStatus, 30000);
-
+    const interval = setInterval(loadStatus, 5 * 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -105,30 +100,40 @@ export default function ServerStatus() {
         {status === "success" && statusData && (
           <div className="mt-3">
             <h6>Status Details:</h6>
-            <div className="row">
-              {Object.entries(statusData).map(([key, value]) => {
-                const label =
-                  key.charAt(0).toUpperCase() +
-                  key.slice(1).replace(/([A-Z])/g, " $1");
-                let displayValue = value;
+            <div className="table-responsive">
+              <table className="table table-striped table-hover">
+                <thead className="table-light">
+                  <tr>
+                    <th>Property</th>
+                    <th>Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(statusData).map(([key, value]) => {
+                    const label =
+                      key.charAt(0).toUpperCase() +
+                      key.slice(1).replace(/([A-Z])/g, " $1");
+                    let displayValue = value;
 
-                if (key === "uptime") {
-                  displayValue = formatUptime(value as number);
-                } else if (key === "consumedMemoryMB") {
-                  displayValue = `${value} MB`;
-                }
+                    if (key === "uptime") {
+                      displayValue = formatUptime(value as number);
+                    } else if (key === "consumedMemoryMB") {
+                      displayValue = `${value} MB`;
+                    }
 
-                return (
-                  <div key={key} className="col-md-6 mb-2">
-                    <div className="d-flex justify-content-between">
-                      <span className="fw-semibold text-muted">{label}:</span>
-                      <Badge bg="light" text="dark">
-                        {displayValue}
-                      </Badge>
-                    </div>
-                  </div>
-                );
-              })}
+                    return (
+                      <tr key={key}>
+                        <td className="fw-semibold text-muted">{label}</td>
+                        <td>
+                          <Badge bg="light" text="dark">
+                            {displayValue}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

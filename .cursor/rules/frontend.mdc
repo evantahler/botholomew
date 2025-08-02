@@ -1,0 +1,6 @@
+---
+description: When writing frontend components
+alwaysApply: false
+---
+
+Always, load the type type definitions from the Actions in the backend. Do not write your own types.

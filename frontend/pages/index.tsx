@@ -5,7 +5,6 @@ import { Container, Row, Col, Button, Card } from "react-bootstrap";
 import ServerStatus from "../components/ServerStatus";
 import WebSocketStatus from "../components/WebSocketStatus";
 import MessageLog, { MessageLogRef } from "../components/MessageLog";
-import { SERVER_HOSTNAME } from "../lib/config";
 
 interface WebSocketMessage {
   [key: string]: unknown;
@@ -41,9 +40,9 @@ export default function Home() {
           padding: "2rem 0",
         }}
       >
-        <Container>
+        <Container fluid>
           <Row className="justify-content-center">
-            <Col lg={10} xl={8}>
+            <Col lg={12} xl={10}>
               <Card className="shadow-lg border-0">
                 <Card.Body className="p-4">
                   <div className="text-center mb-4">
