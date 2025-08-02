@@ -2,6 +2,8 @@
 alwaysApply: false
 ---
 
-Always run `bun lint` after writing tests to format the code.
+**Core Principles: Be minimal, surgical, elegant, and correct.**
 
-Whenever possible, use the `TypedError` class to throw errors.
+Before writing code, always make a plan about how to best implement the feature. Then, follow the plan, checking of each step is complete before moving on to the next.
+
+Always run `bun lint` after writing tests to format the code.
