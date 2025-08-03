@@ -182,6 +182,20 @@ export default function AgentDetail() {
     }
   };
 
+  const handleDeleteMessage = async (messageId: number) => {
+    if (!confirm("Are you sure you want to delete this message?")) {
+      return;
+    }
+
+    try {
+      await APIWrapper.delete("/message", { id: messageId });
+      // Refresh messages to update the list
+      await fetchMessages();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete message");
+    }
+  };
+
   const formatDate = (timestamp: number | undefined) => {
     if (!timestamp) return "Unknown date";
     return new Date(timestamp).toLocaleString();
@@ -628,6 +642,16 @@ export default function AgentDetail() {
                               <small className="text-muted">
                                 {formatDate(message.createdAt)}
                               </small>
+                            </div>
+                            <div className="d-flex gap-1">
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                onClick={() => handleDeleteMessage(message.id)}
+                                disabled={messagesLoading}
+                              >
+                                X
+                              </Button>
                             </div>
                           </div>
                           <div className="message-content">
