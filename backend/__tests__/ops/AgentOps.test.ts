@@ -122,15 +122,17 @@ describe("agentTick", () => {
     expect(result.output).toBeDefined();
     expect(typeof result.output).toBe("string");
 
-    // Verify that an assistant message was created
+    // Verify that messages were created (system + user + assistant)
     const newMessages = await api.db.db
       .select()
       .from(messages)
-      .where(eq(messages.agentId, newAgent.id));
+      .where(eq(messages.agentId, newAgent.id))
+      .orderBy(messages.createdAt);
 
-    expect(newMessages.length).toBe(1);
-    expect(newMessages[0].role).toBe("assistant");
-    expect(newMessages[0].content).toBe(result.output);
+    expect(newMessages.length).toBe(2); // user + assistant messages
+    expect(newMessages[0].role).toBe("user");
+    expect(newMessages[1].role).toBe("assistant");
+    expect(newMessages[1].content).toBe(result.output);
   });
 
   test("should handle agent with multiple conversation turns", async () => {
@@ -191,14 +193,14 @@ describe("agentTick", () => {
     expect(result.output).toBeDefined();
     expect(typeof result.output).toBe("string");
 
-    // Verify that a new assistant message was created
+    // Verify that new messages were created (user + assistant)
     const allMessages = await api.db.db
       .select()
       .from(messages)
       .where(eq(messages.agentId, multiTurnAgent.id))
       .orderBy(messages.createdAt);
 
-    expect(allMessages.length).toBe(4); // 3 original messages + 1 new assistant message
+    expect(allMessages.length).toBe(5); // 3 original messages + 2 new messages (user + assistant)
 
     const lastMessage = allMessages[allMessages.length - 1];
     expect(lastMessage.role).toBe("assistant");

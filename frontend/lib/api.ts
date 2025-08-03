@@ -76,10 +76,11 @@ export class APIWrapper {
     const response = await fetch(getApiUrl(finalUrl), fetchOptions);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorRsp = await response.json().catch(() => ({}));
       throw new Error(
-        errorData.message ||
-          `Failed to execute ${method} ${url} [${response.status}]: ${response.statusText}`
+        errorRsp?.error
+          ? `${errorRsp.error.type}: ${errorRsp.error.message}`
+          : `Failed to execute ${method} ${url} [${response.status}]: ${response.statusText}`
       );
     }
 

@@ -1,12 +1,7 @@
-import { agents, type Agent, type NewAgent } from "../models/agent";
-import { Message, messages } from "../models/message";
-import { desc, eq } from "drizzle-orm";
+import { type Agent } from "../models/agent";
+import { messages } from "../models/message";
 import { api } from "../api";
-import {
-  AgentInputItem,
-  Agent as OpenAIAgent,
-  run as OpenAiAgentRun,
-} from "@openai/agents";
+import { Agent as OpenAIAgent, run } from "@openai/agents";
 
 export function serializeAgent(agent: Agent) {
   return {
@@ -28,83 +23,28 @@ export function serializeAgent(agent: Agent) {
   };
 }
 
-export function toAgentInputItem(message: Message): AgentInputItem {
-  if (message.role === "user") {
-    return {
-      role: "user",
-      content: message.content,
-      type: "message",
-    };
-  } else if (message.role === "assistant") {
-    return {
-      role: "assistant",
-      content: [
-        {
-          type: "output_text",
-          text: message.content,
-        },
-      ],
-      type: "message",
-      status: "completed",
-    };
-  } else {
-    return {
-      role: "system",
-      content: message.content,
-      type: "message",
-    };
-  }
-}
+export async function agentTick(agent: Agent, limit: number = 25) {
+  const _agent = new OpenAIAgent({
+    name: agent.name,
+    instructions: agent.systemPrompt,
+    model: agent.model,
+    tools: [],
+  });
 
-export async function agentTick(agent: Agent) {
-  try {
-    const _messages: Message[] = await api.db.db
-      .select()
-      .from(messages)
-      .where(eq(messages.agentId, agent.id))
-      .limit(10)
-      .orderBy(desc(messages.createdAt));
+  const message = `Re-run per your instructions`;
 
-    const _agent = new OpenAIAgent({
-      name: agent.name,
-      instructions: agent.systemPrompt,
-      model: agent.model,
-      tools: [],
-    });
+  const result = await run(_agent, message);
 
-    let thread: AgentInputItem[] = _messages
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .map(toAgentInputItem);
+  await api.db.db.insert(messages).values({
+    agentId: agent.id,
+    role: "user",
+    content: message,
+  });
+  await api.db.db.insert(messages).values({
+    agentId: agent.id,
+    role: "assistant",
+    content: result.finalOutput,
+  });
 
-    thread.push({
-      role: "system",
-      content: `You are an agent named \`${agent.name}\` and described as:\n    ${agent.description}`,
-    });
-
-    const result = await OpenAiAgentRun(_agent, thread);
-    const outputText = result.finalOutput;
-
-    await api.db.db.insert(messages).values({
-      agentId: agent.id,
-      role: "assistant",
-      content: outputText,
-    });
-
-    return { output: outputText };
-  } catch (error) {
-    console.error("Error in agentTick:", error);
-
-    // Create a fallback response
-    const fallbackResponse =
-      "I apologize, but I encountered an error while processing your request. Please try again.  The error was: " +
-      error;
-
-    await api.db.db.insert(messages).values({
-      agentId: agent.id,
-      role: "assistant",
-      content: fallbackResponse,
-    });
-
-    return { output: fallbackResponse };
-  }
+  return { output: result.finalOutput };
 }

@@ -605,6 +605,9 @@ describe("message:list", () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(data.messages)).toBe(true);
     expect(data.messages.length).toBeGreaterThanOrEqual(5);
+    expect(data.total).toBeDefined();
+    expect(typeof data.total).toBe("number");
+    expect(data.total).toBeGreaterThanOrEqual(data.messages.length);
     for (const message of data.messages) {
       expect(message.agentId).toBe(listAgentId);
     }
@@ -625,8 +628,36 @@ describe("message:list", () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(data.messages)).toBe(true);
     expect(data.messages.length).toBeLessThanOrEqual(2);
+    expect(data.total).toBeDefined();
+    expect(typeof data.total).toBe("number");
     for (const message of data.messages) {
       expect(message.agentId).toBe(listAgentId);
+    }
+  });
+
+  test("should order messages by newest first", async () => {
+    const res = await fetch(
+      `${url}/api/messages?agentId=${listAgentId}&limit=10`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${listSession.cookieName}=${listSession.id}`,
+        },
+      },
+    );
+    const data = await res.json();
+    expect(res.status).toBe(200);
+    expect(Array.isArray(data.messages)).toBe(true);
+    expect(data.messages.length).toBeGreaterThan(1);
+
+    // Check that messages are ordered by createdAt descending (newest first)
+    for (let i = 0; i < data.messages.length - 1; i++) {
+      const currentMessage = data.messages[i];
+      const nextMessage = data.messages[i + 1];
+      expect(
+        new Date(currentMessage.createdAt).getTime(),
+      ).toBeGreaterThanOrEqual(new Date(nextMessage.createdAt).getTime());
     }
   });
 

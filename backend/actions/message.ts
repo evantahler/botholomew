@@ -222,7 +222,7 @@ export class MessageList implements Action {
 
     return {
       messages: rows.map(serializeMessage),
-      total: count,
+      total: Number(count),
     };
   }
 }
