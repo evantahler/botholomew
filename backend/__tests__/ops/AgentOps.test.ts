@@ -1,4 +1,4 @@
-import { test, describe, expect, beforeAll, afterAll } from "bun:test";
+import { test, describe, expect, beforeAll, afterAll, mock } from "bun:test";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
 import type { SessionCreate } from "../../actions/session";
@@ -13,6 +13,15 @@ import { agentTick } from "../../ops/AgentOps";
 import { messages } from "../../models/message";
 import { agents } from "../../models/agent";
 import { eq } from "drizzle-orm";
+
+// Mock the OpenAI agents module
+const mockRun = mock(() => Promise.resolve({ finalOutput: "Mocked assistant response" }));
+const mockAgent = mock(() => ({}));
+
+mock.module("@openai/agents", () => ({
+  Agent: mockAgent,
+  run: mockRun,
+}));
 
 const url = config.server.web.applicationUrl;
 
