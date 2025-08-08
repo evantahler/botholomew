@@ -12,7 +12,9 @@ import {
 import { AgentCreate } from "../../actions/agent";
 
 // Mock the OpenAI agents module
-const mockRun = mock(() => Promise.resolve({ finalOutput: "Mocked assistant response" }));
+const mockRun = mock(() =>
+  Promise.resolve({ finalOutput: "Mocked assistant response" }),
+);
 const mockAgent = mock(() => ({}));
 
 mock.module("@openai/agents", () => ({

@@ -15,7 +15,9 @@ import { agents } from "../../models/agent";
 import { eq } from "drizzle-orm";
 
 // Mock the OpenAI agents module
-const mockRun = mock(() => Promise.resolve({ finalOutput: "Mocked assistant response" }));
+const mockRun = mock(() =>
+  Promise.resolve({ finalOutput: "Mocked assistant response" }),
+);
 const mockAgent = mock(() => ({}));
 
 mock.module("@openai/agents", () => ({

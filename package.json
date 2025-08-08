@@ -10,7 +10,13 @@
   "scripts": {
     "dev": "concurrently --kill-others \"bun run dev:backend\" \"bun run dev:frontend\"",
     "dev:backend": "cd backend && bun run dev",
-    "dev:frontend": "cd frontend && bun run dev"
+    "dev:frontend": "cd frontend && bun run dev",
+    "lint": "bun run lint:backend && bun run lint:frontend",
+    "lint:backend": "cd backend && bun run lint",
+    "lint:frontend": "cd frontend && bun run lint",
+    "format": "bun run format:backend && bun run format:frontend",
+    "format:backend": "cd backend && bun run format",
+    "format:frontend": "cd frontend && bun run format"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
