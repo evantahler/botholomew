@@ -259,7 +259,19 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
       try {
         const bodyContent = await req.json();
         for (const [key, value] of Object.entries(bodyContent)) {
-          params.set(key, value as any);
+          if (Array.isArray(value)) {
+            // Handle arrays by appending each element
+            if (value.length === 0) {
+              // For empty arrays, set an empty string to indicate the field exists
+              params.set(key, "");
+            } else {
+              for (const item of value) {
+                params.append(key, item);
+              }
+            }
+          } else {
+            params.set(key, value as any);
+          }
         }
       } catch (e) {
         throw new TypedError({

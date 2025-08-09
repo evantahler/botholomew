@@ -46,6 +46,7 @@ export class AgentCreate implements Action {
       .union([
         z.array(z.string()),
         z.string().transform((val) => {
+          if (val === "") return [];
           return [val];
         }),
       ])
@@ -88,12 +89,13 @@ export class AgentEdit implements Action {
     enabled: zBooleanFromString().optional(),
     schedule: z.string().optional(),
     toolkits: z
-    .union([
-      z.array(z.string()),
-      z.string().transform((val) => {
-        return [val];
-      }),
-    ])
+      .union([
+        z.array(z.string()),
+        z.string().transform((val) => {
+          if (val === "") return [];
+          return [val];
+        }),
+      ])
       .optional(),
   });
 

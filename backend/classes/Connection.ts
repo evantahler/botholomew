@@ -183,7 +183,16 @@ export class Connection<T extends Record<string, any> = Record<string, any>> {
     // Convert FormData to a plain object for processing
     const rawParams: Record<string, any> = {};
     params.forEach((value, key) => {
-      rawParams[key] = value;
+      if (rawParams[key] !== undefined) {
+        // If the key already exists, convert to array
+        if (Array.isArray(rawParams[key])) {
+          rawParams[key].push(value);
+        } else {
+          rawParams[key] = [rawParams[key], value];
+        }
+      } else {
+        rawParams[key] = value;
+      }
     });
 
     // Handle zod schema inputs

@@ -87,6 +87,7 @@ export async function createAgent(
     model: string;
     systemPrompt: string;
     enabled: boolean;
+    toolkits?: string[] | string;
   },
 ): Promise<ActionResponse<AgentCreate>["agent"]> {
   const agentResponse = await fetch(`${url}/api/agent`, {
@@ -162,5 +163,21 @@ export const TEST_AGENTS = {
     model: "gpt-3.5-turbo",
     systemPrompt: "Original system prompt",
     enabled: false,
+  },
+  WITH_TOOLKITS: {
+    name: "Toolkit Agent",
+    description: "An agent with toolkits",
+    model: "gpt-4",
+    systemPrompt: "You are a helpful assistant with toolkit access.",
+    enabled: true,
+    toolkits: ["web_search", "file_operations"],
+  },
+  SINGLE_TOOLKIT: {
+    name: "Single Toolkit Agent",
+    description: "An agent with one toolkit",
+    model: "gpt-4",
+    systemPrompt: "You are a helpful assistant.",
+    enabled: false,
+    toolkits: "web_search",
   },
 } as const;
