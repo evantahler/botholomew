@@ -16,6 +16,7 @@ import {
 } from "react-bootstrap";
 import { useAuth } from "../../lib/auth";
 import { APIWrapper } from "../../lib/api";
+import ReactMarkdown from "react-markdown";
 
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
@@ -647,8 +648,12 @@ export default function AgentDetail() {
                             <strong>ID:</strong> {runResult.message.id}
                           </ListGroup.Item>
                           <ListGroup.Item>
-                            <strong>Content:</strong>{" "}
-                            {runResult.message.content}
+                            <strong>Content:</strong>
+                            <div className="mt-2">
+                              <ReactMarkdown>
+                                {runResult.message.content}
+                              </ReactMarkdown>
+                            </div>
                           </ListGroup.Item>
                           <ListGroup.Item>
                             <strong>Created:</strong>{" "}
@@ -769,13 +774,12 @@ export default function AgentDetail() {
                             >
                               <div
                                 style={{
-                                  whiteSpace: "pre-wrap",
                                   fontFamily: "inherit",
                                   fontSize: "0.9rem",
                                   lineHeight: "1.5",
                                 }}
                               >
-                                {message.content}
+                                <ReactMarkdown>{message.content}</ReactMarkdown>
                               </div>
                             </div>
                           </div>
