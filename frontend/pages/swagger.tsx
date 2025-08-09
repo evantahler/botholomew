@@ -11,6 +11,8 @@ interface SwaggerUIBundle {
     plugins: unknown[];
     layout: string;
     tryItOutEnabled: boolean;
+    requestInterceptor?: (request: any) => any;
+    responseInterceptor?: (response: any) => any;
   }): void;
   presets: {
     apis: unknown;
@@ -110,6 +112,20 @@ export default function SwaggerPage() {
           plugins: [SwaggerUIBundle.plugins.DownloadUrl],
           layout: "BaseLayout",
           tryItOutEnabled: true,
+          requestInterceptor: (request: any) => {
+            // Include credentials (cookies) in all Swagger UI requests
+            request.credentials = "include";
+            return request;
+          },
+          responseInterceptor: (response: any) => {
+            // Handle authentication errors gracefully
+            if (response.status === 401) {
+              console.warn(
+                "Authentication required. Please sign in to use the API."
+              );
+            }
+            return response;
+          },
         });
       }
     } catch (err) {

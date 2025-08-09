@@ -176,6 +176,23 @@ export default function AgentsList() {
                         <strong>Schedule:</strong> {agent.schedule}
                       </div>
                     )}
+                    {agent.toolkits && agent.toolkits.length > 0 && (
+                      <div className="mb-3">
+                        <strong>Toolkits:</strong>
+                        <div className="mt-1">
+                          {agent.toolkits.map((toolkit: string) => (
+                            <Badge
+                              key={toolkit}
+                              bg="info"
+                              className="me-1 mb-1"
+                              style={{ fontSize: "0.75rem" }}
+                            >
+                              {toolkit}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="text-muted small">
                       Created: {formatDate(agent.createdAt)}
                     </div>

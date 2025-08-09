@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import {
   Container,
@@ -16,13 +16,23 @@ import { useAuth } from "../../lib/auth";
 import { APIWrapper } from "../../lib/api";
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
+import ToolkitSelector from "../../components/ToolkitSelector";
 
 export default function CreateAgent() {
   const router = useRouter();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    model: string;
+    systemPrompt: string;
+    contextSummary: string;
+    enabled: boolean;
+    schedule: string;
+    toolkits: string[];
+  }>({
     name: "",
     description: "",
     model: "gpt-4o",
@@ -30,7 +40,12 @@ export default function CreateAgent() {
     contextSummary: "",
     enabled: false,
     schedule: "",
+    toolkits: [],
   });
+
+  // Toolkits state
+  const [availableToolkits, setAvailableToolkits] = useState<any[]>([]);
+  const [toolkitsLoading, setToolkitsLoading] = useState(false);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -43,13 +58,47 @@ export default function CreateAgent() {
     }));
   };
 
+  const handleToolkitChange = (toolkitName: string, checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      toolkits: checked
+        ? [...prev.toolkits, toolkitName]
+        : prev.toolkits.filter((t: string) => t !== toolkitName),
+    }));
+  };
+
+  const fetchToolkits = async () => {
+    try {
+      setToolkitsLoading(true);
+      const response = await APIWrapper.get("/arcade/toolkits");
+      setAvailableToolkits(response.toolkits || []);
+    } catch (err) {
+      console.error("Failed to load toolkits:", err);
+      setAvailableToolkits([]);
+    } finally {
+      setToolkitsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchToolkits();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      const response = await APIWrapper.put("/agent", formData);
+      // Ensure toolkits is always an array
+      const submitData = {
+        ...formData,
+        toolkits: Array.isArray(formData.toolkits) ? formData.toolkits : [],
+      };
+
+      console.log("Creating agent with data:", submitData);
+
+      const response = await APIWrapper.put("/agent", submitData);
       router.push(`/agents/${response.agent.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -219,6 +268,22 @@ export default function CreateAgent() {
                     </Col>
                   </Row>
 
+                  <Form.Group className="mb-3">
+                    <Form.Label>Toolkits</Form.Label>
+                    <ToolkitSelector
+                      availableToolkits={availableToolkits}
+                      selectedToolkits={formData.toolkits}
+                      onToolkitChange={handleToolkitChange}
+                      loading={toolkitsLoading}
+                      disabled={loading}
+                      size="lg"
+                    />
+                    <Form.Text className="text-muted">
+                      Select toolkits to enable additional capabilities for your
+                      agent
+                    </Form.Text>
+                  </Form.Group>
+
                   <div className="d-flex gap-2">
                     <Button type="submit" variant="primary" disabled={loading}>
                       {loading ? (
@@ -273,6 +338,10 @@ export default function CreateAgent() {
                     <strong>Context Summary:</strong> Provide relevant
                     background information to help the agent understand its
                     context.
+                  </li>
+                  <li className="mb-2">
+                    <strong>Toolkits:</strong> Select toolkits to give your
+                    agent access to additional tools and capabilities.
                   </li>
                 </ul>
               </Card.Body>

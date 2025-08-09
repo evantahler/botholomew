@@ -29,6 +29,20 @@
       "when": 1752293291436,
       "tag": "0003_fluffy_living_mummy",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1754697631664,
+      "tag": "0004_giant_aqueduct",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1754698127537,
+      "tag": "0005_equal_selene",
+      "breakpoints": true
     }
   ]
 }

@@ -18,17 +18,23 @@ export function serializeAgent(agent: Agent) {
     scheduleLastRun: agent.scheduleLastRun?.getTime(),
     scheduleLastRunResult: agent.scheduleLastRunResult,
     scheduleLastRunError: agent.scheduleLastRunError,
+    toolkits: agent.toolkits,
     createdAt: agent.createdAt.getTime(),
     updatedAt: agent.updatedAt.getTime(),
   };
 }
 
-export async function agentTick(agent: Agent, limit: number = 25) {
+export async function agentTick(agent: Agent) {
+  const arcadeTools = await api.arcade.loadArcadeToolsForAgent(
+    agent.toolkits,
+    `user_${agent.userId}`,
+  );
+
   const _agent = new OpenAIAgent({
     name: agent.name,
     instructions: agent.systemPrompt,
     model: agent.model,
-    tools: [],
+    tools: arcadeTools,
   });
 
   const message = `Re-run per your instructions`;

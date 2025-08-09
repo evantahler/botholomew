@@ -16,6 +16,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@arcadeai/arcadejs": "^1.9.0",
     "@openai/agents": "^0.0.10",
     "colors": "^1.4.0",
     "commander": "^12.1.0",

@@ -6,6 +6,7 @@ import {
   text,
   boolean,
   integer,
+  json,
 } from "drizzle-orm/pg-core";
 
 import { users } from "./user";
@@ -29,6 +30,7 @@ export const agents = pgTable("agents", {
   scheduleLastRun: timestamp("schedule_last_run"),
   scheduleLastRunResult: text("schedule_last_run_result"),
   scheduleLastRunError: text("schedule_last_run_error"),
+  toolkits: json("toolkits").$type<string[]>().default([]).notNull(),
 });
 
 export type Agent = typeof agents.$inferSelect;
