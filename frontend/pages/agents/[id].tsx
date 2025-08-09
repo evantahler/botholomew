@@ -51,6 +51,12 @@ export default function AgentDetail() {
   const [availableToolkits, setAvailableToolkits] = useState<any[]>([]);
   const [toolkitsLoading, setToolkitsLoading] = useState(false);
 
+  // Agent models state
+  const [availableModels, setAvailableModels] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+
   // Messages state
   const [messages, setMessages] = useState<any[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -65,6 +71,7 @@ export default function AgentDetail() {
       fetchAgent();
       fetchMessages();
       fetchToolkits();
+      fetchAgentModels();
     }
   }, [id, currentPage]);
 
@@ -134,6 +141,18 @@ export default function AgentDetail() {
       setAvailableToolkits([]);
     } finally {
       setToolkitsLoading(false);
+    }
+  };
+
+  const fetchAgentModels = async () => {
+    try {
+      setModelsLoading(true);
+      const response = await APIWrapper.get("/agent/models");
+      setAvailableModels(response.models);
+    } catch (err) {
+      console.error("Failed to load agent models:", err);
+    } finally {
+      setModelsLoading(false);
     }
   };
 
@@ -496,11 +515,17 @@ export default function AgentDetail() {
                         onChange={handleInputChange}
                         required
                         size="sm"
+                        disabled={modelsLoading}
                       >
-                        <option value="gpt-4o">GPT-4o</option>
-                        <option value="gpt-4o-mini">GPT-4o Mini</option>
-                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        {modelsLoading ? (
+                          <option>Loading models...</option>
+                        ) : (
+                          availableModels.map(model => (
+                            <option key={model.value} value={model.value}>
+                              {model.label}
+                            </option>
+                          ))
+                        )}
                       </Form.Select>
                     </Form.Group>
 

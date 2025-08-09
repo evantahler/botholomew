@@ -34,6 +34,35 @@ afterAll(async () => {
   await api.stop();
 });
 
+describe("agent:models", () => {
+  test("should return available agent models", async () => {
+    const response = await fetch(`${url}/api/agent/models`, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+
+    expect(data.models).toBeDefined();
+    expect(Array.isArray(data.models)).toBe(true);
+    expect(data.models.length).toBeGreaterThan(0);
+
+    // Check that each model has the expected structure
+    data.models.forEach((model: any) => {
+      expect(model).toHaveProperty("value");
+      expect(model).toHaveProperty("label");
+      expect(typeof model.value).toBe("string");
+      expect(typeof model.label).toBe("string");
+    });
+
+    // Check that expected models are included
+    const modelValues = data.models.map((m: any) => m.value);
+    expect(modelValues).toContain("gpt-4o");
+    expect(modelValues).toContain("gpt-3.5-turbo");
+  });
+});
+
 describe("agent:create", () => {
   let user: ActionResponse<SessionCreate>["user"];
   let session: ActionResponse<SessionCreate>["session"];
@@ -55,7 +84,7 @@ describe("agent:create", () => {
       body: JSON.stringify({
         name: "Test Agent",
         description: "A test agent",
-        model: "gpt-4",
+        model: "gpt-4o",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
       }),
@@ -66,7 +95,7 @@ describe("agent:create", () => {
     expect(agentData.agent).toBeDefined();
     expect(agentData.agent.name).toBe("Test Agent");
     expect(agentData.agent.description).toBe("A test agent");
-    expect(agentData.agent.model).toBe("gpt-4");
+    expect(agentData.agent.model).toBe("gpt-4o");
     expect(agentData.agent.systemPrompt).toBe("You are a helpful assistant.");
     expect(agentData.agent.enabled).toBe(true);
     expect(agentData.agent.userId).toBe(user.id);
@@ -81,7 +110,7 @@ describe("agent:create", () => {
       body: JSON.stringify({
         name: "Test Agent",
         description: "A test agent",
-        model: "gpt-4",
+        model: "gpt-4o",
         systemPrompt: "You are a helpful assistant.",
       }),
     });
@@ -135,7 +164,7 @@ describe("agent:edit", () => {
         id: createdAgent.id,
         name: "Updated Agent",
         description: "Updated description",
-        model: "gpt-4",
+        model: "gpt-4o",
         systemPrompt: "Updated system prompt",
         enabled: true,
       }),
@@ -146,7 +175,7 @@ describe("agent:edit", () => {
     expect(editData.agent).toBeDefined();
     expect(editData.agent.name).toBe("Updated Agent");
     expect(editData.agent.description).toBe("Updated description");
-    expect(editData.agent.model).toBe("gpt-4");
+    expect(editData.agent.model).toBe("gpt-4o");
     expect(editData.agent.systemPrompt).toBe("Updated system prompt");
     expect(editData.agent.enabled).toBe(true);
     expect(editData.agent.id).toBe(createdAgent.id);
@@ -309,7 +338,7 @@ describe("agent:view", () => {
       {
         name: "View Agent",
         description: "Agent to view",
-        model: "gpt-4",
+        model: "gpt-4o",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
       },
@@ -330,7 +359,7 @@ describe("agent:view", () => {
     expect(viewData.agent.id).toBe(createdAgent.id);
     expect(viewData.agent.name).toBe("View Agent");
     expect(viewData.agent.description).toBe("Agent to view");
-    expect(viewData.agent.model).toBe("gpt-4");
+    expect(viewData.agent.model).toBe("gpt-4o");
     expect(viewData.agent.systemPrompt).toBe("You are a helpful assistant.");
     expect(viewData.agent.enabled).toBe(true);
     expect(viewData.agent.userId).toBe(viewUser.id);
@@ -408,7 +437,7 @@ describe("agent:list", () => {
     await createAgent(otherSession, {
       name: "Other User Agent",
       description: "Another user's agent",
-      model: "gpt-4",
+      model: "gpt-4o",
       systemPrompt: "You are a helpful assistant.",
       enabled: true,
     });
@@ -467,7 +496,7 @@ describe("agent:list", () => {
     await createAgent(otherSession, {
       name: "Other User Agent 2",
       description: "Another user's agent",
-      model: "gpt-4",
+      model: "gpt-4o",
       systemPrompt: "You are a helpful assistant.",
       enabled: true,
     });

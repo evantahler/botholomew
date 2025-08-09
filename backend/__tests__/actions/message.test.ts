@@ -234,7 +234,7 @@ describe("message:edit", () => {
       {
         name: "Edit Agent",
         description: "Agent for editing messages",
-        model: "gpt-4",
+        model: "gpt-4o",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
       },
@@ -364,7 +364,7 @@ describe("message:delete", () => {
       {
         name: "Delete Agent",
         description: "Agent for deleting messages",
-        model: "gpt-4",
+        model: "gpt-4o",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
       },
@@ -456,7 +456,7 @@ describe("message:view", () => {
       {
         name: "View Agent",
         description: "Agent for viewing messages",
-        model: "gpt-4",
+        model: "gpt-4o",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
       },
@@ -552,7 +552,7 @@ describe("message:list", () => {
       {
         name: "List Agent",
         description: "Agent for listing messages",
-        model: "gpt-4",
+        model: "gpt-4o",
         systemPrompt: "You are a helpful assistant.",
         enabled: true,
       },
@@ -582,7 +582,7 @@ describe("message:list", () => {
     const otherAgent = await createAgent(otherTestSession, {
       name: "Other User Agent",
       description: "Another user's agent",
-      model: "gpt-4",
+      model: "gpt-4o",
       systemPrompt: "You are a helpful assistant.",
       enabled: true,
     });
@@ -691,7 +691,7 @@ describe("message:list", () => {
     const otherAgent = await createAgent(otherTestSession, {
       name: "Other User Agent 2",
       description: "Another user's agent",
-      model: "gpt-4",
+      model: "gpt-4o",
       systemPrompt: "You are a helpful assistant.",
       enabled: true,
     });

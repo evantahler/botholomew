@@ -41,7 +41,7 @@ describe("agent toolkits", () => {
         body: JSON.stringify({
           name: "Toolkit Agent",
           description: "An agent with toolkits",
-          model: "gpt-4",
+          model: "gpt-4o",
           systemPrompt: "You are a helpful assistant with toolkit access.",
           enabled: true,
           toolkits: ["web_search", "file_operations"],
@@ -69,7 +69,7 @@ describe("agent toolkits", () => {
         body: JSON.stringify({
           name: "Single Toolkit Agent",
           description: "An agent with one toolkit",
-          model: "gpt-4",
+          model: "gpt-4o",
           systemPrompt: "You are a helpful assistant.",
           enabled: false,
           toolkits: "web_search",
@@ -93,7 +93,7 @@ describe("agent toolkits", () => {
         body: JSON.stringify({
           name: "No Toolkit Agent",
           description: "An agent without toolkits",
-          model: "gpt-4",
+          model: "gpt-4o",
           systemPrompt: "You are a helpful assistant.",
           enabled: false,
           toolkits: [],
@@ -117,7 +117,7 @@ describe("agent toolkits", () => {
         body: JSON.stringify({
           name: "Default Toolkit Agent",
           description: "An agent with default toolkits",
-          model: "gpt-4",
+          model: "gpt-4o",
           systemPrompt: "You are a helpful assistant.",
           enabled: false,
         }),
@@ -284,7 +284,7 @@ describe("agent toolkits", () => {
         body: JSON.stringify({
           name: "View Toolkit Agent",
           description: "Agent with toolkits to view",
-          model: "gpt-4",
+          model: "gpt-4o",
           systemPrompt: "You are a helpful assistant.",
           enabled: true,
         }),
@@ -355,7 +355,7 @@ describe("agent toolkits", () => {
         body: JSON.stringify({
           name: "List Agent 2",
           description: "Agent with multiple toolkits",
-          model: "gpt-4",
+          model: "gpt-4o",
           systemPrompt: "You are a helpful assistant.",
           enabled: true,
         }),

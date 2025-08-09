@@ -10,6 +10,16 @@ import { messages } from "../models/message";
 import { serializeMessage } from "../ops/MessageOps";
 import { zBooleanFromString } from "../util/zodMixins";
 
+export class AgentModels implements Action {
+  name = "agent:models";
+  description = "Get available agent models";
+  web = { route: "/agent/models", method: HTTP_METHOD.GET };
+
+  async run() {
+    return { models: api.openai.availableModels };
+  }
+}
+
 export class AgentCreate implements Action {
   name = "agent:create";
   description = "Create a new agent";

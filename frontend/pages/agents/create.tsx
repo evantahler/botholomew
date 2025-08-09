@@ -47,6 +47,12 @@ export default function CreateAgent() {
   const [availableToolkits, setAvailableToolkits] = useState<any[]>([]);
   const [toolkitsLoading, setToolkitsLoading] = useState(false);
 
+  // Agent models state
+  const [availableModels, setAvailableModels] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -80,8 +86,21 @@ export default function CreateAgent() {
     }
   };
 
+  const fetchAgentModels = async () => {
+    try {
+      setModelsLoading(true);
+      const response = await APIWrapper.get("/agent/models");
+      setAvailableModels(response.models);
+    } catch (err) {
+      console.error("Failed to load agent models:", err);
+    } finally {
+      setModelsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchToolkits();
+    fetchAgentModels();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -174,11 +193,17 @@ export default function CreateAgent() {
                           // @ts-ignore
                           onChange={handleInputChange}
                           required
+                          disabled={modelsLoading}
                         >
-                          <option value="gpt-4o">GPT-4o</option>
-                          <option value="gpt-4o-mini">GPT-4o Mini</option>
-                          <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                          <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                          {modelsLoading ? (
+                            <option>Loading models...</option>
+                          ) : (
+                            availableModels.map(model => (
+                              <option key={model.value} value={model.value}>
+                                {model.label}
+                              </option>
+                            ))
+                          )}
                         </Form.Select>
                         <Form.Text className="text-muted">
                           The AI model to use for this agent

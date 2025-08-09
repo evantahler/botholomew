@@ -153,7 +153,7 @@ export const TEST_AGENTS = {
   BASIC: {
     name: "Test Agent",
     description: "A test agent",
-    model: "gpt-4",
+    model: "gpt-4o",
     systemPrompt: "You are a helpful assistant.",
     enabled: true,
   },
@@ -167,7 +167,7 @@ export const TEST_AGENTS = {
   WITH_TOOLKITS: {
     name: "Toolkit Agent",
     description: "An agent with toolkits",
-    model: "gpt-4",
+    model: "gpt-4o",
     systemPrompt: "You are a helpful assistant with toolkit access.",
     enabled: true,
     toolkits: ["web_search", "file_operations"],
@@ -175,7 +175,7 @@ export const TEST_AGENTS = {
   SINGLE_TOOLKIT: {
     name: "Single Toolkit Agent",
     description: "An agent with one toolkit",
-    model: "gpt-4",
+    model: "gpt-4o",
     systemPrompt: "You are a helpful assistant.",
     enabled: false,
     toolkits: "web_search",
