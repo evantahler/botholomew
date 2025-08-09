@@ -2,6 +2,8 @@ import { type Agent } from "../models/agent";
 import { messages } from "../models/message";
 import { api } from "../api";
 import { Agent as OpenAIAgent, run } from "@openai/agents";
+import { users } from "../models/user";
+import { eq } from "drizzle-orm";
 
 export function serializeAgent(agent: Agent) {
   return {
@@ -25,9 +27,15 @@ export function serializeAgent(agent: Agent) {
 }
 
 export async function agentTick(agent: Agent) {
+  const [user] = await api.db.db
+    .select()
+    .from(users)
+    .where(eq(users.id, agent.userId))
+    .limit(1);
+
   const arcadeTools = await api.arcade.loadArcadeToolsForAgent(
     agent.toolkits,
-    `user_${agent.userId}`,
+    user.email,
   );
 
   const _agent = new OpenAIAgent({

@@ -57,6 +57,7 @@ export class ArcadeInitializer extends Initializer {
         client: api.arcade.client,
         userId: userId,
         executeFactory: executeOrAuthorizeZodTool,
+        // @ts-ignore
       }).map(tool);
       allTools.push(...zodTools);
     }

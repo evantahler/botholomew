@@ -18,7 +18,9 @@ export const agents = pgTable("agents", {
     .notNull()
     .defaultNow()
     .$onUpdateFn(() => new Date()),
-  userId: integer("user_id").references(() => users.id),
+  userId: integer("user_id")
+    .references(() => users.id)
+    .notNull(),
   name: varchar("name", { length: 256 }).notNull(),
   description: text("description"),
   model: varchar("model", { length: 256 }).notNull(),
