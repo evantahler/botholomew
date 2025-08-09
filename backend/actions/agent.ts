@@ -42,6 +42,16 @@ export class AgentCreate implements Action {
       .string()
       .optional()
       .describe("Cron schedule for the agent (if applicable)"),
+    toolkits: z
+      .union([
+        z.array(z.string()),
+        z.string().transform((val) => {
+          if (val === "") return [];
+          return [val];
+        }),
+      ])
+      .default([])
+      .describe("Array of arcade toolkit names to enable for this agent"),
   });
 
   async run(params: ActionParams<AgentCreate>, connection: Connection) {
@@ -56,6 +66,7 @@ export class AgentCreate implements Action {
         contextSummary: params.contextSummary,
         enabled: params.enabled,
         schedule: params.schedule,
+        toolkits: params.toolkits,
       })
       .returning();
 
@@ -77,6 +88,15 @@ export class AgentEdit implements Action {
     contextSummary: z.string().optional(),
     enabled: zBooleanFromString().optional(),
     schedule: z.string().optional(),
+    toolkits: z
+      .union([
+        z.array(z.string()),
+        z.string().transform((val) => {
+          if (val === "") return [];
+          return [val];
+        }),
+      ])
+      .optional(),
   });
 
   async run(params: ActionParams<AgentEdit>, connection: Connection) {
@@ -91,6 +111,7 @@ export class AgentEdit implements Action {
       updates.contextSummary = params.contextSummary;
     if (params.enabled !== undefined) updates.enabled = params.enabled;
     if (params.schedule !== undefined) updates.schedule = params.schedule;
+    if (params.toolkits !== undefined) updates.toolkits = params.toolkits;
 
     const [agent] = await api.db.db
       .update(agents)

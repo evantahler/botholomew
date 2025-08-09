@@ -20,6 +20,7 @@ import { APIWrapper } from "../../lib/api";
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import Pagination from "../../components/Pagination";
+import ToolkitSelector from "../../components/ToolkitSelector";
 
 export default function AgentDetail() {
   const router = useRouter();
@@ -43,7 +44,12 @@ export default function AgentDetail() {
     contextSummary: "",
     enabled: false,
     schedule: "",
+    toolkits: [],
   });
+
+  // Toolkits state
+  const [availableToolkits, setAvailableToolkits] = useState<any[]>([]);
+  const [toolkitsLoading, setToolkitsLoading] = useState(false);
 
   // Messages state
   const [messages, setMessages] = useState<any[]>([]);
@@ -58,6 +64,7 @@ export default function AgentDetail() {
     if (id) {
       fetchAgent();
       fetchMessages();
+      fetchToolkits();
     }
   }, [id, currentPage]);
 
@@ -77,6 +84,7 @@ export default function AgentDetail() {
         contextSummary: agentData.contextSummary || "",
         enabled: agentData.enabled,
         schedule: agentData.schedule || "",
+        toolkits: agentData.toolkits || [],
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -116,6 +124,19 @@ export default function AgentDetail() {
     }
   };
 
+  const fetchToolkits = async () => {
+    try {
+      setToolkitsLoading(true);
+      const response = await APIWrapper.get("/arcade/toolkits");
+      setAvailableToolkits(response.toolkits || []);
+    } catch (err) {
+      console.error("Failed to load toolkits:", err);
+      setAvailableToolkits([]);
+    } finally {
+      setToolkitsLoading(false);
+    }
+  };
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -131,16 +152,44 @@ export default function AgentDetail() {
     }));
   };
 
+  const handleToolkitChange = (toolkitName: string, checked: boolean) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      toolkits: checked
+        ? [...prev.toolkits, toolkitName]
+        : prev.toolkits.filter((t: string) => t !== toolkitName),
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
 
     try {
-      const response = await APIWrapper.post("/agent", {
+      // Ensure toolkits is always an array, handling stringified arrays
+      let toolkitsArray: string[] = [];
+      if (Array.isArray(formData.toolkits)) {
+        toolkitsArray = formData.toolkits;
+      } else if (typeof formData.toolkits === "string") {
+        try {
+          const parsed = JSON.parse(formData.toolkits);
+          toolkitsArray = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          // If it's not valid JSON, treat as empty array
+          toolkitsArray = [];
+        }
+      }
+
+      const submitData = {
         id: parseInt(id as string),
         ...formData,
-      });
+        toolkits: toolkitsArray,
+      };
+
+      console.log("Submitting agent data:", submitData);
+
+      const response = await APIWrapper.post("/agent", submitData);
       setAgent(response.agent);
       setIsEditing(false);
     } catch (err) {
@@ -343,6 +392,22 @@ export default function AgentDetail() {
                         </div>
                       </div>
                     )}
+                    {agent.toolkits && agent.toolkits.length > 0 && (
+                      <div className="mb-3">
+                        <strong>Toolkits:</strong>
+                        <div className="mt-1">
+                          {agent.toolkits.map((toolkit: string) => (
+                            <Badge
+                              key={toolkit}
+                              bg="info"
+                              className="me-1 mb-1"
+                            >
+                              {toolkit}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </Card.Body>
                 </Card>
 
@@ -475,6 +540,18 @@ export default function AgentDetail() {
                         onChange={handleInputChange}
                         size="sm"
                         placeholder="0 9 * * *"
+                      />
+                    </Form.Group>
+
+                    <Form.Group className="mb-3">
+                      <Form.Label className="small">Toolkits</Form.Label>
+                      <ToolkitSelector
+                        availableToolkits={availableToolkits}
+                        selectedToolkits={formData.toolkits}
+                        onToolkitChange={handleToolkitChange}
+                        loading={toolkitsLoading}
+                        disabled={saving}
+                        size="sm"
                       />
                     </Form.Group>
 
