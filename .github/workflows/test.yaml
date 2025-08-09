@@ -32,7 +32,7 @@ jobs:
       - name: lint frontend
         run: cd frontend && bun lint
 
-  test:
+  test-backend:
     runs-on: ubuntu-latest
 
     services:
@@ -58,14 +58,22 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - run: cd backend && cp .env.example .env
-      - run: cd frontend && cp .env.example .env
       - name: backend tests
         run: cd backend && bun test
+
+  test-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: cd frontend && cp .env.example .env
       - name: frontend tests
         run: cd frontend && bun run test
 
   complete:
     runs-on: ubuntu-latest
-    needs: [compile, lint, test]
+    needs: [compile, lint, test-backend, test-frontend]
     steps:
       - run: echo "Done!"
