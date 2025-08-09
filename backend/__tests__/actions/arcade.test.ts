@@ -66,7 +66,12 @@ const mockToZod = mock(() => [
 const mockExecuteOrAuthorizeZodTool = mock(() => ({}));
 
 mock.module("@arcadeai/arcadejs", () => ({
-  Arcade: mock(() => mockArcadeClient),
+  Arcade: mock().mockImplementation(() => mockArcadeClient),
+  toZod: mockToZod,
+  executeOrAuthorizeZodTool: mockExecuteOrAuthorizeZodTool,
+}));
+
+mock.module("@arcadeai/arcadejs/lib", () => ({
   toZod: mockToZod,
   executeOrAuthorizeZodTool: mockExecuteOrAuthorizeZodTool,
 }));
@@ -75,6 +80,37 @@ const url = config.server.web.applicationUrl;
 
 beforeAll(async () => {
   await api.start();
+
+  // Mock the arcade client after API initialization
+  api.arcade = {
+    client: mockArcadeClient as any,
+    loadArcadeToolsForAgent: mock(() => Promise.resolve([])),
+    getAvailableToolkits: mock(() =>
+      Promise.resolve([
+        {
+          name: "web_search",
+          description: "Web search toolkit",
+          tools: ["web_search_tool"],
+        },
+        {
+          name: "file_operations",
+          description: "File operations toolkit",
+          tools: ["file_read", "file_write"],
+        },
+        {
+          name: "data_analysis",
+          description: "Data analysis toolkit",
+          tools: ["data_analyze"],
+        },
+        {
+          name: "image_generation",
+          description: "Image generation toolkit",
+          tools: ["generate_image"],
+        },
+      ]),
+    ),
+  };
+
   await api.db.clearDatabase();
   await createTestUser(USERS.LUIGI);
 });
