@@ -42,41 +42,64 @@ export default function Pagination({
           disabled={currentPage === 1}
         />
 
-        {/* Show first page */}
-        {currentPage > 3 && (
-          <>
-            <BootstrapPagination.Item onClick={() => onPageChange(1)}>
-              1
-            </BootstrapPagination.Item>
-            {currentPage > 4 && <BootstrapPagination.Ellipsis />}
-          </>
-        )}
+        {(() => {
+          // Generate all page numbers to show, avoiding duplicates
+          const pagesToShow = new Set<number>();
 
-        {/* Show pages around current page */}
-        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-          const page = Math.max(1, Math.min(totalPages, currentPage - 2 + i));
-          if (page < 1 || page > totalPages) return null;
+          // Always show pages around current page (up to 5 pages total)
+          const startPage = Math.max(1, currentPage - 2);
+          const endPage = Math.min(totalPages, currentPage + 2);
+
+          for (let i = startPage; i <= endPage; i++) {
+            pagesToShow.add(i);
+          }
+
+          // If we're not showing page 1 and there's a gap, show page 1
+          const showFirstPage = !pagesToShow.has(1) && currentPage > 3;
+          const showLastPage =
+            !pagesToShow.has(totalPages) && currentPage < totalPages - 2;
+
+          const pages = Array.from(pagesToShow).sort((a, b) => a - b);
 
           return (
-            <BootstrapPagination.Item
-              key={page}
-              active={page === currentPage}
-              onClick={() => onPageChange(page)}
-            >
-              {page}
-            </BootstrapPagination.Item>
-          );
-        })}
+            <>
+              {/* Show first page with ellipsis if needed */}
+              {showFirstPage && (
+                <>
+                  <BootstrapPagination.Item onClick={() => onPageChange(1)}>
+                    1
+                  </BootstrapPagination.Item>
+                  {currentPage > 4 && <BootstrapPagination.Ellipsis />}
+                </>
+              )}
 
-        {/* Show last page */}
-        {currentPage < totalPages - 2 && (
-          <>
-            {currentPage < totalPages - 3 && <BootstrapPagination.Ellipsis />}
-            <BootstrapPagination.Item onClick={() => onPageChange(totalPages)}>
-              {totalPages}
-            </BootstrapPagination.Item>
-          </>
-        )}
+              {/* Show main page range */}
+              {pages.map(page => (
+                <BootstrapPagination.Item
+                  key={page}
+                  active={page === currentPage}
+                  onClick={() => onPageChange(page)}
+                >
+                  {page}
+                </BootstrapPagination.Item>
+              ))}
+
+              {/* Show last page with ellipsis if needed */}
+              {showLastPage && (
+                <>
+                  {currentPage < totalPages - 3 && (
+                    <BootstrapPagination.Ellipsis />
+                  )}
+                  <BootstrapPagination.Item
+                    onClick={() => onPageChange(totalPages)}
+                  >
+                    {totalPages}
+                  </BootstrapPagination.Item>
+                </>
+              )}
+            </>
+          );
+        })()}
 
         <BootstrapPagination.Next
           onClick={() => onPageChange(currentPage + 1)}
