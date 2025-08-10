@@ -5,4 +5,6 @@ description: When writing backend code
 
 Whenever possible, use the `TypedError` class to throw errors.
 
-After any modification of the models, we need to migrate via `bun run botholomew.ts migrate`
+After any modification of the models, we need to migrate. Never create the migration file yourself. Run `./botholomew.ts migrate` in the backend directory to migrate.
+
+Do not try to run the server after making any change - it's probably already running by the developer. Instead, create tests.

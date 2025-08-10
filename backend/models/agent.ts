@@ -19,7 +19,7 @@ export const agents = pgTable("agents", {
     .defaultNow()
     .$onUpdateFn(() => new Date()),
   userId: integer("user_id")
-    .references(() => users.id)
+    .references(() => users.id, { onDelete: "cascade" })
     .notNull(),
   name: varchar("name", { length: 256 }).notNull(),
   description: text("description"),

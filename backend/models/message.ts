@@ -22,7 +22,11 @@ export const messages = pgTable("messages", {
     .notNull()
     .defaultNow()
     .$onUpdateFn(() => new Date()),
-  agentId: integer("agent_id").references(() => agents.id),
+  agentId: integer("agent_id")
+    .references(() => agents.id, {
+      onDelete: "cascade",
+    })
+    .notNull(),
   role: messageRole("role").notNull(),
   content: text("content").notNull(),
 });

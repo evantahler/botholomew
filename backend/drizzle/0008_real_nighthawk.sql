@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "user_id_toolkit_name_idx" ON "toolkit_authorizations" ("user_id","toolkit_name");
