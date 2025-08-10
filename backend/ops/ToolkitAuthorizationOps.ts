@@ -22,7 +22,7 @@ export async function isUserAuthorizedForToolkits(
   }
 
   // Get all toolkit authorizations for the user
-  const userAuthorizations = await api.db.db
+  const userAuthorizations: ToolkitAuthorization[] = await api.db.db
     .select({ toolkitName: toolkit_authorizations.toolkitName })
     .from(toolkit_authorizations)
     .where(eq(toolkit_authorizations.userId, userId));

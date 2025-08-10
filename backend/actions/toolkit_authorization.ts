@@ -6,6 +6,7 @@ import { toolkit_authorizations } from "../models/toolkit_authorization";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { SessionMiddleware } from "../middleware/session";
 import { serializeToolkitAuthorization } from "../ops/ToolkitAuthorizationOps";
+import { users } from "../models/user";
 
 export class ToolkitAuthorizationList implements Action {
   name = "toolkit_authorization:list";
@@ -49,6 +50,13 @@ export class ToolkitAuthorizationCreate implements Action {
     params: ActionParams<ToolkitAuthorizationCreate>,
     connection: Connection,
   ) {
+    const response = {
+      toolkitAuthorization: null as ReturnType<
+        typeof serializeToolkitAuthorization
+      > | null,
+      authUrl: null as string | null,
+    };
+
     const { toolkitName } = params;
     const userId = connection.session!.data.userId;
 
@@ -71,6 +79,29 @@ export class ToolkitAuthorizationCreate implements Action {
       });
     }
 
+    const [user] = await api.db.db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!user) {
+      throw new TypedError({
+        message: "User not found",
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+      });
+    }
+
+    const authUrl = await api.arcade.authorizeToolkitForUser(
+      toolkitName,
+      user.email,
+    );
+
+    if (authUrl) {
+      response.authUrl = authUrl;
+      return response;
+    }
+
     const [tka] = await api.db.db
       .insert(toolkit_authorizations)
       .values({
@@ -79,7 +110,9 @@ export class ToolkitAuthorizationCreate implements Action {
       })
       .returning();
 
-    return { toolkitAuthorization: serializeToolkitAuthorization(tka) };
+    response.toolkitAuthorization = serializeToolkitAuthorization(tka);
+
+    return response;
   }
 }
 

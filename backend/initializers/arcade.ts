@@ -32,6 +32,7 @@ export class ArcadeInitializer extends Initializer {
       client,
       loadArcadeToolsForAgent: this.loadArcadeToolsForAgent,
       getAvailableToolkits: this.getAvailableToolkits,
+      authorizeToolkitForUser: this.authorizeToolkitForUser,
     };
   }
 
@@ -66,7 +67,35 @@ export class ArcadeInitializer extends Initializer {
     return allTools;
   }
 
-  async authorizeToolkitForAgent(toolkit: string, userId: string) {}
+  async authorizeToolkitForUser(
+    toolkit: string,
+    userId: string,
+    limit: number = 1000,
+  ) {
+    const tools = await api.arcade.client.tools.list({
+      toolkit,
+      limit,
+    });
+
+    const provider = tools.items[0].requirements?.authorization?.provider_id;
+    if (!provider) throw new Error("No provider found for toolkit: " + toolkit);
+
+    const scopes = [
+      ...new Set(
+        tools.items
+          .map((tool) => tool.requirements?.authorization?.oauth2?.scopes ?? [])
+          .flat(),
+      ),
+    ];
+
+    const authResponse = await api.arcade.client.auth.start(userId, provider, {
+      scopes: [...scopes],
+    });
+
+    if (authResponse.status !== "completed") {
+      return authResponse.url;
+    }
+  }
 
   async getAvailableToolkits(limit: number = 1000) {
     const tools = await api.arcade.client.tools.list({ limit });

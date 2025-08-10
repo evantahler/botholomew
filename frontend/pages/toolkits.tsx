@@ -137,8 +137,15 @@ export default function Toolkits() {
         toolkitName,
       });
 
-      // Add the new authorization to the list
-      setUserAuthorizations(prev => [...prev, response.toolkitAuthorization]);
+      if (response.authUrl) {
+        window.open(response.authUrl, "_blank");
+        return;
+      }
+
+      // If no authUrl, authorization was successful and we can add it to the list
+      if (response.toolkitAuthorization) {
+        setUserAuthorizations(prev => [...prev, response.toolkitAuthorization]);
+      }
     } catch (err) {
       console.error("Failed to authorize toolkit:", err);
       setError(
