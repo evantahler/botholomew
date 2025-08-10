@@ -1,7 +1,8 @@
 ---
-description: When writing frontend components
-alwaysApply: false
+alwaysApply: true
 ---
+
+# FRONTEND RULES
 
 Always, load the type type definitions from the Actions in the backend. Do not write your own types.
 

@@ -2,6 +2,8 @@
 alwaysApply: true
 ---
 
+# BACKEND RULES
+
 Whenever possible, use the `TypedError` class to throw errors.
 
 After any modification of the models, we need to migrate. Never create the migration file yourself. Run `./botholomew.ts migrate` in the backend directory to migrate.
