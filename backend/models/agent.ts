@@ -7,9 +7,12 @@ import {
   boolean,
   integer,
   json,
+  pgEnum,
 } from "drizzle-orm/pg-core";
 
 import { users } from "./user";
+
+export const responseTypes = pgEnum("run_type", ["text", "json", "markdown"]);
 
 export const agents = pgTable("agents", {
   id: serial("id").primaryKey(),
@@ -25,7 +28,8 @@ export const agents = pgTable("agents", {
   description: text("description"),
   model: varchar("model", { length: 256 }).notNull(),
   systemPrompt: text("system_prompt").notNull(),
-  contextSummary: text("context_summary"),
+  userPrompt: text("user_prompt").notNull(),
+  responseType: responseTypes("response_type").notNull().default("text"),
   enabled: boolean("enabled").notNull().default(false),
   schedule: text("schedule"),
   scheduleNextRun: timestamp("schedule_next_run"),

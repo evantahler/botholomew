@@ -1,1 +1,0 @@
-ALTER TABLE "agents" ALTER COLUMN "toolkits" SET NOT NULL;

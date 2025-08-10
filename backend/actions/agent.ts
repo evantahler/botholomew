@@ -2,12 +2,11 @@ import { z } from "zod";
 import { api, Action, type ActionParams, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
 import { serializeAgent, agentTick } from "../ops/AgentOps";
-import { agents } from "../models/agent";
+import { Agent, agents } from "../models/agent";
 import { SessionMiddleware } from "../middleware/session";
 import { eq, and, desc } from "drizzle-orm";
 import { ErrorType, TypedError } from "../classes/TypedError";
-import { messages } from "../models/message";
-import { serializeMessage } from "../ops/MessageOps";
+import { serializeAgentRun } from "../ops/AgentRunOps";
 import { zBooleanFromString } from "../util/zodMixins";
 import { getUnauthorizedToolkits } from "../ops/ToolkitAuthorizationOps";
 
@@ -88,7 +87,7 @@ export class AgentCreate implements Action {
       }
     }
 
-    const [agent] = await api.db.db
+    const [agent]: Agent[] = await api.db.db
       .insert(agents)
       .values({
         userId,
@@ -168,7 +167,7 @@ export class AgentEdit implements Action {
     if (params.schedule !== undefined) updates.schedule = params.schedule;
     if (params.toolkits !== undefined) updates.toolkits = params.toolkits;
 
-    const [agent] = await api.db.db
+    const [agent]: Agent[] = await api.db.db
       .update(agents)
       .set(updates)
       .where(and(eq(agents.id, params.id), eq(agents.userId, userId)))
@@ -253,7 +252,7 @@ export class AgentList implements Action {
   async run(params: ActionParams<AgentList>, connection: Connection) {
     const { limit, offset } = params;
     const userId = connection.session?.data.userId;
-    const rows = await api.db.db
+    const rows: Agent[] = await api.db.db
       .select()
       .from(agents)
       .where(eq(agents.userId, userId))
@@ -263,16 +262,16 @@ export class AgentList implements Action {
   }
 }
 
-export class AgentTick implements Action {
-  name = "agent:tick";
+export class AgentRunAction implements Action {
+  name = "agent:run";
   description = "Run an agent using the OpenAI agents API";
-  web = { route: "/agent/tick", method: HTTP_METHOD.POST };
+  web = { route: "/agent/run", method: HTTP_METHOD.POST };
   middleware = [SessionMiddleware];
   inputs = z.object({
     id: z.coerce.number().int().describe("The agent's id"),
   });
 
-  async run(params: ActionParams<AgentTick>, connection: Connection) {
+  async run(params: ActionParams<AgentRunAction>, connection: Connection) {
     const userId = connection.session?.data.userId;
     if (!userId) {
       throw new TypedError({
@@ -282,7 +281,7 @@ export class AgentTick implements Action {
     }
 
     // Get the agent and verify ownership
-    const [agent] = await api.db.db
+    const [agent]: Agent[] = await api.db.db
       .select()
       .from(agents)
       .where(and(eq(agents.id, params.id), eq(agents.userId, userId)))
@@ -302,36 +301,11 @@ export class AgentTick implements Action {
       });
     }
 
-    // Check toolkit authorization before running the agent
-    if (agent.toolkits && agent.toolkits.length > 0) {
-      const unauthorizedToolkits = await getUnauthorizedToolkits(
-        userId,
-        agent.toolkits,
-      );
-
-      if (unauthorizedToolkits.length > 0) {
-        throw new TypedError({
-          message: `Agent cannot run because you are not authorized to use the following toolkits: ${unauthorizedToolkits.join(", ")}. Please authorize these toolkits or remove them from the agent.`,
-          type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
-        });
-      }
-    }
-
-    // Run the agent tick
-    const result = await agentTick(agent);
-
-    // Get the latest message that was created
-    const [latestMessage] = await api.db.db
-      .select()
-      .from(messages)
-      .where(eq(messages.agentId, agent.id))
-      .orderBy(desc(messages.createdAt))
-      .limit(1);
+    const agentRun = await agentTick(agent);
 
     return {
       agent: serializeAgent(agent),
-      response: result.output,
-      message: serializeMessage(latestMessage),
+      run: serializeAgentRun(agentRun),
     };
   }
 }
