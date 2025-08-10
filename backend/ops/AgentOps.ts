@@ -28,6 +28,13 @@ export function serializeAgent(agent: Agent) {
   };
 }
 
+export function getSystemPrompt(agent: Agent) {
+  return `
+  You are a helpful assistant.
+  You are able to use the following toolkits: ${agent.toolkits.join(", ")}.
+  You MUST respond in the ${agent.responseType} format.` as const;
+}
+
 export async function agentTick(agent: Agent) {
   const [user]: User[] = await api.db.db
     .select()

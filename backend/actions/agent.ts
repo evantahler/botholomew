@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { api, Action, type ActionParams, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
-import { serializeAgent, agentTick } from "../ops/AgentOps";
-import { Agent, agents } from "../models/agent";
+import { serializeAgent, agentTick, getSystemPrompt } from "../ops/AgentOps";
+import { Agent, agents, responseTypes } from "../models/agent";
 import { SessionMiddleware } from "../middleware/session";
 import { eq, and, desc } from "drizzle-orm";
 import { ErrorType, TypedError } from "../classes/TypedError";
@@ -37,10 +37,12 @@ export class AgentCreate implements Action {
       .min(1, "Model is required")
       .max(256, "Model must be less than 256 characters")
       .describe("The AI model to use for this agent"),
-    systemPrompt: z
+
+    userPrompt: z
       .string()
-      .min(1, "System prompt is required")
-      .describe("The system prompt for the agent"),
+      .min(1, "User prompt is required")
+      .describe("The user prompt for the agent"),
+    responseType: z.enum(responseTypes.enumValues).default("text"),
     contextSummary: z
       .string()
       .optional()
@@ -94,7 +96,9 @@ export class AgentCreate implements Action {
         name: params.name,
         description: params.description,
         model: params.model,
-        systemPrompt: params.systemPrompt,
+        systemPrompt: "",
+        userPrompt: params.userPrompt,
+        responseType: params.responseType,
         contextSummary: params.contextSummary,
         enabled: params.enabled,
         schedule: params.schedule,
@@ -102,7 +106,14 @@ export class AgentCreate implements Action {
       })
       .returning();
 
-    return { agent: serializeAgent(agent) };
+    const systemPrompt = getSystemPrompt(agent);
+    const [updatedAgent]: Agent[] = await api.db.db
+      .update(agents)
+      .set({ systemPrompt })
+      .where(eq(agents.id, agent.id))
+      .returning();
+
+    return { agent: serializeAgent(updatedAgent) };
   }
 }
 
@@ -116,7 +127,8 @@ export class AgentEdit implements Action {
     name: z.string().min(1).max(256).optional(),
     description: z.string().optional(),
     model: z.string().min(1).max(256).optional(),
-    systemPrompt: z.string().optional(),
+    userPrompt: z.string().optional(),
+    responseType: z.enum(responseTypes.enumValues).optional(),
     contextSummary: z.string().optional(),
     enabled: zBooleanFromString().optional(),
     schedule: z.string().optional(),
@@ -159,10 +171,11 @@ export class AgentEdit implements Action {
     if (params.description !== undefined)
       updates.description = params.description;
     if (params.model !== undefined) updates.model = params.model;
-    if (params.systemPrompt !== undefined)
-      updates.systemPrompt = params.systemPrompt;
+    if (params.userPrompt !== undefined) updates.userPrompt = params.userPrompt;
     if (params.contextSummary !== undefined)
       updates.contextSummary = params.contextSummary;
+    if (params.responseType !== undefined)
+      updates.responseType = params.responseType;
     if (params.enabled !== undefined) updates.enabled = params.enabled;
     if (params.schedule !== undefined) updates.schedule = params.schedule;
     if (params.toolkits !== undefined) updates.toolkits = params.toolkits;
@@ -180,7 +193,14 @@ export class AgentEdit implements Action {
       });
     }
 
-    return { agent: serializeAgent(agent) };
+    const systemPrompt = getSystemPrompt(agent);
+    const [updatedAgent]: Agent[] = await api.db.db
+      .update(agents)
+      .set({ systemPrompt })
+      .where(eq(agents.id, agent.id))
+      .returning();
+
+    return { agent: serializeAgent(updatedAgent) };
   }
 }
 
