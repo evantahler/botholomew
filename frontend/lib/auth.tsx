@@ -24,6 +24,11 @@ interface AuthContextType {
   signin: (data: SigninInput) => Promise<void>;
   signout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  updateUser: (data: {
+    name?: string;
+    email?: string;
+    password?: string;
+  }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -65,13 +70,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUser = async (data: {
+    name?: string;
+    email?: string;
+    password?: string;
+  }) => {
+    const responseData = await APIWrapper.post("/user", data);
+    setUser(responseData.user);
+  };
+
   useEffect(() => {
     checkAuth();
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, signup, signin, signout, checkAuth }}
+      value={{ user, loading, signup, signin, signout, checkAuth, updateUser }}
     >
       {children}
     </AuthContext.Provider>

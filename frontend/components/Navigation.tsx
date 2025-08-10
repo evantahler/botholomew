@@ -106,15 +106,26 @@ export default function Navigation() {
             </NavDropdown>
             {user ? (
               <div className="d-flex align-items-center">
-                <span className="text-light me-3">Welcome, {user.name}</span>
-                <Button
-                  variant="outline-light"
-                  className="text-light"
-                  size="sm"
-                  onClick={handleSignout}
+                <NavDropdown
+                  title="Account"
+                  id="user-dropdown"
+                  className="me-3"
                 >
-                  Sign Out
-                </Button>
+                  <NavDropdown.Item
+                    as={Link}
+                    href="/account"
+                    className="dropdown-item-custom"
+                  >
+                    Account Settings
+                  </NavDropdown.Item>
+                  <NavDropdown.Divider />
+                  <NavDropdown.Item
+                    onClick={handleSignout}
+                    className="dropdown-item-custom"
+                  >
+                    Sign Out
+                  </NavDropdown.Item>
+                </NavDropdown>
               </div>
             ) : (
               <div className="d-flex align-items-center">
