@@ -15,10 +15,10 @@ import {
 } from "react-bootstrap";
 import { useAuth } from "../../lib/auth";
 import { APIWrapper } from "../../lib/api";
-import ReactMarkdown from "react-markdown";
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import Pagination from "../../components/Pagination";
+import MarkdownRenderer from "../../components/MarkdownRenderer";
 import type {
   AgentView,
   AgentDelete,
@@ -460,26 +460,20 @@ export default function AgentDetail() {
                                 </div>
                               </td>
                               <td>
-                                <code>
-                                  <ReactMarkdown>
-                                    {agent.systemPrompt}
-                                  </ReactMarkdown>
-                                </code>
+                                <MarkdownRenderer
+                                  content={agent.systemPrompt}
+                                />
                               </td>
                               <td>
-                                <code>
-                                  <ReactMarkdown>
-                                    {agentRun.userMessage}
-                                  </ReactMarkdown>
-                                </code>
+                                <MarkdownRenderer
+                                  content={agentRun.userMessage}
+                                />
                               </td>
                               <td>
                                 {agentRun.response ? (
-                                  <code>
-                                    <ReactMarkdown>
-                                      {agentRun.response}
-                                    </ReactMarkdown>
-                                  </code>
+                                  <MarkdownRenderer
+                                    content={agentRun.response}
+                                  />
                                 ) : (
                                   <span className="text-muted small">-</span>
                                 )}
