@@ -43,10 +43,6 @@ export class AgentCreate implements Action {
       .min(1, "User prompt is required")
       .describe("The user prompt for the agent"),
     responseType: z.enum(responseTypes.enumValues).default("text"),
-    contextSummary: z
-      .string()
-      .optional()
-      .describe("A summary of the agent's context"),
     enabled: zBooleanFromString()
       .default(false)
       .describe("Whether the agent is enabled"),
@@ -99,7 +95,6 @@ export class AgentCreate implements Action {
         systemPrompt: "",
         userPrompt: params.userPrompt,
         responseType: params.responseType,
-        contextSummary: params.contextSummary,
         enabled: params.enabled,
         schedule: params.schedule,
         toolkits: params.toolkits,
@@ -129,7 +124,6 @@ export class AgentEdit implements Action {
     model: z.string().min(1).max(256).optional(),
     userPrompt: z.string().optional(),
     responseType: z.enum(responseTypes.enumValues).optional(),
-    contextSummary: z.string().optional(),
     enabled: zBooleanFromString().optional(),
     schedule: z.string().optional(),
     toolkits: z
@@ -172,8 +166,6 @@ export class AgentEdit implements Action {
       updates.description = params.description;
     if (params.model !== undefined) updates.model = params.model;
     if (params.userPrompt !== undefined) updates.userPrompt = params.userPrompt;
-    if (params.contextSummary !== undefined)
-      updates.contextSummary = params.contextSummary;
     if (params.responseType !== undefined)
       updates.responseType = params.responseType;
     if (params.enabled !== undefined) updates.enabled = params.enabled;

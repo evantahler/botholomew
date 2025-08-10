@@ -79,14 +79,14 @@ export async function agentTick(agent: Agent) {
   });
 
   try {
-    const _agent = new OpenAIAgent({
+    const openAiAgent = new OpenAIAgent({
       name: agent.name,
       instructions: agent.systemPrompt,
       model: agent.model,
       tools: arcadeTools,
     });
 
-    const result = await run(_agent, agent.userPrompt);
+    const result = await run(openAiAgent, agent.userPrompt);
 
     await api.db.db
       .update(agent_run)

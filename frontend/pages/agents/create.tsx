@@ -28,7 +28,6 @@ export default function CreateAgent() {
     description: string;
     model: string;
     systemPrompt: string;
-    contextSummary: string;
     enabled: boolean;
     schedule: string;
     toolkits: string[];
@@ -37,7 +36,6 @@ export default function CreateAgent() {
     description: "",
     model: "gpt-4o",
     systemPrompt: "",
-    contextSummary: "",
     enabled: false,
     schedule: "",
     toolkits: [],
@@ -258,22 +256,6 @@ export default function CreateAgent() {
                     <Form.Text className="text-muted">
                       This prompt defines how the agent behaves and what it can
                       do
-                    </Form.Text>
-                  </Form.Group>
-
-                  <Form.Group className="mb-3">
-                    <Form.Label>Context Summary</Form.Label>
-                    <Form.Control
-                      as="textarea"
-                      rows={3}
-                      name="contextSummary"
-                      value={formData.contextSummary}
-                      onChange={handleInputChange}
-                      placeholder="Optional summary of the agent's context or background"
-                    />
-                    <Form.Text className="text-muted">
-                      A brief summary of the agent's context or background
-                      information
                     </Form.Text>
                   </Form.Group>
 
