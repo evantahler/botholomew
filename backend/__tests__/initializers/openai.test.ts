@@ -15,7 +15,7 @@ describe("openai initializer - agent models", () => {
     expect(api.openai.availableModels).toBeDefined();
     expect(Array.isArray(api.openai.availableModels)).toBe(true);
     expect(api.openai.availableModels.length).toBeGreaterThan(0);
-    
+
     // Check that each model has the expected structure
     api.openai.availableModels.forEach((model) => {
       expect(model).toHaveProperty("value");
@@ -33,7 +33,7 @@ describe("openai initializer - agent models", () => {
   test("should provide getAvailableModels function", () => {
     expect(api.openai.getAvailableModels).toBeDefined();
     expect(typeof api.openai.getAvailableModels).toBe("function");
-    
+
     const models = api.openai.getAvailableModels();
     expect(Array.isArray(models)).toBe(true);
     expect(models).toEqual(api.openai.availableModels);
