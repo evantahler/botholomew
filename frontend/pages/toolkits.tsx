@@ -17,6 +17,13 @@ import { useAuth } from "../lib/auth";
 import { APIWrapper } from "../lib/api";
 import Navigation from "../components/Navigation";
 import ProtectedRoute from "../components/ProtectedRoute";
+import type { ActionResponse } from "../../backend/api";
+import type { ArcadeListToolkits } from "../../backend/actions/arcade";
+import type {
+  ToolkitAuthorizationList,
+  ToolkitAuthorizationCreate,
+  ToolkitAuthorizationDelete,
+} from "../../backend/actions/toolkit_authorization";
 
 interface Toolkit {
   name: string;
@@ -58,8 +65,8 @@ export default function Toolkits() {
 
       // Fetch both available toolkits and user's current authorizations
       const [toolkitsResponse, authorizationsResponse] = await Promise.all([
-        APIWrapper.get("/arcade/toolkits"),
-        APIWrapper.get("/toolkit-authorizations"),
+        APIWrapper.get<ArcadeListToolkits>("/arcade/toolkits"),
+        APIWrapper.get<ToolkitAuthorizationList>("/toolkit-authorizations"),
       ]);
 
       setAvailableToolkits(toolkitsResponse.toolkits || []);
@@ -133,9 +140,12 @@ export default function Toolkits() {
       setProcessingToolkit(toolkitName);
       setError(null);
 
-      const response = await APIWrapper.put("/toolkit-authorizations", {
-        toolkitName,
-      });
+      const response = await APIWrapper.put<ToolkitAuthorizationCreate>(
+        "/toolkit-authorizations",
+        {
+          toolkitName,
+        }
+      );
 
       if (response.authUrl) {
         window.open(response.authUrl, "_blank");
@@ -144,7 +154,10 @@ export default function Toolkits() {
 
       // If no authUrl, authorization was successful and we can add it to the list
       if (response.toolkitAuthorization) {
-        setUserAuthorizations(prev => [...prev, response.toolkitAuthorization]);
+        setUserAuthorizations(prev => [
+          ...prev,
+          response.toolkitAuthorization!,
+        ]);
       }
     } catch (err) {
       console.error("Failed to authorize toolkit:", err);
@@ -161,9 +174,12 @@ export default function Toolkits() {
       setProcessingToolkit(toolkitName);
       setError(null);
 
-      await APIWrapper.delete("/toolkit-authorizations", {
-        toolkitName,
-      });
+      await APIWrapper.delete<ToolkitAuthorizationDelete>(
+        "/toolkit-authorizations",
+        {
+          toolkitName,
+        }
+      );
 
       // Remove the authorization from the list
       setUserAuthorizations(prev =>

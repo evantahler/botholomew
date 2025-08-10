@@ -17,11 +17,21 @@ import {
 import { useAuth } from "../../lib/auth";
 import { APIWrapper } from "../../lib/api";
 import ReactMarkdown from "react-markdown";
-
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import Pagination from "../../components/Pagination";
 import ToolkitSelector from "../../components/ToolkitSelector";
+import type {
+  AgentView,
+  AgentEdit,
+  AgentDelete,
+  AgentRunAction,
+  AgentModels,
+} from "../../../backend/actions/agent";
+import type { ArcadeListToolkits } from "../../../backend/actions/arcade";
+import type { ToolkitAuthorizationList } from "../../../backend/actions/toolkit_authorization";
+import type { AgentRunList } from "../../../backend/actions/agentRun";
+import type { ActionResponse } from "../../../backend/api";
 
 export default function AgentDetail() {
   const router = useRouter();
@@ -31,24 +41,34 @@ export default function AgentDetail() {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [agent, setAgent] = useState<any | null>(null);
+  const [agent, setAgent] = useState<ActionResponse<AgentView>["agent"] | null>(
+    null
+  );
   const [isEditing, setIsEditing] = useState(false);
-  const [runResult, setRunResult] = useState<{
-    response?: string;
-    message?: any;
-  } | null>(null);
-  const [formData, setFormData] = useState<any>({
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    model: string;
+    userPrompt: string;
+    responseType: "text" | "json" | "markdown";
+    enabled: boolean;
+    schedule: string;
+    toolkits: string[];
+  }>({
     name: "",
     description: "",
-    model: "gpt-4o",
-    systemPrompt: "",
+    model: "gpt-5",
+    userPrompt: "",
+    responseType: "text" as "text" | "json" | "markdown",
     enabled: false,
     schedule: "",
     toolkits: [],
   });
 
   // Toolkits state
-  const [availableToolkits, setAvailableToolkits] = useState<any[]>([]);
+  const [availableToolkits, setAvailableToolkits] = useState<
+    ActionResponse<ArcadeListToolkits>["toolkits"]
+  >([]);
   const [toolkitsLoading, setToolkitsLoading] = useState(false);
 
   // Agent models state
@@ -57,19 +77,21 @@ export default function AgentDetail() {
   >([]);
   const [modelsLoading, setModelsLoading] = useState(false);
 
-  // Messages state
-  const [messages, setMessages] = useState<any[]>([]);
-  const [messagesLoading, setMessagesLoading] = useState(false);
-  const [messagesError, setMessagesError] = useState<string | null>(null);
+  // Agent runs state
+  const [agentRuns, setAgentRuns] = useState<
+    ActionResponse<AgentRunList>["agentRuns"]
+  >([]);
+  const [agentRunsLoading, setAgentRunsLoading] = useState(false);
+  const [agentRunsError, setAgentRunsError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalMessages, setTotalMessages] = useState(0);
+  const [totalAgentRuns, setTotalAgentRuns] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const messagesPerPage = 20;
+  const agentRunsPerPage = 20;
 
   useEffect(() => {
     if (id) {
       fetchAgent();
-      fetchMessages();
+      fetchAgentRuns();
       fetchToolkits();
       fetchAgentModels();
     }
@@ -78,16 +100,18 @@ export default function AgentDetail() {
   const fetchAgent = async () => {
     try {
       setLoading(true);
-      const response = await APIWrapper.get("/agent/:id", {
-        id: parseInt(id as string),
-      });
+      const response: ActionResponse<AgentView> =
+        await APIWrapper.get<AgentView>("/agent/:id", {
+          id: parseInt(id as string),
+        });
       const agentData = response.agent;
       setAgent(agentData);
       setFormData({
         name: agentData.name,
         description: agentData.description || "",
         model: agentData.model,
-        systemPrompt: agentData.systemPrompt,
+        userPrompt: agentData.userPrompt,
+        responseType: agentData.responseType || "text",
         enabled: agentData.enabled,
         schedule: agentData.schedule || "",
         toolkits: agentData.toolkits || [],
@@ -99,34 +123,30 @@ export default function AgentDetail() {
     }
   };
 
-  const fetchMessages = async () => {
+  const fetchAgentRuns = async () => {
     if (!id) return;
 
     try {
-      setMessagesLoading(true);
-      setMessagesError(null);
+      setAgentRunsLoading(true);
+      setAgentRunsError(null);
 
-      const offset = (currentPage - 1) * messagesPerPage;
-      const response = await APIWrapper.get("/messages", {
-        agentId: parseInt(id as string),
-        limit: messagesPerPage,
-        offset: offset,
-      });
+      const offset = (currentPage - 1) * agentRunsPerPage;
+      const response: ActionResponse<AgentRunList> =
+        await APIWrapper.get<AgentRunList>("/agentRuns", {
+          agentId: parseInt(id as string),
+          limit: agentRunsPerPage,
+          offset: offset,
+        });
 
-      setMessages(response.messages || []);
-      // Handle both new format (with total) and old format (without total)
-      const total =
-        response.total !== undefined
-          ? response.total
-          : response.messages?.length || 0;
-      setTotalMessages(total);
-      setTotalPages(Math.ceil(total / messagesPerPage));
+      setAgentRuns(response.agentRuns || []);
+      setTotalAgentRuns(response.total || 0);
+      setTotalPages(Math.ceil((response.total || 0) / agentRunsPerPage));
     } catch (err) {
-      setMessagesError(
-        err instanceof Error ? err.message : "Failed to load messages"
+      setAgentRunsError(
+        err instanceof Error ? err.message : "Failed to load agent runs"
       );
     } finally {
-      setMessagesLoading(false);
+      setAgentRunsLoading(false);
     }
   };
 
@@ -136,8 +156,8 @@ export default function AgentDetail() {
 
       // Fetch both available toolkits and user's authorizations
       const [toolkitsResponse, authorizationsResponse] = await Promise.all([
-        APIWrapper.get("/arcade/toolkits"),
-        APIWrapper.get("/toolkit-authorizations"),
+        APIWrapper.get<ArcadeListToolkits>("/arcade/toolkits"),
+        APIWrapper.get<ToolkitAuthorizationList>("/toolkit-authorizations"),
       ]);
 
       const allToolkits = toolkitsResponse.toolkits || [];
@@ -145,10 +165,19 @@ export default function AgentDetail() {
         authorizationsResponse.toolkitAuthorizations || [];
 
       // Filter to only show authorized toolkits
-      const authorizedToolkits = allToolkits.filter((toolkit: any) =>
-        userAuthorizations.some(
-          (auth: any) => auth.toolkitName === toolkit.name
-        )
+      const authorizedToolkits = allToolkits.filter(
+        (
+          toolkit: NonNullable<
+            ActionResponse<ArcadeListToolkits>["toolkits"]
+          >[0]
+        ) =>
+          userAuthorizations.some(
+            (
+              auth: NonNullable<
+                ActionResponse<ToolkitAuthorizationList>["toolkitAuthorizations"]
+              >[0]
+            ) => auth.toolkitName === toolkit.name
+          )
       );
 
       setAvailableToolkits(authorizedToolkits);
@@ -163,7 +192,8 @@ export default function AgentDetail() {
   const fetchAgentModels = async () => {
     try {
       setModelsLoading(true);
-      const response = await APIWrapper.get("/agent/models");
+      const response: ActionResponse<AgentModels> =
+        await APIWrapper.get<AgentModels>("/agent/models");
       setAvailableModels(response.models);
     } catch (err) {
       console.error("Failed to load agent models:", err);
@@ -180,7 +210,7 @@ export default function AgentDetail() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value, type } = e.target;
-    setFormData((prev: any) => ({
+    setFormData(prev => ({
       ...prev,
       [name]:
         type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
@@ -188,7 +218,7 @@ export default function AgentDetail() {
   };
 
   const handleToolkitChange = (toolkitName: string, checked: boolean) => {
-    setFormData((prev: any) => ({
+    setFormData(prev => ({
       ...prev,
       toolkits: checked
         ? [...prev.toolkits, toolkitName]
@@ -224,7 +254,8 @@ export default function AgentDetail() {
 
       console.log("Submitting agent data:", submitData);
 
-      const response = await APIWrapper.post("/agent", submitData);
+      const response: ActionResponse<AgentEdit> =
+        await APIWrapper.post<AgentEdit>("/agent", submitData);
       setAgent(response.agent);
       setIsEditing(false);
     } catch (err) {
@@ -236,7 +267,9 @@ export default function AgentDetail() {
 
   const handleDelete = async () => {
     try {
-      await APIWrapper.delete("/agent", { id: parseInt(id as string) });
+      await APIWrapper.delete<AgentDelete>("/agent", {
+        id: parseInt(id as string),
+      });
       router.push("/agents");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete agent");
@@ -246,19 +279,13 @@ export default function AgentDetail() {
   const handleRunAgent = async () => {
     try {
       setRunning(true);
-      setRunResult(null);
       setError(null);
 
-      const result = await APIWrapper.post("/agent/tick", {
+      await APIWrapper.post<AgentRunAction>("/agent/run", {
         id: parseInt(id as string),
       });
-      setRunResult({
-        response: result.response,
-        message: result.message,
-      });
 
-      // Refresh messages to show the new message
-      await fetchMessages();
+      await fetchAgentRuns();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to run agent");
     } finally {
@@ -266,17 +293,19 @@ export default function AgentDetail() {
     }
   };
 
-  const handleDeleteMessage = async (messageId: number) => {
-    if (!confirm("Are you sure you want to delete this message?")) {
+  const handleDeleteAgentRun = async (agentRunId: number) => {
+    if (!confirm("Are you sure you want to delete this agent run?")) {
       return;
     }
 
     try {
-      await APIWrapper.delete("/message", { id: messageId });
-      // Refresh messages to update the list
-      await fetchMessages();
+      await APIWrapper.delete<AgentRunList>("/agentRun", { id: agentRunId });
+      // Refresh agent runs to update the list
+      await fetchAgentRuns();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete message");
+      setError(
+        err instanceof Error ? err.message : "Failed to delete agent run"
+      );
     }
   };
 
@@ -559,17 +588,32 @@ export default function AgentDetail() {
                     </Form.Group>
 
                     <Form.Group className="mb-3">
-                      <Form.Label className="small">System Prompt *</Form.Label>
+                      <Form.Label className="small">User Prompt *</Form.Label>
                       <Form.Control
                         as="textarea"
                         rows={4}
-                        name="systemPrompt"
-                        value={formData.systemPrompt}
+                        name="userPrompt"
+                        value={formData.userPrompt}
                         onChange={handleInputChange}
                         required
                         size="sm"
-                        placeholder="Enter the system prompt"
+                        placeholder="Enter the user prompt"
                       />
+                    </Form.Group>
+
+                    <Form.Group className="mb-3">
+                      <Form.Label className="small">Response Type</Form.Label>
+                      <Form.Select
+                        name="responseType"
+                        value={formData.responseType}
+                        // @ts-ignore
+                        onChange={handleInputChange}
+                        size="sm"
+                      >
+                        <option value="text">Text</option>
+                        <option value="json">JSON</option>
+                        <option value="markdown">Markdown</option>
+                      </Form.Select>
                     </Form.Group>
 
                     <Form.Group className="mb-3">
@@ -639,69 +683,21 @@ export default function AgentDetail() {
             )}
           </Col>
 
-          {/* Main Content - Messages */}
+          {/* Main Content - Agent Runs */}
           <Col lg={9}>
-            {/* Run Result Section */}
-            {runResult && (
-              <Card className="mt-4">
-                <Card.Header>
-                  <h6>Last Run Result</h6>
-                </Card.Header>
-                <Card.Body>
-                  {runResult.response && (
-                    <div className="mb-3">
-                      <strong>Response:</strong>
-                      <div className="mt-2 p-3 bg-light rounded">
-                        <pre
-                          className="mb-0"
-                          style={{ whiteSpace: "pre-wrap" }}
-                        >
-                          {runResult.response}
-                        </pre>
-                      </div>
-                    </div>
-                  )}
-                  {runResult.message && (
-                    <div>
-                      <strong>Message Details:</strong>
-                      <div className="mt-2">
-                        <ListGroup>
-                          <ListGroup.Item>
-                            <strong>ID:</strong> {runResult.message.id}
-                          </ListGroup.Item>
-                          <ListGroup.Item>
-                            <strong>Content:</strong>
-                            <div className="mt-2">
-                              <ReactMarkdown>
-                                {runResult.message.content}
-                              </ReactMarkdown>
-                            </div>
-                          </ListGroup.Item>
-                          <ListGroup.Item>
-                            <strong>Created:</strong>{" "}
-                            {formatDate(runResult.message.createdAt)}
-                          </ListGroup.Item>
-                        </ListGroup>
-                      </div>
-                    </div>
-                  )}
-                </Card.Body>
-              </Card>
-            )}
-
-            {/* Messages Section */}
+            {/* Agent Runs Section */}
             <Card>
               <Card.Header>
                 <div className="d-flex justify-content-between align-items-center">
-                  <h5 className="mb-0">Messages</h5>
+                  <h5 className="mb-0">Agent Runs</h5>
                   <div className="d-flex gap-2">
                     <Button
                       variant="outline-secondary"
                       size="sm"
-                      onClick={fetchMessages}
-                      disabled={messagesLoading}
+                      onClick={fetchAgentRuns}
+                      disabled={agentRunsLoading}
                     >
-                      {messagesLoading ? (
+                      {agentRunsLoading ? (
                         <>
                           <Spinner
                             as="span"
@@ -721,27 +717,27 @@ export default function AgentDetail() {
                 </div>
               </Card.Header>
               <Card.Body>
-                {messagesError && (
+                {agentRunsError && (
                   <Alert
                     variant="danger"
-                    onClose={() => setMessagesError(null)}
+                    onClose={() => setAgentRunsError(null)}
                     dismissible
                   >
-                    {messagesError}
+                    {agentRunsError}
                   </Alert>
                 )}
 
-                {messagesLoading ? (
+                {agentRunsLoading ? (
                   <div className="text-center py-4">
                     <Spinner animation="border" role="status">
                       <span className="visually-hidden">
-                        Loading messages...
+                        Loading agent runs...
                       </span>
                     </Spinner>
                   </div>
-                ) : messages.length === 0 ? (
+                ) : agentRuns.length === 0 ? (
                   <div className="text-center py-4 text-muted">
-                    <p>No messages found for this agent.</p>
+                    <p>No agent runs found for this agent.</p>
                     <p className="small">
                       Run the agent to start a conversation.
                     </p>
@@ -749,72 +745,108 @@ export default function AgentDetail() {
                 ) : (
                   <>
                     <ListGroup className="mb-3">
-                      {messages.map(message => (
-                        <ListGroup.Item
-                          key={message.id}
-                          className="border-0 border-bottom py-3"
-                        >
-                          <div className="d-flex justify-content-between align-items-start mb-2">
-                            <div className="d-flex align-items-center">
-                              <Badge
-                                bg={
-                                  message.role === "user"
-                                    ? "primary"
-                                    : message.role === "assistant"
+                      {agentRuns.map(
+                        (
+                          agentRun: NonNullable<
+                            ActionResponse<AgentRunList>["agentRuns"]
+                          >[0]
+                        ) => (
+                          <ListGroup.Item
+                            key={agentRun.id}
+                            className="border-0 border-bottom py-3"
+                          >
+                            <div className="d-flex justify-content-between align-items-start mb-2">
+                              <div className="d-flex align-items-center">
+                                <Badge
+                                  bg={
+                                    agentRun.status === "completed"
                                       ? "success"
-                                      : "secondary"
-                                }
-                                className="me-2"
-                              >
-                                {message.role}
-                              </Badge>
-                              <small className="text-muted">
-                                {formatDate(message.createdAt)}
-                              </small>
-                            </div>
-                            <div className="d-flex gap-1">
-                              <Button
-                                variant="outline-danger"
-                                size="sm"
-                                onClick={() => handleDeleteMessage(message.id)}
-                                disabled={messagesLoading}
-                              >
-                                X
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="message-content">
-                            <div
-                              className="p-3 rounded"
-                              style={{
-                                backgroundColor:
-                                  message.role === "user"
-                                    ? "#f8f9fa"
-                                    : "#e8f5e8",
-                                border: "1px solid #dee2e6",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  fontFamily: "inherit",
-                                  fontSize: "0.9rem",
-                                  lineHeight: "1.5",
-                                }}
-                              >
-                                <ReactMarkdown>{message.content}</ReactMarkdown>
+                                      : agentRun.status === "failed"
+                                        ? "danger"
+                                        : agentRun.status === "running"
+                                          ? "warning"
+                                          : "secondary"
+                                  }
+                                  className="me-2"
+                                >
+                                  {agentRun.status}
+                                </Badge>
+                                <small className="text-muted">
+                                  {formatDate(agentRun.createdAt)}
+                                </small>
+                              </div>
+                              <div className="d-flex gap-1">
+                                <Button
+                                  variant="outline-danger"
+                                  size="sm"
+                                  onClick={() =>
+                                    handleDeleteAgentRun(agentRun.id)
+                                  }
+                                  disabled={agentRunsLoading}
+                                >
+                                  X
+                                </Button>
                               </div>
                             </div>
-                          </div>
-                        </ListGroup.Item>
-                      ))}
+                            <div className="agent-run-content">
+                              <div className="mb-2">
+                                <strong>User Message:</strong>
+                                <div
+                                  className="p-2 rounded mt-1"
+                                  style={{
+                                    backgroundColor: "#f8f9fa",
+                                    border: "1px solid #dee2e6",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontFamily: "inherit",
+                                      fontSize: "0.9rem",
+                                      lineHeight: "1.5",
+                                    }}
+                                  >
+                                    <ReactMarkdown>
+                                      {agentRun.userMessage}
+                                    </ReactMarkdown>
+                                  </div>
+                                </div>
+                              </div>
+                              {agentRun.response && (
+                                <div>
+                                  <strong>Response:</strong>
+                                  <div
+                                    className="p-2 rounded mt-1"
+                                    style={{
+                                      backgroundColor: "#e8f5e8",
+                                      border: "1px solid #dee2e6",
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        fontFamily: "inherit",
+                                        fontSize: "0.9rem",
+                                        lineHeight: "1.5",
+                                      }}
+                                    >
+                                      <ReactMarkdown>
+                                        {agentRun.response}
+                                      </ReactMarkdown>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </ListGroup.Item>
+                        )
+                      )}
                     </ListGroup>
 
                     <Pagination
                       currentPage={currentPage}
                       totalPages={totalPages}
-                      totalItems={totalMessages}
-                      itemsPerPage={messagesPerPage}
-                      currentOffset={(currentPage - 1) * messagesPerPage}
+                      totalItems={totalAgentRuns}
+                      itemsPerPage={agentRunsPerPage}
+                      currentOffset={(currentPage - 1) * agentRunsPerPage}
                       onPageChange={handlePageChange}
                     />
                   </>

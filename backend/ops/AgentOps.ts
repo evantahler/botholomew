@@ -16,6 +16,7 @@ export function serializeAgent(agent: Agent) {
     model: agent.model,
     systemPrompt: agent.systemPrompt,
     userPrompt: agent.userPrompt,
+    responseType: agent.responseType,
     enabled: agent.enabled,
     schedule: agent.schedule,
     scheduleNextRun: agent.scheduleNextRun?.getTime(),

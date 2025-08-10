@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Alert, Button, Card, Badge } from "react-bootstrap";
-import { getApiUrl } from "../lib/config";
+import { APIWrapper } from "../lib/api";
 import type { ActionResponse } from "../../backend/api";
 import type { Status } from "../../backend/actions/status";
 
@@ -20,14 +20,7 @@ export default function ServerStatus() {
       setStatus("loading");
       setError(null);
 
-      const response = await fetch(getApiUrl("/api/status"), {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await APIWrapper.get<Status>("/api/status");
       setStatusData(data);
       setStatus("success");
     } catch (error) {

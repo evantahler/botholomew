@@ -1,14 +1,12 @@
 "use client";
 
 import React from "react";
-import { useRouter } from "next/router";
 import { Container, Card, Button, Alert } from "react-bootstrap";
 import { useAuth } from "../lib/auth";
 import ProtectedRoute from "../components/ProtectedRoute";
 
 export default function Dashboard() {
   const { user, signout } = useAuth();
-  const router = useRouter();
 
   const handleSignout = async () => {
     await signout();

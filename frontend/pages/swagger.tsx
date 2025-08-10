@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getApiUrl } from "../lib/config";
+import { APIWrapper } from "../lib/api";
+import type { Swagger } from "../../backend/actions/swagger";
 
 // Type definitions for Swagger UI
 interface SwaggerUIBundle {
@@ -89,14 +90,7 @@ export default function SwaggerPage() {
     setError(null);
 
     try {
-      const response = await fetch(getApiUrl("/api/swagger"), {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const swaggerDoc = await response.json();
+      const swaggerDoc = await APIWrapper.get<Swagger>("/api/swagger");
       setIsLoading(false);
 
       // Load Swagger UI dynamically

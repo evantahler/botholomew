@@ -1,4 +1,5 @@
 import { getApiUrl } from "./config";
+import type { Action, ActionResponse } from "../../backend/api";
 
 // HTTP methods enum
 export enum HTTP_METHOD {
@@ -10,7 +11,7 @@ export enum HTTP_METHOD {
   "OPTIONS" = "OPTIONS",
 }
 
-// Generic API wrapper that accepts URL and method directly
+// Generic API wrapper that accepts response type directly
 export class APIWrapper {
   /**
    * Make a generic API request
@@ -19,12 +20,12 @@ export class APIWrapper {
    * @param params - Parameters to send with the request
    * @param options - Additional fetch options
    */
-  static async request<T = any>(
+  static async request<T extends Action>(
     url: string,
     method: HTTP_METHOD,
     params?: Record<string, any>,
     options: RequestInit = {}
-  ): Promise<T> {
+  ): Promise<ActionResponse<T>> {
     // Replace route parameters with actual values
     let finalUrl = url;
     if (params) {
@@ -84,18 +85,18 @@ export class APIWrapper {
       );
     }
 
-    return await response.json();
+    return (await response.json()) as ActionResponse<T>;
   }
 
   /**
    * GET request
    */
-  static async get<T = any>(
+  static async get<T extends Action>(
     url: string,
     params?: Record<string, any>,
     limit?: number,
     offset?: number
-  ): Promise<T> {
+  ) {
     const queryParams = { ...params };
 
     if (limit !== undefined) {
@@ -112,30 +113,30 @@ export class APIWrapper {
   /**
    * POST request
    */
-  static async post<T = any>(
+  static async post<T extends Action>(
     url: string,
     params?: Record<string, any>
-  ): Promise<T> {
+  ) {
     return this.request<T>(url, HTTP_METHOD.POST, params);
   }
 
   /**
    * PUT request
    */
-  static async put<T = any>(
+  static async put<T extends Action>(
     url: string,
     params?: Record<string, any>
-  ): Promise<T> {
+  ) {
     return this.request<T>(url, HTTP_METHOD.PUT, params);
   }
 
   /**
    * DELETE request
    */
-  static async delete<T = any>(
+  static async delete<T extends Action>(
     url: string,
     params?: Record<string, any>
-  ): Promise<T> {
+  ) {
     return this.request<T>(url, HTTP_METHOD.DELETE, params);
   }
 }

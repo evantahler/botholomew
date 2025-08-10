@@ -17,6 +17,10 @@ import { APIWrapper } from "../../lib/api";
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import ToolkitSelector from "../../components/ToolkitSelector";
+import type { ActionResponse } from "../../../backend/api";
+import type { ArcadeListToolkits } from "../../../backend/actions/arcade";
+import type { ToolkitAuthorizationList } from "../../../backend/actions/toolkit_authorization";
+import type { AgentCreate, AgentModels } from "../../../backend/actions/agent";
 
 export default function CreateAgent() {
   const router = useRouter();
@@ -27,22 +31,26 @@ export default function CreateAgent() {
     name: string;
     description: string;
     model: string;
-    systemPrompt: string;
+    userPrompt: string;
+    responseType: "text" | "json" | "markdown";
     enabled: boolean;
     schedule: string;
     toolkits: string[];
   }>({
     name: "",
     description: "",
-    model: "gpt-4o",
-    systemPrompt: "",
+    model: "gpt-5",
+    userPrompt: "",
+    responseType: "text",
     enabled: false,
     schedule: "",
     toolkits: [],
   });
 
   // Toolkits state
-  const [availableToolkits, setAvailableToolkits] = useState<any[]>([]);
+  const [availableToolkits, setAvailableToolkits] = useState<
+    ActionResponse<ArcadeListToolkits>["toolkits"]
+  >([]);
   const [toolkitsLoading, setToolkitsLoading] = useState(false);
 
   // Agent models state
@@ -77,8 +85,8 @@ export default function CreateAgent() {
 
       // Fetch both available toolkits and user's authorizations
       const [toolkitsResponse, authorizationsResponse] = await Promise.all([
-        APIWrapper.get("/arcade/toolkits"),
-        APIWrapper.get("/toolkit-authorizations"),
+        APIWrapper.get<ArcadeListToolkits>("/arcade/toolkits"),
+        APIWrapper.get<ToolkitAuthorizationList>("/toolkit-authorizations"),
       ]);
 
       const allToolkits = toolkitsResponse.toolkits || [];
@@ -86,10 +94,19 @@ export default function CreateAgent() {
         authorizationsResponse.toolkitAuthorizations || [];
 
       // Filter to only show authorized toolkits
-      const authorizedToolkits = allToolkits.filter((toolkit: any) =>
-        userAuthorizations.some(
-          (auth: any) => auth.toolkitName === toolkit.name
-        )
+      const authorizedToolkits = allToolkits.filter(
+        (
+          toolkit: NonNullable<
+            ActionResponse<ArcadeListToolkits>["toolkits"]
+          >[0]
+        ) =>
+          userAuthorizations.some(
+            (
+              auth: NonNullable<
+                ActionResponse<ToolkitAuthorizationList>["toolkitAuthorizations"]
+              >[0]
+            ) => auth.toolkitName === toolkit.name
+          )
       );
 
       setAvailableToolkits(authorizedToolkits);
@@ -104,7 +121,7 @@ export default function CreateAgent() {
   const fetchAgentModels = async () => {
     try {
       setModelsLoading(true);
-      const response = await APIWrapper.get("/agent/models");
+      const response = await APIWrapper.get<AgentModels>("/agent/models");
       setAvailableModels(response.models);
     } catch (err) {
       console.error("Failed to load agent models:", err);
@@ -132,7 +149,7 @@ export default function CreateAgent() {
 
       console.log("Creating agent with data:", submitData);
 
-      const response = await APIWrapper.put("/agent", submitData);
+      const response = await APIWrapper.put<AgentCreate>("/agent", submitData);
       router.push(`/agents/${response.agent.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -243,23 +260,41 @@ export default function CreateAgent() {
                   </Form.Group>
 
                   <Form.Group className="mb-3">
-                    <Form.Label>System Prompt *</Form.Label>
+                    <Form.Label>User Prompt *</Form.Label>
                     <Form.Control
                       as="textarea"
                       rows={6}
-                      name="systemPrompt"
-                      value={formData.systemPrompt}
+                      name="userPrompt"
+                      value={formData.userPrompt}
                       onChange={handleInputChange}
                       required
-                      placeholder="Enter the system prompt that defines the agent's behavior and capabilities"
+                      placeholder="Enter the user prompt that defines what the agent should do"
                     />
                     <Form.Text className="text-muted">
-                      This prompt defines how the agent behaves and what it can
-                      do
+                      This prompt defines what the agent should do when
+                      triggered
                     </Form.Text>
                   </Form.Group>
 
                   <Row>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Response Type</Form.Label>
+                        <Form.Select
+                          name="responseType"
+                          value={formData.responseType}
+                          // @ts-ignore
+                          onChange={handleInputChange}
+                        >
+                          <option value="text">Text</option>
+                          <option value="json">JSON</option>
+                          <option value="markdown">Markdown</option>
+                        </Form.Select>
+                        <Form.Text className="text-muted">
+                          The format for the agent's responses
+                        </Form.Text>
+                      </Form.Group>
+                    </Col>
                     <Col md={6}>
                       <Form.Group className="mb-3">
                         <Form.Label>Schedule (Cron Expression)</Form.Label>
@@ -276,19 +311,20 @@ export default function CreateAgent() {
                         </Form.Text>
                       </Form.Group>
                     </Col>
+                  </Row>
+
+                  <Row>
                     <Col md={6}>
-                      <Form.Group className="mb-3">
-                        <Form.Check
-                          type="checkbox"
-                          name="enabled"
-                          checked={formData.enabled}
-                          onChange={handleInputChange}
-                          label="Enable agent immediately"
-                        />
-                        <Form.Text className="text-muted">
-                          Enable the agent to run immediately after creation
-                        </Form.Text>
-                      </Form.Group>
+                      <Form.Check
+                        type="checkbox"
+                        name="enabled"
+                        checked={formData.enabled}
+                        onChange={handleInputChange}
+                        label="Enable agent immediately"
+                      />
+                      <Form.Text className="text-muted">
+                        Enable the agent to run immediately after creation
+                      </Form.Text>
                     </Col>
                   </Row>
 
@@ -354,8 +390,13 @@ export default function CreateAgent() {
               <Card.Body>
                 <ul className="list-unstyled">
                   <li className="mb-2">
-                    <strong>System Prompt:</strong> Be specific about the
-                    agent's role, capabilities, and limitations.
+                    <strong>User Prompt:</strong> Be specific about what the
+                    agent should do when triggered. This is the main instruction
+                    for the agent.
+                  </li>
+                  <li className="mb-2">
+                    <strong>Response Type:</strong> Choose the format for the
+                    agent's responses (text, JSON, or markdown).
                   </li>
                   <li className="mb-2">
                     <strong>Model Selection:</strong> Choose the appropriate
@@ -364,11 +405,6 @@ export default function CreateAgent() {
                   <li className="mb-2">
                     <strong>Scheduling:</strong> Use cron expressions for
                     automated execution (e.g., "0 9 * * *" for daily at 9 AM).
-                  </li>
-                  <li className="mb-2">
-                    <strong>Context Summary:</strong> Provide relevant
-                    background information to help the agent understand its
-                    context.
                   </li>
                   <li className="mb-2">
                     <strong>Toolkits:</strong> Select toolkits to give your

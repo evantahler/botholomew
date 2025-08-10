@@ -19,6 +19,7 @@ import { formatDate } from "../../lib/utils";
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import Pagination from "../../components/Pagination";
+import type { AgentList, AgentDelete } from "../../../backend/actions/agent";
 
 export default function AgentsList() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function AgentsList() {
     try {
       setLoading(true);
       const offset = newOffset !== undefined ? newOffset : pagination.offset;
-      const response = await APIWrapper.get(
+      const response = await APIWrapper.get<AgentList>(
         "/agents",
         {},
         pagination.limit,
@@ -69,7 +70,9 @@ export default function AgentsList() {
     if (!deleteModal.agent) return;
 
     try {
-      await APIWrapper.delete("/agent", { id: deleteModal.agent.id });
+      await APIWrapper.delete<AgentDelete>("/agent", {
+        id: deleteModal.agent.id,
+      });
       // Remove the agent from the list
       setAgents(agents.filter(a => a.id !== deleteModal.agent!.id));
       setDeleteModal({ show: false, agent: null });

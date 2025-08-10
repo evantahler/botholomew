@@ -2,26 +2,28 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { APIWrapper } from "./api";
-import type { UserCreate, UserView } from "../../backend/actions/user";
-import type { SessionCreate } from "../../backend/actions/session";
+import type {
+  UserCreate,
+  UserView,
+  UserEdit,
+} from "../../backend/actions/user";
+import type {
+  SessionCreate,
+  SessionDestroy,
+} from "../../backend/actions/session";
 import type {
   ActionResponse,
   ActionParams,
 } from "../../backend/classes/Action";
 import router from "next/router";
 
-// Types derived from action responses and inputs
 type User = ActionResponse<UserView>["user"];
-type SigninInput = ActionParams<SessionCreate>;
-type SignupInput = ActionParams<UserCreate>;
-type SigninResponse = ActionResponse<SessionCreate>;
-type SignupResponse = ActionResponse<UserCreate>;
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signup: (data: SignupInput) => Promise<void>;
-  signin: (data: SigninInput) => Promise<void>;
+  signup: (data: UserCreate["inputs"]["_type"]) => Promise<void>;
+  signin: (data: SessionCreate["inputs"]["_type"]) => Promise<void>;
   signout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (data: {
@@ -39,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const data = await APIWrapper.get("/user");
+      const data = await APIWrapper.get<UserView>("/user");
       setUser(data.user);
     } catch (error) {
       console.log("Auth check failed:", error);
@@ -49,13 +51,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signup = async (data: SignupInput) => {
-    const responseData: SignupResponse = await APIWrapper.put("/user", data);
+  const signup = async (data: UserCreate["inputs"]["_type"]) => {
+    const responseData = await APIWrapper.put<UserCreate>("/user", data);
     setUser(responseData.user);
   };
 
-  const signin = async (data: SigninInput) => {
-    const responseData: SigninResponse = await APIWrapper.put("/session", data);
+  const signin = async (data: SessionCreate["inputs"]["_type"]) => {
+    const responseData = await APIWrapper.put<SessionCreate>("/session", data);
     setUser(responseData.user);
   };
 
@@ -75,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email?: string;
     password?: string;
   }) => {
-    const responseData = await APIWrapper.post("/user", data);
+    const responseData = await APIWrapper.post<UserEdit>("/user", data);
     setUser(responseData.user);
   };
 

@@ -138,7 +138,7 @@ const executeOrAuthorizeZodToolWithLogging = (tool: any) => {
       const endTime = Date.now();
       const duration = endTime - startTime;
       logger.info(
-        ` [🛠️ ${toolExecutionId}] completed execution of tool \`${toolName}\` in ${duration}ms (${JSON.stringify(result)})`,
+        ` [🛠️ ${toolExecutionId}] completed execution of tool \`${toolName}\` in ${duration}ms`,
       );
       return result;
     } catch (error) {
