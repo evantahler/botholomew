@@ -30,10 +30,10 @@ export function serializeAgent(agent: Agent) {
 }
 
 export function getSystemPrompt(agent: Agent) {
-  return `
-  You are a helpful assistant.
-  You are able to use the following toolkits: ${agent.toolkits.join(", ")}.
-  You MUST respond in the ${agent.responseType} format.` as const;
+  return `You are a helpful assistant.
+  You are able to use the following toolkits, and are an expert in the following services: ${agent.toolkits.join(", ")}.
+  You MUST respond in the ${agent.responseType} format.  Do not include any other text in your response - only the response in the format specified.
+  ` as const;
 }
 
 export async function agentTick(agent: Agent) {

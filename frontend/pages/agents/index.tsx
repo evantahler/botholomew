@@ -210,6 +210,13 @@ export default function AgentsList() {
                         View
                       </Button>
                       <Button
+                        variant="outline-secondary"
+                        size="sm"
+                        onClick={() => router.push(`/agents/edit/${agent.id}`)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
                         variant="outline-danger"
                         size="sm"
                         onClick={() => setDeleteModal({ show: true, agent })}

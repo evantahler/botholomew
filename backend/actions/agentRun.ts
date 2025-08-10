@@ -5,7 +5,7 @@ import { agents } from "../models/agent";
 import { SessionMiddleware } from "../middleware/session";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { ErrorType, TypedError } from "../classes/TypedError";
-import { agent_run } from "../models/agent_run";
+import { agent_run, AgentRun } from "../models/agent_run";
 import { serializeAgentRun } from "../ops/AgentRunOps";
 
 export class AgentRunDelete implements Action {
@@ -127,7 +127,7 @@ export class AgentRunList implements Action {
       .from(agent_run)
       .where(eq(agent_run.agentId, agentId));
 
-    const rows = await api.db.db
+    const rows: AgentRun[] = await api.db.db
       .select()
       .from(agent_run)
       .where(eq(agent_run.agentId, agentId))

@@ -16,7 +16,7 @@ export class AgentModels implements Action {
   web = { route: "/agent/models", method: HTTP_METHOD.GET };
 
   async run() {
-    return { models: api.openai.availableModels };
+    return { models: api.openai.getAvailableModels() };
   }
 }
 

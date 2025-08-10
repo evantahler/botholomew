@@ -5,6 +5,12 @@ import OpenAI from "openai";
 
 const namespace = "openai";
 
+declare module "../classes/API" {
+  export interface API {
+    [namespace]: Awaited<ReturnType<OpenAIInitializer["initialize"]>>;
+  }
+}
+
 // Available agent model types
 const AVAILABLE_AGENT_MODELS = [
   { value: "gpt-5", label: "GPT-5" },
@@ -17,12 +23,6 @@ const AVAILABLE_AGENT_MODELS = [
 ] as const;
 
 export type AgentModel = (typeof AVAILABLE_AGENT_MODELS)[number];
-
-declare module "../classes/API" {
-  export interface API {
-    [namespace]: Awaited<ReturnType<OpenAIInitializer["initialize"]>>;
-  }
-}
 
 export class OpenAIInitializer extends Initializer {
   constructor() {
@@ -38,12 +38,15 @@ export class OpenAIInitializer extends Initializer {
 
     return {
       client,
-      availableModels: AVAILABLE_AGENT_MODELS,
-      getAvailableModels: () => AVAILABLE_AGENT_MODELS,
+      getAvailableModels: () => this.getAvailableModels(),
     };
   }
 
   async start() {}
 
   async stop() {}
+
+  getAvailableModels() {
+    return AVAILABLE_AGENT_MODELS;
+  }
 }
