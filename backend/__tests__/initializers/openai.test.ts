@@ -2,7 +2,7 @@ import { test, describe, expect, beforeAll, afterAll } from "bun:test";
 import { api } from "../../api";
 
 beforeAll(async () => {
-  await api.start();
+  await api.initialize();
 });
 
 afterAll(async () => {
