@@ -9,6 +9,7 @@ const namespace = "openai";
 const AVAILABLE_AGENT_MODELS = [
   { value: "gpt-5", label: "GPT-5" },
   { value: "gpt-5-mini", label: "GPT-5 Mini" },
+  { value: "gpt-4", label: "GPT-4" },
   { value: "gpt-4o", label: "GPT-4o" },
   { value: "gpt-4o-mini", label: "GPT-4o Mini" },
   { value: "gpt-4-turbo", label: "GPT-4 Turbo" },

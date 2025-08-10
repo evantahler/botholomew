@@ -46,7 +46,6 @@ export class ArcadeInitializer extends Initializer {
   ): Promise<any[]> {
     const allTools: any[] = [];
 
-    // Load tools from each toolkit
     for (const toolkit of toolkits) {
       const toolkitTools = await api.arcade.client.tools.list({
         toolkit,
@@ -56,7 +55,8 @@ export class ArcadeInitializer extends Initializer {
         tools: toolkitTools.items,
         client: api.arcade.client,
         userId: userId,
-        executeFactory: executeOrAuthorizeZodTool,
+        executeFactory: executeOrAuthorizeZodToolWithLogging,
+        // executeFactory: executeOrAuthorizeZodTool,
         // @ts-ignore
       }).map(tool);
       allTools.push(...zodTools);
@@ -64,6 +64,8 @@ export class ArcadeInitializer extends Initializer {
 
     return allTools;
   }
+
+  async authorizeToolkitForAgent(toolkit: string, userId: string) {}
 
   async getAvailableToolkits(limit: number = 1000) {
     const tools = await api.arcade.client.tools.list({ limit });
@@ -92,3 +94,29 @@ export class ArcadeInitializer extends Initializer {
     return response;
   }
 }
+
+const executeOrAuthorizeZodToolWithLogging = (tool: any) => {
+  return async (input: Arcade.Tools.ExecuteToolRequest) => {
+    const toolExecutionId = Bun.randomUUIDv7().toString();
+    const toolName = tool.toolDefinition.qualified_name as string;
+    logger.info(
+      ` [🛠️ ${toolExecutionId}] executing tool \`${toolName}\` (${JSON.stringify(input)})`,
+    );
+    const startTime = Date.now();
+    try {
+      const result = await executeOrAuthorizeZodTool(tool)(input);
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      logger.info(
+        ` [🛠️ ${toolExecutionId}] completed execution of tool \`${toolName}\` in ${duration}ms (${JSON.stringify(result)})`,
+      );
+      return result;
+    } catch (error) {
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      const msg = ` [🛠️ ${toolExecutionId}] failed execution of tool \`${toolName}\` in ${duration}ms: ${error}`;
+      logger.error(msg);
+      throw error;
+    }
+  };
+};
