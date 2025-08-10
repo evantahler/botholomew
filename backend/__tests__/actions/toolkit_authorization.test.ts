@@ -5,6 +5,7 @@ import {
   beforeAll,
   afterAll,
   afterEach,
+  mock,
 } from "bun:test";
 import { eq } from "drizzle-orm";
 import { api, type ActionResponse } from "../../api";
@@ -19,8 +20,50 @@ import { createUserAndSession, USERS } from "../utils/testHelpers";
 
 const url = config.server.web.applicationUrl;
 
+// Mock the Arcade client
+const mockArcadeClient = {
+  tools: {
+    list: mock(() =>
+      Promise.resolve({
+        items: [
+          {
+            toolkit: { name: "github", description: "GitHub toolkit" },
+            name: "github_tool",
+            requirements: {
+              authorization: {
+                provider_id: "github_provider",
+                oauth2: { scopes: ["repo", "user"] },
+              },
+            },
+          },
+        ],
+      }),
+    ),
+  },
+  auth: {
+    start: mock(() => Promise.resolve({ status: "completed" })),
+  },
+};
+
 beforeAll(async () => {
   await api.start();
+
+  // Mock the arcade client after API initialization
+  api.arcade = {
+    client: mockArcadeClient as any,
+    loadArcadeToolsForAgent: mock(() => Promise.resolve([])),
+    getAvailableToolkits: mock(() =>
+      Promise.resolve([
+        {
+          name: "github",
+          description: "GitHub toolkit",
+          tools: ["github_tool"],
+        },
+      ]),
+    ),
+    authorizeToolkitForUser: mock(() => Promise.resolve(undefined)), // Mock to return undefined (no auth URL needed)
+  };
+
   await api.db.clearDatabase();
 });
 

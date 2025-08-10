@@ -235,7 +235,7 @@ describe("agent:edit", () => {
       }),
     });
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(406);
   });
 });
 
@@ -285,7 +285,7 @@ describe("agent:delete", () => {
       },
       body: JSON.stringify({ id: createdAgent.id, name: "Should Fail" }),
     });
-    expect(editResponse.status).toBe(500);
+    expect(editResponse.status).toBe(406);
   });
 
   test("should require authentication", async () => {
@@ -392,7 +392,7 @@ describe("agent:view", () => {
         Cookie: `${otherSession.session.cookieName}=${otherSession.session.id}`,
       },
     });
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(406);
   });
 
   test("should return not found for non-existent agent", async () => {
@@ -403,7 +403,7 @@ describe("agent:view", () => {
         Cookie: `${viewSession.cookieName}=${viewSession.id}`,
       },
     });
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(406);
   });
 });
 
@@ -587,7 +587,7 @@ describe("agent:tick", () => {
       body: JSON.stringify({ id: disabledAgent.id }),
     });
 
-    expect(tickResponse.status).toBe(500);
+    expect(tickResponse.status).toBe(406);
   });
 
   test("should require authentication", async () => {
@@ -617,7 +617,7 @@ describe("agent:tick", () => {
       },
       body: JSON.stringify({ id: enabledAgent.id }),
     });
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(406);
   });
 
   test("should return not found for non-existent agent", async () => {
@@ -629,6 +629,6 @@ describe("agent:tick", () => {
       },
       body: JSON.stringify({ id: 999999 }),
     });
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(406);
   });
 });
