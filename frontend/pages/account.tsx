@@ -11,11 +11,9 @@ import {
   Col,
 } from "react-bootstrap";
 import { useAuth } from "../lib/auth";
-import { useRouter } from "next/router";
 
 export default function AccountPage() {
   const { user, updateUser } = useAuth();
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "danger";
@@ -116,12 +114,6 @@ export default function AccountPage() {
       setLoading(false);
     }
   };
-
-  // Redirect if not authenticated
-  if (!user) {
-    router.push("/signin");
-    return null;
-  }
 
   return (
     <Container className="mt-5 pt-4">
