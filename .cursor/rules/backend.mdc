@@ -1,6 +1,5 @@
 ---
-alwaysApply: false
-description: When writing backend code
+alwaysApply: true
 ---
 
 Whenever possible, use the `TypedError` class to throw errors.
