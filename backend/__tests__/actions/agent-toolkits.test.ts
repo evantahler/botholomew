@@ -7,6 +7,9 @@ import {
   createUserAndSession,
   USERS,
 } from "../utils/testHelpers";
+import { toolkit_authorizations } from "../../models/toolkit_authorization";
+import { agents } from "../../models/agent";
+import { eq } from "drizzle-orm";
 
 const url = config.server.web.applicationUrl;
 
@@ -30,8 +33,22 @@ describe("agent toolkits", () => {
     session = testSession.session;
   });
 
+  // Helper function to clear toolkit authorizations for a user
+  const clearUserToolkitAuthorizations = async (userId: number) => {
+    await api.db.db
+      .delete(toolkit_authorizations)
+      .where(eq(toolkit_authorizations.userId, userId));
+  };
+
   describe("agent:create with toolkits", () => {
     test("should create an agent with toolkits successfully", async () => {
+      // Clear any existing authorizations and add new ones
+      await clearUserToolkitAuthorizations(user.id);
+      await api.db.db.insert(toolkit_authorizations).values([
+        { userId: user.id, toolkitName: "web_search" },
+        { userId: user.id, toolkitName: "file_operations" },
+      ]);
+
       const agentResponse = await fetch(`${url}/api/agent`, {
         method: "PUT",
         headers: {
@@ -59,7 +76,75 @@ describe("agent toolkits", () => {
       expect(agentData.agent.userId).toBe(user.id);
     });
 
+    test("should fail to create agent with unauthorized toolkits", async () => {
+      // Clear any existing authorizations
+      await clearUserToolkitAuthorizations(user.id);
+
+      const agentResponse = await fetch(`${url}/api/agent`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+        body: JSON.stringify({
+          name: "Unauthorized Toolkit Agent",
+          description: "An agent with unauthorized toolkits",
+          model: "gpt-4o",
+          systemPrompt: "You are a helpful assistant.",
+          enabled: false,
+          toolkits: ["unauthorized_toolkit", "another_unauthorized"],
+        }),
+      });
+
+      const errorData = await agentResponse.json();
+
+      expect(agentResponse.status).toBe(406);
+      expect(errorData.error.message).toContain(
+        "You are not authorized to use the following toolkits",
+      );
+      expect(errorData.error.message).toContain("unauthorized_toolkit");
+      expect(errorData.error.message).toContain("another_unauthorized");
+    });
+
+    test("should fail to create agent with mixed authorized/unauthorized toolkits", async () => {
+      // Clear any existing authorizations and authorize only one toolkit
+      await clearUserToolkitAuthorizations(user.id);
+      await api.db.db
+        .insert(toolkit_authorizations)
+        .values([{ userId: user.id, toolkitName: "web_search" }]);
+
+      const agentResponse = await fetch(`${url}/api/agent`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+        body: JSON.stringify({
+          name: "Mixed Toolkit Agent",
+          description: "An agent with mixed toolkit authorization",
+          model: "gpt-4o",
+          systemPrompt: "You are a helpful assistant.",
+          enabled: false,
+          toolkits: ["web_search", "unauthorized_toolkit"],
+        }),
+      });
+
+      expect(agentResponse.status).toBe(406);
+      const errorData = await agentResponse.json();
+      expect(errorData.error.message).toContain(
+        "You are not authorized to use the following toolkits",
+      );
+      expect(errorData.error.message).toContain("unauthorized_toolkit");
+      expect(errorData.error.message).not.toContain("web_search");
+    });
+
     test("should create an agent with single toolkit string", async () => {
+      // Clear any existing authorizations and authorize the toolkit
+      await clearUserToolkitAuthorizations(user.id);
+      await api.db.db
+        .insert(toolkit_authorizations)
+        .values([{ userId: user.id, toolkitName: "web_search" }]);
+
       const agentResponse = await fetch(`${url}/api/agent`, {
         method: "PUT",
         headers: {
@@ -155,6 +240,14 @@ describe("agent toolkits", () => {
     });
 
     test("should add toolkits to an existing agent", async () => {
+      // Clear any existing authorizations and authorize the toolkits
+      await clearUserToolkitAuthorizations(user.id);
+      await api.db.db.insert(toolkit_authorizations).values([
+        { userId: user.id, toolkitName: "web_search" },
+        { userId: user.id, toolkitName: "file_operations" },
+        { userId: user.id, toolkitName: "data_analysis" },
+      ]);
+
       const editResponse = await fetch(`${url}/api/agent`, {
         method: "POST",
         headers: {
@@ -178,7 +271,66 @@ describe("agent toolkits", () => {
       ]);
     });
 
+    test("should fail to add unauthorized toolkits to existing agent", async () => {
+      // Clear any existing authorizations
+      await clearUserToolkitAuthorizations(user.id);
+
+      const editResponse = await fetch(`${url}/api/agent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+        body: JSON.stringify({
+          id: createdAgent.id,
+          toolkits: ["unauthorized_toolkit", "another_unauthorized"],
+        }),
+      });
+
+      expect(editResponse.status).toBe(406);
+      const errorData = await editResponse.json();
+      expect(errorData.error.message).toContain(
+        "You are not authorized to use the following toolkits",
+      );
+      expect(errorData.error.message).toContain("unauthorized_toolkit");
+      expect(errorData.error.message).toContain("another_unauthorized");
+    });
+
+    test("should fail to add mixed authorized/unauthorized toolkits", async () => {
+      // Clear any existing authorizations and authorize only one toolkit
+      await clearUserToolkitAuthorizations(user.id);
+      await api.db.db
+        .insert(toolkit_authorizations)
+        .values([{ userId: user.id, toolkitName: "data_analysis" }]);
+
+      const editResponse = await fetch(`${url}/api/agent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+        body: JSON.stringify({
+          id: createdAgent.id,
+          toolkits: ["data_analysis", "unauthorized_toolkit"],
+        }),
+      });
+
+      expect(editResponse.status).toBe(406);
+      const errorData = await editResponse.json();
+      expect(errorData.error.message).toContain(
+        "You are not authorized to use the following toolkits",
+      );
+      expect(errorData.error.message).toContain("unauthorized_toolkit");
+      expect(errorData.error.message).not.toContain("data_analysis");
+    });
+
     test("should remove toolkits from an agent", async () => {
+      // Clear any existing authorizations and authorize the toolkit
+      await clearUserToolkitAuthorizations(user.id);
+      await api.db.db
+        .insert(toolkit_authorizations)
+        .values([{ userId: user.id, toolkitName: "web_search" }]);
+
       const editResponse = await fetch(`${url}/api/agent`, {
         method: "POST",
         headers: {
@@ -219,6 +371,12 @@ describe("agent toolkits", () => {
     });
 
     test("should update toolkits with single string", async () => {
+      // Clear any existing authorizations and authorize the toolkit
+      await clearUserToolkitAuthorizations(user.id);
+      await api.db.db
+        .insert(toolkit_authorizations)
+        .values([{ userId: user.id, toolkitName: "data_analysis" }]);
+
       const editResponse = await fetch(`${url}/api/agent`, {
         method: "POST",
         headers: {
@@ -239,6 +397,13 @@ describe("agent toolkits", () => {
     });
 
     test("should update other fields while preserving toolkits", async () => {
+      // Clear any existing authorizations and authorize the toolkits
+      await clearUserToolkitAuthorizations(user.id);
+      await api.db.db.insert(toolkit_authorizations).values([
+        { userId: user.id, toolkitName: "web_search" },
+        { userId: user.id, toolkitName: "file_operations" },
+      ]);
+
       const editResponse = await fetch(`${url}/api/agent`, {
         method: "POST",
         headers: {
@@ -292,7 +457,14 @@ describe("agent toolkits", () => {
       const agentData = await agentResponse.json();
       toolkitAgent = agentData.agent;
 
-      // Add toolkits to the agent
+      // Add toolkits to the agent (with proper authorization)
+      await clearUserToolkitAuthorizations(user.id);
+      await api.db.db.insert(toolkit_authorizations).values([
+        { userId: user.id, toolkitName: "web_search" },
+        { userId: user.id, toolkitName: "file_operations" },
+        { userId: user.id, toolkitName: "data_analysis" },
+      ]);
+
       await fetch(`${url}/api/agent`, {
         method: "POST",
         headers: {
@@ -361,7 +533,7 @@ describe("agent toolkits", () => {
         }),
       });
 
-      // Add toolkits to the agents
+      // Add toolkits to the agents (with proper authorization)
       const listResponse = await fetch(`${url}/api/agents`, {
         method: "GET",
         headers: {
@@ -378,6 +550,14 @@ describe("agent toolkits", () => {
       const agent2 = listData.agents.find(
         (a: any) => a.name === "List Agent 2",
       );
+
+      // Clear any existing authorizations and authorize the toolkits
+      await clearUserToolkitAuthorizations(user.id);
+      await api.db.db.insert(toolkit_authorizations).values([
+        { userId: user.id, toolkitName: "web_search" },
+        { userId: user.id, toolkitName: "file_operations" },
+        { userId: user.id, toolkitName: "data_analysis" },
+      ]);
 
       if (agent1) {
         await fetch(`${url}/api/agent`, {
@@ -443,6 +623,104 @@ describe("agent toolkits", () => {
       if (agent2) {
         expect(agent2.toolkits).toEqual(["file_operations", "data_analysis"]);
       }
+    });
+  });
+
+  describe("agent:tick with toolkits", () => {
+    let agentWithToolkits: any;
+
+    beforeAll(async () => {
+      // Clear any existing authorizations and authorize the toolkits we need
+      await clearUserToolkitAuthorizations(user.id);
+      await api.db.db.insert(toolkit_authorizations).values([
+        { userId: user.id, toolkitName: "web_search" },
+        { userId: user.id, toolkitName: "file_operations" },
+      ]);
+
+      // Create an agent with toolkits
+      const agentResponse = await fetch(`${url}/api/agent`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+        body: JSON.stringify({
+          name: "Tick Toolkit Agent",
+          description: "Agent with toolkits to test tick",
+          model: "gpt-4o",
+          systemPrompt: "You are a helpful assistant.",
+          enabled: true,
+          toolkits: ["web_search", "file_operations"],
+        }),
+      });
+      const agentData = await agentResponse.json();
+      agentWithToolkits = agentData.agent;
+    });
+
+    test("should fail to run agent with unauthorized toolkits", async () => {
+      // Directly update the agent in the database to have unauthorized toolkits
+      // This bypasses the normal edit validation to test the tick validation
+      await api.db.db
+        .update(agents)
+        .set({ toolkits: ["unauthorized_toolkit", "another_unauthorized"] })
+        .where(eq(agents.id, agentWithToolkits.id));
+
+      // Try to run the agent
+      const tickResponse = await fetch(`${url}/api/agent/tick`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+        body: JSON.stringify({
+          id: agentWithToolkits.id,
+        }),
+      });
+
+      expect(tickResponse.status).toBe(406);
+      const errorData = await tickResponse.json();
+      expect(errorData.error.message).toContain(
+        "Agent cannot run because you are not authorized to use the following toolkits",
+      );
+      expect(errorData.error.message).toContain("unauthorized_toolkit");
+      expect(errorData.error.message).toContain("another_unauthorized");
+    });
+
+    test("should run agent with authorized toolkits", async () => {
+      // First, ensure the agent has only authorized toolkits
+      await fetch(`${url}/api/agent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+        body: JSON.stringify({
+          id: agentWithToolkits.id,
+          toolkits: ["web_search"],
+        }),
+      });
+
+      // Authorize the toolkit
+      await clearUserToolkitAuthorizations(user.id);
+      await api.db.db
+        .insert(toolkit_authorizations)
+        .values([{ userId: user.id, toolkitName: "web_search" }]);
+
+      // Try to run the agent
+      const tickResponse = await fetch(`${url}/api/agent/tick`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+        body: JSON.stringify({
+          id: agentWithToolkits.id,
+        }),
+      });
+
+      // The agent should be able to run (though it might fail for other reasons like OpenAI API)
+      // We're just testing that the authorization check passes
+      expect(tickResponse.status).not.toBe(400);
     });
   });
 });

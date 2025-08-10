@@ -9,6 +9,7 @@ import { ErrorType, TypedError } from "../classes/TypedError";
 import { messages } from "../models/message";
 import { serializeMessage } from "../ops/MessageOps";
 import { zBooleanFromString } from "../util/zodMixins";
+import { getUnauthorizedToolkits } from "../ops/ToolkitAuthorizationOps";
 
 export class AgentModels implements Action {
   name = "agent:models";
@@ -65,10 +66,32 @@ export class AgentCreate implements Action {
   });
 
   async run(params: ActionParams<AgentCreate>, connection: Connection) {
+    const userId = connection.session?.data.userId;
+    if (!userId) {
+      throw new TypedError({
+        message: "User session not found",
+        type: ErrorType.CONNECTION_SESSION_NOT_FOUND,
+      });
+    }
+
+    if (params.toolkits && params.toolkits.length > 0) {
+      const unauthorizedToolkits = await getUnauthorizedToolkits(
+        userId,
+        params.toolkits,
+      );
+
+      if (unauthorizedToolkits.length > 0) {
+        throw new TypedError({
+          message: `You are not authorized to use the following toolkits: ${unauthorizedToolkits.join(", ")}. Please authorize these toolkits before creating an agent with them.`,
+          type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+        });
+      }
+    }
+
     const [agent] = await api.db.db
       .insert(agents)
       .values({
-        userId: connection.session?.data.userId,
+        userId,
         name: params.name,
         description: params.description,
         model: params.model,
@@ -110,6 +133,28 @@ export class AgentEdit implements Action {
   });
 
   async run(params: ActionParams<AgentEdit>, connection: Connection) {
+    const userId = connection.session?.data.userId;
+    if (!userId) {
+      throw new TypedError({
+        message: "User session not found",
+        type: ErrorType.CONNECTION_SESSION_NOT_FOUND,
+      });
+    }
+
+    if (params.toolkits !== undefined && params.toolkits.length > 0) {
+      const unauthorizedToolkits = await getUnauthorizedToolkits(
+        userId,
+        params.toolkits,
+      );
+
+      if (unauthorizedToolkits.length > 0) {
+        throw new TypedError({
+          message: `You are not authorized to use the following toolkits: ${unauthorizedToolkits.join(", ")}. Please authorize these toolkits before adding them to your agent.`,
+          type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+        });
+      }
+    }
+
     const updates: Record<string, any> = {};
     if (params.name !== undefined) updates.name = params.name;
     if (params.description !== undefined)
@@ -126,18 +171,13 @@ export class AgentEdit implements Action {
     const [agent] = await api.db.db
       .update(agents)
       .set(updates)
-      .where(
-        and(
-          eq(agents.id, params.id),
-          eq(agents.userId, connection.session?.data.userId),
-        ),
-      )
+      .where(and(eq(agents.id, params.id), eq(agents.userId, userId)))
       .returning();
 
     if (!agent) {
       throw new TypedError({
         message: "Agent not found or not owned by user",
-        type: ErrorType.CONNECTION_ACTION_RUN,
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
       });
     }
 
@@ -192,7 +232,7 @@ export class AgentView implements Action {
     if (!agent) {
       throw new TypedError({
         message: "Agent not found or not owned by user",
-        type: ErrorType.CONNECTION_ACTION_RUN,
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
       });
     }
 
@@ -233,30 +273,48 @@ export class AgentTick implements Action {
   });
 
   async run(params: ActionParams<AgentTick>, connection: Connection) {
+    const userId = connection.session?.data.userId;
+    if (!userId) {
+      throw new TypedError({
+        message: "User session not found",
+        type: ErrorType.CONNECTION_SESSION_NOT_FOUND,
+      });
+    }
+
     // Get the agent and verify ownership
     const [agent] = await api.db.db
       .select()
       .from(agents)
-      .where(
-        and(
-          eq(agents.id, params.id),
-          eq(agents.userId, connection.session?.data.userId),
-        ),
-      )
+      .where(and(eq(agents.id, params.id), eq(agents.userId, userId)))
       .limit(1);
 
     if (!agent) {
       throw new TypedError({
         message: "Agent not found or not owned by user",
-        type: ErrorType.CONNECTION_ACTION_RUN,
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
       });
     }
 
     if (!agent.enabled) {
       throw new TypedError({
         message: "Agent is not enabled",
-        type: ErrorType.CONNECTION_ACTION_RUN,
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
       });
+    }
+
+    // Check toolkit authorization before running the agent
+    if (agent.toolkits && agent.toolkits.length > 0) {
+      const unauthorizedToolkits = await getUnauthorizedToolkits(
+        userId,
+        agent.toolkits,
+      );
+
+      if (unauthorizedToolkits.length > 0) {
+        throw new TypedError({
+          message: `Agent cannot run because you are not authorized to use the following toolkits: ${unauthorizedToolkits.join(", ")}. Please authorize these toolkits or remove them from the agent.`,
+          type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+        });
+      }
     }
 
     // Run the agent tick
