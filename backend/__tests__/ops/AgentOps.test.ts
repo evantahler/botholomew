@@ -6,11 +6,10 @@ import {
   createTestUser,
   createUserAndSession,
   createAgent,
-  createMessage,
   USERS,
 } from "../utils/testHelpers";
 import { agentTick } from "../../ops/AgentOps";
-import { messages } from "../../models/message";
+import { agent_run } from "../../models/agent_run";
 import { agents } from "../../models/agent";
 import { eq } from "drizzle-orm";
 
@@ -54,24 +53,13 @@ describe("agentTick", () => {
         name: "Test Agent",
         description: "A test agent for ticking",
         model: "gpt-3.5-turbo",
-        systemPrompt:
-          "You are a helpful assistant. Respond with a simple greeting.",
+        userPrompt: "Hello, how are you?",
         enabled: true,
       },
     );
   });
 
   test("should tick an agent and generate a response", async () => {
-    // Add a user message to the conversation
-    await createMessage(
-      { user: testUser, session: testSession },
-      {
-        agentId: testAgent.id,
-        role: "user",
-        content: "Hello, how are you?",
-      },
-    );
-
     // Get the agent from the database
     const [agent] = await api.db.db
       .select()
@@ -86,32 +74,34 @@ describe("agentTick", () => {
 
     // Verify the result
     expect(result).toBeDefined();
-    expect(result.output).toBeDefined();
-    expect(typeof result.output).toBe("string");
+    expect(result.response).toBeDefined();
+    expect(typeof result.response).toBe("string");
+    expect(result.status).toBe("completed");
 
-    // Verify that a new assistant message was created
-    const newMessages = await api.db.db
+    // Verify that a new agent run was created
+    const newAgentRuns = await api.db.db
       .select()
-      .from(messages)
-      .where(eq(messages.agentId, testAgent.id))
-      .orderBy(messages.createdAt);
+      .from(agent_run)
+      .where(eq(agent_run.agentId, testAgent.id))
+      .orderBy(agent_run.createdAt);
 
-    expect(newMessages.length).toBeGreaterThanOrEqual(2); // Original user message + new assistant message
+    expect(newAgentRuns.length).toBeGreaterThanOrEqual(1);
 
-    const lastMessage = newMessages[newMessages.length - 1];
-    expect(lastMessage.role).toBe("assistant");
-    expect(lastMessage.content).toBe(result.output);
+    const lastRun = newAgentRuns[newAgentRuns.length - 1];
+    expect(lastRun.agentId).toBe(testAgent.id);
+    expect(lastRun.status).toBe("completed");
+    expect(lastRun.response).toBe(result.response);
   });
 
   test("should handle agent with no conversation history", async () => {
-    // Create a new agent with no messages
+    // Create a new agent with no previous runs
     const newAgent = await createAgent(
       { user: testUser, session: testSession },
       {
         name: "Empty Agent",
         description: "An agent with no conversation history",
         model: "gpt-3.5-turbo",
-        systemPrompt: "You are a helpful assistant. Introduce yourself.",
+        userPrompt: "Introduce yourself.",
         enabled: true,
       },
     );
@@ -130,20 +120,21 @@ describe("agentTick", () => {
 
     // Verify the result
     expect(result).toBeDefined();
-    expect(result.output).toBeDefined();
-    expect(typeof result.output).toBe("string");
+    expect(result.response).toBeDefined();
+    expect(typeof result.response).toBe("string");
+    expect(result.status).toBe("completed");
 
-    // Verify that messages were created (system + user + assistant)
-    const newMessages = await api.db.db
+    // Verify that an agent run was created
+    const newAgentRuns = await api.db.db
       .select()
-      .from(messages)
-      .where(eq(messages.agentId, newAgent.id))
-      .orderBy(messages.createdAt);
+      .from(agent_run)
+      .where(eq(agent_run.agentId, newAgent.id))
+      .orderBy(agent_run.createdAt);
 
-    expect(newMessages.length).toBe(2); // user + assistant messages
-    expect(newMessages[0].role).toBe("user");
-    expect(newMessages[1].role).toBe("assistant");
-    expect(newMessages[1].content).toBe(result.output);
+    expect(newAgentRuns.length).toBe(1);
+    expect(newAgentRuns[0].agentId).toBe(newAgent.id);
+    expect(newAgentRuns[0].status).toBe("completed");
+    expect(newAgentRuns[0].response).toBe(result.response);
   });
 
   test("should handle agent with multiple conversation turns", async () => {
@@ -154,36 +145,8 @@ describe("agentTick", () => {
         name: "Multi-Turn Agent",
         description: "An agent for testing multiple conversation turns",
         model: "gpt-3.5-turbo",
-        systemPrompt: "You are a helpful assistant. Keep responses concise.",
+        userPrompt: "Keep responses concise.",
         enabled: true,
-      },
-    );
-
-    // Add multiple messages to create a conversation
-    await createMessage(
-      { user: testUser, session: testSession },
-      {
-        agentId: multiTurnAgent.id,
-        role: "user",
-        content: "What's the weather like?",
-      },
-    );
-
-    await createMessage(
-      { user: testUser, session: testSession },
-      {
-        agentId: multiTurnAgent.id,
-        role: "assistant",
-        content: "I don't have access to real-time weather data.",
-      },
-    );
-
-    await createMessage(
-      { user: testUser, session: testSession },
-      {
-        agentId: multiTurnAgent.id,
-        role: "user",
-        content: "Can you help me with something else?",
       },
     );
 
@@ -196,25 +159,37 @@ describe("agentTick", () => {
 
     expect(agent).toBeDefined();
 
-    // Run the agent tick
-    const result = await agentTick(agent);
+    // Run the agent tick multiple times to simulate conversation turns
+    const result1 = await agentTick(agent);
+    const result2 = await agentTick(agent);
 
-    // Verify the result
-    expect(result).toBeDefined();
-    expect(result.output).toBeDefined();
-    expect(typeof result.output).toBe("string");
+    // Verify the results
+    expect(result1).toBeDefined();
+    expect(result1.response).toBeDefined();
+    expect(result1.status).toBe("completed");
 
-    // Verify that new messages were created (user + assistant)
-    const allMessages = await api.db.db
+    expect(result2).toBeDefined();
+    expect(result2.response).toBeDefined();
+    expect(result2.status).toBe("completed");
+
+    // Verify that multiple agent runs were created
+    const allAgentRuns = await api.db.db
       .select()
-      .from(messages)
-      .where(eq(messages.agentId, multiTurnAgent.id))
-      .orderBy(messages.createdAt);
+      .from(agent_run)
+      .where(eq(agent_run.agentId, multiTurnAgent.id))
+      .orderBy(agent_run.createdAt);
 
-    expect(allMessages.length).toBe(5); // 3 original messages + 2 new messages (user + assistant)
+    expect(allAgentRuns.length).toBe(2);
 
-    const lastMessage = allMessages[allMessages.length - 1];
-    expect(lastMessage.role).toBe("assistant");
-    expect(typeof lastMessage.content).toBe("string");
+    const firstRun = allAgentRuns[0];
+    const secondRun = allAgentRuns[1];
+
+    expect(firstRun.agentId).toBe(multiTurnAgent.id);
+    expect(firstRun.status).toBe("completed");
+    expect(firstRun.response).toBe(result1.response);
+
+    expect(secondRun.agentId).toBe(multiTurnAgent.id);
+    expect(secondRun.status).toBe("completed");
+    expect(secondRun.response).toBe(result2.response);
   });
 });
