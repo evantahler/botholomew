@@ -118,6 +118,13 @@ export default function Navigation() {
                   >
                     Account Settings
                   </NavDropdown.Item>
+                  <NavDropdown.Item
+                    as={Link}
+                    href="/toolkits"
+                    className="dropdown-item-custom"
+                  >
+                    Toolkit Management
+                  </NavDropdown.Item>
                   <NavDropdown.Divider />
                   <NavDropdown.Item
                     onClick={handleSignout}

@@ -76,8 +76,25 @@ export default function CreateAgent() {
   const fetchToolkits = async () => {
     try {
       setToolkitsLoading(true);
-      const response = await APIWrapper.get("/arcade/toolkits");
-      setAvailableToolkits(response.toolkits || []);
+
+      // Fetch both available toolkits and user's authorizations
+      const [toolkitsResponse, authorizationsResponse] = await Promise.all([
+        APIWrapper.get("/arcade/toolkits"),
+        APIWrapper.get("/toolkit-authorizations"),
+      ]);
+
+      const allToolkits = toolkitsResponse.toolkits || [];
+      const userAuthorizations =
+        authorizationsResponse.toolkitAuthorizations || [];
+
+      // Filter to only show authorized toolkits
+      const authorizedToolkits = allToolkits.filter((toolkit: any) =>
+        userAuthorizations.some(
+          (auth: any) => auth.toolkitName === toolkit.name
+        )
+      );
+
+      setAvailableToolkits(authorizedToolkits);
     } catch (err) {
       console.error("Failed to load toolkits:", err);
       setAvailableToolkits([]);
@@ -295,6 +312,13 @@ export default function CreateAgent() {
 
                   <Form.Group className="mb-3">
                     <Form.Label>Toolkits</Form.Label>
+                    <div className="small text-muted mb-2">
+                      Only toolkits you have authorized are available for
+                      selection.
+                      <a href="/toolkits" className="ms-1">
+                        Manage toolkit authorizations
+                      </a>
+                    </div>
                     <ToolkitSelector
                       availableToolkits={availableToolkits}
                       selectedToolkits={formData.toolkits}
