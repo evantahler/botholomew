@@ -1,5 +1,11 @@
 DO $$ BEGIN
- CREATE TYPE "run_type" AS ENUM('text', 'json', 'markdown');
+ CREATE TYPE "run_status" AS ENUM('pending', 'running', 'completed', 'failed');
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "response_type" AS ENUM('text', 'json', 'markdown');
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -12,8 +18,8 @@ CREATE TABLE IF NOT EXISTS "agent_runs" (
 	"system_prompt" text NOT NULL,
 	"user_message" text NOT NULL,
 	"response" text,
-	"type" "run_type" NOT NULL,
-	"status" "run_status" DEFAULT 'pending'
+	"type" "response_type" NOT NULL,
+	"run_status" "run_status" DEFAULT 'pending' NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "agents" (
@@ -26,7 +32,7 @@ CREATE TABLE IF NOT EXISTS "agents" (
 	"model" varchar(256) NOT NULL,
 	"system_prompt" text NOT NULL,
 	"user_prompt" text NOT NULL,
-	"response_type" "run_type" DEFAULT 'text' NOT NULL,
+	"response_type" "response_type" DEFAULT 'text' NOT NULL,
 	"enabled" boolean DEFAULT false NOT NULL,
 	"schedule" text,
 	"schedule_next_run" timestamp,

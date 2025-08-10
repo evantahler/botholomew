@@ -9,7 +9,7 @@ import {
 
 import { agents, responseTypes } from "./agent";
 
-const runStatus = pgEnum("run_status", [
+export const runStatus = pgEnum("run_status", [
   "pending",
   "running",
   "completed",
@@ -32,7 +32,7 @@ export const agent_run = pgTable("agent_runs", {
   userMessage: text("user_message").notNull(),
   response: text("response").$type<string | null>(),
   type: responseTypes("type").notNull(),
-  status: runStatus("status").default("pending"),
+  status: runStatus("run_status").default("pending").notNull(),
 });
 
 export type AgentRun = typeof agent_run.$inferSelect;

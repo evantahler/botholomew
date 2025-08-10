@@ -1,5 +1,5 @@
 {
-  "id": "f167dda6-bc58-436e-8010-1d0b626347d8",
+  "id": "aa133c20-9116-47b2-bd1e-51cb12689b86",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "5",
   "dialect": "pg",
@@ -54,15 +54,15 @@
         },
         "type": {
           "name": "type",
-          "type": "run_type",
+          "type": "response_type",
           "primaryKey": false,
           "notNull": true
         },
-        "status": {
-          "name": "status",
+        "run_status": {
+          "name": "run_status",
           "type": "run_status",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "default": "'pending'"
         }
       },
@@ -147,7 +147,7 @@
         },
         "response_type": {
           "name": "response_type",
-          "type": "run_type",
+          "type": "response_type",
           "primaryKey": false,
           "notNull": true,
           "default": "'text'"
@@ -354,8 +354,17 @@
     }
   },
   "enums": {
-    "run_type": {
-      "name": "run_type",
+    "run_status": {
+      "name": "run_status",
+      "values": {
+        "pending": "pending",
+        "running": "running",
+        "completed": "completed",
+        "failed": "failed"
+      }
+    },
+    "response_type": {
+      "name": "response_type",
       "values": {
         "text": "text",
         "json": "json",

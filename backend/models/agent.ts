@@ -12,7 +12,11 @@ import {
 
 import { users } from "./user";
 
-export const responseTypes = pgEnum("run_type", ["text", "json", "markdown"]);
+export const responseTypes = pgEnum("response_type", [
+  "text",
+  "json",
+  "markdown",
+]);
 
 export const agents = pgTable("agents", {
   id: serial("id").primaryKey(),
