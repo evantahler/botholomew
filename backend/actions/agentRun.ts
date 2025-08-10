@@ -54,10 +54,11 @@ export class AgentRunView implements Action {
   });
 
   async run(params: ActionParams<AgentRunView>, connection: Connection) {
-    const [agentRun] = await api.db.db
-      .select()
-      .from(agent_run)
-      .innerJoin(agents, eq(agent_run.agentId, agents.id))
+    // First verify the agent belongs to the user
+    const [agent] = await api.db.db
+      .select({ id: agents.id })
+      .from(agents)
+      .innerJoin(agent_run, eq(agents.id, agent_run.agentId))
       .where(
         and(
           eq(agent_run.id, params.id),
@@ -66,9 +67,23 @@ export class AgentRunView implements Action {
       )
       .limit(1);
 
-    if (!agentRun) {
+    if (!agent) {
       throw new TypedError({
         message: "Agent run not found or not owned by user",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
+    }
+
+    // Then get the agent run data
+    const [agentRun] = await api.db.db
+      .select()
+      .from(agent_run)
+      .where(eq(agent_run.id, params.id))
+      .limit(1);
+
+    if (!agentRun) {
+      throw new TypedError({
+        message: "Agent run not found",
         type: ErrorType.CONNECTION_ACTION_RUN,
       });
     }

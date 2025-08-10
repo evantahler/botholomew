@@ -85,9 +85,10 @@ export async function createAgent(
     name: string;
     description: string;
     model: string;
-    systemPrompt: string;
+    userPrompt: string;
     enabled: boolean;
     toolkits?: string[] | string;
+    responseType?: "text" | "json" | "markdown";
   },
 ): Promise<ActionResponse<AgentCreate>["agent"]> {
   const agentResponse = await fetch(`${url}/api/agent`, {
@@ -154,21 +155,21 @@ export const TEST_AGENTS = {
     name: "Test Agent",
     description: "A test agent",
     model: "gpt-4o",
-    systemPrompt: "You are a helpful assistant.",
+    userPrompt: "You are a helpful assistant.",
     enabled: true,
   },
   EDITABLE: {
     name: "Original Agent",
     description: "Original description",
     model: "gpt-3.5-turbo",
-    systemPrompt: "Original system prompt",
+    userPrompt: "Original user prompt",
     enabled: false,
   },
   WITH_TOOLKITS: {
     name: "Toolkit Agent",
     description: "An agent with toolkits",
     model: "gpt-4o",
-    systemPrompt: "You are a helpful assistant with toolkit access.",
+    userPrompt: "You are a helpful assistant with toolkit access.",
     enabled: true,
     toolkits: ["web_search", "file_operations"],
   },
@@ -176,7 +177,7 @@ export const TEST_AGENTS = {
     name: "Single Toolkit Agent",
     description: "An agent with one toolkit",
     model: "gpt-4o",
-    systemPrompt: "You are a helpful assistant.",
+    userPrompt: "You are a helpful assistant.",
     enabled: false,
     toolkits: "web_search",
   },

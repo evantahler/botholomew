@@ -59,7 +59,7 @@ describe("agent toolkits", () => {
           name: "Toolkit Agent",
           description: "An agent with toolkits",
           model: "gpt-4o",
-          systemPrompt: "You are a helpful assistant with toolkit access.",
+          userPrompt: "You are a helpful assistant with toolkit access.",
           enabled: true,
           toolkits: ["web_search", "file_operations"],
         }),
@@ -90,7 +90,7 @@ describe("agent toolkits", () => {
           name: "Unauthorized Toolkit Agent",
           description: "An agent with unauthorized toolkits",
           model: "gpt-4o",
-          systemPrompt: "You are a helpful assistant.",
+          userPrompt: "You are a helpful assistant.",
           enabled: false,
           toolkits: ["unauthorized_toolkit", "another_unauthorized"],
         }),
@@ -123,7 +123,7 @@ describe("agent toolkits", () => {
           name: "Mixed Toolkit Agent",
           description: "An agent with mixed toolkit authorization",
           model: "gpt-4o",
-          systemPrompt: "You are a helpful assistant.",
+          userPrompt: "You are a helpful assistant.",
           enabled: false,
           toolkits: ["web_search", "unauthorized_toolkit"],
         }),
@@ -155,7 +155,7 @@ describe("agent toolkits", () => {
           name: "Single Toolkit Agent",
           description: "An agent with one toolkit",
           model: "gpt-4o",
-          systemPrompt: "You are a helpful assistant.",
+          userPrompt: "You are a helpful assistant.",
           enabled: false,
           toolkits: "web_search",
         }),
@@ -179,7 +179,7 @@ describe("agent toolkits", () => {
           name: "No Toolkit Agent",
           description: "An agent without toolkits",
           model: "gpt-4o",
-          systemPrompt: "You are a helpful assistant.",
+          userPrompt: "You are a helpful assistant.",
           enabled: false,
           toolkits: [],
         }),
@@ -203,7 +203,7 @@ describe("agent toolkits", () => {
           name: "Default Toolkit Agent",
           description: "An agent with default toolkits",
           model: "gpt-4o",
-          systemPrompt: "You are a helpful assistant.",
+          userPrompt: "You are a helpful assistant.",
           enabled: false,
         }),
       });
@@ -231,7 +231,7 @@ describe("agent toolkits", () => {
           name: "Edit Toolkit Agent",
           description: "Agent to edit toolkits",
           model: "gpt-3.5-turbo",
-          systemPrompt: "You are a helpful assistant.",
+          userPrompt: "You are a helpful assistant.",
           enabled: false,
         }),
       });
@@ -450,7 +450,7 @@ describe("agent toolkits", () => {
           name: "View Toolkit Agent",
           description: "Agent with toolkits to view",
           model: "gpt-4o",
-          systemPrompt: "You are a helpful assistant.",
+          userPrompt: "You are a helpful assistant.",
           enabled: true,
         }),
       });
@@ -513,7 +513,7 @@ describe("agent toolkits", () => {
           name: "List Agent 1",
           description: "Agent with web_search toolkit",
           model: "gpt-3.5-turbo",
-          systemPrompt: "You are a helpful assistant.",
+          userPrompt: "You are a helpful assistant.",
           enabled: false,
         }),
       });
@@ -528,7 +528,7 @@ describe("agent toolkits", () => {
           name: "List Agent 2",
           description: "Agent with multiple toolkits",
           model: "gpt-4o",
-          systemPrompt: "You are a helpful assistant.",
+          userPrompt: "You are a helpful assistant.",
           enabled: true,
         }),
       });
@@ -648,7 +648,7 @@ describe("agent toolkits", () => {
           name: "Tick Toolkit Agent",
           description: "Agent with toolkits to test tick",
           model: "gpt-4o",
-          systemPrompt: "You are a helpful assistant.",
+          userPrompt: "You are a helpful assistant.",
           enabled: true,
           toolkits: ["web_search", "file_operations"],
         }),
@@ -666,7 +666,7 @@ describe("agent toolkits", () => {
         .where(eq(agents.id, agentWithToolkits.id));
 
       // Try to run the agent
-      const tickResponse = await fetch(`${url}/api/agent/tick`, {
+      const tickResponse = await fetch(`${url}/api/agent/run`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -707,7 +707,7 @@ describe("agent toolkits", () => {
         .values([{ userId: user.id, toolkitName: "web_search" }]);
 
       // Try to run the agent
-      const tickResponse = await fetch(`${url}/api/agent/tick`, {
+      const tickResponse = await fetch(`${url}/api/agent/run`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

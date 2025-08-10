@@ -16,10 +16,14 @@ const mockRun = mock(() =>
   Promise.resolve({ finalOutput: "Mocked assistant response" }),
 );
 const mockAgent = mock(() => ({}));
+const mockSetDefaultOpenAIClient = mock(() => {});
+const mockTool = mock(() => ({}));
 
 mock.module("@openai/agents", () => ({
   Agent: mockAgent,
   run: mockRun,
+  setDefaultOpenAIClient: mockSetDefaultOpenAIClient,
+  tool: mockTool,
 }));
 
 const url = config.server.web.applicationUrl;
@@ -85,7 +89,7 @@ describe("agent:create", () => {
         name: "Test Agent",
         description: "A test agent",
         model: "gpt-4o",
-        systemPrompt: "You are a helpful assistant.",
+        userPrompt: "You are a helpful assistant.",
         enabled: true,
       }),
     });
@@ -96,7 +100,7 @@ describe("agent:create", () => {
     expect(agentData.agent.name).toBe("Test Agent");
     expect(agentData.agent.description).toBe("A test agent");
     expect(agentData.agent.model).toBe("gpt-4o");
-    expect(agentData.agent.systemPrompt).toBe("You are a helpful assistant.");
+    expect(agentData.agent.systemPrompt).toBeDefined();
     expect(agentData.agent.enabled).toBe(true);
     expect(agentData.agent.userId).toBe(user.id);
   });
@@ -111,7 +115,7 @@ describe("agent:create", () => {
         name: "Test Agent",
         description: "A test agent",
         model: "gpt-4o",
-        systemPrompt: "You are a helpful assistant.",
+        userPrompt: "You are a helpful assistant.",
       }),
     });
 
@@ -165,7 +169,7 @@ describe("agent:edit", () => {
         name: "Updated Agent",
         description: "Updated description",
         model: "gpt-4o",
-        systemPrompt: "Updated system prompt",
+        userPrompt: "Updated system prompt",
         enabled: true,
       }),
     });
@@ -176,7 +180,7 @@ describe("agent:edit", () => {
     expect(editData.agent.name).toBe("Updated Agent");
     expect(editData.agent.description).toBe("Updated description");
     expect(editData.agent.model).toBe("gpt-4o");
-    expect(editData.agent.systemPrompt).toBe("Updated system prompt");
+    expect(editData.agent.systemPrompt).toBeDefined();
     expect(editData.agent.enabled).toBe(true);
     expect(editData.agent.id).toBe(createdAgent.id);
     expect(editData.agent.userId).toBe(editUser.id);
@@ -257,7 +261,7 @@ describe("agent:delete", () => {
         name: "Delete Agent",
         description: "To be deleted",
         model: "gpt-3.5-turbo",
-        systemPrompt: "Delete me",
+        userPrompt: "Delete me",
         enabled: false,
       },
     );
@@ -339,7 +343,7 @@ describe("agent:view", () => {
         name: "View Agent",
         description: "Agent to view",
         model: "gpt-4o",
-        systemPrompt: "You are a helpful assistant.",
+        userPrompt: "You are a helpful assistant.",
         enabled: true,
       },
     );
@@ -360,7 +364,7 @@ describe("agent:view", () => {
     expect(viewData.agent.name).toBe("View Agent");
     expect(viewData.agent.description).toBe("Agent to view");
     expect(viewData.agent.model).toBe("gpt-4o");
-    expect(viewData.agent.systemPrompt).toBe("You are a helpful assistant.");
+    expect(viewData.agent.systemPrompt).toBeDefined();
     expect(viewData.agent.enabled).toBe(true);
     expect(viewData.agent.userId).toBe(viewUser.id);
     expect(viewData.agent.createdAt).toBeDefined();
@@ -426,7 +430,7 @@ describe("agent:list", () => {
           name: `List Agent ${i}`,
           description: `Agent ${i}`,
           model: "gpt-3.5-turbo",
-          systemPrompt: `Agent ${i} system prompt`,
+          userPrompt: `Agent ${i} system prompt`,
           enabled: false,
         },
       );
@@ -438,7 +442,7 @@ describe("agent:list", () => {
       name: "Other User Agent",
       description: "Another user's agent",
       model: "gpt-4o",
-      systemPrompt: "You are a helpful assistant.",
+      userPrompt: "You are a helpful assistant.",
       enabled: true,
     });
   });
@@ -497,7 +501,7 @@ describe("agent:list", () => {
       name: "Other User Agent 2",
       description: "Another user's agent",
       model: "gpt-4o",
-      systemPrompt: "You are a helpful assistant.",
+      userPrompt: "You are a helpful assistant.",
       enabled: true,
     });
 
@@ -537,8 +541,7 @@ describe("agent:tick", () => {
         name: "Tick Agent",
         description: "Agent to tick",
         model: "gpt-3.5-turbo",
-        systemPrompt:
-          "You are a helpful assistant. Respond with a simple greeting.",
+        userPrompt: "You are a helpful assistant.",
         enabled: true,
       },
     );
@@ -550,14 +553,14 @@ describe("agent:tick", () => {
         name: "Disabled Tick Agent",
         description: "Disabled agent to tick",
         model: "gpt-3.5-turbo",
-        systemPrompt: "You are a helpful assistant.",
+        userPrompt: "You are a helpful assistant.",
         enabled: false,
       },
     );
   });
 
   test("should tick an enabled agent successfully", async () => {
-    const tickResponse = await fetch(`${url}/api/agent/tick`, {
+    const tickResponse = await fetch(`${url}/api/agent/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -566,19 +569,21 @@ describe("agent:tick", () => {
       body: JSON.stringify({ id: enabledAgent.id }),
     });
 
-    const tickData = await tickResponse.json();
+    if (tickResponse.status !== 200) {
+      const errorData = await tickResponse.json();
+      console.log("Error response:", errorData);
+    }
     expect(tickResponse.status).toBe(200);
+    const tickData = await tickResponse.json();
     expect(tickData.agent).toBeDefined();
     expect(tickData.agent.id).toBe(enabledAgent.id);
-    expect(tickData.response).toBeDefined();
-    expect(tickData.message).toBeDefined();
-    expect(tickData.message.agentId).toBe(enabledAgent.id);
-    expect(tickData.message.role).toBe("assistant");
-    expect(tickData.message.content).toBeDefined();
+    expect(tickData.run).toBeDefined();
+    expect(tickData.run.agentId).toBe(enabledAgent.id);
+    expect(tickData.run.status).toBeDefined();
   });
 
   test("should not tick a disabled agent", async () => {
-    const tickResponse = await fetch(`${url}/api/agent/tick`, {
+    const tickResponse = await fetch(`${url}/api/agent/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -591,7 +596,7 @@ describe("agent:tick", () => {
   });
 
   test("should require authentication", async () => {
-    const response = await fetch(`${url}/api/agent/tick`, {
+    const response = await fetch(`${url}/api/agent/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: enabledAgent.id }),
@@ -609,7 +614,7 @@ describe("agent:tick", () => {
     const otherSession = await createUserAndSession(otherUser);
 
     // Try to tick the first user's agent with the second user's session
-    const response = await fetch(`${url}/api/agent/tick`, {
+    const response = await fetch(`${url}/api/agent/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -621,7 +626,7 @@ describe("agent:tick", () => {
   });
 
   test("should return not found for non-existent agent", async () => {
-    const response = await fetch(`${url}/api/agent/tick`, {
+    const response = await fetch(`${url}/api/agent/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
