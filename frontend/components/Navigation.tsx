@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Navbar, Nav, Container, Button, NavDropdown } from "react-bootstrap";
 import { useAuth } from "../lib/auth";
+import Logo from "./Logo";
 
 export default function Navigation() {
   const router = useRouter();
@@ -30,8 +31,13 @@ export default function Navigation() {
       className="shadow-sm"
     >
       <Container fluid>
-        <Navbar.Brand as={Link} href="/" className="fw-bold">
-          🤖 Botholomew
+        <Navbar.Brand
+          as={Link}
+          href="/"
+          className="fw-bold d-flex align-items-center"
+        >
+          <Logo size={40} className="me-2" />
+          Botholomew
         </Navbar.Brand>
 
         <Navbar.Toggle aria-controls="basic-navbar-nav" />

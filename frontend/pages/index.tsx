@@ -5,6 +5,7 @@ import Head from "next/head";
 import { Container, Row, Col, Card, Button } from "react-bootstrap";
 import { useAuth } from "../lib/auth";
 import Link from "next/link";
+import Logo from "../components/Logo";
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -27,8 +28,9 @@ export default function Home() {
               <Card className="shadow-lg border-0">
                 <Card.Body className="p-4">
                   <div className="text-center mb-4">
-                    <h1 className="display-4 fw-bold text-primary mb-2">
-                      🤖 Botholomew
+                    <h1 className="display-4 fw-bold text-primary mb-2 d-flex align-items-center justify-content-center">
+                      <Logo size={100} className="me-3" />
+                      Botholomew
                     </h1>
                     <p className="lead text-muted">
                       The Greatest Agent Framework

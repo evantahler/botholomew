@@ -19,6 +19,7 @@ export default function App({ Component, pageProps }: AppProps) {
     <div className={`${geistSans.variable} ${geistMono.variable}`}>
       <AuthProvider>
         <Navigation />
+        <br />
         <Component {...pageProps} />
       </AuthProvider>
     </div>
