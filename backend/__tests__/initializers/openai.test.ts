@@ -12,12 +12,11 @@ afterAll(async () => {
 describe("openai initializer - agent models", () => {
   test("should initialize with available models", () => {
     expect(api.openai).toBeDefined();
-    expect(api.openai.availableModels).toBeDefined();
-    expect(Array.isArray(api.openai.availableModels)).toBe(true);
-    expect(api.openai.availableModels.length).toBeGreaterThan(0);
+    expect(api.openai.getAvailableModels).toBeDefined();
 
     // Check that each model has the expected structure
-    api.openai.availableModels.forEach((model) => {
+    const models = api.openai.getAvailableModels();
+    models.forEach((model) => {
       expect(model).toHaveProperty("value");
       expect(model).toHaveProperty("label");
       expect(typeof model.value).toBe("string");
@@ -25,7 +24,7 @@ describe("openai initializer - agent models", () => {
     });
 
     // Check that expected models are included
-    const modelValues = api.openai.availableModels.map((m) => m.value);
+    const modelValues = api.openai.getAvailableModels().map((m) => m.value);
     expect(modelValues).toContain("gpt-4o");
     expect(modelValues).toContain("gpt-3.5-turbo");
   });
@@ -36,6 +35,6 @@ describe("openai initializer - agent models", () => {
 
     const models = api.openai.getAvailableModels();
     expect(Array.isArray(models)).toBe(true);
-    expect(models).toEqual(api.openai.availableModels);
+    expect(models.length).toBeGreaterThan(3);
   });
 });
