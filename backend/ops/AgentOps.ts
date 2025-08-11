@@ -83,14 +83,30 @@ export async function agentTick(agent: Agent) {
     .returning();
 
   try {
-    const openAiAgent = new OpenAIAgent({
-      name: agent.name,
-      instructions: agent.systemPrompt,
+
+    const childAgent = new OpenAIAgent({
+      name: agent.name + " (child)",
+      instructions: agent.systemPrompt + `
+      You are now a child agent of the parent agent for delegation.
+      You are allowed to use any tools that the parent agent is not allowed to use.
+      `,
       model: agent.model,
       tools: arcadeTools,
     });
 
-    const result = await run(openAiAgent, agent.userPrompt);
+    const parentAgent = new OpenAIAgent({
+      name: agent.name + " (parent)",
+      instructions: agent.systemPrompt + `
+      You are the parent agent.
+      You MUST delegate to child agent when working with multiple objects.
+      `,
+      model: agent.model,
+      tools: arcadeTools,
+      handoffs: [childAgent],
+    });
+
+
+    const result = await run(parentAgent, agent.userPrompt);
 
     await api.db.db
       .update(agent_run)
