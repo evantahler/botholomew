@@ -9,6 +9,7 @@ import { ErrorType, TypedError } from "../classes/TypedError";
 import { serializeAgentRun } from "../ops/AgentRunOps";
 import { zBooleanFromString } from "../util/zodMixins";
 import { getUnauthorizedToolkits } from "../ops/ToolkitAuthorizationOps";
+import { agent_run, AgentRun } from "../models/agent_run";
 
 export class AgentModels implements Action {
   name = "agent:models";
@@ -282,7 +283,7 @@ export class AgentList implements Action {
 
 export class AgentRunAction implements Action {
   name = "agent:run";
-  description = "Run an agent using the OpenAI agents API";
+  description = "Enqueue an agent run";
   web = { route: "/agent/:id/run", method: HTTP_METHOD.POST };
   middleware = [SessionMiddleware];
   inputs = z.object({
@@ -319,7 +320,34 @@ export class AgentRunAction implements Action {
       });
     }
 
-    const agentRun = await agentTick(agent);
+    // Check toolkit authorization before enqueueing the job
+    if (agent.toolkits && agent.toolkits.length > 0) {
+      const unauthorizedToolkits = await getUnauthorizedToolkits(
+        userId,
+        agent.toolkits,
+      );
+
+      if (unauthorizedToolkits.length > 0) {
+        throw new TypedError({
+          message: `Agent cannot run because you are not authorized to use the following toolkits: ${unauthorizedToolkits.join(", ")}. Please authorize these toolkits or remove them from the agent.`,
+          type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+        });
+      }
+    }
+
+    const [agentRun]: AgentRun[] = await api.db.db
+      .insert(agent_run)
+      .values({
+        agentId: agent.id,
+        systemPrompt: agent.systemPrompt,
+        userMessage: agent.userPrompt,
+        response: null,
+        type: agent.responseType,
+        status: "pending",
+      })
+      .returning();
+
+    await api.actions.enqueue("agentRun:run", { id: agentRun.id });
 
     return {
       agent: serializeAgent(agent),

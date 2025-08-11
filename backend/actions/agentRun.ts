@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { api, Action, type ActionParams, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
-import { agents } from "../models/agent";
+import { Agent, agents } from "../models/agent";
 import { SessionMiddleware } from "../middleware/session";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { agent_run, AgentRun } from "../models/agent_run";
 import { serializeAgentRun } from "../ops/AgentRunOps";
+import { agentTick } from "../ops/AgentOps";
 
 export class AgentRunDelete implements Action {
   name = "agentRun:delete";
@@ -143,5 +144,58 @@ export class AgentRunList implements Action {
       agentRuns: rows.map(serializeAgentRun),
       total: Number(count),
     };
+  }
+}
+
+export class AgentRunRun implements Action {
+  name = "agentRun:run";
+  description = "Run an agent run";
+  inputs = z.object({
+    id: z.coerce.number().int().describe("The agent run's id"),
+  });
+
+  async run(params: ActionParams<AgentRunRun>) {
+    const { id } = params;
+
+    const [agentRun]: AgentRun[] = await api.db.db
+      .select()
+      .from(agent_run)
+      .where(eq(agent_run.id, id));
+
+    if (!agentRun) {
+      throw new TypedError({
+        message: "Agent run not found",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
+    }
+
+    if (agentRun.status !== "pending") {
+      throw new TypedError({
+        message: "Agent run is not pending",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
+    }
+
+    const [agent]: Agent[] = await api.db.db
+      .select()
+      .from(agents)
+      .where(eq(agents.id, agentRun.agentId));
+
+    if (!agent) {
+      throw new TypedError({
+        message: "Agent not found",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
+    }
+
+    if (agent.enabled !== true) {
+      throw new TypedError({
+        message: "Agent is not enabled",
+        type: ErrorType.CONNECTION_ACTION_RUN,
+      });
+    }
+
+    const result = await agentTick(agent, agentRun);
+    return { agentRun: serializeAgentRun(result) };
   }
 }

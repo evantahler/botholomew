@@ -132,7 +132,7 @@ export class Resque extends Initializer {
         logger.debug(`[resque:${worker.name}] polling, ${queue}`);
       });
       worker.on("job", (queue, job: ParsedJob) => {
-        logger.debug(
+        logger.info(
           `[resque:${worker.name}] job acquired, ${queue}, ${job.class}, ${JSON.stringify(job.args[0])}`,
         );
       });
@@ -146,12 +146,12 @@ export class Resque extends Initializer {
       });
 
       worker.on("failure", (queue, job, failure, duration) => {
-        logger.warn(
+        logger.error(
           `[resque:${worker.name}] job failed, ${queue}, ${job.class}, ${JSON.stringify(job?.args[0] ?? {})}: ${failure} (${duration}ms)`,
         );
       });
       worker.on("error", (error, queue, job) => {
-        logger.warn(
+        logger.error(
           `[resque:${worker.name}] job error, ${queue}, ${job?.class}, ${JSON.stringify(job?.args[0] ?? {})}: ${error}`,
         );
       });
@@ -208,14 +208,12 @@ export class Resque extends Initializer {
       perform: async function (params: ActionParams<typeof action>) {
         const connection = new Connection(
           "resque",
-          `job:${api.process.name}:${SERVER_JOB_COUNTER++}}`,
+          `job:${api.process.name}:${SERVER_JOB_COUNTER++}`,
         );
         const paramsAsFormData = new FormData();
 
-        if (typeof params.entries === "function") {
-          for (const [key, value] of params.entries()) {
-            paramsAsFormData.append(key, value);
-          }
+        for (const [key, value] of Object.entries(params)) {
+          paramsAsFormData.append(key, `${value}`);
         }
 
         let response: Awaited<ReturnType<(typeof action)["run"]>>;

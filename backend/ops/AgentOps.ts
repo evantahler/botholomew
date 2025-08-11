@@ -36,7 +36,7 @@ export function getSystemPrompt(agent: Agent) {
   ` as const;
 }
 
-export async function agentTick(agent: Agent) {
+export async function agentTick(agent: Agent, agentRun: AgentRun) {
   const [user]: User[] = await api.db.db
     .select()
     .from(users)
@@ -69,18 +69,6 @@ export async function agentTick(agent: Agent) {
     agent.toolkits,
     user.email,
   );
-
-  const [agentRun]: AgentRun[] = await api.db.db
-    .insert(agent_run)
-    .values({
-      agentId: agent.id,
-      systemPrompt: agent.systemPrompt,
-      userMessage: agent.userPrompt,
-      response: null,
-      type: agent.responseType,
-      status: "pending",
-    })
-    .returning();
 
   try {
     const childAgent = new OpenAIAgent({

@@ -69,8 +69,21 @@ describe("agentTick", () => {
 
     expect(agent).toBeDefined();
 
+    // Create an agent run first
+    const [agentRun] = await api.db.db
+      .insert(agent_run)
+      .values({
+        agentId: agent.id,
+        systemPrompt: agent.systemPrompt,
+        userMessage: agent.userPrompt,
+        response: null,
+        type: agent.responseType,
+        status: "pending",
+      })
+      .returning();
+
     // Run the agent tick
-    const result = await agentTick(agent);
+    const result = await agentTick(agent, agentRun);
 
     // Verify the result
     expect(result).toBeDefined();
@@ -78,19 +91,16 @@ describe("agentTick", () => {
     expect(typeof result.response).toBe("string");
     expect(result.status).toBe("completed");
 
-    // Verify that a new agent run was created
-    const newAgentRuns = await api.db.db
+    // Verify that the agent run was updated
+    const updatedRun = await api.db.db
       .select()
       .from(agent_run)
-      .where(eq(agent_run.agentId, testAgent.id))
-      .orderBy(agent_run.createdAt);
+      .where(eq(agent_run.id, agentRun.id))
+      .limit(1);
 
-    expect(newAgentRuns.length).toBeGreaterThanOrEqual(1);
-
-    const lastRun = newAgentRuns[newAgentRuns.length - 1];
-    expect(lastRun.agentId).toBe(testAgent.id);
-    expect(lastRun.status).toBe("completed");
-    expect(lastRun.response).toBe(result.response);
+    expect(updatedRun[0]).toBeDefined();
+    expect(updatedRun[0].status).toBe("completed");
+    expect(updatedRun[0].response).toBe(result.response);
   });
 
   test("should handle agent with no conversation history", async () => {
@@ -115,8 +125,21 @@ describe("agentTick", () => {
 
     expect(agent).toBeDefined();
 
+    // Create an agent run first
+    const [agentRun] = await api.db.db
+      .insert(agent_run)
+      .values({
+        agentId: agent.id,
+        systemPrompt: agent.systemPrompt,
+        userMessage: agent.userPrompt,
+        response: null,
+        type: agent.responseType,
+        status: "pending",
+      })
+      .returning();
+
     // Run the agent tick
-    const result = await agentTick(agent);
+    const result = await agentTick(agent, agentRun);
 
     // Verify the result
     expect(result).toBeDefined();
@@ -124,17 +147,16 @@ describe("agentTick", () => {
     expect(typeof result.response).toBe("string");
     expect(result.status).toBe("completed");
 
-    // Verify that an agent run was created
-    const newAgentRuns = await api.db.db
+    // Verify that the agent run was updated
+    const updatedRun = await api.db.db
       .select()
       .from(agent_run)
-      .where(eq(agent_run.agentId, newAgent.id))
-      .orderBy(agent_run.createdAt);
+      .where(eq(agent_run.id, agentRun.id))
+      .limit(1);
 
-    expect(newAgentRuns.length).toBe(1);
-    expect(newAgentRuns[0].agentId).toBe(newAgent.id);
-    expect(newAgentRuns[0].status).toBe("completed");
-    expect(newAgentRuns[0].response).toBe(result.response);
+    expect(updatedRun[0]).toBeDefined();
+    expect(updatedRun[0].status).toBe("completed");
+    expect(updatedRun[0].response).toBe(result.response);
   });
 
   test("should handle agent with multiple conversation turns", async () => {
@@ -159,9 +181,34 @@ describe("agentTick", () => {
 
     expect(agent).toBeDefined();
 
+    // Create agent runs for multiple turns
+    const [agentRun1] = await api.db.db
+      .insert(agent_run)
+      .values({
+        agentId: agent.id,
+        systemPrompt: agent.systemPrompt,
+        userMessage: agent.userPrompt,
+        response: null,
+        type: agent.responseType,
+        status: "pending",
+      })
+      .returning();
+
+    const [agentRun2] = await api.db.db
+      .insert(agent_run)
+      .values({
+        agentId: agent.id,
+        systemPrompt: agent.systemPrompt,
+        userMessage: agent.userPrompt,
+        response: null,
+        type: agent.responseType,
+        status: "pending",
+      })
+      .returning();
+
     // Run the agent tick multiple times to simulate conversation turns
-    const result1 = await agentTick(agent);
-    const result2 = await agentTick(agent);
+    const result1 = await agentTick(agent, agentRun1);
+    const result2 = await agentTick(agent, agentRun2);
 
     // Verify the results
     expect(result1).toBeDefined();
@@ -172,24 +219,25 @@ describe("agentTick", () => {
     expect(result2.response).toBeDefined();
     expect(result2.status).toBe("completed");
 
-    // Verify that multiple agent runs were created
-    const allAgentRuns = await api.db.db
+    // Verify that both agent runs were updated
+    const updatedRun1 = await api.db.db
       .select()
       .from(agent_run)
-      .where(eq(agent_run.agentId, multiTurnAgent.id))
-      .orderBy(agent_run.createdAt);
+      .where(eq(agent_run.id, agentRun1.id))
+      .limit(1);
 
-    expect(allAgentRuns.length).toBe(2);
+    const updatedRun2 = await api.db.db
+      .select()
+      .from(agent_run)
+      .where(eq(agent_run.id, agentRun2.id))
+      .limit(1);
 
-    const firstRun = allAgentRuns[0];
-    const secondRun = allAgentRuns[1];
+    expect(updatedRun1[0]).toBeDefined();
+    expect(updatedRun1[0].status).toBe("completed");
+    expect(updatedRun1[0].response).toBe(result1.response);
 
-    expect(firstRun.agentId).toBe(multiTurnAgent.id);
-    expect(firstRun.status).toBe("completed");
-    expect(firstRun.response).toBe(result1.response);
-
-    expect(secondRun.agentId).toBe(multiTurnAgent.id);
-    expect(secondRun.status).toBe("completed");
-    expect(secondRun.response).toBe(result2.response);
+    expect(updatedRun2[0]).toBeDefined();
+    expect(updatedRun2[0].status).toBe("completed");
+    expect(updatedRun2[0].response).toBe(result2.response);
   });
 });
