@@ -69,7 +69,7 @@ export class Swagger implements Action {
       // Convert :param format to OpenAPI {param} format
       const path = action.web.route.replace(
         /:\w+/g,
-        (match) => `{${match.slice(1)}}`,
+        (match: string) => `{${match.slice(1)}}`,
       );
       const method = action.web.method.toLowerCase();
       const tag = action.name.split(":")[0];
