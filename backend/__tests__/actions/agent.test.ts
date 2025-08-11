@@ -158,7 +158,7 @@ describe("agent:edit", () => {
   });
 
   test("should edit an agent successfully", async () => {
-    const editResponse = await fetch(`${url}/api/agent`, {
+    const editResponse = await fetch(`${url}/api/agent/${createdAgent.id}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -187,7 +187,7 @@ describe("agent:edit", () => {
   });
 
   test("should require authentication", async () => {
-    const response = await fetch(`${url}/api/agent`, {
+    const response = await fetch(`${url}/api/agent/${createdAgent.id}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -202,7 +202,7 @@ describe("agent:edit", () => {
   });
 
   test("should validate required agent id", async () => {
-    const response = await fetch(`${url}/api/agent`, {
+    const response = await fetch(`${url}/api/agent/999999`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -227,7 +227,7 @@ describe("agent:edit", () => {
     const otherAgent = await createAgent(otherSession, TEST_AGENTS.BASIC);
 
     // Try to edit the first user's agent with the second user's session
-    const response = await fetch(`${url}/api/agent`, {
+    const response = await fetch(`${url}/api/agent/${createdAgent.id}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -268,7 +268,7 @@ describe("agent:delete", () => {
   });
 
   test("should delete an agent successfully", async () => {
-    const deleteResponse = await fetch(`${url}/api/agent`, {
+    const deleteResponse = await fetch(`${url}/api/agent/${createdAgent.id}`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
@@ -281,7 +281,7 @@ describe("agent:delete", () => {
     expect(deleteData.success).toBe(true);
 
     // Try to edit the deleted agent (should fail)
-    const editResponse = await fetch(`${url}/api/agent`, {
+    const editResponse = await fetch(`${url}/api/agent/${createdAgent.id}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -293,7 +293,7 @@ describe("agent:delete", () => {
   });
 
   test("should require authentication", async () => {
-    const response = await fetch(`${url}/api/agent`, {
+    const response = await fetch(`${url}/api/agent/${createdAgent.id}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: createdAgent.id }),
@@ -311,7 +311,7 @@ describe("agent:delete", () => {
     const otherSession = await createUserAndSession(otherUser);
 
     // Try to delete the first user's agent with the second user's session
-    const response = await fetch(`${url}/api/agent`, {
+    const response = await fetch(`${url}/api/agent/${createdAgent.id}`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
@@ -560,14 +560,17 @@ describe("agent:tick", () => {
   });
 
   test("should tick an enabled agent successfully", async () => {
-    const tickResponse = await fetch(`${url}/api/agent/run`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${tickSession.cookieName}=${tickSession.id}`,
+    const tickResponse = await fetch(
+      `${url}/api/agent/${enabledAgent.id}/run`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${tickSession.cookieName}=${tickSession.id}`,
+        },
+        body: JSON.stringify({ id: enabledAgent.id }),
       },
-      body: JSON.stringify({ id: enabledAgent.id }),
-    });
+    );
 
     if (tickResponse.status !== 200) {
       const errorData = await tickResponse.json();
@@ -583,20 +586,23 @@ describe("agent:tick", () => {
   });
 
   test("should not tick a disabled agent", async () => {
-    const tickResponse = await fetch(`${url}/api/agent/run`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${tickSession.cookieName}=${tickSession.id}`,
+    const tickResponse = await fetch(
+      `${url}/api/agent/${disabledAgent.id}/run`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${tickSession.cookieName}=${tickSession.id}`,
+        },
+        body: JSON.stringify({ id: disabledAgent.id }),
       },
-      body: JSON.stringify({ id: disabledAgent.id }),
-    });
+    );
 
     expect(tickResponse.status).toBe(406);
   });
 
   test("should require authentication", async () => {
-    const response = await fetch(`${url}/api/agent/run`, {
+    const response = await fetch(`${url}/api/agent/${enabledAgent.id}/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: enabledAgent.id }),
@@ -614,7 +620,7 @@ describe("agent:tick", () => {
     const otherSession = await createUserAndSession(otherUser);
 
     // Try to tick the first user's agent with the second user's session
-    const response = await fetch(`${url}/api/agent/run`, {
+    const response = await fetch(`${url}/api/agent/${enabledAgent.id}/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -626,7 +632,7 @@ describe("agent:tick", () => {
   });
 
   test("should return not found for non-existent agent", async () => {
-    const response = await fetch(`${url}/api/agent/run`, {
+    const response = await fetch(`${url}/api/agent/999999/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

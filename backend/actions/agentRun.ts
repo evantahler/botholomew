@@ -11,9 +11,10 @@ import { serializeAgentRun } from "../ops/AgentRunOps";
 export class AgentRunDelete implements Action {
   name = "agentRun:delete";
   description = "Delete an agent run";
-  web = { route: "/agent-run", method: HTTP_METHOD.DELETE };
+  web = { route: "/agent/:agentId/run/:id", method: HTTP_METHOD.DELETE };
   middleware = [SessionMiddleware];
   inputs = z.object({
+    agentId: z.coerce.number().int().describe("The agent's id"),
     id: z.coerce.number().int().describe("The agent run's id"),
   });
 
@@ -25,6 +26,7 @@ export class AgentRunDelete implements Action {
       .innerJoin(agents, eq(agent_run.agentId, agents.id))
       .where(
         and(
+          eq(agent_run.agentId, params.agentId),
           eq(agent_run.id, params.id),
           eq(agents.userId, connection.session?.data.userId),
         ),
@@ -47,9 +49,10 @@ export class AgentRunDelete implements Action {
 export class AgentRunView implements Action {
   name = "agentRun:view";
   description = "View an agent run";
-  web = { route: "/agent-run/:id", method: HTTP_METHOD.GET };
+  web = { route: "/agent/:agentId/run/:id", method: HTTP_METHOD.GET };
   middleware = [SessionMiddleware];
   inputs = z.object({
+    agentId: z.coerce.number().int().describe("The agent's id"),
     id: z.coerce.number().int().describe("The agent run's id"),
   });
 
@@ -61,6 +64,7 @@ export class AgentRunView implements Action {
       .innerJoin(agent_run, eq(agents.id, agent_run.agentId))
       .where(
         and(
+          eq(agent_run.agentId, params.agentId),
           eq(agent_run.id, params.id),
           eq(agents.userId, connection.session?.data.userId),
         ),
@@ -95,7 +99,7 @@ export class AgentRunView implements Action {
 export class AgentRunList implements Action {
   name = "agentRun:list";
   description = "List agent runs for an agent";
-  web = { route: "/agent-runs", method: HTTP_METHOD.GET };
+  web = { route: "/agent/:agentId/runs", method: HTTP_METHOD.GET };
   middleware = [SessionMiddleware];
   inputs = z.object({
     agentId: z.coerce.number().int().describe("The agent's id"),

@@ -248,7 +248,7 @@ describe("agent toolkits", () => {
         { userId: user.id, toolkitName: "data_analysis" },
       ]);
 
-      const editResponse = await fetch(`${url}/api/agent`, {
+      const editResponse = await fetch(`${url}/api/agent/${createdAgent.id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -275,7 +275,7 @@ describe("agent toolkits", () => {
       // Clear any existing authorizations
       await clearUserToolkitAuthorizations(user.id);
 
-      const editResponse = await fetch(`${url}/api/agent`, {
+      const editResponse = await fetch(`${url}/api/agent/${createdAgent.id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -303,7 +303,7 @@ describe("agent toolkits", () => {
         .insert(toolkit_authorizations)
         .values([{ userId: user.id, toolkitName: "data_analysis" }]);
 
-      const editResponse = await fetch(`${url}/api/agent`, {
+      const editResponse = await fetch(`${url}/api/agent/${createdAgent.id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -331,7 +331,7 @@ describe("agent toolkits", () => {
         .insert(toolkit_authorizations)
         .values([{ userId: user.id, toolkitName: "web_search" }]);
 
-      const editResponse = await fetch(`${url}/api/agent`, {
+      const editResponse = await fetch(`${url}/api/agent/${createdAgent.id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -351,7 +351,7 @@ describe("agent toolkits", () => {
     });
 
     test("should remove all toolkits from an agent", async () => {
-      const editResponse = await fetch(`${url}/api/agent`, {
+      const editResponse = await fetch(`${url}/api/agent/${createdAgent.id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -377,7 +377,7 @@ describe("agent toolkits", () => {
         .insert(toolkit_authorizations)
         .values([{ userId: user.id, toolkitName: "data_analysis" }]);
 
-      const editResponse = await fetch(`${url}/api/agent`, {
+      const editResponse = await fetch(`${url}/api/agent/${createdAgent.id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -404,7 +404,7 @@ describe("agent toolkits", () => {
         { userId: user.id, toolkitName: "file_operations" },
       ]);
 
-      const editResponse = await fetch(`${url}/api/agent`, {
+      const editResponse = await fetch(`${url}/api/agent/${createdAgent.id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -465,7 +465,7 @@ describe("agent toolkits", () => {
         { userId: user.id, toolkitName: "data_analysis" },
       ]);
 
-      await fetch(`${url}/api/agent`, {
+      await fetch(`${url}/api/agent/${toolkitAgent.id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -560,7 +560,7 @@ describe("agent toolkits", () => {
       ]);
 
       if (agent1) {
-        await fetch(`${url}/api/agent`, {
+        await fetch(`${url}/api/agent/${agent1.id}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -574,7 +574,7 @@ describe("agent toolkits", () => {
       }
 
       if (agent2) {
-        await fetch(`${url}/api/agent`, {
+        await fetch(`${url}/api/agent/${agent2.id}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -666,16 +666,19 @@ describe("agent toolkits", () => {
         .where(eq(agents.id, agentWithToolkits.id));
 
       // Try to run the agent
-      const tickResponse = await fetch(`${url}/api/agent/run`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: `${session.cookieName}=${session.id}`,
+      const tickResponse = await fetch(
+        `${url}/api/agent/${agentWithToolkits.id}/run`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: `${session.cookieName}=${session.id}`,
+          },
+          body: JSON.stringify({
+            id: agentWithToolkits.id,
+          }),
         },
-        body: JSON.stringify({
-          id: agentWithToolkits.id,
-        }),
-      });
+      );
 
       expect(tickResponse.status).toBe(406);
       const errorData = await tickResponse.json();
@@ -688,7 +691,7 @@ describe("agent toolkits", () => {
 
     test("should run agent with authorized toolkits", async () => {
       // First, ensure the agent has only authorized toolkits
-      await fetch(`${url}/api/agent`, {
+      await fetch(`${url}/api/agent/${agentWithToolkits.id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -707,16 +710,19 @@ describe("agent toolkits", () => {
         .values([{ userId: user.id, toolkitName: "web_search" }]);
 
       // Try to run the agent
-      const tickResponse = await fetch(`${url}/api/agent/run`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: `${session.cookieName}=${session.id}`,
+      const tickResponse = await fetch(
+        `${url}/api/agent/${agentWithToolkits.id}/run`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: `${session.cookieName}=${session.id}`,
+          },
+          body: JSON.stringify({
+            id: agentWithToolkits.id,
+          }),
         },
-        body: JSON.stringify({
-          id: agentWithToolkits.id,
-        }),
-      });
+      );
 
       // The agent should be able to run (though it might fail for other reasons like OpenAI API)
       // We're just testing that the authorization check passes

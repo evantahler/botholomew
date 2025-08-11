@@ -60,7 +60,7 @@ describe("agentRun:delete", () => {
     );
 
     // Create an agent run by running the agent
-    const runResponse = await fetch(`${url}/api/agent/run`, {
+    const runResponse = await fetch(`${url}/api/agent/${agent.id}/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -74,14 +74,17 @@ describe("agentRun:delete", () => {
   });
 
   test("should delete an agent run successfully", async () => {
-    const deleteResponse = await fetch(`${url}/api/agent-run`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${session.cookieName}=${session.id}`,
+    const deleteResponse = await fetch(
+      `${url}/api/agent/${agent.id}/run/${agentRunId}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+        body: JSON.stringify({ agentId: agent.id, id: agentRunId }),
       },
-      body: JSON.stringify({ id: agentRunId }),
-    });
+    );
 
     expect(deleteResponse.status).toBe(200);
     const deleteData = await deleteResponse.json();
@@ -89,25 +92,28 @@ describe("agentRun:delete", () => {
   });
 
   test("should require authentication", async () => {
-    const response = await fetch(`${url}/api/agent-run`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
+    const response = await fetch(
+      `${url}/api/agent/${agent.id}/run/${agentRunId}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ agentId: agent.id, id: agentRunId }),
       },
-      body: JSON.stringify({ id: agentRunId }),
-    });
+    );
 
     expect(response.status).toBe(401);
   });
 
   test("should return false for non-existent agent run", async () => {
-    const response = await fetch(`${url}/api/agent-run`, {
+    const response = await fetch(`${url}/api/agent/${agent.id}/run/999999`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
         Cookie: `${session.cookieName}=${session.id}`,
       },
-      body: JSON.stringify({ id: 999999 }),
+      body: JSON.stringify({ agentId: agent.id, id: 999999 }),
     });
 
     expect(response.status).toBe(200);
@@ -136,7 +142,7 @@ describe("agentRun:delete", () => {
       },
     );
 
-    const runResponse = await fetch(`${url}/api/agent/run`, {
+    const runResponse = await fetch(`${url}/api/agent/${otherAgent.id}/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -149,14 +155,17 @@ describe("agentRun:delete", () => {
     const otherAgentRunId = runData.run.id;
 
     // Try to delete the other user's agent run with the first user's session
-    const response = await fetch(`${url}/api/agent-run`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: `${session.cookieName}=${session.id}`,
+    const response = await fetch(
+      `${url}/api/agent/${otherAgent.id}/run/${otherAgentRunId}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+        body: JSON.stringify({ agentId: otherAgent.id, id: otherAgentRunId }),
       },
-      body: JSON.stringify({ id: otherAgentRunId }),
-    });
+    );
 
     expect(response.status).toBe(200);
     const data = await response.json();
@@ -188,7 +197,7 @@ describe("agentRun:view", () => {
     );
 
     // Create an agent run by running the agent
-    const runResponse = await fetch(`${url}/api/agent/run`, {
+    const runResponse = await fetch(`${url}/api/agent/${agent.id}/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -202,12 +211,15 @@ describe("agentRun:view", () => {
   });
 
   test("should view an agent run successfully", async () => {
-    const viewResponse = await fetch(`${url}/api/agent-run/${agentRunId}`, {
-      method: "GET",
-      headers: {
-        Cookie: `${session.cookieName}=${session.id}`,
+    const viewResponse = await fetch(
+      `${url}/api/agent/${agent.id}/run/${agentRunId}`,
+      {
+        method: "GET",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
       },
-    });
+    );
 
     if (viewResponse.status !== 200) {
       const errorData = await viewResponse.json();
@@ -224,15 +236,18 @@ describe("agentRun:view", () => {
   });
 
   test("should require authentication", async () => {
-    const response = await fetch(`${url}/api/agent-run/${agentRunId}`, {
-      method: "GET",
-    });
+    const response = await fetch(
+      `${url}/api/agent/${agent.id}/run/${agentRunId}`,
+      {
+        method: "GET",
+      },
+    );
 
     expect(response.status).toBe(401);
   });
 
   test("should return not found for non-existent agent run", async () => {
-    const response = await fetch(`${url}/api/agent-run/999999`, {
+    const response = await fetch(`${url}/api/agent/${agent.id}/run/999999`, {
       method: "GET",
       headers: {
         Cookie: `${session.cookieName}=${session.id}`,
@@ -267,7 +282,7 @@ describe("agentRun:view", () => {
       },
     );
 
-    const runResponse = await fetch(`${url}/api/agent/run`, {
+    const runResponse = await fetch(`${url}/api/agent/${otherAgent.id}/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -280,12 +295,15 @@ describe("agentRun:view", () => {
     const otherAgentRunId = runData.run.id;
 
     // Try to view the other user's agent run with the first user's session
-    const response = await fetch(`${url}/api/agent-run/${otherAgentRunId}`, {
-      method: "GET",
-      headers: {
-        Cookie: `${session.cookieName}=${session.id}`,
+    const response = await fetch(
+      `${url}/api/agent/${otherAgent.id}/run/${otherAgentRunId}`,
+      {
+        method: "GET",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
       },
-    });
+    );
 
     expect(response.status).toBe(500);
   });
@@ -315,7 +333,7 @@ describe("agentRun:list", () => {
 
     // Create multiple agent runs by running the agent multiple times
     for (let i = 0; i < 3; i++) {
-      await fetch(`${url}/api/agent/run`, {
+      await fetch(`${url}/api/agent/${agent.id}/run`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -327,15 +345,12 @@ describe("agentRun:list", () => {
   });
 
   test("should list agent runs successfully", async () => {
-    const listResponse = await fetch(
-      `${url}/api/agent-runs?agentId=${agent.id}`,
-      {
-        method: "GET",
-        headers: {
-          Cookie: `${session.cookieName}=${session.id}`,
-        },
+    const listResponse = await fetch(`${url}/api/agent/${agent.id}/runs`, {
+      method: "GET",
+      headers: {
+        Cookie: `${session.cookieName}=${session.id}`,
       },
-    );
+    });
 
     expect(listResponse.status).toBe(200);
     const listData = await listResponse.json();
@@ -358,7 +373,7 @@ describe("agentRun:list", () => {
 
   test("should support limit and offset", async () => {
     const listResponse = await fetch(
-      `${url}/api/agent-runs?agentId=${agent.id}&limit=2&offset=1`,
+      `${url}/api/agent/${agent.id}/runs?limit=2&offset=1`,
       {
         method: "GET",
         headers: {
@@ -376,7 +391,7 @@ describe("agentRun:list", () => {
   });
 
   test("should require authentication", async () => {
-    const response = await fetch(`${url}/api/agent-runs?agentId=${agent.id}`, {
+    const response = await fetch(`${url}/api/agent/${agent.id}/runs`, {
       method: "GET",
     });
 
@@ -405,21 +420,18 @@ describe("agentRun:list", () => {
     );
 
     // Try to list the other user's agent runs with the first user's session
-    const response = await fetch(
-      `${url}/api/agent-runs?agentId=${otherAgent.id}`,
-      {
-        method: "GET",
-        headers: {
-          Cookie: `${session.cookieName}=${session.id}`,
-        },
+    const response = await fetch(`${url}/api/agent/${otherAgent.id}/runs`, {
+      method: "GET",
+      headers: {
+        Cookie: `${session.cookieName}=${session.id}`,
       },
-    );
+    });
 
     expect(response.status).toBe(500);
   });
 
   test("should return not found for non-existent agent", async () => {
-    const response = await fetch(`${url}/api/agent-runs?agentId=999999`, {
+    const response = await fetch(`${url}/api/agent/999999/runs`, {
       method: "GET",
       headers: {
         Cookie: `${session.cookieName}=${session.id}`,
@@ -429,14 +441,14 @@ describe("agentRun:list", () => {
     expect(response.status).toBe(500);
   });
 
-  test("should handle missing agentId parameter", async () => {
-    const response = await fetch(`${url}/api/agent-runs`, {
+  test("should handle non-existent agent", async () => {
+    const response = await fetch(`${url}/api/agent/999999/runs`, {
       method: "GET",
       headers: {
         Cookie: `${session.cookieName}=${session.id}`,
       },
     });
 
-    expect(response.status).toBe(406);
+    expect(response.status).toBe(500);
   });
 });

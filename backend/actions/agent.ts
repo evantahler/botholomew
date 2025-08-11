@@ -115,7 +115,7 @@ export class AgentCreate implements Action {
 export class AgentEdit implements Action {
   name = "agent:edit";
   description = "Edit an existing agent";
-  web = { route: "/agent", method: HTTP_METHOD.POST };
+  web = { route: "/agent/:id", method: HTTP_METHOD.POST };
   middleware = [SessionMiddleware];
   inputs = z.object({
     id: z.coerce.number().int().describe("The agent's id"),
@@ -199,7 +199,7 @@ export class AgentEdit implements Action {
 export class AgentDelete implements Action {
   name = "agent:delete";
   description = "Delete an agent";
-  web = { route: "/agent", method: HTTP_METHOD.DELETE };
+  web = { route: "/agent/:id", method: HTTP_METHOD.DELETE };
   middleware = [SessionMiddleware];
   inputs = z.object({
     id: z.coerce.number().int().describe("The agent's id"),
@@ -283,7 +283,7 @@ export class AgentList implements Action {
 export class AgentRunAction implements Action {
   name = "agent:run";
   description = "Run an agent using the OpenAI agents API";
-  web = { route: "/agent/run", method: HTTP_METHOD.POST };
+  web = { route: "/agent/:id/run", method: HTTP_METHOD.POST };
   middleware = [SessionMiddleware];
   inputs = z.object({
     id: z.coerce.number().int().describe("The agent's id"),

@@ -81,8 +81,7 @@ export default function AgentDetail() {
 
       const offset = (currentPage - 1) * agentRunsPerPage;
       const response: ActionResponse<AgentRunList> =
-        await APIWrapper.get<AgentRunList>("/agent-runs", {
-          agentId: parseInt(id as string),
+        await APIWrapper.get<AgentRunList>(`/agent/${id}/runs`, {
           limit: agentRunsPerPage,
           offset: offset,
         });
@@ -105,7 +104,7 @@ export default function AgentDetail() {
 
   const handleDelete = async () => {
     try {
-      await APIWrapper.delete<AgentDelete>("/agent", {
+      await APIWrapper.delete<AgentDelete>(`/agent/${id}`, {
         id: parseInt(id as string),
       });
       router.push("/agents");
@@ -119,7 +118,7 @@ export default function AgentDetail() {
       setRunning(true);
       setError(null);
 
-      await APIWrapper.post<AgentRunAction>("/agent/run", {
+      await APIWrapper.post<AgentRunAction>(`/agent/${id}/run`, {
         id: parseInt(id as string),
       });
 
@@ -137,7 +136,9 @@ export default function AgentDetail() {
     }
 
     try {
-      await APIWrapper.delete<AgentRunList>("/agent-run", { id: agentRunId });
+      await APIWrapper.delete<AgentRunList>(`/agent/${id}/run/${agentRunId}`, {
+        id: agentRunId,
+      });
       // Refresh agent runs to update the list
       await fetchAgentRuns();
     } catch (err) {

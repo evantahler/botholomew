@@ -224,7 +224,7 @@ export default function EditAgent() {
       };
 
       const response: ActionResponse<AgentEdit> =
-        await APIWrapper.post<AgentEdit>("/agent", submitData);
+        await APIWrapper.post<AgentEdit>(`/agent/${id}`, submitData);
 
       // Redirect to the agent detail page
       router.push(`/agents/${id}`);

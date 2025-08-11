@@ -70,7 +70,7 @@ export default function AgentsList() {
     if (!deleteModal.agent) return;
 
     try {
-      await APIWrapper.delete<AgentDelete>("/agent", {
+      await APIWrapper.delete<AgentDelete>(`/agent/${deleteModal.agent.id}`, {
         id: deleteModal.agent.id,
       });
       // Remove the agent from the list
