@@ -81,7 +81,7 @@ export default function AgentDetail() {
 
       const offset = (currentPage - 1) * agentRunsPerPage;
       const response: ActionResponse<AgentRunList> =
-        await APIWrapper.get<AgentRunList>("/agentRuns", {
+        await APIWrapper.get<AgentRunList>("/agent-runs", {
           agentId: parseInt(id as string),
           limit: agentRunsPerPage,
           offset: offset,
@@ -137,7 +137,7 @@ export default function AgentDetail() {
     }
 
     try {
-      await APIWrapper.delete<AgentRunList>("/agentRun", { id: agentRunId });
+      await APIWrapper.delete<AgentRunList>("/agent-run", { id: agentRunId });
       // Refresh agent runs to update the list
       await fetchAgentRuns();
     } catch (err) {

@@ -11,7 +11,7 @@ import { serializeAgentRun } from "../ops/AgentRunOps";
 export class AgentRunDelete implements Action {
   name = "agentRun:delete";
   description = "Delete an agent run";
-  web = { route: "/agentRun", method: HTTP_METHOD.DELETE };
+  web = { route: "/agent-run", method: HTTP_METHOD.DELETE };
   middleware = [SessionMiddleware];
   inputs = z.object({
     id: z.coerce.number().int().describe("The agent run's id"),
@@ -47,7 +47,7 @@ export class AgentRunDelete implements Action {
 export class AgentRunView implements Action {
   name = "agentRun:view";
   description = "View an agent run";
-  web = { route: "/agentRun/:id", method: HTTP_METHOD.GET };
+  web = { route: "/agent-run/:id", method: HTTP_METHOD.GET };
   middleware = [SessionMiddleware];
   inputs = z.object({
     id: z.coerce.number().int().describe("The agent run's id"),
@@ -95,7 +95,7 @@ export class AgentRunView implements Action {
 export class AgentRunList implements Action {
   name = "agentRun:list";
   description = "List agent runs for an agent";
-  web = { route: "/agentRuns", method: HTTP_METHOD.GET };
+  web = { route: "/agent-runs", method: HTTP_METHOD.GET };
   middleware = [SessionMiddleware];
   inputs = z.object({
     agentId: z.coerce.number().int().describe("The agent's id"),
