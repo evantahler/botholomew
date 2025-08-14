@@ -65,35 +65,36 @@ export async function agentTick(agent: Agent, agentRun: AgentRun) {
     }
   }
 
-  const arcadeTools = await api.arcade.loadArcadeToolsForAgent(
-    agent.toolkits,
-    user.email,
-  );
+  const childAgents: OpenAIAgent[] = [];
 
   try {
-    const childAgent = new OpenAIAgent({
-      name: agent.name + " (child)",
-      instructions:
-        agent.systemPrompt +
-        `
-      You are now a child agent of the parent agent for delegation.
-      You are allowed to use any tools that the parent agent is not allowed to use.
-      `,
-      model: agent.model,
-      tools: arcadeTools,
-    });
+    for (const toolkit of agent.toolkits) {
+      const arcadeTools = await api.arcade.loadArcadeToolsForAgent(
+        [toolkit],
+        user.email,
+      );
+
+      const child = new OpenAIAgent({
+        name: agent.name + " - " + toolkit,
+        instructions: `
+        You are an expert agent in the ${toolkit} toolkit.
+        If you have been delegated to, you must use the tools provided to you.
+        You must respond in the ${agent.responseType} format.  Do not include any other text in your response - only the response in the format specified.
+        `,
+        model: agent.model,
+        tools: arcadeTools,
+      });
+
+      childAgents.push(child);
+    }
 
     const parentAgent = new OpenAIAgent({
       name: agent.name + " (parent)",
       instructions:
-        agent.systemPrompt +
-        `
-      You are the parent agent.
-      You MUST delegate to child agent when working with multiple objects.
-      `,
+        agent.systemPrompt,
       model: agent.model,
-      tools: arcadeTools,
-      handoffs: [childAgent],
+      tools: [],
+      handoffs: childAgents,
     });
 
     const result = await run(parentAgent, agent.userPrompt);
