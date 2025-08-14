@@ -8,7 +8,7 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "concurrently --kill-others \"bun run dev:backend\" \"bun run dev:frontend\"",
+    "dev": "bun run concurrently --kill-others --prefix name --names 💻,🎨 \"bun run dev:backend\" \"bun run dev:frontend\"",
     "dev:backend": "cd backend && bun run dev",
     "dev:frontend": "cd frontend && bun run dev",
     "lint": "bun run lint:backend && bun run lint:frontend",
