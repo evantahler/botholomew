@@ -15,6 +15,7 @@ export function serializeUser(user: User) {
     id: user.id,
     name: user.name,
     email: user.email,
+    metadata: user.metadata || "",
     createdAt: user.createdAt.getTime(),
     updatedAt: user.updatedAt.getTime(),
   };

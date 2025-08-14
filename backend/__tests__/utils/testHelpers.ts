@@ -16,6 +16,7 @@ export interface TestUser {
   name: string;
   email: string;
   password: string;
+  metadata?: string;
 }
 
 export interface TestSession {
@@ -31,6 +32,7 @@ export async function createTestUser(userData: TestUser) {
     name: userData.name,
     email: userData.email,
     password_hash: await hashPassword(userData.password),
+    metadata: userData.metadata || "",
   });
 }
 

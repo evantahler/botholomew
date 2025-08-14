@@ -9,8 +9,11 @@ import {
   Alert,
   Row,
   Col,
+  Tabs,
+  Tab,
 } from "react-bootstrap";
 import { useAuth } from "../lib/auth";
+import MarkdownRenderer from "../components/MarkdownRenderer";
 
 export default function AccountPage() {
   const { user, updateUser } = useAuth();
@@ -26,6 +29,7 @@ export default function AccountPage() {
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
+    metadata: "",
   });
 
   useEffect(() => {
@@ -34,11 +38,14 @@ export default function AccountPage() {
         ...prev,
         name: user.name || "",
         email: user.email || "",
+        metadata: user.metadata || "",
       }));
     }
   }, [user]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -75,8 +82,12 @@ export default function AccountPage() {
       }
 
       // Prepare update data
-      const updateData: { name?: string; email?: string; password?: string } =
-        {};
+      const updateData: {
+        name?: string;
+        email?: string;
+        password?: string;
+        metadata?: string;
+      } = {};
 
       if (formData.name !== user?.name) {
         updateData.name = formData.name;
@@ -86,6 +97,9 @@ export default function AccountPage() {
       }
       if (formData.newPassword) {
         updateData.password = formData.newPassword;
+      }
+      if (formData.metadata !== user?.metadata) {
+        updateData.metadata = formData.metadata;
       }
 
       // Only update if there are changes
@@ -118,7 +132,7 @@ export default function AccountPage() {
   return (
     <Container className="mt-5 pt-4">
       <Row className="justify-content-center">
-        <Col md={8} lg={6}>
+        <Col md={10} lg={8}>
           <Card className="shadow">
             <Card.Header className="bg-primary text-white">
               <h3 className="mb-0">Account Settings</h3>
@@ -157,6 +171,40 @@ export default function AccountPage() {
                     placeholder="Enter your email"
                     required
                   />
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                  <Form.Label>Additional Information</Form.Label>
+                  <Form.Text className="text-muted mb-2 d-block">
+                    Add any additional information about yourself that will be
+                    shared with your agents. Supports markdown formatting (e.g.,
+                    **bold**, *italic*, [links](url), etc.)
+                  </Form.Text>
+                  <Tabs defaultActiveKey="edit" className="mb-2">
+                    <Tab eventKey="edit" title="Edit">
+                      <Form.Control
+                        as="textarea"
+                        name="metadata"
+                        value={formData.metadata}
+                        onChange={handleInputChange}
+                        placeholder="Enter additional information about yourself..."
+                        rows={6}
+                        maxLength={10000}
+                      />
+                      <Form.Text className="text-muted">
+                        {formData.metadata.length}/10,000 characters
+                      </Form.Text>
+                    </Tab>
+                    <Tab eventKey="preview" title="Preview">
+                      <div className="border rounded p-3 bg-light">
+                        {formData.metadata ? (
+                          <MarkdownRenderer content={formData.metadata} />
+                        ) : (
+                          <p className="text-muted">No content to preview</p>
+                        )}
+                      </div>
+                    </Tab>
+                  </Tabs>
                 </Form.Group>
 
                 <hr className="my-4" />

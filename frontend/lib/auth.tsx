@@ -30,6 +30,7 @@ interface AuthContextType {
     name?: string;
     email?: string;
     password?: string;
+    metadata?: string;
   }) => Promise<void>;
 }
 
@@ -76,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     name?: string;
     email?: string;
     password?: string;
+    metadata?: string;
   }) => {
     const responseData = await APIWrapper.post<UserEdit>("/user", data);
     setUser(responseData.user);

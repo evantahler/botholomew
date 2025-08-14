@@ -19,6 +19,7 @@ export const users = pgTable(
     name: varchar("name", { length: 256 }).notNull(),
     email: text("email").notNull().unique(),
     password_hash: text("password_hash").notNull(),
+    metadata: text("metadata").default(""),
   },
   (users) => {
     return {

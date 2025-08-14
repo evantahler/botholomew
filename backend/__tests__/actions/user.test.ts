@@ -1,4 +1,11 @@
-import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  afterEach,
+} from "bun:test";
 import { eq } from "drizzle-orm";
 import { api, type ActionResponse } from "../../api";
 import type { UserCreate, UserEdit, UserView } from "../../actions/user";
@@ -20,6 +27,10 @@ beforeAll(async () => {
   await api.db.clearDatabase();
 });
 
+afterEach(async () => {
+  await api.db.clearDatabase();
+});
+
 afterAll(async () => {
   await api.stop();
 });
@@ -31,7 +42,25 @@ describe("user:create", () => {
     expect(response.user.email).toEqual("mario@example.com");
   });
 
+  test("user can be created with metadata", async () => {
+    const userWithMetadata = {
+      ...USERS.MARIO,
+      metadata: "**Favorite Color:** Red\n**Slack Username:** @mario",
+    };
+
+    const res = await fetch(url + "/api/user", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userWithMetadata),
+    });
+    const response = (await res.json()) as ActionResponse<UserCreate>;
+    expect(res.status).toBe(200);
+    expect(response.user.metadata).toEqual(userWithMetadata.metadata);
+  });
+
   test("email must be unique", async () => {
+    await createUserViaAPI(USERS.MARIO);
+
     const response = await createUserViaAPI(USERS.MARIO);
     expect(response.error?.message.toLowerCase()).toMatch(
       /user already exists/,
@@ -120,6 +149,38 @@ describe("user:view", () => {
     expect(response.user.email).toEqual("mario@example.com");
   });
 
+  test("it returns the user with metadata when session is valid", async () => {
+    // First create a user with metadata and session
+    const userWithMetadata = {
+      ...USERS.MARIO,
+      metadata: "**Favorite Color:** Green\n**Team:** Engineering",
+    };
+
+    // Create user directly first
+    const createRes = await fetch(url + "/api/user", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userWithMetadata),
+    });
+    expect(createRes.status).toBe(200);
+
+    // Then create session
+    const sessionResponse = await createSession(userWithMetadata);
+
+    const res = await fetch(url + "/api/user", {
+      method: "GET",
+      headers: {
+        Cookie: `${config.session.cookieName}=${sessionResponse.session.id}`,
+      },
+    });
+    const response = (await res.json()) as ActionResponse<UserView>;
+    expect(res.status).toBe(200);
+    expect(response.user.id).toEqual(sessionResponse.user.id);
+    expect(response.user.name).toEqual("Mario Mario");
+    expect(response.user.email).toEqual("mario@example.com");
+    expect(response.user.metadata).toEqual(userWithMetadata.metadata);
+  });
+
   test("it fails when user is not found", async () => {
     // Create a user and session
     const sessionResponse = await createUserAndSession(USERS.MARIO);
@@ -155,10 +216,11 @@ describe("user:edit", () => {
 
   test("the user can be updated", async () => {
     // First create a user
-    await createUserViaAPI(USERS.MARIO);
+    const uniqueUser = { ...USERS.MARIO };
+    await createUserViaAPI(uniqueUser);
 
     // Create a session
-    const sessionResponse = await createSession(USERS.MARIO);
+    const sessionResponse = await createSession(uniqueUser);
     const sessionId = sessionResponse.session.id;
 
     const res = await fetch(url + "/api/user", {
@@ -176,5 +238,73 @@ describe("user:edit", () => {
     expect(sessionResponse.user.updatedAt).toBeLessThan(
       response.user.updatedAt,
     );
+  });
+
+  test("metadata can be updated and retrieved", async () => {
+    // First create a user
+    const uniqueUser = { ...USERS.MARIO, name: "Mario Metadata Update" };
+    await createUserViaAPI(uniqueUser);
+
+    // Create a session
+    const sessionResponse = await createSession(uniqueUser);
+    const sessionId = sessionResponse.session.id;
+
+    const testMetadata =
+      "**Favorite Color:** Blue\n**Slack Username:** @mario\n**Team:** Platform";
+
+    // Update the user's metadata
+    const res = await fetch(url + "/api/user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${config.session.cookieName}=${sessionId}`,
+      },
+      body: JSON.stringify({ metadata: testMetadata }),
+    });
+    const response = (await res.json()) as ActionResponse<UserEdit>;
+    expect(res.status).toBe(200);
+    expect(response.user.metadata).toEqual(testMetadata);
+
+    // Verify the metadata is persisted by viewing the user again
+    const viewRes = await fetch(url + "/api/user", {
+      method: "GET",
+      headers: {
+        Cookie: `${config.session.cookieName}=${sessionId}`,
+      },
+    });
+    const viewResponse = (await viewRes.json()) as ActionResponse<UserView>;
+    expect(viewRes.status).toBe(200);
+    expect(viewResponse.user.metadata).toEqual(testMetadata);
+  });
+
+  test("metadata can be updated to empty string", async () => {
+    // First create a user with some metadata
+    const uniqueUser = { ...USERS.MARIO };
+    await createUserViaAPI(uniqueUser);
+    const sessionResponse = await createSession(uniqueUser);
+    const sessionId = sessionResponse.session.id;
+
+    // Set initial metadata
+    await fetch(url + "/api/user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${config.session.cookieName}=${sessionId}`,
+      },
+      body: JSON.stringify({ metadata: "Some initial metadata" }),
+    });
+
+    // Update metadata to empty string
+    const res = await fetch(url + "/api/user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${config.session.cookieName}=${sessionId}`,
+      },
+      body: JSON.stringify({ metadata: "" }),
+    });
+    const response = (await res.json()) as ActionResponse<UserEdit>;
+    expect(res.status).toBe(200);
+    expect(response.user.metadata).toEqual("");
   });
 });

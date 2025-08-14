@@ -32,6 +32,11 @@ export class UserCreate implements Action {
       .max(256, "Password must be less than 256 characters")
       .describe("The user's password")
       .secret(),
+    metadata: z
+      .string()
+      .max(10000, "Metadata must be less than 10,000 characters")
+      .optional()
+      .describe("Additional user information (supports markdown)"),
   });
 
   async run(params: ActionParams<UserCreate>) {
@@ -54,6 +59,7 @@ export class UserCreate implements Action {
         name: params.name,
         email: params.email,
         password_hash: await hashPassword(params.password),
+        metadata: params.metadata || "",
       })
       .returning();
 
@@ -70,14 +76,19 @@ export class UserEdit implements Action {
     name: z.string().min(1).max(256).optional(),
     email: z.string().email().toLowerCase().optional(),
     password: z.string().min(8).max(256).optional().secret(),
+    metadata: z
+      .string()
+      .max(10000, "Metadata must be less than 10,000 characters")
+      .optional(),
   });
 
   async run(params: ActionParams<UserEdit>, connection: Connection) {
-    const { name, email, password } = params;
+    const { name, email, password, metadata } = params;
     const updates = {} as Record<string, string>;
     if (name) updates.name = name;
     if (email) updates.email = email;
     if (password) updates.password_hash = await hashPassword(password);
+    if (metadata !== undefined) updates.metadata = metadata;
 
     const [user] = await api.db.db
       .update(users)

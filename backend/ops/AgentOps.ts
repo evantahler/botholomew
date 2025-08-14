@@ -91,7 +91,9 @@ export async function agentTick(agent: Agent, agentRun: AgentRun) {
     const parentAgent = new OpenAIAgent({
       name: agent.name + " (parent)",
       instructions:
-        agent.systemPrompt,
+        agent.systemPrompt +
+        "\n\n---\n\n Additional information about the user: " +
+        user.metadata,
       model: agent.model,
       tools: [],
       handoffs: childAgents,
