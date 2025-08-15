@@ -6,7 +6,7 @@ import { serializeWorkflowStep } from "../ops/WorkflowStepOps";
 import { serializeWorkflowRun } from "../ops/WorkflowRunOps";
 import { Workflow, workflows } from "../models/workflow";
 import { workflow_steps, WorkflowStep } from "../models/workflow_step";
-import { workflow_runs } from "../models/workflow_run";
+import { workflow_runs, WorkflowRun } from "../models/workflow_run";
 import { SessionMiddleware } from "../middleware/session";
 import { eq, and, count } from "drizzle-orm";
 import { ErrorType, TypedError } from "../classes/TypedError";
