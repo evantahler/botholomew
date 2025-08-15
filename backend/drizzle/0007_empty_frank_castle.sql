@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_steps" ALTER COLUMN "agent_id" DROP NOT NULL;

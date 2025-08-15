@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_runs" ALTER COLUMN "input" DROP DEFAULT;
