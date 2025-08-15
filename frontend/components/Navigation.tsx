@@ -74,6 +74,20 @@ export default function Navigation() {
                 >
                   Agents
                 </Nav.Link>
+                <Nav.Link
+                  as={Link}
+                  href="/workflows"
+                  className={
+                    isActive("/workflows") ||
+                    isActive("/workflows/create") ||
+                    isActive("/workflows/[id]") ||
+                    isActive("/workflows/edit/[id]")
+                      ? "active"
+                      : ""
+                  }
+                >
+                  Workflows
+                </Nav.Link>
               </>
             )}
           </Nav>

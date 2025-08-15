@@ -43,7 +43,6 @@ export default function EditAgent() {
     userPrompt: string;
     responseType: "text" | "json" | "markdown";
     enabled: boolean;
-    schedule: string;
     toolkits: string[];
   }>({
     name: "",
@@ -52,7 +51,6 @@ export default function EditAgent() {
     userPrompt: "",
     responseType: "text",
     enabled: false,
-    schedule: "",
     toolkits: [],
   });
 
@@ -92,7 +90,6 @@ export default function EditAgent() {
         userPrompt: agentData.userPrompt,
         responseType: agentData.responseType || "text",
         enabled: agentData.enabled,
-        schedule: agentData.schedule || "",
         toolkits: agentData.toolkits || [],
       });
     } catch (err) {
@@ -400,18 +397,6 @@ export default function EditAgent() {
                       <option value="json">JSON</option>
                       <option value="markdown">Markdown</option>
                     </Form.Select>
-                  </Form.Group>
-
-                  <Form.Group className="mb-3">
-                    <Form.Label className="small">Schedule</Form.Label>
-                    <Form.Control
-                      type="text"
-                      name="schedule"
-                      value={formData.schedule}
-                      onChange={handleInputChange}
-                      size="sm"
-                      placeholder="0 9 * * *"
-                    />
                   </Form.Group>
 
                   <Form.Group className="mb-3">

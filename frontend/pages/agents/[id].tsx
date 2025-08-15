@@ -333,28 +333,6 @@ export default function AgentDetail() {
                 </div>
               </Card.Body>
             </Card>
-
-            {agent.schedule && (
-              <Card className="mb-4">
-                <Card.Header>
-                  <h6>Schedule</h6>
-                </Card.Header>
-                <Card.Body className="p-3">
-                  <div className="mb-2">
-                    <strong>Cron:</strong>
-                    <code className="d-block small">{agent.schedule}</code>
-                  </div>
-                  {agent.scheduleNextRun && (
-                    <div className="mb-2">
-                      <strong>Next Run:</strong>
-                      <div className="small text-muted">
-                        {formatDate(agent.scheduleNextRun)}
-                      </div>
-                    </div>
-                  )}
-                </Card.Body>
-              </Card>
-            )}
           </Col>
 
           {/* Main Content - Agent Runs */}

@@ -34,9 +34,7 @@ export const workflow_steps = pgTable("workflow_steps", {
     .notNull(),
   stepType: stepTypes("step_type").notNull(),
   order: integer("order").notNull(),
-  nextStepId: integer("next_step_id").references(() => workflow_steps.id, {
-    onDelete: "set null",
-  }),
+  nextStepId: integer("next_step_id"),
 });
 
 export type WorkflowStep = typeof workflow_steps.$inferSelect;
