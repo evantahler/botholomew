@@ -12,11 +12,11 @@ import { agentTick } from "../ops/AgentOps";
 export class AgentRunDelete implements Action {
   name = "agentRun:delete";
   description = "Delete an agent run";
-  web = { route: "/agent/:agentId/run/:id", method: HTTP_METHOD.DELETE };
+  web = { route: "/agent/:id/run/:runId", method: HTTP_METHOD.DELETE };
   middleware = [SessionMiddleware];
   inputs = z.object({
-    agentId: z.coerce.number().int().describe("The agent's id"),
-    id: z.coerce.number().int().describe("The agent run's id"),
+    id: z.coerce.number().int().describe("The agent's id"),
+    runId: z.coerce.number().int().describe("The agent run's id"),
   });
 
   async run(params: ActionParams<AgentRunDelete>, connection: Connection) {
@@ -27,7 +27,7 @@ export class AgentRunDelete implements Action {
       .innerJoin(agents, eq(agent_run.agentId, agents.id))
       .where(
         and(
-          eq(agent_run.agentId, params.agentId),
+          eq(agent_run.agentId, params.id),
           eq(agent_run.id, params.id),
           eq(agents.userId, connection.session?.data.userId),
         ),
@@ -50,11 +50,11 @@ export class AgentRunDelete implements Action {
 export class AgentRunView implements Action {
   name = "agentRun:view";
   description = "View an agent run";
-  web = { route: "/agent/:agentId/run/:id", method: HTTP_METHOD.GET };
+  web = { route: "/agent/:id/run/:runId", method: HTTP_METHOD.GET };
   middleware = [SessionMiddleware];
   inputs = z.object({
-    agentId: z.coerce.number().int().describe("The agent's id"),
-    id: z.coerce.number().int().describe("The agent run's id"),
+    id: z.coerce.number().int().describe("The agent's id"),
+    runId: z.coerce.number().int().describe("The agent run's id"),
   });
 
   async run(params: ActionParams<AgentRunView>, connection: Connection) {
@@ -65,8 +65,8 @@ export class AgentRunView implements Action {
       .innerJoin(agent_run, eq(agents.id, agent_run.agentId))
       .where(
         and(
-          eq(agent_run.agentId, params.agentId),
-          eq(agent_run.id, params.id),
+          eq(agent_run.agentId, params.id),
+          eq(agent_run.id, params.runId),
           eq(agents.userId, connection.session?.data.userId),
         ),
       )
@@ -100,23 +100,23 @@ export class AgentRunView implements Action {
 export class AgentRunList implements Action {
   name = "agentRun:list";
   description = "List agent runs for an agent";
-  web = { route: "/agent/:agentId/runs", method: HTTP_METHOD.GET };
+  web = { route: "/agent/:id/runs", method: HTTP_METHOD.GET };
   middleware = [SessionMiddleware];
   inputs = z.object({
-    agentId: z.coerce.number().int().describe("The agent's id"),
+    id: z.coerce.number().int().describe("The agent's id"),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     offset: z.coerce.number().int().min(0).default(0),
   });
 
   async run(params: ActionParams<AgentRunList>, connection: Connection) {
-    const { agentId, limit, offset } = params;
+    const { id, limit, offset } = params;
     const userId = connection.session?.data.userId;
 
     // Verify the agent belongs to the user
     const [agent] = await api.db.db
       .select()
       .from(agents)
-      .where(and(eq(agents.id, agentId), eq(agents.userId, userId)))
+      .where(and(eq(agents.id, id), eq(agents.userId, userId)))
       .limit(1);
 
     if (!agent) {
@@ -130,12 +130,12 @@ export class AgentRunList implements Action {
     const [{ count }] = await api.db.db
       .select({ count: sql<number>`count(*)` })
       .from(agent_run)
-      .where(eq(agent_run.agentId, agentId));
+      .where(eq(agent_run.agentId, id));
 
     const rows: AgentRun[] = await api.db.db
       .select()
       .from(agent_run)
-      .where(eq(agent_run.agentId, agentId))
+      .where(eq(agent_run.agentId, id))
       .orderBy(desc(agent_run.createdAt))
       .limit(limit)
       .offset(offset);
