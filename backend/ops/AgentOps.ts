@@ -36,7 +36,11 @@ export function getSystemPrompt(agent: Agent) {
   ` as const;
 }
 
-export async function agentTick(agent: Agent, agentRun: AgentRun) {
+export async function agentTick(
+  agent: Agent,
+  agentRun: AgentRun,
+  additionalContext: string | undefined = undefined,
+) {
   const [user]: User[] = await api.db.db
     .select()
     .from(users)
@@ -92,8 +96,11 @@ export async function agentTick(agent: Agent, agentRun: AgentRun) {
       name: agent.name + " (parent)",
       instructions:
         agent.systemPrompt +
-        "\n\n---\n\n Additional information about the user: " +
-        user.metadata,
+        "\n\n---\n\n Additional information about the user: \r\n" +
+        user.metadata +
+        (additionalContext
+          ? "\n\n---\n\n Additional context: \r\n" + additionalContext
+          : ""),
       model: agent.model,
       tools: [],
       handoffs: childAgents,
