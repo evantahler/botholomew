@@ -109,29 +109,6 @@ export async function createAgent(
 }
 
 /**
- * Create a message for an agent
- */
-export async function createMessage(
-  session: TestSession,
-  messageData: {
-    agentId: number;
-    role: "user" | "assistant" | "system";
-    content: string;
-  },
-): Promise<ActionResponse<MessageCreate>["message"]> {
-  const messageResponse = await fetch(`${url}/api/message`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Cookie: `${session.session.cookieName}=${session.session.id}`,
-    },
-    body: JSON.stringify(messageData),
-  });
-  const messageDataResponse = await messageResponse.json();
-  return messageDataResponse.message;
-}
-
-/**
  * Common test user data
  */
 export const USERS = {
