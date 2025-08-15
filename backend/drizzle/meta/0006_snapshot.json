@@ -1,6 +1,6 @@
 {
-  "id": "52c732bc-8a77-463f-8748-263f7c5ec682",
-  "prevId": "acd71fac-9351-4cbe-b7b6-634949e8c411",
+  "id": "1bae37fb-f8ca-427c-966e-eed3302833aa",
+  "prevId": "52c732bc-8a77-463f-8748-263f7c5ec682",
   "version": "5",
   "dialect": "pg",
   "tables": {
@@ -452,12 +452,6 @@
         "step_type": {
           "name": "step_type",
           "type": "step_type",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "order": {
-          "name": "order",
-          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
