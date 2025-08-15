@@ -59,7 +59,35 @@
     .workflow-step-node {
       border-color: #007bff;
       box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+      transform: scale(1.02);
     }
+  }
+}
+
+// Selection indicator
+.react-flow__node.selected {
+  z-index: 10;
+}
+
+// Connection handles styling
+.react-flow__handle {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  background: #555;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #007bff;
+    transform: scale(1.2);
+  }
+
+  &.react-flow__handle-target {
+    left: -6px;
+  }
+
+  &.react-flow__handle-source {
+    right: -6px;
   }
 }
 

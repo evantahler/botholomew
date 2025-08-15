@@ -170,7 +170,7 @@ export class WorkflowStepCreate implements Action {
   middleware = [SessionMiddleware];
   inputs = z.object({
     id: z.coerce.number().int().describe("The workflow's id"),
-    agentId: z.coerce.number().int().describe("The agent's id"),
+    agentId: z.coerce.number().int().optional().describe("The agent's id"),
     stepType: z
       .enum([
         "agent",
@@ -182,7 +182,6 @@ export class WorkflowStepCreate implements Action {
         "timer",
       ])
       .describe("The type of step"),
-    order: z.coerce.number().int().min(1).describe("The order of the step"),
     nextStepId: z.coerce
       .number()
       .int()
@@ -213,7 +212,6 @@ export class WorkflowStepCreate implements Action {
         workflowId: params.id,
         agentId: params.agentId,
         stepType: params.stepType,
-        order: params.order,
         nextStepId: params.nextStepId,
       })
       .returning();
@@ -242,7 +240,6 @@ export class WorkflowStepEdit implements Action {
         "timer",
       ])
       .optional(),
-    order: z.coerce.number().int().min(1).optional(),
     nextStepId: z.coerce.number().int().optional(),
   });
 
@@ -269,7 +266,6 @@ export class WorkflowStepEdit implements Action {
     const updates: Record<string, any> = {};
     if (params.agentId !== undefined) updates.agentId = params.agentId;
     if (params.stepType !== undefined) updates.stepType = params.stepType;
-    if (params.order !== undefined) updates.order = params.order;
     if (params.nextStepId !== undefined) updates.nextStepId = params.nextStepId;
 
     const [updatedStep]: WorkflowStep[] = await api.db.db
@@ -301,7 +297,7 @@ export class WorkflowStepDelete implements Action {
       .from(workflow_steps)
       .innerJoin(workflows, eq(workflow_steps.workflowId, workflows.id))
       .where(
-        and(eq(workflow_steps.id, params.id), eq(workflows.userId, userId)),
+        and(eq(workflow_steps.id, params.stepId), eq(workflows.userId, userId)),
       )
       .limit(1);
 
@@ -314,7 +310,7 @@ export class WorkflowStepDelete implements Action {
 
     const result = await api.db.db
       .delete(workflow_steps)
-      .where(eq(workflow_steps.id, params.id));
+      .where(eq(workflow_steps.id, params.stepId));
 
     return { success: result.rowCount > 0 };
   }
@@ -355,8 +351,7 @@ export class WorkflowStepList implements Action {
     const steps: WorkflowStep[] = await api.db.db
       .select()
       .from(workflow_steps)
-      .where(eq(workflow_steps.workflowId, params.id))
-      .orderBy(workflow_steps.order);
+      .where(eq(workflow_steps.workflowId, params.id));
 
     return { steps: steps.map(serializeWorkflowStep) };
   }

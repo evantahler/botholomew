@@ -250,40 +250,38 @@ export default function ViewWorkflow() {
                   </p>
                 ) : (
                   <ListGroup variant="flush">
-                    {steps
-                      .sort((a, b) => a.order - b.order)
-                      .map((step, index) => (
-                        <ListGroup.Item
-                          key={step.id}
-                          className="d-flex justify-content-between align-items-center"
-                        >
-                          <div>
-                            <div className="d-flex align-items-center">
-                              <Badge
-                                bg={getStepTypeColor(step.stepType)}
-                                className="me-2"
-                              >
-                                {step.stepType}
-                              </Badge>
-                              <span className="fw-bold">Step {step.order}</span>
-                            </div>
-                            {step.stepType === "agent" && step.agentId && (
-                              <div className="text-muted small mt-1">
-                                Agent:{" "}
-                                {agents.find(a => a.id === step.agentId)
-                                  ?.name || "Unknown"}
-                              </div>
-                            )}
-                          </div>
-                          {step.nextStepId && (
-                            <Badge bg="light" text="dark">
-                              → Step{" "}
-                              {steps.find(s => s.id === step.nextStepId)
-                                ?.order || "?"}
+                    {steps.map((step, index) => (
+                      <ListGroup.Item
+                        key={step.id}
+                        className="d-flex justify-content-between align-items-center"
+                      >
+                        <div>
+                          <div className="d-flex align-items-center">
+                            <Badge
+                              bg={getStepTypeColor(step.stepType)}
+                              className="me-2"
+                            >
+                              {step.stepType}
                             </Badge>
+                            <span className="fw-bold">Step {index + 1}</span>
+                          </div>
+                          {step.stepType === "agent" && step.agentId && (
+                            <div className="text-muted small mt-1">
+                              Agent:{" "}
+                              {agents.find(a => a.id === step.agentId)?.name ||
+                                "Unknown"}
+                            </div>
                           )}
-                        </ListGroup.Item>
-                      ))}
+                        </div>
+                        {step.nextStepId && (
+                          <Badge bg="light" text="dark">
+                            → Step{" "}
+                            {steps.findIndex(s => s.id === step.nextStepId) +
+                              1 || "?"}
+                          </Badge>
+                        )}
+                      </ListGroup.Item>
+                    ))}
                   </ListGroup>
                 )}
               </Card.Body>

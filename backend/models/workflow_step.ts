@@ -29,11 +29,10 @@ export const workflow_steps = pgTable("workflow_steps", {
   workflowId: integer("workflow_id")
     .references(() => workflows.id, { onDelete: "cascade" })
     .notNull(),
-  agentId: integer("agent_id")
-    .references(() => agents.id, { onDelete: "cascade" })
-    .notNull(),
+  agentId: integer("agent_id").references(() => agents.id, {
+    onDelete: "cascade",
+  }),
   stepType: stepTypes("step_type").notNull(),
-  order: integer("order").notNull(),
   nextStepId: integer("next_step_id"),
 });
 

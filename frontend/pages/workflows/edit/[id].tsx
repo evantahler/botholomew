@@ -25,6 +25,8 @@ import ReactFlow, {
   Background,
   MiniMap,
   NodeTypes,
+  Handle,
+  Position,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { useAuth } from "../../../lib/auth";
@@ -42,9 +44,21 @@ import type {
 import type { AgentList } from "../../../../backend/actions/agent";
 import type { ActionResponse } from "../../../../backend/api";
 
+// Shared types - using backend action input types
+// Note: nextStepId is handled by React Flow connections, not form input
+type WorkflowStepCreateInput = WorkflowStepCreate["inputs"]["_type"];
+type WorkflowStepEditInput = WorkflowStepEdit["inputs"]["_type"];
+
 // Custom node types for different workflow steps
 const WorkflowStepNode = ({ data }: { data: any }) => (
   <div className="workflow-step-node">
+    {/* Input handle - allows connections TO this node */}
+    <Handle
+      type="target"
+      position={Position.Left}
+      style={{ background: "#555" }}
+    />
+
     <div className="step-header">
       <Badge bg={getStepTypeColor(data.stepType)} className="step-type">
         {data.stepType}
@@ -59,6 +73,13 @@ const WorkflowStepNode = ({ data }: { data: any }) => (
         <div className="step-description">{data.description}</div>
       )}
     </div>
+
+    {/* Output handle - allows connections FROM this node */}
+    <Handle
+      type="source"
+      position={Position.Right}
+      style={{ background: "#555" }}
+    />
   </div>
 );
 
@@ -195,6 +216,8 @@ export default function EditWorkflow() {
         source: step.id.toString(),
         target: step.nextStepId!.toString(),
         type: "smoothstep",
+        animated: true,
+        style: { stroke: "#555", strokeWidth: 2 },
       }));
 
     setNodes(newNodes);
@@ -202,11 +225,84 @@ export default function EditWorkflow() {
   };
 
   const onConnect = useCallback(
-    (params: Connection) => {
+    async (params: Connection) => {
       setEdges(eds => addEdge(params, eds));
+
+      // Update the step relationship in the backend
+      if (!params.source || !params.target) return;
+
+      const sourceStepId = parseInt(params.source);
+      const targetStepId = parseInt(params.target);
+
+      try {
+        // Find the source step and update its nextStepId
+        const sourceStep = steps.find(s => s.id === sourceStepId);
+        if (sourceStep) {
+          await APIWrapper.post<WorkflowStepEdit>(
+            `/workflow/${id}/step/${sourceStepId}`,
+            {
+              nextStepId: targetStepId,
+            }
+          );
+
+          // Update local state
+          setSteps(prev =>
+            prev.map(s =>
+              s.id === sourceStepId ? { ...s, nextStepId: targetStepId } : s
+            )
+          );
+        }
+      } catch (err) {
+        console.error("Failed to update step connection:", err);
+        // Revert the edge if the backend update failed
+        setEdges(eds =>
+          eds.filter(e => e.id !== `e${params.source}-${params.target}`)
+        );
+      }
     },
-    [setEdges]
+    [setEdges, steps, id]
   );
+
+  // Handle node deletion from the canvas
+  const onNodeDelete = useCallback(
+    async (nodeId: string) => {
+      const stepId = parseInt(nodeId);
+
+      try {
+        await APIWrapper.delete<WorkflowStepDelete>(
+          `/workflow/${id}/step/${stepId}`
+        );
+
+        // Remove the step from local state
+        setSteps(prev => prev.filter(s => s.id !== stepId));
+
+        // The useEffect will automatically update the flow when steps change
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to delete step");
+      }
+    },
+    [id]
+  );
+
+  // Handle keyboard events for node deletion
+  const onKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.key === "Delete" || event.key === "Backspace") {
+        const selectedNodes = nodes.filter(node => node.selected);
+        if (selectedNodes.length > 0) {
+          // Delete the first selected node (you could extend this to delete multiple)
+          onNodeDelete(selectedNodes[0].id);
+        }
+      }
+    },
+    [nodes, onNodeDelete]
+  );
+
+  // Add keyboard event listener
+  useEffect(() => {
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onKeyDown]);
 
   const handleSaveWorkflow = async () => {
     setSaving(true);
@@ -220,32 +316,28 @@ export default function EditWorkflow() {
     }
   };
 
-  const handleAddStep = async (stepData: any) => {
+  const handleAddStep = async (stepData: WorkflowStepCreateInput) => {
+    console.log("stepData", stepData);
     try {
       const response = await APIWrapper.put<WorkflowStepCreate>(
         `/workflow/${id}/step`,
-        {
-          id: parseInt(id as string),
-          ...stepData,
-        }
+        { ...stepData }
       );
 
       setSteps(prev => [...prev, response.step]);
       setShowAddStepModal(false);
+
+      // The useEffect will automatically update the flow when steps change
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add step");
     }
   };
 
-  const handleEditStep = async (stepData: any) => {
+  const handleEditStep = async (stepData: WorkflowStepEditInput) => {
     try {
       const response = await APIWrapper.post<WorkflowStepEdit>(
         `/workflow/${id}/step/${editingStep.id}`,
-        {
-          id: parseInt(id as string),
-          stepId: editingStep.id,
-          ...stepData,
-        }
+        stepData
       );
 
       setSteps(prev =>
@@ -261,10 +353,7 @@ export default function EditWorkflow() {
     try {
       await APIWrapper.delete<WorkflowStepDelete>(
         `/workflow/${id}/step/${stepId}`,
-        {
-          id: parseInt(id as string),
-          stepId,
-        }
+        { stepId }
       );
 
       setSteps(prev => prev.filter(s => s.id !== stepId));
@@ -456,6 +545,33 @@ export default function EditWorkflow() {
 
           <Col lg={9}>
             <Card>
+              <Card.Header className="d-flex justify-content-between align-items-center">
+                <h6 className="mb-0">Workflow Canvas</h6>
+                <div className="d-flex gap-2">
+                  <Button
+                    variant="outline-danger"
+                    size="sm"
+                    disabled={!nodes.some(n => n.selected)}
+                    onClick={() => {
+                      const selectedNodes = nodes.filter(n => n.selected);
+                      if (selectedNodes.length > 0) {
+                        if (
+                          confirm(
+                            `Delete ${selectedNodes.length} selected step(s)?`
+                          )
+                        ) {
+                          selectedNodes.forEach(node => onNodeDelete(node.id));
+                        }
+                      }
+                    }}
+                  >
+                    Delete Selected
+                  </Button>
+                  <small className="text-muted">
+                    Select nodes and press Delete or use the button above
+                  </small>
+                </div>
+              </Card.Header>
               <Card.Body className="p-0">
                 <div style={{ height: "600px" }}>
                   <ReactFlow
@@ -466,11 +582,25 @@ export default function EditWorkflow() {
                     onConnect={onConnect}
                     nodeTypes={nodeTypes}
                     fitView
+                    snapToGrid={true}
+                    snapGrid={[15, 15]}
+                    deleteKeyCode="Delete"
+                    onNodesDelete={nodesToDelete => {
+                      nodesToDelete.forEach(node => onNodeDelete(node.id));
+                    }}
                   >
                     <Controls />
                     <Background />
                     <MiniMap />
                   </ReactFlow>
+                </div>
+                <div className="p-3 border-top bg-light">
+                  <small className="text-muted">
+                    <strong>Canvas Controls:</strong> Click to select nodes,
+                    drag to move, drag from output handles to input handles to
+                    connect steps. Press Delete or use the Delete Selected
+                    button to remove steps.
+                  </small>
                 </div>
               </Card.Body>
             </Card>
@@ -515,37 +645,35 @@ function AddStepModal({
 }: {
   show: boolean;
   onHide: () => void;
-  onAdd: (data: any) => void;
+  onAdd: (data: WorkflowStepCreateInput) => void;
   agents: ActionResponse<AgentList>["agents"];
   workflowId: number;
   existingSteps: ActionResponse<WorkflowStepList>["steps"];
 }) {
   const [formData, setFormData] = useState<{
-    stepType:
-      | "agent"
-      | "condition"
-      | "loop"
-      | "webhook"
-      | "delay"
-      | "manual"
-      | "timer";
-    agentId: string;
-    order: number;
-    nextStepId: string;
+    stepType: WorkflowStepCreateInput["stepType"];
+    agentId: string | undefined;
   }>({
     stepType: "agent",
-    agentId: "",
-    order: existingSteps.length + 1,
-    nextStepId: "",
+    agentId: undefined,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate that agent is selected if step type is agent
+    if (
+      formData.stepType === "agent" &&
+      (!formData.agentId || formData.agentId === "")
+    ) {
+      alert("Please select an agent for agent-type steps");
+      return;
+    }
+
     onAdd({
+      id: workflowId,
       ...formData,
-      agentId:
-        formData.stepType === "agent" ? parseInt(formData.agentId) : null,
-      nextStepId: formData.nextStepId ? parseInt(formData.nextStepId) : null,
+      agentId: formData.agentId ? parseInt(formData.agentId) : undefined,
     });
   };
 
@@ -603,39 +731,6 @@ function AddStepModal({
               </Form.Select>
             </Form.Group>
           )}
-
-          <Form.Group className="mb-3">
-            <Form.Label>Order</Form.Label>
-            <Form.Control
-              type="number"
-              min={1}
-              value={formData.order}
-              onChange={e =>
-                setFormData(prev => ({
-                  ...prev,
-                  order: parseInt(e.target.value),
-                }))
-              }
-              required
-            />
-          </Form.Group>
-
-          <Form.Group className="mb-3">
-            <Form.Label>Next Step (Optional)</Form.Label>
-            <Form.Select
-              value={formData.nextStepId}
-              onChange={e =>
-                setFormData(prev => ({ ...prev, nextStepId: e.target.value }))
-              }
-            >
-              <option value="">No next step</option>
-              {existingSteps.map((step: any) => (
-                <option key={step.id} value={step.id}>
-                  Step {step.order} ({step.stepType})
-                </option>
-              ))}
-            </Form.Select>
-          </Form.Group>
         </Form>
       </Modal.Body>
       <Modal.Footer>
@@ -662,7 +757,7 @@ function EditStepModal({
 }: {
   show: boolean;
   onHide: () => void;
-  onSave: (data: any) => void;
+  onSave: (data: WorkflowStepEditInput) => void;
   step: ActionResponse<WorkflowStepList>["steps"][0];
   agents: ActionResponse<AgentList>["agents"];
   workflowId: number;
@@ -670,18 +765,17 @@ function EditStepModal({
 }) {
   const [formData, setFormData] = useState({
     stepType: step.stepType,
-    agentId: step.agentId?.toString() || "",
-    order: step.order,
-    nextStepId: step.nextStepId?.toString() || "",
+    agentId: step.agentId?.toString() || undefined,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({
+      id: workflowId,
+      stepId: step.id,
       ...formData,
       agentId:
-        formData.stepType === "agent" ? parseInt(formData.agentId) : null,
-      nextStepId: formData.nextStepId ? parseInt(formData.nextStepId) : null,
+        formData.stepType === "agent" ? parseInt(formData.agentId) : undefined,
     });
   };
 
@@ -739,41 +833,6 @@ function EditStepModal({
               </Form.Select>
             </Form.Group>
           )}
-
-          <Form.Group className="mb-3">
-            <Form.Label>Order</Form.Label>
-            <Form.Control
-              type="number"
-              min={1}
-              value={formData.order}
-              onChange={e =>
-                setFormData(prev => ({
-                  ...prev,
-                  order: parseInt(e.target.value),
-                }))
-              }
-              required
-            />
-          </Form.Group>
-
-          <Form.Group className="mb-3">
-            <Form.Label>Next Step (Optional)</Form.Label>
-            <Form.Select
-              value={formData.nextStepId}
-              onChange={e =>
-                setFormData(prev => ({ ...prev, nextStepId: e.target.value }))
-              }
-            >
-              <option value="">No next step</option>
-              {existingSteps
-                .filter((s: any) => s.id !== step.id)
-                .map((s: any) => (
-                  <option key={s.id} value={s.id}>
-                    Step {s.order} ({s.stepType})
-                  </option>
-                ))}
-            </Form.Select>
-          </Form.Group>
         </Form>
       </Modal.Body>
       <Modal.Footer>
