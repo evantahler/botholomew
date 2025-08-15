@@ -352,7 +352,7 @@ export class WorkflowStepList implements Action {
       });
     }
 
-    const steps = await api.db.db
+    const steps: WorkflowStep[] = await api.db.db
       .select()
       .from(workflow_steps)
       .where(eq(workflow_steps.workflowId, params.id))
@@ -490,7 +490,7 @@ export class WorkflowRunList implements Action {
       });
     }
 
-    const runs = await api.db.db
+    const runs: WorkflowRun[] = await api.db.db
       .select()
       .from(workflow_runs)
       .where(eq(workflow_runs.workflowId, id))
