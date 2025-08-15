@@ -1,11 +1,14 @@
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
 import { users } from "../../models/user";
+import { agents } from "../../models/agent";
+import { workflows } from "../../models/workflow";
+import { workflow_steps } from "../../models/workflow_step";
+import { workflow_runs } from "../../models/workflow_run";
 import { hashPassword } from "../../ops/UserOps";
 import type { SessionCreate } from "../../actions/session";
 import { setMaxListeners } from "node:events";
 import type { AgentCreate } from "../../actions/agent";
-import type { MessageCreate } from "../../actions/message";
 
 // TODO: Github Actions needs this, but not locally.  Why?
 setMaxListeners(999);
@@ -148,6 +151,94 @@ export const USERS = {
     password: "password123",
   },
 } as const;
+
+/**
+ * Create a test workflow for testing
+ */
+export async function createTestWorkflow(
+  userId: number,
+  enabled: boolean = true,
+) {
+  const [workflow] = await api.db.db
+    .insert(workflows)
+    .values({
+      userId,
+      name: "Test Workflow",
+      description: "A test workflow",
+      enabled,
+    })
+    .returning();
+  return workflow;
+}
+
+/**
+ * Create a test agent for testing
+ */
+export async function createTestAgent(userId: number) {
+  const [agent] = await api.db.db
+    .insert(agents)
+    .values({
+      userId,
+      name: "Test Agent",
+      description: "A test agent",
+      model: "gpt-4o",
+      systemPrompt: "You are a helpful assistant.",
+      userPrompt: "You are a helpful assistant.",
+      responseType: "text",
+      enabled: true,
+      toolkits: [],
+    })
+    .returning();
+  return agent;
+}
+
+/**
+ * Create a test workflow step for testing
+ */
+export async function createTestWorkflowStep(
+  workflowId: number,
+  agentId: number,
+) {
+  const [step] = await api.db.db
+    .insert(workflow_steps)
+    .values({
+      workflowId,
+      agentId,
+      stepType: "agent",
+      order: 1,
+      nextStepId: null,
+    })
+    .returning();
+  return step;
+}
+
+/**
+ * Create a test workflow run for testing
+ */
+export async function createTestWorkflowRun(workflowId: number) {
+  const [run] = await api.db.db
+    .insert(workflow_runs)
+    .values({
+      workflowId,
+      status: "pending",
+      input: {},
+      output: null,
+      error: null,
+      startedAt: null,
+      completedAt: null,
+    })
+    .returning();
+  return run;
+}
+
+// Export all test helpers as a single object
+export const testHelpers = {
+  createTestUser,
+  createTestWorkflow,
+  createTestAgent,
+  createTestWorkflowStep,
+  createTestWorkflowRun,
+};
 
 /**
  * Common agent data

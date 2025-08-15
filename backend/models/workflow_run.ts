@@ -29,7 +29,7 @@ export const workflow_runs = pgTable("workflow_runs", {
     .references(() => workflows.id, { onDelete: "cascade" })
     .notNull(),
   status: workflowRunStatus("workflow_run_status").default("pending").notNull(),
-  input: json("input").$type<Record<string, any>>().default({}).notNull(),
+  input: text("input"),
   output: json("output").$type<Record<string, any> | null>(),
   error: text("error"),
   startedAt: timestamp("started_at"),

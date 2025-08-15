@@ -22,6 +22,20 @@
       "when": 1755226927581,
       "tag": "0002_magenta_zeigeist",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1755229049601,
+      "tag": "0003_nosy_chronomancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1755229186215,
+      "tag": "0004_rapid_banshee",
+      "breakpoints": true
     }
   ]
 }
