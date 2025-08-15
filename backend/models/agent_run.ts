@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { agents, responseTypes } from "./agent";
+import { workflows } from "./workflow";
 
 export const runStatus = pgEnum("run_status", [
   "pending",
@@ -33,6 +34,9 @@ export const agent_run = pgTable("agent_runs", {
   response: text("response").$type<string | null>(),
   type: responseTypes("type").notNull(),
   status: runStatus("run_status").default("pending").notNull(),
+  workflowId: integer("workflow_id").references(() => workflows.id, {
+    onDelete: "cascade",
+  }),
 });
 
 export type AgentRun = typeof agent_run.$inferSelect;

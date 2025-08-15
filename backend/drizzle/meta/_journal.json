@@ -15,6 +15,13 @@
       "when": 1755131850984,
       "tag": "0001_needy_wendell_rand",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1755226927581,
+      "tag": "0002_magenta_zeigeist",
+      "breakpoints": true
     }
   ]
 }
