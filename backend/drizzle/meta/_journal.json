@@ -36,6 +36,13 @@
       "when": 1755229186215,
       "tag": "0004_rapid_banshee",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1755230118231,
+      "tag": "0005_plain_joystick",
+      "breakpoints": true
     }
   ]
 }
