@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import {
   Container,
@@ -13,22 +13,8 @@ import {
   Spinner,
   Modal,
   Badge,
+  Table,
 } from "react-bootstrap";
-import ReactFlow, {
-  Node,
-  Edge,
-  addEdge,
-  Connection,
-  useNodesState,
-  useEdgesState,
-  Controls,
-  Background,
-  MiniMap,
-  NodeTypes,
-  Handle,
-  Position,
-} from "reactflow";
-import "reactflow/dist/style.css";
 import { useAuth } from "../../../lib/auth";
 import { APIWrapper } from "../../../lib/api";
 import Navigation from "../../../components/Navigation";
@@ -45,47 +31,8 @@ import type { AgentList } from "../../../../backend/actions/agent";
 import type { ActionResponse } from "../../../../backend/api";
 
 // Shared types - using backend action input types
-// Note: nextStepId is handled by React Flow connections, not form input
 type WorkflowStepCreateInput = WorkflowStepCreate["inputs"]["_type"];
 type WorkflowStepEditInput = WorkflowStepEdit["inputs"]["_type"];
-
-// Custom node types for different workflow steps
-const WorkflowStepNode = ({ data }: { data: any }) => (
-  <div className="workflow-step-node">
-    {/* Input handle - allows connections TO this node */}
-    <Handle
-      type="target"
-      position={Position.Left}
-      style={{ background: "#555" }}
-    />
-
-    <div className="step-header">
-      <Badge bg={getStepTypeColor(data.stepType)} className="step-type">
-        {data.stepType}
-      </Badge>
-      {data.stepType === "agent" && data.agentName && (
-        <div className="agent-name">{data.agentName}</div>
-      )}
-    </div>
-    <div className="step-content">
-      <div className="step-title">{data.title}</div>
-      {data.description && (
-        <div className="step-description">{data.description}</div>
-      )}
-    </div>
-
-    {/* Output handle - allows connections FROM this node */}
-    <Handle
-      type="source"
-      position={Position.Right}
-      style={{ background: "#555" }}
-    />
-  </div>
-);
-
-const nodeTypes: NodeTypes = {
-  workflowStep: WorkflowStepNode,
-};
 
 const getStepTypeColor = (stepType: string) => {
   const colors: Record<string, string> = {
@@ -140,9 +87,8 @@ export default function EditWorkflow() {
     enabled: false,
   });
 
-  // React Flow state
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  // Drag and drop state
+  const [draggedStep, setDraggedStep] = useState<number | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -161,12 +107,6 @@ export default function EditWorkflow() {
     }
   }, [workflow]);
 
-  useEffect(() => {
-    if (steps.length > 0) {
-      updateFlowFromSteps();
-    }
-  }, [steps]);
-
   const fetchWorkflow = async () => {
     try {
       const response = await APIWrapper.get<WorkflowView>(`/workflow/${id}`);
@@ -176,7 +116,11 @@ export default function EditWorkflow() {
       const stepsResponse = await APIWrapper.get<WorkflowStepList>(
         `/workflow/${id}/steps`
       );
-      setSteps(stepsResponse.steps || []);
+      // Sort steps by position
+      const sortedSteps = (stepsResponse.steps || []).sort(
+        (a, b) => a.position - b.position
+      );
+      setSteps(sortedSteps);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch workflow");
     } finally {
@@ -193,117 +137,6 @@ export default function EditWorkflow() {
     }
   };
 
-  const updateFlowFromSteps = () => {
-    const newNodes: Node[] = steps.map((step, index) => ({
-      id: step.id.toString(),
-      type: "workflowStep",
-      position: { x: index * 250, y: 100 },
-      data: {
-        stepType: step.stepType,
-        title: `${step.stepType.charAt(0).toUpperCase() + step.stepType.slice(1)} Step`,
-        description: getStepTypeDescription(step.stepType),
-        agentName: step.agentId
-          ? agents.find(a => a.id === step.agentId)?.name
-          : null,
-        step,
-      },
-    }));
-
-    const newEdges: Edge[] = steps
-      .filter(step => step.nextStepId !== null)
-      .map(step => ({
-        id: `e${step.id}-${step.nextStepId}`,
-        source: step.id.toString(),
-        target: step.nextStepId!.toString(),
-        type: "smoothstep",
-        animated: true,
-        style: { stroke: "#555", strokeWidth: 2 },
-      }));
-
-    setNodes(newNodes);
-    setEdges(newEdges);
-  };
-
-  const onConnect = useCallback(
-    async (params: Connection) => {
-      setEdges(eds => addEdge(params, eds));
-
-      // Update the step relationship in the backend
-      if (!params.source || !params.target) return;
-
-      const sourceStepId = parseInt(params.source);
-      const targetStepId = parseInt(params.target);
-
-      try {
-        // Find the source step and update its nextStepId
-        const sourceStep = steps.find(s => s.id === sourceStepId);
-        if (sourceStep) {
-          await APIWrapper.post<WorkflowStepEdit>(
-            `/workflow/${id}/step/${sourceStepId}`,
-            {
-              nextStepId: targetStepId,
-            }
-          );
-
-          // Update local state
-          setSteps(prev =>
-            prev.map(s =>
-              s.id === sourceStepId ? { ...s, nextStepId: targetStepId } : s
-            )
-          );
-        }
-      } catch (err) {
-        console.error("Failed to update step connection:", err);
-        // Revert the edge if the backend update failed
-        setEdges(eds =>
-          eds.filter(e => e.id !== `e${params.source}-${params.target}`)
-        );
-      }
-    },
-    [setEdges, steps, id]
-  );
-
-  // Handle node deletion from the canvas
-  const onNodeDelete = useCallback(
-    async (nodeId: string) => {
-      const stepId = parseInt(nodeId);
-
-      try {
-        await APIWrapper.delete<WorkflowStepDelete>(
-          `/workflow/${id}/step/${stepId}`
-        );
-
-        // Remove the step from local state
-        setSteps(prev => prev.filter(s => s.id !== stepId));
-
-        // The useEffect will automatically update the flow when steps change
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to delete step");
-      }
-    },
-    [id]
-  );
-
-  // Handle keyboard events for node deletion
-  const onKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === "Delete" || event.key === "Backspace") {
-        const selectedNodes = nodes.filter(node => node.selected);
-        if (selectedNodes.length > 0) {
-          // Delete the first selected node (you could extend this to delete multiple)
-          onNodeDelete(selectedNodes[0].id);
-        }
-      }
-    },
-    [nodes, onNodeDelete]
-  );
-
-  // Add keyboard event listener
-  useEffect(() => {
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onKeyDown]);
-
   const handleSaveWorkflow = async () => {
     setSaving(true);
     try {
@@ -317,17 +150,20 @@ export default function EditWorkflow() {
   };
 
   const handleAddStep = async (stepData: WorkflowStepCreateInput) => {
-    console.log("stepData", stepData);
     try {
+      // Calculate the next position
+      const nextPosition =
+        steps.length > 0 ? Math.max(...steps.map(s => s.position)) + 1 : 0;
+
       const response = await APIWrapper.put<WorkflowStepCreate>(
         `/workflow/${id}/step`,
-        { ...stepData }
+        { ...stepData, position: nextPosition }
       );
 
-      setSteps(prev => [...prev, response.step]);
+      setSteps(prev =>
+        [...prev, response.step].sort((a, b) => a.position - b.position)
+      );
       setShowAddStepModal(false);
-
-      // The useEffect will automatically update the flow when steps change
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add step");
     }
@@ -343,6 +179,8 @@ export default function EditWorkflow() {
       setSteps(prev =>
         prev.map(s => (s.id === editingStep.id ? response.step : s))
       );
+      // Re-sort steps after editing
+      setSteps(prev => [...prev].sort((a, b) => a.position - b.position));
       setEditingStep(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to edit step");
@@ -356,9 +194,100 @@ export default function EditWorkflow() {
         { stepId }
       );
 
-      setSteps(prev => prev.filter(s => s.id !== stepId));
+      // Remove the step and reorder remaining steps
+      const stepToDelete = steps.find(s => s.id === stepId);
+      if (stepToDelete) {
+        const updatedSteps = steps
+          .filter(s => s.id !== stepId)
+          .map(s =>
+            s.position > stepToDelete.position
+              ? { ...s, position: s.position - 1 }
+              : s
+          )
+          .sort((a, b) => a.position - b.position);
+
+        setSteps(updatedSteps);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete step");
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, stepId: number) => {
+    setDraggedStep(stepId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetStepId: number) => {
+    e.preventDefault();
+
+    if (!draggedStep || draggedStep === targetStepId) {
+      setDraggedStep(null);
+      return;
+    }
+
+    try {
+      const draggedStepData = steps.find(s => s.id === draggedStep);
+      const targetStepData = steps.find(s => s.id === targetStepId);
+
+      if (!draggedStepData || !targetStepData) return;
+
+      const newSteps = [...steps];
+      const draggedPosition = draggedStepData.position;
+      const targetPosition = targetStepData.position;
+
+      // Reorder steps
+      if (draggedPosition < targetPosition) {
+        // Moving down: shift steps up
+        newSteps.forEach(step => {
+          if (
+            step.position > draggedPosition &&
+            step.position <= targetPosition
+          ) {
+            step.position = step.position - 1;
+          }
+        });
+        draggedStepData.position = targetPosition;
+      } else {
+        // Moving up: shift steps down
+        newSteps.forEach(step => {
+          if (
+            step.position >= targetPosition &&
+            step.position < draggedPosition
+          ) {
+            step.position = step.position + 1;
+          }
+        });
+        draggedStepData.position = targetPosition;
+      }
+
+      // Sort by new positions
+      newSteps.sort((a, b) => a.position - b.position);
+      setSteps(newSteps);
+
+      // Update positions in backend
+      for (const step of newSteps) {
+        await APIWrapper.post<WorkflowStepEdit>(
+          `/workflow/${id}/step/${step.id}`,
+          {
+            id: parseInt(id as string),
+            stepId: step.id,
+            position: step.position,
+          }
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reorder steps");
+      // Refresh steps to restore original order
+      fetchWorkflow();
+    } finally {
+      setDraggedStep(null);
     }
   };
 
@@ -402,7 +331,7 @@ export default function EditWorkflow() {
               <div>
                 <h1>Edit Workflow: {workflow.name}</h1>
                 <p className="text-muted">
-                  Design your workflow using the visual builder below
+                  Design your workflow by arranging steps in the table below
                 </p>
               </div>
               <div className="d-flex gap-2">
@@ -495,111 +424,88 @@ export default function EditWorkflow() {
                 </Button>
               </Card.Body>
             </Card>
-
-            <Card className="mt-3">
-              <Card.Header>
-                <h5 className="mb-0">Steps ({steps.length})</h5>
-              </Card.Header>
-              <Card.Body>
-                {steps.length === 0 ? (
-                  <p className="text-muted small">No steps added yet</p>
-                ) : (
-                  <div className="step-list">
-                    {steps.map((step, index) => (
-                      <div
-                        key={step.id}
-                        className="step-item d-flex align-items-center justify-content-between mb-2"
-                      >
-                        <div className="d-flex align-items-center">
-                          <Badge
-                            bg={getStepTypeColor(step.stepType)}
-                            className="me-2"
-                          >
-                            {step.stepType}
-                          </Badge>
-                          <span className="small">Step {index + 1}</span>
-                        </div>
-                        <div className="btn-group btn-group-sm">
-                          <Button
-                            variant="outline-primary"
-                            size="sm"
-                            onClick={() => setEditingStep(step)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline-danger"
-                            size="sm"
-                            onClick={() => handleDeleteStep(step.id)}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card.Body>
-            </Card>
           </Col>
 
           <Col lg={9}>
             <Card>
-              <Card.Header className="d-flex justify-content-between align-items-center">
-                <h6 className="mb-0">Workflow Canvas</h6>
-                <div className="d-flex gap-2">
-                  <Button
-                    variant="outline-danger"
-                    size="sm"
-                    disabled={!nodes.some(n => n.selected)}
-                    onClick={() => {
-                      const selectedNodes = nodes.filter(n => n.selected);
-                      if (selectedNodes.length > 0) {
-                        if (
-                          confirm(
-                            `Delete ${selectedNodes.length} selected step(s)?`
-                          )
-                        ) {
-                          selectedNodes.forEach(node => onNodeDelete(node.id));
-                        }
-                      }
-                    }}
-                  >
-                    Delete Selected
-                  </Button>
-                  <small className="text-muted">
-                    Select nodes and press Delete or use the button above
-                  </small>
-                </div>
+              <Card.Header>
+                <h6 className="mb-0">Workflow Steps ({steps.length})</h6>
               </Card.Header>
               <Card.Body className="p-0">
-                <div style={{ height: "600px" }}>
-                  <ReactFlow
-                    nodes={nodes}
-                    edges={edges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    nodeTypes={nodeTypes}
-                    fitView
-                    snapToGrid={true}
-                    snapGrid={[15, 15]}
-                    deleteKeyCode="Delete"
-                    onNodesDelete={nodesToDelete => {
-                      nodesToDelete.forEach(node => onNodeDelete(node.id));
-                    }}
-                  >
-                    <Controls />
-                    <Background />
-                    <MiniMap />
-                  </ReactFlow>
-                </div>
+                {steps.length === 0 ? (
+                  <div className="p-4 text-center text-muted">
+                    <p>No steps added yet. Click "Add Step" to get started.</p>
+                  </div>
+                ) : (
+                  <Table responsive className="mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th style={{ width: "60px" }}>#</th>
+                        <th style={{ width: "100px" }}>Type</th>
+                        <th>Details</th>
+                        <th style={{ width: "120px" }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {steps.map((step, index) => (
+                        <tr
+                          key={step.id}
+                          draggable
+                          onDragStart={e => handleDragStart(e, step.id)}
+                          onDragOver={handleDragOver}
+                          onDrop={e => handleDrop(e, step.id)}
+                          className={`step-row ${draggedStep === step.id ? "dragging" : ""}`}
+                          style={{ cursor: "grab" }}
+                        >
+                          <td className="text-center fw-bold">
+                            {step.position + 1}
+                          </td>
+                          <td>
+                            <Badge bg={getStepTypeColor(step.stepType)}>
+                              {step.stepType}
+                            </Badge>
+                          </td>
+                          <td>
+                            <div>
+                              <strong>
+                                {getStepTypeDescription(step.stepType)}
+                              </strong>
+                              {step.stepType === "agent" && step.agentId && (
+                                <div className="text-muted small mt-1">
+                                  Agent:{" "}
+                                  {agents.find(a => a.id === step.agentId)
+                                    ?.name || "Unknown"}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="btn-group btn-group-sm">
+                              <Button
+                                variant="outline-primary"
+                                size="sm"
+                                onClick={() => setEditingStep(step)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                onClick={() => handleDeleteStep(step.id)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                )}
                 <div className="p-3 border-top bg-light">
                   <small className="text-muted">
-                    <strong>Canvas Controls:</strong> Click to select nodes,
-                    drag to move, drag from output handles to input handles to
-                    connect steps. Press Delete or use the Delete Selected
-                    button to remove steps.
+                    <strong>Drag and Drop:</strong> Drag steps to reorder them.
+                    The workflow will execute steps in the order shown above.
                   </small>
                 </div>
               </Card.Body>
@@ -674,6 +580,7 @@ function AddStepModal({
       id: workflowId,
       ...formData,
       agentId: formData.agentId ? parseInt(formData.agentId) : undefined,
+      position: 0, // This will be overridden by the parent component
     });
   };
 

@@ -5,7 +5,11 @@ import { serializeWorkflow } from "../ops/WorkflowOps";
 import { serializeWorkflowStep } from "../ops/WorkflowStepOps";
 import { serializeWorkflowRun } from "../ops/WorkflowRunOps";
 import { Workflow, workflows } from "../models/workflow";
-import { workflow_steps, WorkflowStep } from "../models/workflow_step";
+import {
+  stepTypes,
+  workflow_steps,
+  WorkflowStep,
+} from "../models/workflow_step";
 import { workflow_runs, WorkflowRun } from "../models/workflow_run";
 import { SessionMiddleware } from "../middleware/session";
 import { eq, and, count } from "drizzle-orm";
@@ -171,22 +175,8 @@ export class WorkflowStepCreate implements Action {
   inputs = z.object({
     id: z.coerce.number().int().describe("The workflow's id"),
     agentId: z.coerce.number().int().optional().describe("The agent's id"),
-    stepType: z
-      .enum([
-        "agent",
-        "condition",
-        "loop",
-        "webhook",
-        "delay",
-        "manual",
-        "timer",
-      ])
-      .describe("The type of step"),
-    nextStepId: z.coerce
-      .number()
-      .int()
-      .optional()
-      .describe("The next step's id"),
+    stepType: z.enum(stepTypes.enumValues).describe("The type of step"),
+    position: z.coerce.number().int().describe("The step's position"),
   });
 
   async run(params: ActionParams<WorkflowStepCreate>, connection: Connection) {
@@ -212,7 +202,7 @@ export class WorkflowStepCreate implements Action {
         workflowId: params.id,
         agentId: params.agentId,
         stepType: params.stepType,
-        nextStepId: params.nextStepId,
+        position: params.position,
       })
       .returning();
 
@@ -229,18 +219,8 @@ export class WorkflowStepEdit implements Action {
     id: z.coerce.number().int().describe("The workflow's id"),
     stepId: z.coerce.number().int().describe("The step's id"),
     agentId: z.coerce.number().int().optional(),
-    stepType: z
-      .enum([
-        "agent",
-        "condition",
-        "loop",
-        "webhook",
-        "delay",
-        "manual",
-        "timer",
-      ])
-      .optional(),
-    nextStepId: z.coerce.number().int().optional(),
+    stepType: z.enum(stepTypes.enumValues).optional(),
+    position: z.coerce.number().int().optional(),
   });
 
   async run(params: ActionParams<WorkflowStepEdit>, connection: Connection) {
@@ -266,7 +246,7 @@ export class WorkflowStepEdit implements Action {
     const updates: Record<string, any> = {};
     if (params.agentId !== undefined) updates.agentId = params.agentId;
     if (params.stepType !== undefined) updates.stepType = params.stepType;
-    if (params.nextStepId !== undefined) updates.nextStepId = params.nextStepId;
+    if (params.position !== undefined) updates.position = params.position;
 
     const [updatedStep]: WorkflowStep[] = await api.db.db
       .update(workflow_steps)

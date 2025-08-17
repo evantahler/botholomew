@@ -113,7 +113,7 @@ export class DB extends Initializer {
     try {
       await Bun.write(tmpfilePath, fileContent);
       const { exitCode, stdout, stderr } =
-        await $`bun drizzle-kit generate:pg --config ${tmpfilePath}`.quiet();
+        await $`bun drizzle-kit generate:pg --config ${tmpfilePath}`;
       logger.trace(stdout.toString());
       if (exitCode !== 0) {
         {

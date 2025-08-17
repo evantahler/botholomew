@@ -6,7 +6,7 @@ export function serializeWorkflowStep(workflowStep: WorkflowStep) {
     workflowId: workflowStep.workflowId,
     agentId: workflowStep.agentId,
     stepType: workflowStep.stepType,
-    nextStepId: workflowStep.nextStepId,
+    position: workflowStep.position,
     createdAt: workflowStep.createdAt.getTime(),
     updatedAt: workflowStep.updatedAt.getTime(),
   };

@@ -57,6 +57,20 @@
       "when": 1755233756953,
       "tag": "0007_empty_frank_castle",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1755473628875,
+      "tag": "0008_lumpy_jubilee",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1755474127226,
+      "tag": "0009_worthless_shen",
+      "breakpoints": true
     }
   ]
 }

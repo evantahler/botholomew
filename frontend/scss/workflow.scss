@@ -1,102 +1,14 @@
-// Workflow step node styling
-.workflow-step-node {
-  background: white;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  padding: 12px;
-  min-width: 200px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+// Workflow step styling for table rows
+.step-row {
   transition: all 0.2s ease;
 
   &:hover {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-    transform: translateY(-1px);
+    background-color: #f8f9fa;
   }
 
-  .step-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-
-    .step-type {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .agent-name {
-      font-size: 0.8rem;
-      color: #666;
-      font-weight: 500;
-      max-width: 120px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-  }
-
-  .step-content {
-    .step-title {
-      font-weight: 600;
-      font-size: 0.9rem;
-      color: #333;
-      margin-bottom: 4px;
-    }
-
-    .step-description {
-      font-size: 0.8rem;
-      color: #666;
-      line-height: 1.3;
-    }
-  }
-}
-
-// React Flow custom styling
-.react-flow__node {
-  &.selected {
-    .workflow-step-node {
-      border-color: #007bff;
-      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-      transform: scale(1.02);
-    }
-  }
-}
-
-// Selection indicator
-.react-flow__node.selected {
-  z-index: 10;
-}
-
-// Connection handles styling
-.react-flow__handle {
-  width: 12px;
-  height: 12px;
-  border: 2px solid #fff;
-  background: #555;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background: #007bff;
-    transform: scale(1.2);
-  }
-
-  &.react-flow__handle-target {
-    left: -6px;
-  }
-
-  &.react-flow__handle-source {
-    right: -6px;
-  }
-}
-
-.react-flow__edge {
-  &.selected {
-    .react-flow__edge-path {
-      stroke: #007bff;
-      stroke-width: 3;
-    }
+  &.dragging {
+    opacity: 0.5;
+    background-color: #e9ecef;
   }
 }
 
@@ -126,19 +38,48 @@
   }
 }
 
+// Table styling for workflow steps
+.workflow-steps-table {
+  tbody tr {
+    cursor: grab;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  .step-type-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .step-details {
+    .step-description {
+      font-size: 0.9rem;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .step-agent {
+      font-size: 0.8rem;
+      color: #666;
+      font-weight: 500;
+    }
+  }
+}
+
 // Responsive adjustments
 @media (max-width: 768px) {
-  .workflow-step-node {
-    min-width: 160px;
-    padding: 8px;
+  .workflow-steps-table {
+    .step-details {
+      .step-description {
+        font-size: 0.8rem;
+      }
 
-    .step-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 4px;
-
-      .agent-name {
-        max-width: 100%;
+      .step-agent {
+        font-size: 0.75rem;
       }
     }
   }

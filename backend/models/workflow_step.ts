@@ -33,7 +33,7 @@ export const workflow_steps = pgTable("workflow_steps", {
     onDelete: "cascade",
   }),
   stepType: stepTypes("step_type").notNull(),
-  nextStepId: integer("next_step_id"),
+  position: integer("position").notNull().default(1),
 });
 
 export type WorkflowStep = typeof workflow_steps.$inferSelect;

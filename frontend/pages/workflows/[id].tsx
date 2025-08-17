@@ -273,13 +273,6 @@ export default function ViewWorkflow() {
                             </div>
                           )}
                         </div>
-                        {step.nextStepId && (
-                          <Badge bg="light" text="dark">
-                            → Step{" "}
-                            {steps.findIndex(s => s.id === step.nextStepId) +
-                              1 || "?"}
-                          </Badge>
-                        )}
                       </ListGroup.Item>
                     ))}
                   </ListGroup>
