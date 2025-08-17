@@ -203,7 +203,7 @@ describe("Workflow Actions", () => {
             id: testWorkflow.id,
             agentId: testAgent.id,
             stepType: "agent",
-            order: 1,
+            position: 1,
           }),
         },
       );
@@ -215,7 +215,7 @@ describe("Workflow Actions", () => {
       expect(result.step.workflowId).toBe(testWorkflow.id);
       expect(result.step.agentId).toBe(testAgent.id);
       expect(result.step.stepType).toBe("agent");
-      expect(result.step.order).toBe(1);
+      expect(result.step.position).toBe(1);
     });
   });
 
@@ -250,7 +250,7 @@ describe("Workflow Actions", () => {
           id: testWorkflow.id,
           agentId: testAgent.id,
           stepType: "agent",
-          order: 1,
+          position: 1,
         }),
       });
 
