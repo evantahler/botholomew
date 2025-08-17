@@ -113,8 +113,15 @@ export class Connection<T extends Record<string, any> = Record<string, any>> {
 
     const duration = new Date().getTime() - reqStartTime;
 
+    const errorStack =
+      error && error.stack
+        ? config.logger.colorize
+          ? "\r\n" + colors.gray(error.stack)
+          : "\r\n" + error.stack
+        : "";
+
     logger.info(
-      `${messagePrefix} ${actionName} (${duration}ms) ${method.length > 0 ? `[${method}]` : ""} ${this.identifier}${url.length > 0 ? `(${url})` : ""} ${error ? error : ""} ${loggingParams}`,
+      `${messagePrefix} ${actionName} (${duration}ms) ${method.length > 0 ? `[${method}]` : ""} ${this.identifier}${url.length > 0 ? `(${url})` : ""} ${error ? error : ""} ${loggingParams} ${errorStack}`,
     );
 
     return { response, error };

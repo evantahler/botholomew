@@ -775,7 +775,9 @@ function EditStepModal({
       stepId: step.id,
       ...formData,
       agentId:
-        formData.stepType === "agent" ? parseInt(formData.agentId) : undefined,
+        formData.stepType === "agent" && formData.agentId
+          ? parseInt(formData.agentId)
+          : undefined,
     });
   };
 

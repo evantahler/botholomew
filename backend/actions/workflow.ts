@@ -271,7 +271,7 @@ export class WorkflowStepEdit implements Action {
     const [updatedStep]: WorkflowStep[] = await api.db.db
       .update(workflow_steps)
       .set(updates)
-      .where(eq(workflow_steps.id, params.id))
+      .where(eq(workflow_steps.id, params.stepId))
       .returning();
 
     return { step: serializeWorkflowStep(updatedStep) };
