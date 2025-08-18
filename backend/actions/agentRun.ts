@@ -5,9 +5,14 @@ import { Agent, agents } from "../models/agent";
 import { SessionMiddleware } from "../middleware/session";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { ErrorType, TypedError } from "../classes/TypedError";
-import { agent_run, AgentRun } from "../models/agent_run";
-import { serializeAgentRun } from "../ops/AgentRunOps";
+import {
+  workflow_run_steps,
+  WorkflowRunStep,
+} from "../models/workflow_run_step";
+import { serializeWorkflowRunStep } from "../ops/AgentRunOps";
 import { agentTick } from "../ops/AgentOps";
+import { workflows } from "../models/workflow";
+import { workflow_steps } from "../models/workflow_step";
 
 export class AgentRunDelete implements Action {
   name = "agentRun:delete";
@@ -22,13 +27,14 @@ export class AgentRunDelete implements Action {
   async run(params: ActionParams<AgentRunDelete>, connection: Connection) {
     // First check if the message belongs to an agent owned by the user
     const [agentRun] = await api.db.db
-      .select({ id: agent_run.id })
-      .from(agent_run)
-      .innerJoin(agents, eq(agent_run.agentId, agents.id))
+      .select({ id: workflow_run_steps.id })
+      .from(workflow_run_steps)
+      .innerJoin(agents, eq(workflow_run_steps.workflowId, agents.id))
+      .innerJoin(workflows, eq(workflow_run_steps.workflowId, workflows.id))
       .where(
         and(
-          eq(agent_run.agentId, params.id),
-          eq(agent_run.id, params.id),
+          eq(workflow_run_steps.workflowId, params.id),
+          eq(workflow_run_steps.id, params.id),
           eq(agents.userId, connection.session?.data.userId),
         ),
       )
@@ -40,8 +46,8 @@ export class AgentRunDelete implements Action {
 
     // Delete the agent run
     const result = await api.db.db
-      .delete(agent_run)
-      .where(eq(agent_run.id, params.id));
+      .delete(workflow_run_steps)
+      .where(eq(workflow_run_steps.id, params.id));
 
     return { success: (result.rowCount ?? 0) > 0 };
   }
@@ -62,11 +68,14 @@ export class AgentRunView implements Action {
     const [agent] = await api.db.db
       .select({ id: agents.id })
       .from(agents)
-      .innerJoin(agent_run, eq(agents.id, agent_run.agentId))
+      .innerJoin(
+        workflow_run_steps,
+        eq(agents.id, workflow_run_steps.workflowId),
+      )
       .where(
         and(
-          eq(agent_run.agentId, params.id),
-          eq(agent_run.id, params.runId),
+          eq(workflow_run_steps.workflowId, params.id),
+          eq(workflow_run_steps.id, params.runId),
           eq(agents.userId, connection.session?.data.userId),
         ),
       )
@@ -80,20 +89,20 @@ export class AgentRunView implements Action {
     }
 
     // Then get the agent run data
-    const [agentRun] = await api.db.db
+    const [workflowRunStep] = await api.db.db
       .select()
-      .from(agent_run)
-      .where(eq(agent_run.id, params.id))
+      .from(workflow_run_steps)
+      .where(eq(workflow_run_steps.id, params.id))
       .limit(1);
 
-    if (!agentRun) {
+    if (!workflowRunStep) {
       throw new TypedError({
         message: "Agent run not found",
         type: ErrorType.CONNECTION_ACTION_RUN,
       });
     }
 
-    return { agentRun: serializeAgentRun(agentRun) };
+    return { agentRun: serializeWorkflowRunStep(workflowRunStep) };
   }
 }
 
@@ -129,19 +138,19 @@ export class AgentRunList implements Action {
     // Get total count
     const [{ count }] = await api.db.db
       .select({ count: sql<number>`count(*)` })
-      .from(agent_run)
-      .where(eq(agent_run.agentId, id));
+      .from(workflow_run_steps)
+      .where(eq(workflow_run_steps.workflowId, id));
 
-    const rows: AgentRun[] = await api.db.db
+    const rows: WorkflowRunStep[] = await api.db.db
       .select()
-      .from(agent_run)
-      .where(eq(agent_run.agentId, id))
-      .orderBy(desc(agent_run.createdAt))
+      .from(workflow_run_steps)
+      .where(eq(workflow_run_steps.workflowId, id))
+      .orderBy(desc(workflow_run_steps.createdAt))
       .limit(limit)
       .offset(offset);
 
     return {
-      agentRuns: rows.map(serializeAgentRun),
+      agentRuns: rows.map(serializeWorkflowRunStep),
       total: Number(count),
     };
   }
@@ -157,19 +166,19 @@ export class AgentRunRun implements Action {
   async run(params: ActionParams<AgentRunRun>) {
     const { id } = params;
 
-    const [agentRun]: AgentRun[] = await api.db.db
+    const [workflowRunStep]: WorkflowRunStep[] = await api.db.db
       .select()
-      .from(agent_run)
-      .where(eq(agent_run.id, id));
+      .from(workflow_run_steps)
+      .where(eq(workflow_run_steps.id, id));
 
-    if (!agentRun) {
+    if (!workflowRunStep) {
       throw new TypedError({
         message: "Agent run not found",
         type: ErrorType.CONNECTION_ACTION_RUN,
       });
     }
 
-    if (agentRun.status !== "pending") {
+    if (workflowRunStep.status !== "pending") {
       throw new TypedError({
         message: "Agent run is not pending",
         type: ErrorType.CONNECTION_ACTION_RUN,
@@ -179,7 +188,9 @@ export class AgentRunRun implements Action {
     const [agent]: Agent[] = await api.db.db
       .select()
       .from(agents)
-      .where(eq(agents.id, agentRun.agentId));
+      .innerJoin(workflow_steps, eq(agents.id, workflow_steps.agentId))
+      .where(eq(agents.id, workflowRunStep.workflowStepId))
+      .limit(1);
 
     if (!agent) {
       throw new TypedError({
@@ -195,7 +206,7 @@ export class AgentRunRun implements Action {
       });
     }
 
-    const result = await agentTick(agent, agentRun);
-    return { agentRun: serializeAgentRun(result) };
+    const result = await agentTick(agent, workflowRunStep);
+    return { agentRun: serializeWorkflowRunStep(result) };
   }
 }

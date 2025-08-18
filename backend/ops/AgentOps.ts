@@ -1,5 +1,8 @@
 import { type Agent } from "../models/agent";
-import { agent_run, AgentRun } from "../models/agent_run";
+import {
+  workflow_run_steps,
+  WorkflowRunStep,
+} from "../models/workflow_run_step";
 import { api } from "../api";
 import { Agent as OpenAIAgent, run } from "@openai/agents";
 import { User, users } from "../models/user";
@@ -33,7 +36,7 @@ export function getSystemPrompt(agent: Agent) {
 
 export async function agentTick(
   agent: Agent,
-  agentRun: AgentRun,
+  workflowRunStep: WorkflowRunStep,
   additionalContext: string | undefined = undefined,
 ) {
   const [user]: User[] = await api.db.db
@@ -104,28 +107,28 @@ export async function agentTick(
     const result = await run(parentAgent, agent.userPrompt);
 
     await api.db.db
-      .update(agent_run)
+      .update(workflow_run_steps)
       .set({
-        response: result.finalOutput ?? null,
+        outout: result.finalOutput ?? null,
         status: "completed",
       })
-      .where(eq(agent_run.id, agentRun.id));
+      .where(eq(workflow_run_steps.id, workflowRunStep.id));
   } catch (error) {
     await api.db.db
-      .update(agent_run)
+      .update(workflow_run_steps)
       .set({
-        response: String(error) ?? null,
+        outout: String(error) ?? null,
         status: "failed",
       })
-      .where(eq(agent_run.id, agentRun.id));
+      .where(eq(workflow_run_steps.id, workflowRunStep.id));
   }
 
   // reload agentRun
-  const [reloadedAgentRun]: AgentRun[] = await api.db.db
+  const [reloadedWorkflowRunStep]: WorkflowRunStep[] = await api.db.db
     .select()
-    .from(agent_run)
-    .where(eq(agent_run.id, agentRun.id))
+    .from(workflow_run_steps)
+    .where(eq(workflow_run_steps.id, workflowRunStep.id))
     .limit(1);
 
-  return reloadedAgentRun;
+  return reloadedWorkflowRunStep;
 }

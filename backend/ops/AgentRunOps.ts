@@ -1,12 +1,15 @@
-import { type AgentRun } from "../models/agent_run";
+import { type WorkflowRunStep } from "../models/workflow_run_step";
 
-export function serializeAgentRun(run: AgentRun) {
+export function serializeWorkflowRunStep(run: WorkflowRunStep) {
   return {
     id: run.id,
-    agentId: run.agentId,
+    workflowRunId: run.workflowRunId,
+    workflowStepId: run.workflowStepId,
     systemPrompt: run.systemPrompt,
+    workflowId: run.workflowId,
     userMessage: run.userMessage,
-    response: run.response,
+    input: run.input,
+    outout: run.outout,
     type: run.type,
     status: run.status,
     createdAt: run.createdAt.getTime(),

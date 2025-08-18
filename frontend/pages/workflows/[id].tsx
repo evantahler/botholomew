@@ -18,6 +18,7 @@ import {
 import { useAuth } from "../../lib/auth";
 import { APIWrapper } from "../../lib/api";
 import { formatDate } from "../../lib/utils";
+import { getStepTypeColor } from "../../lib/workflowUtils";
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import type {
@@ -109,19 +110,6 @@ export default function ViewWorkflow() {
     } finally {
       setRunning(false);
     }
-  };
-
-  const getStepTypeColor = (stepType: string) => {
-    const colors: Record<string, string> = {
-      agent: "primary",
-      condition: "warning",
-      loop: "info",
-      webhook: "success",
-      delay: "secondary",
-      manual: "dark",
-      timer: "light",
-    };
-    return colors[stepType] || "secondary";
   };
 
   const getRunStatusColor = (status: string) => {

@@ -29,36 +29,15 @@ import type {
 } from "../../../../backend/actions/workflow";
 import type { AgentList } from "../../../../backend/actions/agent";
 import type { ActionResponse } from "../../../../backend/api";
+import { stepTypes } from "../../../../backend/models/workflow_step";
+import {
+  getStepTypeColor,
+  getStepTypeDescription,
+} from "../../../lib/workflowUtils";
 
 // Shared types - using backend action input types
 type WorkflowStepCreateInput = WorkflowStepCreate["inputs"]["_type"];
 type WorkflowStepEditInput = WorkflowStepEdit["inputs"]["_type"];
-
-const getStepTypeColor = (stepType: string) => {
-  const colors: Record<string, string> = {
-    agent: "primary",
-    condition: "warning",
-    loop: "info",
-    webhook: "success",
-    delay: "secondary",
-    manual: "dark",
-    timer: "light",
-  };
-  return colors[stepType] || "secondary";
-};
-
-const getStepTypeDescription = (stepType: string) => {
-  const descriptions: Record<string, string> = {
-    agent: "Run an AI agent",
-    condition: "Conditional logic branch",
-    loop: "Repeat steps",
-    webhook: "HTTP webhook call",
-    delay: "Wait for specified time",
-    manual: "Manual human intervention",
-    timer: "Scheduled execution",
-  };
-  return descriptions[stepType] || "Unknown step type";
-};
 
 export default function EditWorkflow() {
   const router = useRouter();
@@ -598,24 +577,16 @@ function AddStepModal({
               onChange={e =>
                 setFormData(prev => ({
                   ...prev,
-                  stepType: e.target.value as
-                    | "agent"
-                    | "condition"
-                    | "loop"
-                    | "webhook"
-                    | "delay"
-                    | "manual"
-                    | "timer",
+                  stepType: e.target
+                    .value as (typeof stepTypes.enumValues)[number],
                 }))
               }
             >
-              <option value="agent">Agent</option>
-              <option value="condition">Condition</option>
-              <option value="loop">Loop</option>
-              <option value="webhook">Webhook</option>
-              <option value="delay">Delay</option>
-              <option value="manual">Manual</option>
-              <option value="timer">Timer</option>
+              {stepTypes.enumValues.map(type => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
             </Form.Select>
           </Form.Group>
 
@@ -702,24 +673,16 @@ function EditStepModal({
               onChange={e =>
                 setFormData(prev => ({
                   ...prev,
-                  stepType: e.target.value as
-                    | "agent"
-                    | "condition"
-                    | "loop"
-                    | "webhook"
-                    | "delay"
-                    | "manual"
-                    | "timer",
+                  stepType: e.target
+                    .value as (typeof stepTypes.enumValues)[number],
                 }))
               }
             >
-              <option value="agent">Agent</option>
-              <option value="condition">Condition</option>
-              <option value="loop">Loop</option>
-              <option value="webhook">Webhook</option>
-              <option value="delay">Delay</option>
-              <option value="manual">Manual</option>
-              <option value="timer">Timer</option>
+              {stepTypes.enumValues.map(type => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
             </Form.Select>
           </Form.Group>
 

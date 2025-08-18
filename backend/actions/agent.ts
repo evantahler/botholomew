@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { api, Action, type ActionParams, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
-import { serializeAgent, agentTick, getSystemPrompt } from "../ops/AgentOps";
+import { serializeAgent, getSystemPrompt } from "../ops/AgentOps";
 import { Agent, agents, responseTypes } from "../models/agent";
 import { SessionMiddleware } from "../middleware/session";
 import { eq, and, count } from "drizzle-orm";
@@ -9,7 +9,7 @@ import { ErrorType, TypedError } from "../classes/TypedError";
 import { serializeAgentRun } from "../ops/AgentRunOps";
 import { zBooleanFromString } from "../util/zodMixins";
 import { getUnauthorizedToolkits } from "../ops/ToolkitAuthorizationOps";
-import { agent_run, AgentRun } from "../models/agent_run";
+import { agent_run, AgentRun } from "../models/workflow_run_step";
 
 export class AgentModels implements Action {
   name = "agent:models";
