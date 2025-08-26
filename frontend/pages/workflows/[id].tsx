@@ -20,6 +20,7 @@ import type { WorkflowView } from "../../../backend/actions/workflow";
 import type {
   WorkflowRunCreate,
   WorkflowRunList,
+  WorkflowRunTick,
 } from "../../../backend/actions/workflow_run";
 import type { WorkflowStepList } from "../../../backend/actions/workflow_step";
 import type { ActionResponse } from "../../../backend/api";
@@ -28,7 +29,6 @@ import ProtectedRoute from "../../components/ProtectedRoute";
 import { APIWrapper } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { formatDate } from "../../lib/utils";
-import { getStepTypeColor } from "../../lib/workflowUtils";
 
 export default function ViewWorkflow() {
   const router = useRouter();
@@ -109,6 +109,21 @@ export default function ViewWorkflow() {
       setError(err instanceof Error ? err.message : "Failed to run workflow");
     } finally {
       setRunning(false);
+    }
+  };
+
+  const handleTickRun = async (runId: number) => {
+    try {
+      await APIWrapper.post<WorkflowRunTick>(
+        `/workflow/${id}/run/${runId}/tick`,
+        { id: parseInt(id as string), runId },
+      );
+      fetchRuns(); // Refresh runs list
+      setError(null);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to tick workflow run",
+      );
     }
   };
 
@@ -245,15 +260,12 @@ export default function ViewWorkflow() {
                       >
                         <div>
                           <div className="d-flex align-items-center">
-                            <Badge
-                              bg={getStepTypeColor(step.stepType)}
-                              className="me-2"
-                            >
-                              {step.stepType}
+                            <Badge bg="secondary" className="me-2">
+                              Agent
                             </Badge>
                             <span className="fw-bold">Step {index + 1}</span>
                           </div>
-                          {step.stepType === "agent" && step.agentId && (
+                          {step.agentId && (
                             <div className="text-muted small mt-1">
                               Agent:{" "}
                               {agents.find((a) => a.id === step.agentId)
@@ -285,9 +297,22 @@ export default function ViewWorkflow() {
                         className="run-item mb-3 p-3 border rounded"
                       >
                         <div className="d-flex justify-content-between align-items-center mb-2">
-                          <Badge bg={getRunStatusColor(run.status)}>
-                            {run.status}
-                          </Badge>
+                          <div className="d-flex align-items-center gap-2">
+                            <Badge bg={getRunStatusColor(run.status)}>
+                              {run.status}
+                            </Badge>
+                            <Button
+                              variant="link"
+                              className="p-0 text-decoration-none"
+                              onClick={() =>
+                                router.push(
+                                  `/workflows/${workflow.id}/runs/${run.id}`,
+                                )
+                              }
+                            >
+                              Run #{run.id}
+                            </Button>
+                          </div>
                           <small className="text-muted">
                             {run.startedAt
                               ? formatDate(run.startedAt)
@@ -309,6 +334,29 @@ export default function ViewWorkflow() {
                             Error: {run.error}
                           </div>
                         )}
+                        <div className="mt-2 d-flex gap-1">
+                          <Button
+                            variant="outline-primary"
+                            size="sm"
+                            onClick={() =>
+                              router.push(
+                                `/workflows/${workflow.id}/runs/${run.id}`,
+                              )
+                            }
+                          >
+                            View Details
+                          </Button>
+                          {run.status !== "completed" &&
+                            run.status !== "failed" && (
+                              <Button
+                                variant="outline-success"
+                                size="sm"
+                                onClick={() => handleTickRun(run.id)}
+                              >
+                                Tick
+                              </Button>
+                            )}
+                        </div>
                       </div>
                     ))}
                     {runs.length > 5 && (
