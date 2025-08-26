@@ -4,7 +4,7 @@ import { Action, type ActionParams, api, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { SessionMiddleware } from "../middleware/session";
-import { agents } from "../models/agent";
+import { Agent, agents } from "../models/agent";
 import { Workflow, workflows } from "../models/workflow";
 import { workflow_runs, WorkflowRun } from "../models/workflow_run";
 import {

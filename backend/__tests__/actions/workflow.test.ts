@@ -12,12 +12,13 @@ import type {
   WorkflowDelete,
   WorkflowEdit,
   WorkflowList,
-  WorkflowRunCreate,
-  WorkflowRunList,
-  WorkflowStepCreate,
-  WorkflowStepList,
   WorkflowView,
 } from "../../actions/workflow";
+import { WorkflowRunCreate, WorkflowRunList } from "../../actions/workflow_run";
+import {
+  WorkflowStepCreate,
+  WorkflowStepList,
+} from "../../actions/workflow_step";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
 import { createUserAndSession, USERS } from "../utils/testHelpers";
@@ -202,7 +203,6 @@ describe("Workflow Actions", () => {
           body: JSON.stringify({
             id: testWorkflow.id,
             agentId: testAgent.id,
-            stepType: "agent",
             position: 1,
           }),
         },
@@ -214,7 +214,6 @@ describe("Workflow Actions", () => {
       expect(result.step).toBeDefined();
       expect(result.step.workflowId).toBe(testWorkflow.id);
       expect(result.step.agentId).toBe(testAgent.id);
-      expect(result.step.stepType).toBe("agent");
       expect(result.step.position).toBe(1);
     });
   });
@@ -249,7 +248,6 @@ describe("Workflow Actions", () => {
         body: JSON.stringify({
           id: testWorkflow.id,
           agentId: testAgent.id,
-          stepType: "agent",
           position: 1,
         }),
       });
