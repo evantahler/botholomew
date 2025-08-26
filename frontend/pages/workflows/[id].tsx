@@ -16,12 +16,12 @@ import {
   Spinner,
 } from "react-bootstrap";
 import type { AgentList } from "../../../backend/actions/agent";
+import type { WorkflowView } from "../../../backend/actions/workflow";
 import type {
   WorkflowRunCreate,
   WorkflowRunList,
-  WorkflowStepList,
-  WorkflowView,
-} from "../../../backend/actions/workflow";
+} from "../../../backend/actions/workflow_run";
+import type { WorkflowStepList } from "../../../backend/actions/workflow_step";
 import type { ActionResponse } from "../../../backend/api";
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
