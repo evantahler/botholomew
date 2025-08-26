@@ -181,9 +181,7 @@ export async function createTestWorkflowStep(
     .values({
       workflowId,
       agentId,
-      stepType: "agent",
-      order: 1,
-      nextStepId: null,
+      position: 1,
     })
     .returning();
   return step;
@@ -198,7 +196,7 @@ export async function createTestWorkflowRun(workflowId: number) {
     .values({
       workflowId,
       status: "pending",
-      input: {},
+      input: "Test input",
       output: null,
       error: null,
       startedAt: null,

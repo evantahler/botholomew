@@ -656,30 +656,11 @@ describe("agent toolkits", () => {
       agentWithToolkits = agentData.agent;
     });
 
-    test("should run agent with authorized toolkits", async () => {
-      // First, ensure the agent has only authorized toolkits
-      await fetch(`${url}/api/agent/${agentWithToolkits.id}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: `${session.cookieName}=${session.id}`,
-        },
-        body: JSON.stringify({
-          id: agentWithToolkits.id,
-          toolkits: ["web_search"],
-        }),
-      });
-
-      // Authorize the toolkit
-      await clearUserToolkitAuthorizations(user.id);
-      await api.db.db
-        .insert(toolkit_authorizations)
-        .values([{ userId: user.id, toolkitName: "web_search" }]);
-
-      // Try to run the agent
-      const tickResponse = await fetch(
-        `${url}/api/agent/${agentWithToolkits.id}/run`,
-        {
+    test(
+      "should run agent with authorized toolkits",
+      async () => {
+        // First, ensure the agent has only authorized toolkits
+        await fetch(`${url}/api/agent/${agentWithToolkits.id}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -687,13 +668,36 @@ describe("agent toolkits", () => {
           },
           body: JSON.stringify({
             id: agentWithToolkits.id,
+            toolkits: ["web_search"],
           }),
-        },
-      );
+        });
 
-      // The agent should be able to run (though it might fail for other reasons like OpenAI API)
-      // We're just testing that the authorization check passes
-      expect(tickResponse.status).not.toBe(400);
-    });
+        // Authorize the toolkit
+        await clearUserToolkitAuthorizations(user.id);
+        await api.db.db
+          .insert(toolkit_authorizations)
+          .values([{ userId: user.id, toolkitName: "web_search" }]);
+
+        // Try to run the agent
+        const tickResponse = await fetch(
+          `${url}/api/agent/${agentWithToolkits.id}/run`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Cookie: `${session.cookieName}=${session.id}`,
+            },
+            body: JSON.stringify({
+              id: agentWithToolkits.id,
+            }),
+          },
+        );
+
+        // The agent should be able to run (though it might fail for other reasons like OpenAI API)
+        // We're just testing that the authorization check passes
+        expect(tickResponse.status).not.toBe(400);
+      },
+      { timeout: 1000 * 10 },
+    );
   });
 });

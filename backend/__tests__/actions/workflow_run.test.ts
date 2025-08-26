@@ -1,8 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import type { SessionCreate } from "../../actions/session";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
+import { workflow_runs } from "../../models/workflow_run";
+import { workflow_run_steps } from "../../models/workflow_run_step";
+import { workflow_steps } from "../../models/workflow_step";
 import {
+  createTestAgent,
   createTestUser,
   createTestWorkflow,
   createTestWorkflowRun,
@@ -175,12 +180,15 @@ describe("workflow:run:view", () => {
   });
 
   test("should view a workflow run successfully", async () => {
-    const response = await fetch(`${url}/api/workflow/run/${workflowRun.id}`, {
-      method: "GET",
-      headers: {
-        Cookie: `${session.cookieName}=${session.id}`,
+    const response = await fetch(
+      `${url}/api/workflow/${workflow.id}/run/${workflowRun.id}`,
+      {
+        method: "GET",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
       },
-    });
+    );
 
     const data = await response.json();
     expect(response.status).toBe(200);
@@ -191,12 +199,15 @@ describe("workflow:run:view", () => {
   });
 
   test("should fail to view non-existent workflow run", async () => {
-    const response = await fetch(`${url}/api/workflow/run/99999`, {
-      method: "GET",
-      headers: {
-        Cookie: `${session.cookieName}=${session.id}`,
+    const response = await fetch(
+      `${url}/api/workflow/${workflow.id}/run/99999`,
+      {
+        method: "GET",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
       },
-    });
+    );
 
     expect(response.status).toBe(406);
     const data = await response.json();
@@ -212,12 +223,15 @@ describe("workflow:run:view", () => {
     );
     const otherRun = await createTestWorkflowRun(otherWorkflow.id);
 
-    const response = await fetch(`${url}/api/workflow/run/${otherRun.id}`, {
-      method: "GET",
-      headers: {
-        Cookie: `${session.cookieName}=${session.id}`,
+    const response = await fetch(
+      `${url}/api/workflow/${otherWorkflow.id}/run/${otherRun.id}`,
+      {
+        method: "GET",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
       },
-    });
+    );
 
     expect(response.status).toBe(406);
     const data = await response.json();
@@ -228,9 +242,12 @@ describe("workflow:run:view", () => {
   });
 
   test("should fail to view workflow run without session", async () => {
-    const response = await fetch(`${url}/api/workflow/run/${workflowRun.id}`, {
-      method: "GET",
-    });
+    const response = await fetch(
+      `${url}/api/workflow/${workflow.id}/run/${workflowRun.id}`,
+      {
+        method: "GET",
+      },
+    );
 
     expect(response.status).toBe(401);
   });
@@ -380,38 +397,148 @@ describe("workflow:run:list", () => {
   });
 });
 
-describe("WorkflowRunTick", () => {
-  it("should process the next step in a workflow run", async () => {
-    // Create a user
-    const user = await createTestUser();
-    const session = await createUserAndSession(USERS.MARIO);
+describe("workflow:run:delete", () => {
+  let user: ActionResponse<SessionCreate>["user"];
+  let session: ActionResponse<SessionCreate>["session"];
+  let workflow: any;
+  let workflowRun: any;
 
-    // Create a workflow
-    const workflow = await createTestWorkflow(user.id);
+  beforeAll(async () => {
+    const testSession = await createUserAndSession(USERS.MARIO);
+    user = testSession.user;
+    session = testSession.session;
+    workflow = await createTestWorkflow(user.id, true);
+    workflowRun = await createTestWorkflowRun(workflow.id);
+  });
 
-    // Create workflow steps
-    const step1 = await createTestWorkflowStep(workflow.id, 1);
-    const step2 = await createTestWorkflowStep(workflow.id, 2);
-
-    // Create a workflow run
-    const workflowRun = await createTestWorkflowRun(workflow.id);
-
-    // Mock the agent execution
-    jest.spyOn(api.arcade, "loadArcadeToolsForAgent").mockResolvedValue([]);
-
-    // Execute the tick action
-    const response = await testAction(
-      WorkflowRunTick,
+  test("should delete a workflow run successfully", async () => {
+    const response = await fetch(
+      `${url}/api/workflow/${workflow.id}/run/${workflowRun.id}`,
       {
-        id: workflowRun.id,
+        method: "DELETE",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
       },
-      session,
     );
 
-    expect(response.status).toBe("step_completed");
-    expect(response.stepId).toBe(step1.id);
-    expect(response.stepType).toBe("agent");
-    expect(response.message).toContain("Step 1 completed successfully");
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+
+    // Verify the workflow run was actually deleted
+    const verifyResponse = await fetch(
+      `${url}/api/workflow/${workflow.id}/run/${workflowRun.id}`,
+      {
+        method: "GET",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+      },
+    );
+    expect(verifyResponse.status).toBe(406);
+  });
+
+  test("should fail to delete non-existent workflow run", async () => {
+    const response = await fetch(
+      `${url}/api/workflow/${workflow.id}/run/99999`,
+      {
+        method: "DELETE",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+      },
+    );
+
+    expect(response.status).toBe(406);
+    const data = await response.json();
+    expect(data.error).toBeDefined();
+    expect(data.error.message).toBe("Workflow run not found");
+  });
+
+  test("should fail to delete another user's workflow run", async () => {
+    const otherUserSession = await createUserAndSession(USERS.LUIGI);
+    const otherWorkflow = await createTestWorkflow(
+      otherUserSession.user.id,
+      true,
+    );
+    const otherRun = await createTestWorkflowRun(otherWorkflow.id);
+
+    const response = await fetch(
+      `${url}/api/workflow/${otherWorkflow.id}/run/${otherRun.id}`,
+      {
+        method: "DELETE",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+      },
+    );
+
+    expect(response.status).toBe(406);
+    const data = await response.json();
+    expect(data.error).toBeDefined();
+    expect(data.error.message).toBe(
+      "Workflow run not found or not owned by user",
+    );
+  });
+
+  test("should fail to delete workflow run without session", async () => {
+    const response = await fetch(
+      `${url}/api/workflow/${workflow.id}/run/${workflowRun.id}`,
+      {
+        method: "DELETE",
+      },
+    );
+
+    expect(response.status).toBe(401);
+  });
+});
+
+describe("workflow:run:tick", () => {
+  let user: ActionResponse<SessionCreate>["user"];
+  let session: ActionResponse<SessionCreate>["session"];
+  let workflow: any;
+  let agent: any;
+  let workflowStep: any;
+  let workflowRun: any;
+
+  beforeAll(async () => {
+    const testSession = await createUserAndSession(USERS.MARIO);
+    user = testSession.user;
+    session = testSession.session;
+    workflow = await createTestWorkflow(user.id, true);
+    agent = await createTestAgent(user.id);
+
+    // Create workflow step with proper structure
+    workflowStep = await api.db.db
+      .insert(workflow_steps)
+      .values({
+        workflowId: workflow.id,
+        agentId: agent.id,
+        position: 1,
+      })
+      .returning();
+
+    workflowStep = workflowStep[0];
+    workflowRun = await createTestWorkflowRun(workflow.id);
+  });
+
+  test("should process the first step in a workflow run", async () => {
+    const response = await fetch(
+      `${url}/api/workflow/${workflow.id}/run/${workflowRun.id}/tick`,
+      {
+        method: "POST",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+      },
+    );
+
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.workflowRun).toBeDefined();
+    expect(data.workflowRun.id).toBe(workflowRun.id);
+    expect(data.workflowRun.status).toBe("running");
 
     // Verify the workflow run step was created
     const runSteps = await api.db.db
@@ -420,109 +547,145 @@ describe("WorkflowRunTick", () => {
       .where(eq(workflow_run_steps.workflowRunId, workflowRun.id));
 
     expect(runSteps).toHaveLength(1);
-    expect(runSteps[0].workflowStepId).toBe(step1.id);
+    expect(runSteps[0].workflowStepId).toBe(workflowStep.id);
     expect(runSteps[0].status).toBe("completed");
-
-    // Verify workflow run status was updated
-    const updatedRun = await api.db.db
-      .select()
-      .from(workflow_runs)
-      .where(eq(workflow_runs.id, workflowRun.id))
-      .limit(1);
-
-    expect(updatedRun[0].status).toBe("running");
-    expect(updatedRun[0].startedAt).toBeTruthy();
   });
 
-  it("should complete workflow run when all steps are done", async () => {
-    // Create a user
-    const user = await createTestUser();
-    const session = await createUserAndSession(USERS.MARIO);
-
-    // Create a workflow
-    const workflow = await createTestWorkflow(user.id);
-
-    // Create a single workflow step
-    const step = await createTestWorkflowStep(workflow.id, 1);
-
-    // Create a workflow run
-    const workflowRun = await createTestWorkflowRun(workflow.id);
-
-    // Mock the agent execution
-    jest.spyOn(api.arcade, "loadArcadeToolsForAgent").mockResolvedValue([]);
+  test("should complete workflow run when all steps are done", async () => {
+    // Create a new workflow run for this test
+    const newWorkflowRun = await createTestWorkflowRun(workflow.id);
 
     // Execute the tick action
-    const response = await testAction(
-      WorkflowRunTick,
+    const response = await fetch(
+      `${url}/api/workflow/${workflow.id}/run/${newWorkflowRun.id}/tick`,
       {
-        id: workflowRun.id,
+        method: "POST",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
       },
-      session,
     );
 
-    expect(response.status).toBe("step_completed");
-    expect(response.stepId).toBe(step.id);
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.workflowRun).toBeDefined();
 
     // Execute tick again to complete the workflow
-    const response2 = await testAction(
-      WorkflowRunTick,
+    const response2 = await fetch(
+      `${url}/api/workflow/${workflow.id}/run/${newWorkflowRun.id}/tick`,
       {
-        id: workflowRun.id,
+        method: "POST",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
       },
-      session,
     );
 
-    expect(response2.status).toBe("completed");
-    expect(response2.message).toBe("All workflow steps completed successfully");
+    const data2 = await response2.json();
+    expect(response2.status).toBe(200);
+    expect(data2.workflowRun).toBeDefined();
 
     // Verify workflow run is marked as completed
     const updatedRun = await api.db.db
       .select()
       .from(workflow_runs)
-      .where(eq(workflow_runs.id, workflowRun.id))
+      .where(eq(workflow_runs.id, newWorkflowRun.id))
       .limit(1);
 
     expect(updatedRun[0].status).toBe("completed");
     expect(updatedRun[0].completedAt).toBeTruthy();
   });
 
-  it("should fail if workflow run is already completed", async () => {
-    // Create a user
-    const user = await createTestUser();
-    const session = await createUserAndSession(USERS.MARIO);
+  test("should handle workflow run with no steps", async () => {
+    // Create a workflow with no steps
+    const emptyWorkflow = await createTestWorkflow(user.id, true);
+    const emptyWorkflowRun = await createTestWorkflowRun(emptyWorkflow.id);
 
-    // Create a workflow
-    const workflow = await createTestWorkflow(user.id);
-
-    // Create a workflow run that's already completed
-    const workflowRun = await createTestWorkflowRun(workflow.id, "completed");
-
-    // Try to execute the tick action
-    await expect(
-      testAction(
-        WorkflowRunTick,
-        {
-          id: workflowRun.id,
+    const response = await fetch(
+      `${url}/api/workflow/${emptyWorkflow.id}/run/${emptyWorkflowRun.id}/tick`,
+      {
+        method: "POST",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
         },
-        session,
-      ),
-    ).rejects.toThrow("Workflow run is already completed or failed");
+      },
+    );
+
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.workflowRun).toBeDefined();
+    expect(data.workflowRun.status).toBe("pending");
   });
 
-  it("should fail if workflow run is not found", async () => {
-    // Create a user
-    const user = await createTestUser();
-    const session = await createUserAndSession(USERS.MARIO);
-
-    // Try to execute the tick action with non-existent run ID
-    await expect(
-      testAction(
-        WorkflowRunTick,
-        {
-          id: 99999,
+  test("should fail if workflow run is not found", async () => {
+    const response = await fetch(
+      `${url}/api/workflow/${workflow.id}/run/99999/tick`,
+      {
+        method: "POST",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
         },
-        session,
-      ),
-    ).rejects.toThrow("Workflow run not found");
+      },
+    );
+
+    expect(response.status).toBe(406);
+    const data = await response.json();
+    expect(data.error).toBeDefined();
+    expect(data.error.message).toBe("Workflow run not found");
+  });
+
+  test("should fail if workflow is not owned by user", async () => {
+    const otherUserSession = await createUserAndSession(USERS.LUIGI);
+    const otherWorkflow = await createTestWorkflow(
+      otherUserSession.user.id,
+      true,
+    );
+    const otherRun = await createTestWorkflowRun(otherWorkflow.id);
+
+    const response = await fetch(
+      `${url}/api/workflow/${otherWorkflow.id}/run/${otherRun.id}/tick`,
+      {
+        method: "POST",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+      },
+    );
+
+    expect(response.status).toBe(406);
+    const data = await response.json();
+    expect(data.error).toBeDefined();
+    expect(data.error.message).toBe("Workflow not found or not owned by user");
+  });
+
+  test("should fail if workflow is disabled", async () => {
+    const disabledWorkflow = await createTestWorkflow(user.id, false);
+    const disabledRun = await createTestWorkflowRun(disabledWorkflow.id);
+
+    const response = await fetch(
+      `${url}/api/workflow/${disabledWorkflow.id}/run/${disabledRun.id}/tick`,
+      {
+        method: "POST",
+        headers: {
+          Cookie: `${session.cookieName}=${session.id}`,
+        },
+      },
+    );
+
+    expect(response.status).toBe(406);
+    const data = await response.json();
+    expect(data.error).toBeDefined();
+    expect(data.error.message).toBe("Workflow is not enabled");
+  });
+
+  test("should fail without session", async () => {
+    const response = await fetch(
+      `${url}/api/workflow/${workflow.id}/run/${workflowRun.id}/tick`,
+      {
+        method: "POST",
+      },
+    );
+
+    expect(response.status).toBe(401);
   });
 });

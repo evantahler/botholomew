@@ -214,6 +214,25 @@ export class WorkflowRunDelete implements Action {
       });
     }
 
+    // Verify workflow ownership through the workflow run
+    const [workflow]: Workflow[] = await api.db.db
+      .select()
+      .from(workflows)
+      .where(
+        and(
+          eq(workflows.id, workflowRun.workflowId),
+          eq(workflows.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    if (!workflow) {
+      throw new TypedError({
+        message: "Workflow run not found or not owned by user",
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+      });
+    }
+
     const result = await api.db.db
       .delete(workflow_runs)
       .where(
@@ -397,24 +416,13 @@ export class WorkflowRunTick implements Action {
           userPrompt: agent.userPrompt,
           input: workflowRun.input,
           outout: null,
-          type: agent.responseType,
+          responseType: agent.responseType,
           status: "pending",
           workflowId: workflowRun.workflowId,
         })
         .returning();
 
       workflowRunStep = newRunStep;
-    }
-
-    // Update workflow run status to running if not already
-    if (workflowRun.status === "pending") {
-      await api.db.db
-        .update(workflow_runs)
-        .set({
-          status: "running",
-          startedAt: new Date(),
-        })
-        .where(eq(workflow_runs.id, workflowRun.id));
     }
 
     if (!workflowRunStep) {
@@ -444,7 +452,21 @@ export class WorkflowRunTick implements Action {
       // For now, we'll simulate a successful execution
       const stepResult = "Step executed successfully"; // This would come from actual agent execution
 
-      // Update step status to completed
+      // Update step status to completed and fetch the updated workflow run
+      const [updatedWorkflowRun] = await api.db.db
+        .update(workflow_runs)
+        .set({
+          status:
+            workflowRun.status === "pending" ? "running" : workflowRun.status,
+          startedAt:
+            workflowRun.status === "pending"
+              ? new Date()
+              : workflowRun.startedAt,
+        })
+        .where(eq(workflow_runs.id, workflowRun.id))
+        .returning();
+
+      // Update the workflow run step status
       await api.db.db
         .update(workflow_run_steps)
         .set({
@@ -454,7 +476,7 @@ export class WorkflowRunTick implements Action {
         .where(eq(workflow_run_steps.id, workflowRunStep.id));
 
       return {
-        workflowRun: serializeWorkflowRun(workflowRun),
+        workflowRun: serializeWorkflowRun(updatedWorkflowRun),
       };
     } catch (error) {
       // Mark step as failed
