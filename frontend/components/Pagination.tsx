@@ -1,4 +1,3 @@
-import React from "react";
 import { Pagination as BootstrapPagination } from "react-bootstrap";
 
 interface PaginationProps {
@@ -74,7 +73,7 @@ export default function Pagination({
               )}
 
               {/* Show main page range */}
-              {pages.map(page => (
+              {pages.map((page) => (
                 <BootstrapPagination.Item
                   key={page}
                   active={page === currentPage}

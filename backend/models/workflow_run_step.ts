@@ -1,10 +1,10 @@
 import {
-  pgTable,
-  serial,
-  timestamp,
-  text,
   integer,
   pgEnum,
+  pgTable,
+  serial,
+  text,
+  timestamp,
 } from "drizzle-orm/pg-core";
 
 import { responseTypes } from "./agent";

@@ -1,17 +1,17 @@
-import { test, describe, expect, beforeAll, afterAll, mock } from "bun:test";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import { eq } from "drizzle-orm";
+import type { SessionCreate } from "../../actions/session";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
-import type { SessionCreate } from "../../actions/session";
+import { agents } from "../../models/agent";
+import { agent_run } from "../../models/agent_run";
+import { agentTick } from "../../ops/AgentOps";
 import {
+  createAgent,
   createTestUser,
   createUserAndSession,
-  createAgent,
   USERS,
 } from "../utils/testHelpers";
-import { agentTick } from "../../ops/AgentOps";
-import { agent_run } from "../../models/agent_run";
-import { agents } from "../../models/agent";
-import { eq } from "drizzle-orm";
 
 // Mock the OpenAI agents module
 const mockRun = mock(() =>

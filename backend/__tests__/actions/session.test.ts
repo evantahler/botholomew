@@ -1,8 +1,8 @@
-import { test, describe, expect, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { SessionCreate } from "../../actions/session";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
 import { createTestUser, USERS } from "../utils/testHelpers";
-import type { SessionCreate } from "../../actions/session";
 
 const url = config.server.web.applicationUrl;
 

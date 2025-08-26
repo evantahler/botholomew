@@ -1,6 +1,5 @@
-import React from "react";
 import Head from "next/head";
-import { Container, Row, Col, Card } from "react-bootstrap";
+import { Card, Col, Container, Row } from "react-bootstrap";
 import ServerStatus from "../components/ServerStatus";
 
 export default function StatusPage() {

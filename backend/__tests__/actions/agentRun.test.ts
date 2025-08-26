@@ -1,11 +1,11 @@
-import { test, describe, expect, beforeAll, afterAll, mock } from "bun:test";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import type { SessionCreate } from "../../actions/session";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
-import type { SessionCreate } from "../../actions/session";
 import {
+  createAgent,
   createTestUser,
   createUserAndSession,
-  createAgent,
   USERS,
 } from "../utils/testHelpers";
 

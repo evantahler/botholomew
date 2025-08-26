@@ -1,30 +1,30 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import React, { useEffect, useState } from "react";
 import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Form,
-  Button,
   Alert,
+  Button,
+  Card,
+  Col,
+  Container,
+  Form,
+  Row,
   Spinner,
 } from "react-bootstrap";
-import { useAuth } from "../../../lib/auth";
-import { APIWrapper } from "../../../lib/api";
+import type {
+  AgentEdit,
+  AgentModels,
+  AgentView,
+} from "../../../../backend/actions/agent";
+import type { ArcadeListToolkits } from "../../../../backend/actions/arcade";
+import type { ToolkitAuthorizationList } from "../../../../backend/actions/toolkit_authorization";
+import type { ActionResponse } from "../../../../backend/api";
 import Navigation from "../../../components/Navigation";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import ToolkitSelector from "../../../components/ToolkitSelector";
-import type { ActionResponse } from "../../../../backend/api";
-import type { ArcadeListToolkits } from "../../../../backend/actions/arcade";
-import type { ToolkitAuthorizationList } from "../../../../backend/actions/toolkit_authorization";
-import type {
-  AgentEdit,
-  AgentView,
-  AgentModels,
-} from "../../../../backend/actions/agent";
+import { APIWrapper } from "../../../lib/api";
+import { useAuth } from "../../../lib/auth";
 
 export default function EditAgent() {
   const router = useRouter();
@@ -34,7 +34,7 @@ export default function EditAgent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agent, setAgent] = useState<ActionResponse<AgentView>["agent"] | null>(
-    null
+    null,
   );
   const [formData, setFormData] = useState<{
     name: string;
@@ -118,17 +118,17 @@ export default function EditAgent() {
         (
           toolkit: NonNullable<
             ActionResponse<ArcadeListToolkits>["toolkits"]
-          >[0]
+          >[0],
         ) => {
           const isAuthorized = userAuthorizations.some(
             (
               auth: NonNullable<
                 ActionResponse<ToolkitAuthorizationList>["toolkitAuthorizations"]
-              >[0]
-            ) => auth.toolkitName === toolkit.name
+              >[0],
+            ) => auth.toolkitName === toolkit.name,
           );
           return isAuthorized;
-        }
+        },
       );
 
       // Ensure all toolkits have the expected structure
@@ -136,7 +136,7 @@ export default function EditAgent() {
         (
           toolkit: NonNullable<
             ActionResponse<ArcadeListToolkits>["toolkits"]
-          >[0]
+          >[0],
         ) => {
           const isValid =
             toolkit &&
@@ -148,7 +148,7 @@ export default function EditAgent() {
             console.warn("Invalid toolkit structure:", toolkit);
           }
           return isValid;
-        }
+        },
       );
 
       setAvailableToolkits(validatedToolkits);
@@ -175,10 +175,10 @@ export default function EditAgent() {
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]:
         type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
@@ -186,7 +186,7 @@ export default function EditAgent() {
   };
 
   const handleToolkitChange = (toolkitName: string, checked: boolean) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       toolkits: checked
         ? [...prev.toolkits, toolkitName]
@@ -346,7 +346,7 @@ export default function EditAgent() {
                       {modelsLoading ? (
                         <option>Loading models...</option>
                       ) : availableModels && availableModels.length > 0 ? (
-                        availableModels.map(model => (
+                        availableModels.map((model) => (
                           <option key={model.value} value={model.value}>
                             {model.label}
                           </option>

@@ -1,7 +1,7 @@
 import { $ } from "bun";
-import { test, expect, describe, beforeAll } from "bun:test";
-import pkg from "./../../package.json";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { api } from "../../api";
+import pkg from "./../../package.json";
 
 beforeAll(async () => {
   await api.start();

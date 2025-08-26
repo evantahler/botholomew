@@ -1,11 +1,11 @@
 import {
-  pgTable,
-  serial,
-  timestamp,
-  text,
   integer,
   json,
   pgEnum,
+  pgTable,
+  serial,
+  text,
+  timestamp,
 } from "drizzle-orm/pg-core";
 
 import { workflows } from "./workflow";

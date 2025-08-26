@@ -1,7 +1,7 @@
-import { Action, config, api } from "../api";
-import packageJSON from "../package.json";
-import { HTTP_METHOD } from "../classes/Action";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { Action, api, config } from "../api";
+import { HTTP_METHOD } from "../classes/Action";
+import packageJSON from "../package.json";
 
 const SWAGGER_VERSION = "3.0.0";
 

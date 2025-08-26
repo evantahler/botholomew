@@ -1,22 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
 import { useRouter } from "next/router";
+import React, { useState } from "react";
 import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Form,
-  Button,
   Alert,
+  Button,
+  Card,
+  Col,
+  Container,
+  Form,
+  Row,
   Spinner,
 } from "react-bootstrap";
-import { useAuth } from "../../lib/auth";
-import { APIWrapper } from "../../lib/api";
+import type { WorkflowCreate } from "../../../backend/actions/workflow";
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
-import type { WorkflowCreate } from "../../../backend/actions/workflow";
+import { APIWrapper } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 
 type CreateWorkflowFormData = WorkflowCreate["inputs"]["_type"];
 
@@ -39,12 +39,12 @@ export default function CreateWorkflow() {
     try {
       const response = await APIWrapper.put<WorkflowCreate>(
         "/workflow",
-        formData
+        formData,
       );
       router.push(`/workflows/edit/${response.workflow.id}`);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to create workflow"
+        err instanceof Error ? err.message : "Failed to create workflow",
       );
     } finally {
       setLoading(false);
@@ -53,9 +53,9 @@ export default function CreateWorkflow() {
 
   const handleInputChange = (
     field: keyof CreateWorkflowFormData,
-    value: any
+    value: any,
   ) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [field]: value,
     }));
@@ -92,7 +92,9 @@ export default function CreateWorkflow() {
                     <Form.Control
                       type="text"
                       value={formData.name}
-                      onChange={e => handleInputChange("name", e.target.value)}
+                      onChange={(e) =>
+                        handleInputChange("name", e.target.value)
+                      }
                       placeholder="Enter workflow name"
                       required
                       maxLength={256}
@@ -108,7 +110,7 @@ export default function CreateWorkflow() {
                       as="textarea"
                       rows={3}
                       value={formData.description}
-                      onChange={e =>
+                      onChange={(e) =>
                         handleInputChange("description", e.target.value)
                       }
                       placeholder="Describe what this workflow does"
@@ -125,7 +127,7 @@ export default function CreateWorkflow() {
                       id="enabled"
                       label="Enable workflow immediately"
                       checked={formData.enabled}
-                      onChange={e =>
+                      onChange={(e) =>
                         handleInputChange("enabled", e.target.checked)
                       }
                     />

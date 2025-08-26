@@ -1,35 +1,35 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
+import React, { useEffect, useState } from "react";
 import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Button,
-  Form,
   Alert,
-  Spinner,
-  Modal,
   Badge,
+  Button,
+  Card,
+  Col,
+  Container,
+  Form,
+  Modal,
+  Row,
+  Spinner,
   Table,
 } from "react-bootstrap";
-import { useAuth } from "../../../lib/auth";
-import { APIWrapper } from "../../../lib/api";
-import Navigation from "../../../components/Navigation";
-import ProtectedRoute from "../../../components/ProtectedRoute";
+import type { AgentList } from "../../../../backend/actions/agent";
 import type {
-  WorkflowView,
   WorkflowEdit,
   WorkflowStepCreate,
-  WorkflowStepEdit,
   WorkflowStepDelete,
+  WorkflowStepEdit,
   WorkflowStepList,
+  WorkflowView,
 } from "../../../../backend/actions/workflow";
-import type { AgentList } from "../../../../backend/actions/agent";
 import type { ActionResponse } from "../../../../backend/api";
 import { stepTypes } from "../../../../backend/models/workflow_step";
+import Navigation from "../../../components/Navigation";
+import ProtectedRoute from "../../../components/ProtectedRoute";
+import { APIWrapper } from "../../../lib/api";
+import { useAuth } from "../../../lib/auth";
 import {
   getStepTypeColor,
   getStepTypeDescription,
@@ -48,7 +48,7 @@ export default function EditWorkflow() {
     ActionResponse<WorkflowView>["workflow"] | null
   >(null);
   const [steps, setSteps] = useState<ActionResponse<WorkflowStepList>["steps"]>(
-    []
+    [],
   );
   const [agents, setAgents] = useState<ActionResponse<AgentList>["agents"]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,11 +93,11 @@ export default function EditWorkflow() {
 
       // Fetch workflow steps
       const stepsResponse = await APIWrapper.get<WorkflowStepList>(
-        `/workflow/${id}/steps`
+        `/workflow/${id}/steps`,
       );
       // Sort steps by position
       const sortedSteps = (stepsResponse.steps || []).sort(
-        (a, b) => a.position - b.position
+        (a, b) => a.position - b.position,
       );
       setSteps(sortedSteps);
     } catch (err) {
@@ -120,7 +120,7 @@ export default function EditWorkflow() {
     setSaving(true);
     try {
       await APIWrapper.post<WorkflowEdit>(`/workflow/${id}`, formData);
-      setWorkflow(prev => (prev ? { ...prev, ...formData } : null));
+      setWorkflow((prev) => (prev ? { ...prev, ...formData } : null));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save workflow");
     } finally {
@@ -132,15 +132,15 @@ export default function EditWorkflow() {
     try {
       // Calculate the next position
       const nextPosition =
-        steps.length > 0 ? Math.max(...steps.map(s => s.position)) + 1 : 0;
+        steps.length > 0 ? Math.max(...steps.map((s) => s.position)) + 1 : 0;
 
       const response = await APIWrapper.put<WorkflowStepCreate>(
         `/workflow/${id}/step`,
-        { ...stepData, position: nextPosition }
+        { ...stepData, position: nextPosition },
       );
 
-      setSteps(prev =>
-        [...prev, response.step].sort((a, b) => a.position - b.position)
+      setSteps((prev) =>
+        [...prev, response.step].sort((a, b) => a.position - b.position),
       );
       setShowAddStepModal(false);
     } catch (err) {
@@ -152,14 +152,14 @@ export default function EditWorkflow() {
     try {
       const response = await APIWrapper.post<WorkflowStepEdit>(
         `/workflow/${id}/step/${editingStep.id}`,
-        stepData
+        stepData,
       );
 
-      setSteps(prev =>
-        prev.map(s => (s.id === editingStep.id ? response.step : s))
+      setSteps((prev) =>
+        prev.map((s) => (s.id === editingStep.id ? response.step : s)),
       );
       // Re-sort steps after editing
-      setSteps(prev => [...prev].sort((a, b) => a.position - b.position));
+      setSteps((prev) => [...prev].sort((a, b) => a.position - b.position));
       setEditingStep(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to edit step");
@@ -170,18 +170,18 @@ export default function EditWorkflow() {
     try {
       await APIWrapper.delete<WorkflowStepDelete>(
         `/workflow/${id}/step/${stepId}`,
-        { stepId }
+        { stepId },
       );
 
       // Remove the step and reorder remaining steps
-      const stepToDelete = steps.find(s => s.id === stepId);
+      const stepToDelete = steps.find((s) => s.id === stepId);
       if (stepToDelete) {
         const updatedSteps = steps
-          .filter(s => s.id !== stepId)
-          .map(s =>
+          .filter((s) => s.id !== stepId)
+          .map((s) =>
             s.position > stepToDelete.position
               ? { ...s, position: s.position - 1 }
-              : s
+              : s,
           )
           .sort((a, b) => a.position - b.position);
 
@@ -212,8 +212,8 @@ export default function EditWorkflow() {
     }
 
     try {
-      const draggedStepData = steps.find(s => s.id === draggedStep);
-      const targetStepData = steps.find(s => s.id === targetStepId);
+      const draggedStepData = steps.find((s) => s.id === draggedStep);
+      const targetStepData = steps.find((s) => s.id === targetStepId);
 
       if (!draggedStepData || !targetStepData) return;
 
@@ -224,7 +224,7 @@ export default function EditWorkflow() {
       // Reorder steps
       if (draggedPosition < targetPosition) {
         // Moving down: shift steps up
-        newSteps.forEach(step => {
+        newSteps.forEach((step) => {
           if (
             step.position > draggedPosition &&
             step.position <= targetPosition
@@ -235,7 +235,7 @@ export default function EditWorkflow() {
         draggedStepData.position = targetPosition;
       } else {
         // Moving up: shift steps down
-        newSteps.forEach(step => {
+        newSteps.forEach((step) => {
           if (
             step.position >= targetPosition &&
             step.position < draggedPosition
@@ -258,7 +258,7 @@ export default function EditWorkflow() {
             id: parseInt(id as string),
             stepId: step.id,
             position: step.position,
-          }
+          },
         );
       }
     } catch (err) {
@@ -350,8 +350,8 @@ export default function EditWorkflow() {
                   <Form.Control
                     type="text"
                     value={formData.name}
-                    onChange={e =>
-                      setFormData(prev => ({ ...prev, name: e.target.value }))
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, name: e.target.value }))
                     }
                     maxLength={256}
                   />
@@ -363,8 +363,8 @@ export default function EditWorkflow() {
                     as="textarea"
                     rows={3}
                     value={formData.description}
-                    onChange={e =>
-                      setFormData(prev => ({
+                    onChange={(e) =>
+                      setFormData((prev) => ({
                         ...prev,
                         description: e.target.value,
                       }))
@@ -378,8 +378,8 @@ export default function EditWorkflow() {
                     id="enabled"
                     label="Enabled"
                     checked={formData.enabled}
-                    onChange={e =>
-                      setFormData(prev => ({
+                    onChange={(e) =>
+                      setFormData((prev) => ({
                         ...prev,
                         enabled: e.target.checked,
                       }))
@@ -430,9 +430,9 @@ export default function EditWorkflow() {
                         <tr
                           key={step.id}
                           draggable
-                          onDragStart={e => handleDragStart(e, step.id)}
+                          onDragStart={(e) => handleDragStart(e, step.id)}
                           onDragOver={handleDragOver}
-                          onDrop={e => handleDrop(e, step.id)}
+                          onDrop={(e) => handleDrop(e, step.id)}
                           className={`step-row ${draggedStep === step.id ? "dragging" : ""}`}
                           style={{ cursor: "grab" }}
                         >
@@ -452,7 +452,7 @@ export default function EditWorkflow() {
                               {step.stepType === "agent" && step.agentId && (
                                 <div className="text-muted small mt-1">
                                   Agent:{" "}
-                                  {agents.find(a => a.id === step.agentId)
+                                  {agents.find((a) => a.id === step.agentId)
                                     ?.name || "Unknown"}
                                 </div>
                               )}
@@ -574,15 +574,15 @@ function AddStepModal({
             <Form.Label>Step Type</Form.Label>
             <Form.Select
               value={formData.stepType}
-              onChange={e =>
-                setFormData(prev => ({
+              onChange={(e) =>
+                setFormData((prev) => ({
                   ...prev,
                   stepType: e.target
                     .value as (typeof stepTypes.enumValues)[number],
                 }))
               }
             >
-              {stepTypes.enumValues.map(type => (
+              {stepTypes.enumValues.map((type) => (
                 <option key={type} value={type}>
                   {type}
                 </option>
@@ -595,13 +595,13 @@ function AddStepModal({
               <Form.Label>Agent</Form.Label>
               <Form.Select
                 value={formData.agentId}
-                onChange={e =>
-                  setFormData(prev => ({ ...prev, agentId: e.target.value }))
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, agentId: e.target.value }))
                 }
                 required
               >
                 <option value="">Select an agent</option>
-                {agents.map(agent => (
+                {agents.map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.name}
                   </option>
@@ -670,15 +670,15 @@ function EditStepModal({
             <Form.Label>Step Type</Form.Label>
             <Form.Select
               value={formData.stepType}
-              onChange={e =>
-                setFormData(prev => ({
+              onChange={(e) =>
+                setFormData((prev) => ({
                   ...prev,
                   stepType: e.target
                     .value as (typeof stepTypes.enumValues)[number],
                 }))
               }
             >
-              {stepTypes.enumValues.map(type => (
+              {stepTypes.enumValues.map((type) => (
                 <option key={type} value={type}>
                   {type}
                 </option>
@@ -691,13 +691,13 @@ function EditStepModal({
               <Form.Label>Agent</Form.Label>
               <Form.Select
                 value={formData.agentId}
-                onChange={e =>
-                  setFormData(prev => ({ ...prev, agentId: e.target.value }))
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, agentId: e.target.value }))
                 }
                 required
               >
                 <option value="">Select an agent</option>
-                {agents.map(agent => (
+                {agents.map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.name}
                   </option>

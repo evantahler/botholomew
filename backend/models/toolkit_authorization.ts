@@ -1,10 +1,10 @@
 import {
+  integer,
   pgTable,
   serial,
-  varchar,
   timestamp,
-  integer,
   uniqueIndex,
+  varchar,
 } from "drizzle-orm/pg-core";
 import { users } from "./user";
 

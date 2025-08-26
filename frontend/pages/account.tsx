@@ -1,19 +1,19 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Container,
-  Card,
-  Form,
-  Button,
   Alert,
-  Row,
+  Button,
+  Card,
   Col,
-  Tabs,
+  Container,
+  Form,
+  Row,
   Tab,
+  Tabs,
 } from "react-bootstrap";
-import { useAuth } from "../lib/auth";
 import MarkdownRenderer from "../components/MarkdownRenderer";
+import { useAuth } from "../lib/auth";
 
 export default function AccountPage() {
   const { user, updateUser } = useAuth();
@@ -34,7 +34,7 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (user) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         name: user.name || "",
         email: user.email || "",
@@ -44,10 +44,10 @@ export default function AccountPage() {
   }, [user]);
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -108,7 +108,7 @@ export default function AccountPage() {
         setMessage({ type: "success", text: "Profile updated successfully!" });
 
         // Clear password fields
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           currentPassword: "",
           newPassword: "",

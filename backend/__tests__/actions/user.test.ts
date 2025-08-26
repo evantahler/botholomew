@@ -1,24 +1,23 @@
 import {
-  describe,
-  test,
-  expect,
-  beforeAll,
   afterAll,
   afterEach,
+  beforeAll,
+  describe,
+  expect,
+  test,
 } from "bun:test";
 import { eq } from "drizzle-orm";
-import { api, type ActionResponse } from "../../api";
 import type { UserCreate, UserEdit, UserView } from "../../actions/user";
+import { api, logger, type ActionResponse } from "../../api";
+import { ErrorType } from "../../classes/TypedError";
 import { config } from "../../config";
-import { logger } from "../../api";
+import { users } from "../../models/user";
 import {
-  createUserViaAPI,
   createSession,
   createUserAndSession,
+  createUserViaAPI,
   USERS,
 } from "../utils/testHelpers";
-import { users } from "../../models/user";
-import { ErrorType } from "../../classes/TypedError";
 
 const url = config.server.web.applicationUrl;
 

@@ -1,28 +1,28 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Button,
-  Badge,
   Alert,
-  Spinner,
+  Badge,
+  Button,
+  Card,
+  Col,
+  Container,
   Modal,
+  Row,
+  Spinner,
 } from "react-bootstrap";
-import { useAuth } from "../../lib/auth";
-import { APIWrapper } from "../../lib/api";
-import { formatDate } from "../../lib/utils";
-import Navigation from "../../components/Navigation";
-import ProtectedRoute from "../../components/ProtectedRoute";
-import Pagination from "../../components/Pagination";
 import type {
-  WorkflowList,
   WorkflowDelete,
+  WorkflowList,
 } from "../../../backend/actions/workflow";
+import Navigation from "../../components/Navigation";
+import Pagination from "../../components/Pagination";
+import ProtectedRoute from "../../components/ProtectedRoute";
+import { APIWrapper } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
+import { formatDate } from "../../lib/utils";
 
 export default function WorkflowsList() {
   const router = useRouter();
@@ -53,10 +53,10 @@ export default function WorkflowsList() {
         "/workflows",
         {},
         pagination.limit,
-        offset
+        offset,
       );
       setWorkflows(response.workflows || []);
-      setPagination(prev => ({
+      setPagination((prev) => ({
         ...prev,
         offset,
         total: response.total || 0,
@@ -77,14 +77,14 @@ export default function WorkflowsList() {
         `/workflow/${deleteModal.workflow.id}`,
         {
           id: deleteModal.workflow.id,
-        }
+        },
       );
       // Remove the workflow from the list
-      setWorkflows(workflows.filter(w => w.id !== deleteModal.workflow!.id));
+      setWorkflows(workflows.filter((w) => w.id !== deleteModal.workflow!.id));
       setDeleteModal({ show: false, workflow: null });
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to delete workflow"
+        err instanceof Error ? err.message : "Failed to delete workflow",
       );
     }
   };
@@ -153,7 +153,7 @@ export default function WorkflowsList() {
         ) : (
           <>
             <Row>
-              {workflows.map(workflow => (
+              {workflows.map((workflow) => (
                 <Col key={workflow.id} lg={6} xl={4} className="mb-4">
                   <Card className="h-100">
                     <Card.Body>

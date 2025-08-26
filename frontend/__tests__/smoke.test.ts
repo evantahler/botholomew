@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { spawn } from "child_process";
 
 describe("Frontend Smoke Test", () => {
@@ -41,13 +41,13 @@ describe("Frontend Smoke Test", () => {
     });
 
     // Give the server a moment to fully initialize
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   });
 
   afterAll(async () => {
     if (serverProcess) {
       serverProcess.kill("SIGTERM");
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   });
 

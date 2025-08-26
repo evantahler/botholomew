@@ -1,29 +1,28 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Button,
   Alert,
-  Spinner,
   Badge,
-  Table,
+  Button,
+  Card,
+  Col,
+  Container,
   Form,
+  Row,
+  Spinner,
+  Table,
 } from "react-bootstrap";
-import { useAuth } from "../lib/auth";
-import { APIWrapper } from "../lib/api";
-import Navigation from "../components/Navigation";
-import ProtectedRoute from "../components/ProtectedRoute";
-import type { ActionResponse } from "../../backend/api";
 import type { ArcadeListToolkits } from "../../backend/actions/arcade";
 import type {
-  ToolkitAuthorizationList,
   ToolkitAuthorizationCreate,
   ToolkitAuthorizationDelete,
+  ToolkitAuthorizationList,
 } from "../../backend/actions/toolkit_authorization";
+import Navigation from "../components/Navigation";
+import ProtectedRoute from "../components/ProtectedRoute";
+import { APIWrapper } from "../lib/api";
+import { useAuth } from "../lib/auth";
 
 interface Toolkit {
   name: string;
@@ -48,7 +47,7 @@ export default function Toolkits() {
     ToolkitAuthorization[]
   >([]);
   const [processingToolkit, setProcessingToolkit] = useState<string | null>(
-    null
+    null,
   );
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -76,7 +75,7 @@ export default function Toolkits() {
       setError(
         err instanceof Error
           ? err.message
-          : "An error occurred while loading toolkits"
+          : "An error occurred while loading toolkits",
       );
     } finally {
       setLoading(false);
@@ -84,7 +83,7 @@ export default function Toolkits() {
   };
 
   const isToolkitAuthorized = (toolkitName: string): boolean => {
-    return userAuthorizations.some(auth => auth.toolkitName === toolkitName);
+    return userAuthorizations.some((auth) => auth.toolkitName === toolkitName);
   };
 
   const getSortedToolkits = (): Toolkit[] => {
@@ -109,7 +108,7 @@ export default function Toolkits() {
     }
 
     const searchLower = searchTerm.toLowerCase();
-    return sortedToolkits.filter(toolkit => {
+    return sortedToolkits.filter((toolkit) => {
       // Search in toolkit name
       if (toolkit.name.toLowerCase().includes(searchLower)) {
         return true;
@@ -126,7 +125,7 @@ export default function Toolkits() {
       // Search in toolkit tools
       if (
         toolkit.tools &&
-        toolkit.tools.some(tool => tool.toLowerCase().includes(searchLower))
+        toolkit.tools.some((tool) => tool.toLowerCase().includes(searchLower))
       ) {
         return true;
       }
@@ -144,7 +143,7 @@ export default function Toolkits() {
         "/toolkit-authorizations",
         {
           toolkitName,
-        }
+        },
       );
 
       if (response.authUrl) {
@@ -154,7 +153,7 @@ export default function Toolkits() {
 
       // If no authUrl, authorization was successful and we can add it to the list
       if (response.toolkitAuthorization) {
-        setUserAuthorizations(prev => [
+        setUserAuthorizations((prev) => [
           ...prev,
           response.toolkitAuthorization!,
         ]);
@@ -162,7 +161,7 @@ export default function Toolkits() {
     } catch (err) {
       console.error("Failed to authorize toolkit:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to authorize toolkit"
+        err instanceof Error ? err.message : "Failed to authorize toolkit",
       );
     } finally {
       setProcessingToolkit(null);
@@ -178,17 +177,17 @@ export default function Toolkits() {
         "/toolkit-authorizations",
         {
           toolkitName,
-        }
+        },
       );
 
       // Remove the authorization from the list
-      setUserAuthorizations(prev =>
-        prev.filter(auth => auth.toolkitName !== toolkitName)
+      setUserAuthorizations((prev) =>
+        prev.filter((auth) => auth.toolkitName !== toolkitName),
       );
     } catch (err) {
       console.error("Failed to deauthorize toolkit:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to deauthorize toolkit"
+        err instanceof Error ? err.message : "Failed to deauthorize toolkit",
       );
     } finally {
       setProcessingToolkit(null);
@@ -278,7 +277,7 @@ export default function Toolkits() {
                       </tr>
                     </thead>
                     <tbody>
-                      {getFilteredAndSortedToolkits().map(toolkit => {
+                      {getFilteredAndSortedToolkits().map((toolkit) => {
                         const isAuthorized = isToolkitAuthorized(toolkit.name);
                         const isProcessing = processingToolkit === toolkit.name;
 
@@ -295,7 +294,7 @@ export default function Toolkits() {
                             </td>
                             <td>
                               <div className="d-flex flex-wrap gap-1">
-                                {toolkit.tools.slice(0, 3).map(tool => (
+                                {toolkit.tools.slice(0, 3).map((tool) => (
                                   <Badge
                                     key={tool}
                                     bg="secondary"

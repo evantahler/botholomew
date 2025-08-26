@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
 import { useRouter } from "next/router";
-import { Container, Form, Button, Alert, Card } from "react-bootstrap";
-import { useAuth } from "../lib/auth";
+import React, { useState } from "react";
+import { Alert, Button, Card, Container, Form } from "react-bootstrap";
 import type { UserCreate } from "../../backend/actions/user";
+import { useAuth } from "../lib/auth";
 
 type SignupFormData = UserCreate["inputs"]["_type"];
 

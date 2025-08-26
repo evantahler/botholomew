@@ -1,9 +1,8 @@
 "use client";
 
-import React from "react";
-import { Container, Card, Button, Alert } from "react-bootstrap";
-import { useAuth } from "../lib/auth";
+import { Alert, Button, Card, Container } from "react-bootstrap";
 import ProtectedRoute from "../components/ProtectedRoute";
+import { useAuth } from "../lib/auth";
 
 export default function Dashboard() {
   const { user, signout } = useAuth();

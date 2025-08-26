@@ -1,13 +1,13 @@
 import {
-  pgTable,
-  serial,
-  varchar,
-  timestamp,
-  text,
   boolean,
   integer,
   json,
   pgEnum,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  varchar,
 } from "drizzle-orm/pg-core";
 
 import { users } from "./user";

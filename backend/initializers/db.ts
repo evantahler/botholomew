@@ -1,15 +1,15 @@
-import { api, logger } from "../api";
-import { Initializer } from "../classes/Initializer";
-import { config } from "../config";
+import { $ } from "bun";
+import { type Config as DrizzleMigrateConfig } from "drizzle-kit";
+import { DefaultLogger, LogWriter, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { DefaultLogger, LogWriter, sql } from "drizzle-orm";
-import { Pool } from "pg";
-import path from "path";
-import { type Config as DrizzleMigrateConfig } from "drizzle-kit";
 import { unlink } from "node:fs/promises";
-import { $ } from "bun";
+import path from "path";
+import { Pool } from "pg";
+import { api, logger } from "../api";
+import { Initializer } from "../classes/Initializer";
 import { ErrorType, TypedError } from "../classes/TypedError";
+import { config } from "../config";
 import { formatConnectionStringForLogging } from "../util/connectionString";
 
 const namespace = "db";

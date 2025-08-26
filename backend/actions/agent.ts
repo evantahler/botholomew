@@ -1,15 +1,13 @@
+import { and, count, eq } from "drizzle-orm";
 import { z } from "zod";
-import { api, Action, type ActionParams, Connection } from "../api";
+import { Action, type ActionParams, api, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
-import { serializeAgent, getSystemPrompt } from "../ops/AgentOps";
-import { Agent, agents, responseTypes } from "../models/agent";
-import { SessionMiddleware } from "../middleware/session";
-import { eq, and, count } from "drizzle-orm";
 import { ErrorType, TypedError } from "../classes/TypedError";
-import { serializeAgentRun } from "../ops/AgentRunOps";
-import { zBooleanFromString } from "../util/zodMixins";
+import { SessionMiddleware } from "../middleware/session";
+import { Agent, agents, responseTypes } from "../models/agent";
+import { getSystemPrompt, serializeAgent } from "../ops/AgentOps";
 import { getUnauthorizedToolkits } from "../ops/ToolkitAuthorizationOps";
-import { agent_run, AgentRun } from "../models/workflow_run_step";
+import { zBooleanFromString } from "../util/zodMixins";
 
 export class AgentModels implements Action {
   name = "agent:models";
@@ -278,80 +276,5 @@ export class AgentList implements Action {
       .where(eq(agents.userId, userId));
 
     return { agents: rows.map(serializeAgent), total: total.count };
-  }
-}
-
-export class AgentRunAction implements Action {
-  name = "agent:run";
-  description = "Enqueue an agent run";
-  web = { route: "/agent/:id/run", method: HTTP_METHOD.POST };
-  middleware = [SessionMiddleware];
-  inputs = z.object({
-    id: z.coerce.number().int().describe("The agent's id"),
-  });
-
-  async run(params: ActionParams<AgentRunAction>, connection: Connection) {
-    const userId = connection.session?.data.userId;
-    if (!userId) {
-      throw new TypedError({
-        message: "User session not found",
-        type: ErrorType.CONNECTION_SESSION_NOT_FOUND,
-      });
-    }
-
-    // Get the agent and verify ownership
-    const [agent]: Agent[] = await api.db.db
-      .select()
-      .from(agents)
-      .where(and(eq(agents.id, params.id), eq(agents.userId, userId)))
-      .limit(1);
-
-    if (!agent) {
-      throw new TypedError({
-        message: "Agent not found or not owned by user",
-        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
-      });
-    }
-
-    if (!agent.enabled) {
-      throw new TypedError({
-        message: "Agent is not enabled",
-        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
-      });
-    }
-
-    // Check toolkit authorization before enqueueing the job
-    if (agent.toolkits && agent.toolkits.length > 0) {
-      const unauthorizedToolkits = await getUnauthorizedToolkits(
-        userId,
-        agent.toolkits,
-      );
-
-      if (unauthorizedToolkits.length > 0) {
-        throw new TypedError({
-          message: `Agent cannot run because you are not authorized to use the following toolkits: ${unauthorizedToolkits.join(", ")}. Please authorize these toolkits or remove them from the agent.`,
-          type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
-        });
-      }
-    }
-
-    const [agentRun]: AgentRun[] = await api.db.db
-      .insert(agent_run)
-      .values({
-        agentId: agent.id,
-        systemPrompt: agent.systemPrompt,
-        userMessage: agent.userPrompt,
-        response: null,
-        type: agent.responseType,
-        status: "pending",
-      })
-      .returning();
-
-    await api.actions.enqueue("agentRun:run", { id: agentRun.id });
-
-    return {
-      agent: serializeAgent(agent),
-      run: serializeAgentRun(agentRun),
-    };
   }
 }

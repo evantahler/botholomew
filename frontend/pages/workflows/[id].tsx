@@ -1,34 +1,34 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Button,
-  Badge,
   Alert,
-  Spinner,
+  Badge,
+  Button,
+  Card,
+  Col,
+  Container,
+  Form,
   ListGroup,
   Modal,
-  Form,
+  Row,
+  Spinner,
 } from "react-bootstrap";
-import { useAuth } from "../../lib/auth";
-import { APIWrapper } from "../../lib/api";
-import { formatDate } from "../../lib/utils";
-import { getStepTypeColor } from "../../lib/workflowUtils";
-import Navigation from "../../components/Navigation";
-import ProtectedRoute from "../../components/ProtectedRoute";
+import type { AgentList } from "../../../backend/actions/agent";
 import type {
-  WorkflowView,
-  WorkflowStepList,
   WorkflowRunCreate,
   WorkflowRunList,
+  WorkflowStepList,
+  WorkflowView,
 } from "../../../backend/actions/workflow";
-import type { AgentList } from "../../../backend/actions/agent";
 import type { ActionResponse } from "../../../backend/api";
+import Navigation from "../../components/Navigation";
+import ProtectedRoute from "../../components/ProtectedRoute";
+import { APIWrapper } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
+import { formatDate } from "../../lib/utils";
+import { getStepTypeColor } from "../../lib/workflowUtils";
 
 export default function ViewWorkflow() {
   const router = useRouter();
@@ -39,7 +39,7 @@ export default function ViewWorkflow() {
     ActionResponse<WorkflowView>["workflow"] | null
   >(null);
   const [steps, setSteps] = useState<ActionResponse<WorkflowStepList>["steps"]>(
-    []
+    [],
   );
   const [agents, setAgents] = useState<ActionResponse<AgentList>["agents"]>([]);
   const [runs, setRuns] = useState<ActionResponse<WorkflowRunList>["runs"]>([]);
@@ -64,7 +64,7 @@ export default function ViewWorkflow() {
 
       // Fetch workflow steps
       const stepsResponse = await APIWrapper.get<WorkflowStepList>(
-        `/workflow/${id}/steps`
+        `/workflow/${id}/steps`,
       );
       setSteps(stepsResponse.steps || []);
     } catch (err) {
@@ -86,7 +86,7 @@ export default function ViewWorkflow() {
   const fetchRuns = async () => {
     try {
       const response = await APIWrapper.get<WorkflowRunList>(
-        `/workflow/${id}/runs`
+        `/workflow/${id}/runs`,
       );
       setRuns(response.runs || []);
     } catch (err) {
@@ -256,8 +256,8 @@ export default function ViewWorkflow() {
                           {step.stepType === "agent" && step.agentId && (
                             <div className="text-muted small mt-1">
                               Agent:{" "}
-                              {agents.find(a => a.id === step.agentId)?.name ||
-                                "Unknown"}
+                              {agents.find((a) => a.id === step.agentId)
+                                ?.name || "Unknown"}
                             </div>
                           )}
                         </div>
@@ -279,7 +279,7 @@ export default function ViewWorkflow() {
                   <p className="text-muted">No runs yet</p>
                 ) : (
                   <div className="run-list">
-                    {runs.slice(0, 5).map(run => (
+                    {runs.slice(0, 5).map((run) => (
                       <div
                         key={run.id}
                         className="run-item mb-3 p-3 border rounded"
@@ -345,7 +345,7 @@ export default function ViewWorkflow() {
               as="textarea"
               rows={3}
               value={runInput}
-              onChange={e => setRunInput(e.target.value)}
+              onChange={(e) => setRunInput(e.target.value)}
               placeholder="Enter any input data for the workflow..."
             />
             <Form.Text className="text-muted">

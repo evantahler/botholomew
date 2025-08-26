@@ -1,15 +1,15 @@
-import { test, describe, expect, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
+import type { SessionCreate } from "../../actions/session";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
-import type { SessionCreate } from "../../actions/session";
+import { agents } from "../../models/agent";
+import { toolkit_authorizations } from "../../models/toolkit_authorization";
 import {
   createTestUser,
   createUserAndSession,
   USERS,
 } from "../utils/testHelpers";
-import { toolkit_authorizations } from "../../models/toolkit_authorization";
-import { agents } from "../../models/agent";
-import { eq } from "drizzle-orm";
 
 const url = config.server.web.applicationUrl;
 

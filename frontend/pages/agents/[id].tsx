@@ -1,31 +1,31 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Col,
   Container,
   Row,
-  Col,
-  Card,
-  Button,
-  Badge,
-  Alert,
   Spinner,
   Table,
 } from "react-bootstrap";
-import { useAuth } from "../../lib/auth";
-import { APIWrapper } from "../../lib/api";
-import Navigation from "../../components/Navigation";
-import ProtectedRoute from "../../components/ProtectedRoute";
-import Pagination from "../../components/Pagination";
-import MarkdownRenderer from "../../components/MarkdownRenderer";
 import type {
-  AgentView,
   AgentDelete,
   AgentRunAction,
+  AgentView,
 } from "../../../backend/actions/agent";
 import type { AgentRunList } from "../../../backend/actions/agentRun";
 import type { ActionResponse } from "../../../backend/api";
+import MarkdownRenderer from "../../components/MarkdownRenderer";
+import Navigation from "../../components/Navigation";
+import Pagination from "../../components/Pagination";
+import ProtectedRoute from "../../components/ProtectedRoute";
+import { APIWrapper } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 
 export default function AgentDetail() {
   const router = useRouter();
@@ -35,7 +35,7 @@ export default function AgentDetail() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agent, setAgent] = useState<ActionResponse<AgentView>["agent"] | null>(
-    null
+    null,
   );
 
   // Agent runs state
@@ -91,7 +91,7 @@ export default function AgentDetail() {
       setTotalPages(Math.ceil((response.total || 0) / agentRunsPerPage));
     } catch (err) {
       setAgentRunsError(
-        err instanceof Error ? err.message : "Failed to load agent runs"
+        err instanceof Error ? err.message : "Failed to load agent runs",
       );
     } finally {
       setAgentRunsLoading(false);
@@ -143,7 +143,7 @@ export default function AgentDetail() {
       await fetchAgentRuns();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to delete agent run"
+        err instanceof Error ? err.message : "Failed to delete agent run",
       );
     }
   };
@@ -411,7 +411,7 @@ export default function AgentDetail() {
                           (
                             agentRun: NonNullable<
                               ActionResponse<AgentRunList>["agentRuns"]
-                            >[0]
+                            >[0],
                           ) => (
                             <tr key={agentRun.id}>
                               <td>
@@ -470,7 +470,7 @@ export default function AgentDetail() {
                                 </Button>
                               </td>
                             </tr>
-                          )
+                          ),
                         )}
                       </tbody>
                     </Table>

@@ -1,11 +1,10 @@
 "use client";
 
-import React from "react";
 import Head from "next/head";
-import { Container, Row, Col, Card, Button } from "react-bootstrap";
-import { useAuth } from "../lib/auth";
 import Link from "next/link";
+import { Card, Col, Container, Row } from "react-bootstrap";
 import Logo from "../components/Logo";
+import { useAuth } from "../lib/auth";
 
 export default function Home() {
   const { user, loading } = useAuth();

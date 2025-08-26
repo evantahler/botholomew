@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { api, Action, type ActionParams, Connection } from "../api";
+import { Action, type ActionParams, api, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
 import { SessionMiddleware } from "../middleware/session";
 

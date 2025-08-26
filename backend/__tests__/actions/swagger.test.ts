@@ -1,7 +1,7 @@
-import { test, describe, expect, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { Swagger } from "../../actions/swagger";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
-import type { Swagger } from "../../actions/swagger";
 
 const url = config.server.web.applicationUrl;
 

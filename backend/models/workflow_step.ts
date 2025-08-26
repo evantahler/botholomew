@@ -1,13 +1,13 @@
 import {
+  integer,
+  pgEnum,
   pgTable,
   serial,
   timestamp,
-  integer,
-  pgEnum,
 } from "drizzle-orm/pg-core";
 
-import { workflows } from "./workflow";
 import { agents } from "./agent";
+import { workflows } from "./workflow";
 
 export const stepTypes = pgEnum("step_type", [
   "agent",
