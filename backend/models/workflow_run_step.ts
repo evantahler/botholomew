@@ -37,10 +37,10 @@ export const workflow_run_steps = pgTable("workflow_run_steps", {
     .defaultNow()
     .$onUpdateFn(() => new Date()),
   systemPrompt: text("system_prompt").notNull(),
-  userMessage: text("user_message").notNull(),
+  userPrompt: text("user_message").notNull(),
   input: text("input"),
   outout: text("outout").$type<string | null>(),
-  type: responseTypes("type").notNull(),
+  responseType: responseTypes("type").notNull(),
   status: workflowRunStepStatus("workflow_run_step_status")
     .default("pending")
     .notNull(),

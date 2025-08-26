@@ -379,3 +379,150 @@ describe("workflow:run:list", () => {
     expect(response.status).toBe(406);
   });
 });
+
+describe("WorkflowRunTick", () => {
+  it("should process the next step in a workflow run", async () => {
+    // Create a user
+    const user = await createTestUser();
+    const session = await createUserAndSession(USERS.MARIO);
+
+    // Create a workflow
+    const workflow = await createTestWorkflow(user.id);
+
+    // Create workflow steps
+    const step1 = await createTestWorkflowStep(workflow.id, 1);
+    const step2 = await createTestWorkflowStep(workflow.id, 2);
+
+    // Create a workflow run
+    const workflowRun = await createTestWorkflowRun(workflow.id);
+
+    // Mock the agent execution
+    jest.spyOn(api.arcade, "loadArcadeToolsForAgent").mockResolvedValue([]);
+
+    // Execute the tick action
+    const response = await testAction(
+      WorkflowRunTick,
+      {
+        id: workflowRun.id,
+      },
+      session,
+    );
+
+    expect(response.status).toBe("step_completed");
+    expect(response.stepId).toBe(step1.id);
+    expect(response.stepType).toBe("agent");
+    expect(response.message).toContain("Step 1 completed successfully");
+
+    // Verify the workflow run step was created
+    const runSteps = await api.db.db
+      .select()
+      .from(workflow_run_steps)
+      .where(eq(workflow_run_steps.workflowRunId, workflowRun.id));
+
+    expect(runSteps).toHaveLength(1);
+    expect(runSteps[0].workflowStepId).toBe(step1.id);
+    expect(runSteps[0].status).toBe("completed");
+
+    // Verify workflow run status was updated
+    const updatedRun = await api.db.db
+      .select()
+      .from(workflow_runs)
+      .where(eq(workflow_runs.id, workflowRun.id))
+      .limit(1);
+
+    expect(updatedRun[0].status).toBe("running");
+    expect(updatedRun[0].startedAt).toBeTruthy();
+  });
+
+  it("should complete workflow run when all steps are done", async () => {
+    // Create a user
+    const user = await createTestUser();
+    const session = await createUserAndSession(USERS.MARIO);
+
+    // Create a workflow
+    const workflow = await createTestWorkflow(user.id);
+
+    // Create a single workflow step
+    const step = await createTestWorkflowStep(workflow.id, 1);
+
+    // Create a workflow run
+    const workflowRun = await createTestWorkflowRun(workflow.id);
+
+    // Mock the agent execution
+    jest.spyOn(api.arcade, "loadArcadeToolsForAgent").mockResolvedValue([]);
+
+    // Execute the tick action
+    const response = await testAction(
+      WorkflowRunTick,
+      {
+        id: workflowRun.id,
+      },
+      session,
+    );
+
+    expect(response.status).toBe("step_completed");
+    expect(response.stepId).toBe(step.id);
+
+    // Execute tick again to complete the workflow
+    const response2 = await testAction(
+      WorkflowRunTick,
+      {
+        id: workflowRun.id,
+      },
+      session,
+    );
+
+    expect(response2.status).toBe("completed");
+    expect(response2.message).toBe("All workflow steps completed successfully");
+
+    // Verify workflow run is marked as completed
+    const updatedRun = await api.db.db
+      .select()
+      .from(workflow_runs)
+      .where(eq(workflow_runs.id, workflowRun.id))
+      .limit(1);
+
+    expect(updatedRun[0].status).toBe("completed");
+    expect(updatedRun[0].completedAt).toBeTruthy();
+  });
+
+  it("should fail if workflow run is already completed", async () => {
+    // Create a user
+    const user = await createTestUser();
+    const session = await createUserAndSession(USERS.MARIO);
+
+    // Create a workflow
+    const workflow = await createTestWorkflow(user.id);
+
+    // Create a workflow run that's already completed
+    const workflowRun = await createTestWorkflowRun(workflow.id, "completed");
+
+    // Try to execute the tick action
+    await expect(
+      testAction(
+        WorkflowRunTick,
+        {
+          id: workflowRun.id,
+        },
+        session,
+      ),
+    ).rejects.toThrow("Workflow run is already completed or failed");
+  });
+
+  it("should fail if workflow run is not found", async () => {
+    // Create a user
+    const user = await createTestUser();
+    const session = await createUserAndSession(USERS.MARIO);
+
+    // Try to execute the tick action with non-existent run ID
+    await expect(
+      testAction(
+        WorkflowRunTick,
+        {
+          id: 99999,
+        },
+        session,
+      ),
+    ).rejects.toThrow("Workflow run not found");
+  });
+});

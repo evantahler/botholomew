@@ -1,23 +1,7 @@
-import {
-  integer,
-  pgEnum,
-  pgTable,
-  serial,
-  timestamp,
-} from "drizzle-orm/pg-core";
+import { integer, pgTable, serial, timestamp } from "drizzle-orm/pg-core";
 
 import { agents } from "./agent";
 import { workflows } from "./workflow";
-
-export const stepTypes = pgEnum("step_type", [
-  "agent",
-  "condition",
-  "loop",
-  "webhook",
-  "delay",
-  "manual",
-  "timer",
-]);
 
 export const workflow_steps = pgTable("workflow_steps", {
   id: serial("id").primaryKey(),
@@ -29,10 +13,11 @@ export const workflow_steps = pgTable("workflow_steps", {
   workflowId: integer("workflow_id")
     .references(() => workflows.id, { onDelete: "cascade" })
     .notNull(),
-  agentId: integer("agent_id").references(() => agents.id, {
-    onDelete: "cascade",
-  }),
-  stepType: stepTypes("step_type").notNull(),
+  agentId: integer("agent_id")
+    .references(() => agents.id, {
+      onDelete: "cascade",
+    })
+    .notNull(),
   position: integer("position").notNull().default(1),
 });
 

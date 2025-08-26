@@ -5,11 +5,7 @@ import { HTTP_METHOD } from "../classes/Action";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { SessionMiddleware } from "../middleware/session";
 import { Workflow, workflows } from "../models/workflow";
-import {
-  stepTypes,
-  workflow_steps,
-  WorkflowStep,
-} from "../models/workflow_step";
+import { workflow_steps, WorkflowStep } from "../models/workflow_step";
 import { serializeWorkflowStep } from "../ops/WorkflowStepOps";
 
 export class WorkflowStepCreate implements Action {
@@ -20,7 +16,6 @@ export class WorkflowStepCreate implements Action {
   inputs = z.object({
     id: z.coerce.number().int().describe("The workflow's id"),
     agentId: z.coerce.number().int().optional().describe("The agent's id"),
-    stepType: z.enum(stepTypes.enumValues).describe("The type of step"),
     position: z.coerce.number().int().describe("The step's position"),
   });
 
@@ -46,7 +41,6 @@ export class WorkflowStepCreate implements Action {
       .values({
         workflowId: params.id,
         agentId: params.agentId,
-        stepType: params.stepType,
         position: params.position,
       })
       .returning();
@@ -64,7 +58,6 @@ export class WorkflowStepEdit implements Action {
     id: z.coerce.number().int().describe("The workflow's id"),
     stepId: z.coerce.number().int().describe("The step's id"),
     agentId: z.coerce.number().int().optional(),
-    stepType: z.enum(stepTypes.enumValues).optional(),
     position: z.coerce.number().int().optional(),
   });
 
@@ -90,7 +83,6 @@ export class WorkflowStepEdit implements Action {
 
     const updates: Record<string, any> = {};
     if (params.agentId !== undefined) updates.agentId = params.agentId;
-    if (params.stepType !== undefined) updates.stepType = params.stepType;
     if (params.position !== undefined) updates.position = params.position;
 
     const [updatedStep]: WorkflowStep[] = await api.db.db
