@@ -4,7 +4,7 @@ import { Action, type ActionParams, api, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { SessionMiddleware } from "../middleware/session";
-import { workflows } from "../models/workflow";
+import { Workflow, workflows } from "../models/workflow";
 import { workflow_runs, WorkflowRun } from "../models/workflow_run";
 import { serializeWorkflowRun } from "../ops/WorkflowRunOps";
 
@@ -27,8 +27,7 @@ export class WorkflowRunCreate implements Action {
       });
     }
 
-    // Verify workflow ownership
-    const [workflow] = await api.db.db
+    const [workflow]: Workflow[] = await api.db.db
       .select()
       .from(workflows)
       .where(and(eq(workflows.id, params.id), eq(workflows.userId, userId)))
@@ -48,7 +47,7 @@ export class WorkflowRunCreate implements Action {
       });
     }
 
-    const [run] = await api.db.db
+    const [run]: WorkflowRun[] = await api.db.db
       .insert(workflow_runs)
       .values({
         workflowId: params.id,
@@ -83,14 +82,28 @@ export class WorkflowRunView implements Action {
       });
     }
 
-    const [run] = await api.db.db
+    const [run]: WorkflowRun[] = await api.db.db
       .select()
       .from(workflow_runs)
-      .innerJoin(workflows, eq(workflow_runs.workflowId, workflows.id))
-      .where(and(eq(workflow_runs.id, params.id), eq(workflows.userId, userId)))
+      .where(eq(workflow_runs.id, params.id))
       .limit(1);
 
     if (!run) {
+      throw new TypedError({
+        message: "Workflow run not found",
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+      });
+    }
+
+    const [workflow]: Workflow[] = await api.db.db
+      .select()
+      .from(workflows)
+      .where(
+        and(eq(workflows.id, run.workflowId), eq(workflows.userId, userId)),
+      )
+      .limit(1);
+
+    if (!workflow) {
       throw new TypedError({
         message: "Workflow run not found or not owned by user",
         type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
@@ -122,8 +135,7 @@ export class WorkflowRunList implements Action {
       });
     }
 
-    // Verify workflow ownership
-    const [workflow] = await api.db.db
+    const [workflow]: Workflow[] = await api.db.db
       .select()
       .from(workflows)
       .where(and(eq(workflows.id, id), eq(workflows.userId, userId)))

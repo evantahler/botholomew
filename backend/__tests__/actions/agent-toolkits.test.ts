@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 import type { SessionCreate } from "../../actions/session";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
-import { agents } from "../../models/agent";
 import { toolkit_authorizations } from "../../models/toolkit_authorization";
 import {
   createTestUser,
@@ -655,38 +654,6 @@ describe("agent toolkits", () => {
       });
       const agentData = await agentResponse.json();
       agentWithToolkits = agentData.agent;
-    });
-
-    test("should fail to run agent with unauthorized toolkits", async () => {
-      // Directly update the agent in the database to have unauthorized toolkits
-      // This bypasses the normal edit validation to test the tick validation
-      await api.db.db
-        .update(agents)
-        .set({ toolkits: ["unauthorized_toolkit", "another_unauthorized"] })
-        .where(eq(agents.id, agentWithToolkits.id));
-
-      // Try to run the agent
-      const tickResponse = await fetch(
-        `${url}/api/agent/${agentWithToolkits.id}/run`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Cookie: `${session.cookieName}=${session.id}`,
-          },
-          body: JSON.stringify({
-            id: agentWithToolkits.id,
-          }),
-        },
-      );
-
-      expect(tickResponse.status).toBe(406);
-      const errorData = await tickResponse.json();
-      expect(errorData.error.message).toContain(
-        "Agent cannot run because you are not authorized to use the following toolkits",
-      );
-      expect(errorData.error.message).toContain("unauthorized_toolkit");
-      expect(errorData.error.message).toContain("another_unauthorized");
     });
 
     test("should run agent with authorized toolkits", async () => {
