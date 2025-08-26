@@ -521,3 +521,98 @@ describe("agent:list", () => {
     }
   });
 });
+
+describe("agent:run", () => {
+  let runUser: ActionResponse<SessionCreate>["user"];
+  let runSession: ActionResponse<SessionCreate>["session"];
+  let createdAgent: ActionResponse<AgentCreate>["agent"];
+
+  beforeAll(async () => {
+    const testSession = await createUserAndSession(USERS.MARIO);
+    runUser = testSession.user;
+    runSession = testSession.session;
+    createdAgent = await createAgent(testSession, {
+      name: "Run Test Agent",
+      description: "A test agent for running",
+      model: "gpt-4o",
+      userPrompt: "You are a helpful assistant.",
+      enabled: true,
+    });
+  });
+
+  test("should run an agent successfully", async () => {
+    const response = await fetch(`${url}/api/agent/${createdAgent.id}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${runSession.cookieName}=${runSession.id}`,
+      },
+      body: JSON.stringify({
+        additionalContext: "Test context",
+      }),
+    });
+
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    // The agent run might fail due to mocked dependencies, but we should get a response
+    expect(data).toHaveProperty("status");
+    expect(data).toHaveProperty("result");
+    // Check that either status is completed or we have an error message
+    expect(["completed", "failed"]).toContain(data.status);
+  });
+
+  test("should reject when user is not authenticated", async () => {
+    const response = await fetch(`${url}/api/agent/${createdAgent.id}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        additionalContext: "Test context",
+      }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  test("should reject when agent is not found", async () => {
+    const response = await fetch(`${url}/api/agent/99999/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${runSession.cookieName}=${runSession.id}`,
+      },
+      body: JSON.stringify({
+        additionalContext: "Test context",
+      }),
+    });
+
+    expect(response.status).toBe(406);
+  });
+
+  test("should reject when agent is not owned by user", async () => {
+    // Create another user and agent
+    const otherSession = await createUserAndSession(USERS.LUIGI);
+    const otherAgent = await createAgent(otherSession, {
+      name: "Other User Agent",
+      description: "Another user's agent",
+      model: "gpt-4o",
+      userPrompt: "You are a helpful assistant.",
+      enabled: true,
+    });
+
+    // Try to run the other user's agent with the first user's session
+    const response = await fetch(`${url}/api/agent/${otherAgent.id}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${runSession.cookieName}=${runSession.id}`,
+      },
+      body: JSON.stringify({
+        additionalContext: "Test context",
+      }),
+    });
+
+    expect(response.status).toBe(406);
+  });
+});

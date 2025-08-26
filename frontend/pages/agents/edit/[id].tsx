@@ -15,11 +15,13 @@ import {
 import type {
   AgentEdit,
   AgentModels,
+  AgentRun,
   AgentView,
 } from "../../../../backend/actions/agent";
 import type { ArcadeListToolkits } from "../../../../backend/actions/arcade";
 import type { ToolkitAuthorizationList } from "../../../../backend/actions/toolkit_authorization";
 import type { ActionResponse } from "../../../../backend/api";
+import MarkdownRenderer from "../../../components/MarkdownRenderer";
 import Navigation from "../../../components/Navigation";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import ToolkitSelector from "../../../components/ToolkitSelector";
@@ -53,6 +55,13 @@ export default function EditAgent() {
     enabled: false,
     toolkits: [],
   });
+
+  // Test agent state
+  const [testContext, setTestContext] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<ActionResponse<AgentRun> | null>(
+    null,
+  );
 
   // Toolkits state
   const [availableToolkits, setAvailableToolkits] = useState<
@@ -236,6 +245,27 @@ export default function EditAgent() {
     router.push(`/agents/${id}`);
   };
 
+  const handleTestAgent = async () => {
+    if (!agent) return;
+
+    setTesting(true);
+    setTestResult(null);
+    setError(null);
+
+    try {
+      const response: ActionResponse<AgentRun> =
+        await APIWrapper.post<AgentRun>(`/agent/${agent.id}/run`, {
+          additionalContext: testContext || undefined,
+        });
+
+      setTestResult(response);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to test agent");
+    } finally {
+      setTesting(false);
+    }
+  };
+
   if (!user) {
     return <ProtectedRoute children={undefined} />;
   }
@@ -313,14 +343,14 @@ export default function EditAgent() {
 
         <Row>
           <Col lg={8}>
-            <Card>
+            <Card className="mb-4">
               <Card.Header>
                 <h6>Edit Agent Configuration</h6>
               </Card.Header>
               <Card.Body className="p-3">
                 <Form onSubmit={handleSubmit}>
                   <Form.Group className="mb-3">
-                    <Form.Label className="small">Agent Name *</Form.Label>
+                    <Form.Label className="small">Name *</Form.Label>
                     <Form.Control
                       type="text"
                       name="name"
@@ -333,19 +363,20 @@ export default function EditAgent() {
                   </Form.Group>
 
                   <Form.Group className="mb-3">
-                    <Form.Label className="small">AI Model *</Form.Label>
+                    <Form.Label className="small">Model *</Form.Label>
                     <Form.Select
                       name="model"
                       value={formData.model}
-                      // @ts-ignore
-                      onChange={handleInputChange}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          model: e.target.value,
+                        }))
+                      }
                       required
                       size="sm"
-                      disabled={modelsLoading}
                     >
-                      {modelsLoading ? (
-                        <option>Loading models...</option>
-                      ) : availableModels && availableModels.length > 0 ? (
+                      {availableModels.length > 0 ? (
                         availableModels.map((model) => (
                           <option key={model.value} value={model.value}>
                             {model.label}
@@ -389,8 +420,15 @@ export default function EditAgent() {
                     <Form.Select
                       name="responseType"
                       value={formData.responseType}
-                      // @ts-ignore
-                      onChange={handleInputChange}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          responseType: e.target.value as
+                            | "text"
+                            | "json"
+                            | "markdown",
+                        }))
+                      }
                       size="sm"
                     >
                       <option value="text">Text</option>
@@ -520,6 +558,85 @@ export default function EditAgent() {
                         </span>
                       ))}
                     </div>
+                  </div>
+                )}
+              </Card.Body>
+            </Card>
+
+            <Card className="mb-4">
+              <Card.Header>
+                <h6>Test Agent</h6>
+              </Card.Header>
+              <Card.Body className="p-3">
+                <Form.Group className="mb-3">
+                  <Form.Label className="small">
+                    Additional Context (Optional)
+                  </Form.Label>
+                  <Form.Control
+                    type="text"
+                    placeholder="Enter additional context for testing"
+                    value={testContext}
+                    onChange={(e) => setTestContext(e.target.value)}
+                    size="sm"
+                  />
+                </Form.Group>
+
+                <div className="d-grid">
+                  <Button
+                    type="button"
+                    variant="outline-info"
+                    size="sm"
+                    onClick={handleTestAgent}
+                    disabled={testing || !agent}
+                  >
+                    {testing ? (
+                      <>
+                        <Spinner
+                          as="span"
+                          animation="border"
+                          size="sm"
+                          role="status"
+                          aria-hidden="true"
+                          className="me-2"
+                        />
+                        Testing...
+                      </>
+                    ) : (
+                      "Test Agent"
+                    )}
+                  </Button>
+                </div>
+
+                {testResult && (
+                  <div className="mt-3">
+                    <div className="d-flex align-items-center mb-2">
+                      <strong className="me-2">Test Result:</strong>
+                      <span
+                        className={`badge bg-${
+                          testResult.status === "completed"
+                            ? "success"
+                            : "danger"
+                        }`}
+                      >
+                        {testResult.status}
+                      </span>
+                    </div>
+                    {testResult.result && (
+                      <div className="mb-2">
+                        <strong>Output:</strong>
+                        <div className="mt-1 p-2 bg-light rounded small">
+                          <MarkdownRenderer content={testResult.result} />
+                        </div>
+                      </div>
+                    )}
+                    {testResult.error && (
+                      <div className="mb-2">
+                        <strong>Error:</strong>
+                        <div className="mt-1 p-2 bg-danger bg-opacity-10 text-danger rounded small">
+                          {testResult.error}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </Card.Body>

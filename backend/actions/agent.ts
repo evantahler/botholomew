@@ -5,7 +5,7 @@ import { HTTP_METHOD } from "../classes/Action";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { SessionMiddleware } from "../middleware/session";
 import { Agent, agents, responseTypes } from "../models/agent";
-import { getSystemPrompt, serializeAgent } from "../ops/AgentOps";
+import { agentRun, getSystemPrompt, serializeAgent } from "../ops/AgentOps";
 import { getUnauthorizedToolkits } from "../ops/ToolkitAuthorizationOps";
 import { zBooleanFromString } from "../util/zodMixins";
 
@@ -276,5 +276,52 @@ export class AgentList implements Action {
       .where(eq(agents.userId, userId));
 
     return { agents: rows.map(serializeAgent), total: total.count };
+  }
+}
+
+export class AgentRun implements Action {
+  name = "agent:run";
+  description = "Run an agent";
+  web = { route: "/agent/:id/run", method: HTTP_METHOD.POST };
+  middleware = [SessionMiddleware];
+  inputs = z.object({
+    id: z.coerce.number().int().describe("The agent's id"),
+    additionalContext: z
+      .string()
+      .optional()
+      .describe("Additional context for the agent run"),
+  });
+
+  async run(params: ActionParams<AgentRun>, connection: Connection) {
+    const userId = connection.session?.data.userId;
+    if (!userId) {
+      throw new TypedError({
+        message: "User session not found",
+        type: ErrorType.CONNECTION_SESSION_NOT_FOUND,
+      });
+    }
+
+    // Get the agent and verify ownership
+    const [agent]: Agent[] = await api.db.db
+      .select()
+      .from(agents)
+      .where(and(eq(agents.id, params.id), eq(agents.userId, userId)))
+      .limit(1);
+
+    if (!agent) {
+      throw new TypedError({
+        message: "Agent not found or not owned by user",
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+      });
+    }
+
+    // Run the agent
+    const result = await agentRun(agent, undefined, params.additionalContext);
+
+    return {
+      status: result.status,
+      result: result.result,
+      error: result.error,
+    };
   }
 }

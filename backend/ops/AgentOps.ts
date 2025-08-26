@@ -1,5 +1,6 @@
 import { Agent as OpenAIAgent, run } from "@openai/agents";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { api } from "../api";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { type Agent } from "../models/agent";
@@ -34,11 +35,61 @@ export function getSystemPrompt(agent: Agent) {
   ` as const;
 }
 
-export async function agentTick(
+export class AgentRunResult {
+  status: (typeof workflow_run_steps.$inferSelect)["status"] = "pending";
+  result: string | undefined;
+  error: string | undefined;
+  workflowRunStep: WorkflowRunStep | undefined;
+
+  async judgeStatus(instructions: string) {
+    const judgeAgent = new OpenAIAgent({
+      name: "AgentRunResult - Judge",
+      instructions: `
+      You are given a result from an agent's run and instructions.
+      You must judge if the result successfully completed the instructions or not.
+      The result was not successful if it was empty or missing an argument, or if it was an error.
+      `,
+      model: "gpt-4o",
+      outputType: z.object({
+        success: z.boolean().describe("Was the result successful?"),
+        reasoning: z
+          .string()
+          .describe(
+            "Why was this result considered successful? Briefly explain why.",
+          ),
+      }),
+    });
+
+    const question = `
+    Your original instructions where:
+    <ORIGINAL_INSTRUCTIONS>
+    ${instructions}
+    </ORIGINAL_INSTRUCTIONS>
+    The result of the agent's previous run was:
+    <RESULT>
+    ${this.result ? this.result : "No result provided"}
+    </RESULT>
+    ${
+      this.error
+        ? `The error was: <ERROR>\n${this.error}\n</ERROR>`
+        : "No error was provided"
+    }
+    Was this result successful?
+    `;
+
+    const result = await run(judgeAgent, question);
+
+    return result.finalOutput;
+  }
+}
+
+export async function agentRun(
   agent: Agent,
-  workflowRunStep: WorkflowRunStep,
+  workflowRunStep: WorkflowRunStep | undefined = undefined,
   additionalContext: string | undefined = undefined,
-) {
+): Promise<AgentRunResult> {
+  const runResult = new AgentRunResult();
+
   const [user]: User[] = await api.db.db
     .select()
     .from(users)
@@ -90,45 +141,61 @@ export async function agentTick(
       childAgents.push(child);
     }
 
+    const instructions =
+      agent.systemPrompt +
+      "\n\n---\n\n Additional information about the user: \r\n" +
+      user.metadata +
+      (additionalContext
+        ? "\n\n---\n\n Additional context: \r\n" + additionalContext
+        : "");
+
     const parentAgent = new OpenAIAgent({
       name: agent.name + " (parent)",
-      instructions:
-        agent.systemPrompt +
-        "\n\n---\n\n Additional information about the user: \r\n" +
-        user.metadata +
-        (additionalContext
-          ? "\n\n---\n\n Additional context: \r\n" + additionalContext
-          : ""),
+      instructions,
       model: agent.model,
       tools: [],
       handoffs: childAgents,
     });
 
     const result = await run(parentAgent, agent.userPrompt);
+    runResult.result = result.finalOutput;
+    runResult.status = (await runResult.judgeStatus(instructions))?.success
+      ? "completed"
+      : "failed";
 
-    await api.db.db
-      .update(workflow_run_steps)
-      .set({
-        outout: result.finalOutput ?? null,
-        status: "completed",
-      })
-      .where(eq(workflow_run_steps.id, workflowRunStep.id));
+    if (workflowRunStep) {
+      await api.db.db
+        .update(workflow_run_steps)
+        .set({
+          outout: runResult.result,
+          status: runResult.status,
+        })
+        .where(eq(workflow_run_steps.id, workflowRunStep.id));
+    }
   } catch (error) {
-    await api.db.db
-      .update(workflow_run_steps)
-      .set({
-        outout: String(error) ?? null,
-        status: "failed",
-      })
-      .where(eq(workflow_run_steps.id, workflowRunStep.id));
+    runResult.error = String(error);
+    runResult.status = "failed";
+    if (workflowRunStep) {
+      await api.db.db
+        .update(workflow_run_steps)
+        .set({
+          outout: runResult.error,
+          status: runResult.status,
+        })
+        .where(eq(workflow_run_steps.id, workflowRunStep.id));
+    }
   }
 
   // reload agentRun
-  const [reloadedWorkflowRunStep]: WorkflowRunStep[] = await api.db.db
-    .select()
-    .from(workflow_run_steps)
-    .where(eq(workflow_run_steps.id, workflowRunStep.id))
-    .limit(1);
+  if (workflowRunStep) {
+    const [reloadedWorkflowRunStep]: WorkflowRunStep[] = await api.db.db
+      .select()
+      .from(workflow_run_steps)
+      .where(eq(workflow_run_steps.id, workflowRunStep.id))
+      .limit(1);
 
-  return reloadedWorkflowRunStep;
+    runResult.workflowRunStep = reloadedWorkflowRunStep;
+  }
+
+  return runResult;
 }
