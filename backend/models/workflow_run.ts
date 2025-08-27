@@ -34,6 +34,7 @@ export const workflow_runs = pgTable("workflow_runs", {
   error: text("error"),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
+  currentStep: integer("current_step").notNull().default(0),
   metadata: json("metadata").$type<Record<string, any>>().default({}).notNull(),
 });
 

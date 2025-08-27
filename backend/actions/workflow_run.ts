@@ -1,4 +1,4 @@
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { Action, type ActionParams, api, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
@@ -12,6 +12,8 @@ import {
   WorkflowRunStep,
 } from "../models/workflow_run_step";
 import { workflow_steps, WorkflowStep } from "../models/workflow_step";
+import { agentRun } from "../ops/AgentOps";
+import { serializeWorkflowRunStep } from "../ops/AgentRunOps";
 import { serializeWorkflowRun } from "../ops/WorkflowRunOps";
 
 export class WorkflowRunCreate implements Action {
@@ -334,53 +336,10 @@ export class WorkflowRunTick implements Action {
       };
     }
 
-    // Find the next step to process
-    let nextStep: (typeof workflowSteps)[0] | null = null;
-    let nextStepIndex = 0;
+    const thisStep = workflowSteps[workflowRun.currentStep];
+    const previousStep = workflowSteps[workflowRun.currentStep - 1];
 
-    // Check if we have any workflow run steps
-    const existingRunSteps: WorkflowRunStep[] = await api.db.db
-      .select()
-      .from(workflow_run_steps)
-      .where(eq(workflow_run_steps.workflowRunId, workflowRun.id))
-      .orderBy(workflow_run_steps.createdAt, asc);
-
-    if (existingRunSteps.length === 0) {
-      // No steps processed yet, start with the first step
-      nextStep = workflowSteps[0];
-      nextStepIndex = 0;
-    } else {
-      // Find the next step after the last completed step
-      const lastCompletedStep = existingRunSteps.find(
-        (step: WorkflowRunStep) => step.status === "completed",
-      );
-      if (lastCompletedStep) {
-        const lastStepIndex = workflowSteps.findIndex(
-          (step: WorkflowStep) => step.id === lastCompletedStep.workflowStepId,
-        );
-        if (lastStepIndex < workflowSteps.length - 1) {
-          nextStep = workflowSteps[lastStepIndex + 1];
-          nextStepIndex = lastStepIndex + 1;
-        } else {
-          // Check for pending steps
-          const pendingStep = existingRunSteps.find(
-            (step: WorkflowRunStep) => step.status === "pending",
-          );
-          if (pendingStep) {
-            nextStep =
-              workflowSteps.find(
-                (step: WorkflowStep) => step.id === pendingStep.workflowStepId,
-              ) || null;
-            nextStepIndex = workflowSteps.findIndex(
-              (step: WorkflowStep) => step.id === pendingStep.workflowStepId,
-            );
-          }
-        }
-      }
-    }
-
-    if (!nextStep) {
-      // All steps are completed, mark workflow run as completed
+    if (!thisStep) {
       await api.db.db
         .update(workflow_runs)
         .set({
@@ -394,68 +353,77 @@ export class WorkflowRunTick implements Action {
       };
     }
 
-    // Create or update workflow run step
-    let workflowRunStep = existingRunSteps.find(
-      (step: WorkflowRunStep) => step.workflowStepId === nextStep.id,
-    );
+    const [agent]: Agent[] = await api.db.db
+      .select()
+      .from(agents)
+      .where(eq(agents.id, thisStep.agentId))
+      .limit(1);
 
-    if (!workflowRunStep) {
-      const [agent]: Agent[] = await api.db.db
-        .select()
-        .from(agents)
-        .where(eq(agents.id, nextStep.agentId))
-        .limit(1);
-
-      // Create new workflow run step
-      const [newRunStep] = await api.db.db
-        .insert(workflow_run_steps)
-        .values({
-          workflowRunId: workflowRun.id,
-          workflowStepId: nextStep.id,
-          systemPrompt: agent.systemPrompt,
-          userPrompt: agent.userPrompt,
-          input: workflowRun.input,
-          outout: null,
-          responseType: agent.responseType,
-          status: "pending",
-          workflowId: workflowRun.workflowId,
-        })
-        .returning();
-
-      workflowRunStep = newRunStep;
+    if (!agent) {
+      throw new Error(`Agent with id ${thisStep.agentId} not found`);
     }
 
-    if (!workflowRunStep) {
-      throw new Error("Workflow run step not found");
-    }
+    // delete a stale workflow run step
+    await api.db.db
+      .delete(workflow_run_steps)
+      .where(
+        and(
+          eq(workflow_run_steps.workflowRunId, workflowRun.id),
+          eq(workflow_run_steps.workflowStepId, thisStep.id),
+        ),
+      );
 
-    // Process the step based on its type
+    // Create new workflow run step
+    const [workflowRunStep]: WorkflowRunStep[] = await api.db.db
+      .insert(workflow_run_steps)
+      .values({
+        workflowRunId: workflowRun.id,
+        workflowStepId: thisStep.id,
+        systemPrompt: agent.systemPrompt,
+        userPrompt: agent.userPrompt,
+        input: workflowRun.input,
+        outout: null,
+        responseType: agent.responseType,
+        status: "pending",
+        workflowId: workflowRun.workflowId,
+      })
+      .returning();
+
+    const [previousWorkflowRunStep]: WorkflowRunStep[] = await api.db.db
+      .select()
+      .from(workflow_run_steps)
+      .where(
+        and(
+          eq(workflow_run_steps.workflowRunId, workflowRun.id),
+          eq(
+            workflow_run_steps.workflowStepId,
+            previousStep ? previousStep.id : -1,
+          ),
+        ),
+      )
+      .limit(1);
+
+    await api.db.db
+      .update(workflow_run_steps)
+      .set({ status: "running" })
+      .where(eq(workflow_run_steps.id, workflowRunStep.id));
+
+    const additionalContext = previousWorkflowRunStep
+      ? previousWorkflowRunStep.output
+      : workflowRun.input;
+
     try {
-      // Get the agent
-      const [agent] = await api.db.db
-        .select()
-        .from(agents)
-        .where(eq(agents.id, nextStep.agentId))
-        .limit(1);
-
-      if (!agent) {
-        throw new Error(`Agent with id ${nextStep.agentId} not found`);
-      }
-
-      // Update step status to running
-      await api.db.db
-        .update(workflow_run_steps)
-        .set({ status: "running" })
-        .where(eq(workflow_run_steps.id, workflowRunStep.id));
-
-      // Execute the agent (this would need to be implemented based on your agent execution logic)
-      // For now, we'll simulate a successful execution
-      const stepResult = "Step executed successfully"; // This would come from actual agent execution
+      const stepResult = await agentRun(
+        agent,
+        workflowRunStep,
+        additionalContext ?? undefined,
+      );
 
       // Update step status to completed and fetch the updated workflow run
       const [updatedWorkflowRun] = await api.db.db
         .update(workflow_runs)
         .set({
+          currentStep: workflowRun.currentStep + 1,
           status:
             workflowRun.status === "pending" ? "running" : workflowRun.status,
           startedAt:
@@ -471,7 +439,8 @@ export class WorkflowRunTick implements Action {
         .update(workflow_run_steps)
         .set({
           status: "completed",
-          outout: stepResult,
+          output: stepResult.result,
+          error: stepResult.error,
         })
         .where(eq(workflow_run_steps.id, workflowRunStep.id));
 
@@ -484,7 +453,7 @@ export class WorkflowRunTick implements Action {
         .update(workflow_run_steps)
         .set({
           status: "failed",
-          outout: String(error),
+          output: String(error),
         })
         .where(eq(workflow_run_steps.id, workflowRunStep.id));
 
@@ -503,5 +472,69 @@ export class WorkflowRunTick implements Action {
         type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
       });
     }
+  }
+}
+
+export class WorkflowRunStepList implements Action {
+  name = "workflow:run:step:list";
+  description = "List workflow run steps for a specific workflow run";
+  web = { route: "/workflow/:id/run/:runId/steps", method: HTTP_METHOD.GET };
+  middleware = [SessionMiddleware];
+  inputs = z.object({
+    id: z.coerce.number().int().describe("The workflow's id"),
+    runId: z.coerce.number().int().describe("The run's id"),
+  });
+
+  async run(params: ActionParams<WorkflowRunStepList>, connection: Connection) {
+    const userId = connection.session?.data.userId;
+    if (!userId) {
+      throw new TypedError({
+        message: "User session not found",
+        type: ErrorType.CONNECTION_SESSION_NOT_FOUND,
+      });
+    }
+
+    // verify the workflow run exists and belongs to the user
+    const [run]: WorkflowRun[] = await api.db.db
+      .select()
+      .from(workflow_runs)
+      .where(
+        and(
+          eq(workflow_runs.id, params.runId),
+          eq(workflow_runs.workflowId, params.id),
+        ),
+      )
+      .limit(1);
+
+    if (!run) {
+      throw new TypedError({
+        message: "Workflow run not found",
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+      });
+    }
+
+    const [workflow]: Workflow[] = await api.db.db
+      .select()
+      .from(workflows)
+      .where(
+        and(eq(workflows.id, run.workflowId), eq(workflows.userId, userId)),
+      )
+      .limit(1);
+
+    if (!workflow) {
+      throw new TypedError({
+        message: "Workflow run not found or not owned by user",
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+      });
+    }
+
+    // Get all steps for this workflow run
+    const steps: WorkflowRunStep[] = await api.db.db
+      .select()
+      .from(workflow_run_steps)
+      .where(eq(workflow_run_steps.workflowRunId, params.runId))
+      .orderBy(workflow_run_steps.createdAt);
+
+    return { steps: steps.map(serializeWorkflowRunStep) };
   }
 }

@@ -16,6 +16,7 @@ import {
 import type { WorkflowView } from "../../../../../backend/actions/workflow";
 import type {
   WorkflowRunDelete,
+  WorkflowRunStepList,
   WorkflowRunTick,
   WorkflowRunView,
 } from "../../../../../backend/actions/workflow_run";
@@ -37,7 +38,11 @@ export default function ViewWorkflowRun() {
   const [workflowRun, setWorkflowRun] = useState<
     ActionResponse<WorkflowRunView>["run"] | null
   >(null);
+  const [workflowRunSteps, setWorkflowRunSteps] = useState<
+    ActionResponse<WorkflowRunStepList>["steps"]
+  >([]);
   const [loading, setLoading] = useState(true);
+  const [stepsLoading, setStepsLoading] = useState(true);
   const [ticking, setTicking] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +52,7 @@ export default function ViewWorkflowRun() {
     if (id && runId) {
       fetchWorkflow();
       fetchWorkflowRun();
+      fetchWorkflowRunSteps();
     }
   }, [id, runId]);
 
@@ -74,6 +80,23 @@ export default function ViewWorkflowRun() {
     }
   };
 
+  const fetchWorkflowRunSteps = async () => {
+    try {
+      const response = await APIWrapper.get<WorkflowRunStepList>(
+        `/workflow/${id}/run/${runId}/steps`,
+      );
+      setWorkflowRunSteps(response.steps || []);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to fetch workflow run steps",
+      );
+    } finally {
+      setStepsLoading(false);
+    }
+  };
+
   const handleTick = async () => {
     if (!workflowRun) return;
 
@@ -85,6 +108,9 @@ export default function ViewWorkflowRun() {
       );
       setWorkflowRun(response.workflowRun);
       setError(null);
+
+      // Refresh workflow run steps after tick is complete
+      await fetchWorkflowRunSteps();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to tick workflow run",
@@ -331,6 +357,94 @@ export default function ViewWorkflowRun() {
                     View All Runs
                   </Button>
                 </div>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Workflow Run Steps Section */}
+        <Row className="mt-4">
+          <Col>
+            <Card>
+              <Card.Header>
+                <h5 className="mb-0">Workflow Run Steps</h5>
+              </Card.Header>
+              <Card.Body>
+                {stepsLoading ? (
+                  <div className="text-center py-3">
+                    <Spinner animation="border" role="status" size="sm">
+                      <span className="visually-hidden">Loading steps...</span>
+                    </Spinner>
+                  </div>
+                ) : workflowRunSteps.length === 0 ? (
+                  <p className="text-muted text-center py-3">
+                    No steps have been executed yet.
+                  </p>
+                ) : (
+                  <div className="workflow-steps">
+                    {workflowRunSteps.map((step, index) => (
+                      <div
+                        key={step.id}
+                        className="workflow-step mb-3 p-3 border rounded"
+                      >
+                        <div className="d-flex justify-content-between align-items-start mb-2">
+                          <div className="d-flex align-items-center">
+                            <Badge
+                              bg={getStatusColor(step.status)}
+                              className="me-2"
+                            >
+                              {step.status}
+                            </Badge>
+                            <span className="fw-bold">Step {index + 1}</span>
+                          </div>
+                          <small className="text-muted">
+                            {formatDate(step.createdAt)}
+                          </small>
+                        </div>
+
+                        <div className="mb-2">
+                          <strong>System Prompt:</strong>
+                          <div className="mt-1 p-2 bg-light rounded">
+                            <pre className="mb-0 small">
+                              {step.systemPrompt}
+                            </pre>
+                          </div>
+                        </div>
+
+                        <div className="mb-2">
+                          <strong>User Prompt:</strong>
+                          <div className="mt-1 p-2 bg-light rounded">
+                            <pre className="mb-0 small">{step.userPrompt}</pre>
+                          </div>
+                        </div>
+
+                        {step.input && (
+                          <div className="mb-2">
+                            <strong>Input:</strong>
+                            <div className="mt-1 p-2 bg-light rounded">
+                              <pre className="mb-0 small">{step.input}</pre>
+                            </div>
+                          </div>
+                        )}
+
+                        {step.output && (
+                          <div className="mb-2">
+                            <strong>Output:</strong>
+                            <div className="mt-1 p-2 bg-light rounded">
+                              <pre className="mb-0 small">{step.output}</pre>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mt-2">
+                          <small className="text-muted">
+                            Response Type: {step.responseType}
+                          </small>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </Card.Body>
             </Card>
           </Col>

@@ -39,7 +39,7 @@ export const workflow_run_steps = pgTable("workflow_run_steps", {
   systemPrompt: text("system_prompt").notNull(),
   userPrompt: text("user_message").notNull(),
   input: text("input"),
-  outout: text("outout").$type<string | null>(),
+  output: text("output").$type<string | null>(),
   responseType: responseTypes("type").notNull(),
   status: workflowRunStepStatus("workflow_run_step_status")
     .default("pending")
