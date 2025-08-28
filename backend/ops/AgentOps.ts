@@ -29,16 +29,19 @@ export function serializeAgent(agent: Agent) {
 }
 
 export function getSystemPrompt(agent: Agent) {
-  return `You are a helpful assistant.
-  You are able to use the following toolkits, and are an expert in the following services: ${agent.toolkits.join(", ")}.
-  You MUST respond in the ${agent.responseType} format.  Do not include any other text in your response - only the response in the format specified.
-  ` as const;
+  return `
+You are a helpful assistant which runs without human intervention.
+${agent.toolkits.length > 0 ? `You are able to use the following services via tools: ${agent.toolkits.join(", ")}.  You should STRONGLY PREFER to use the tools provided to you.` : ""}
+You MUST respond in the ${agent.responseType} format.
+Do not include any other text in your response - only the single response in the ${agent.responseType} format.
+  `.trim();
 }
 
 export class AgentRunResult {
   status: (typeof workflow_run_steps.$inferSelect)["status"] = "pending";
   result: string | undefined;
   error: string | undefined;
+  rationale: string | undefined;
   workflowRunStep: WorkflowRunStep | undefined;
 
   async judgeStatus(instructions: string) {
@@ -52,7 +55,7 @@ export class AgentRunResult {
       model: "gpt-4o",
       outputType: z.object({
         success: z.boolean().describe("Was the result successful?"),
-        reasoning: z
+        rationale: z
           .string()
           .describe(
             "Why was this result considered successful? Briefly explain why.",
@@ -79,7 +82,7 @@ export class AgentRunResult {
 
     const result = await run(judgeAgent, question);
 
-    return result.finalOutput;
+    return result;
   }
 }
 
@@ -159,7 +162,8 @@ export async function agentRun(
 
     const result = await run(parentAgent, agent.userPrompt);
     runResult.result = result.finalOutput;
-    runResult.status = (await runResult.judgeStatus(instructions))?.success
+    runResult.status = (await runResult.judgeStatus(instructions))?.finalOutput
+      ?.success
       ? "completed"
       : "failed";
 

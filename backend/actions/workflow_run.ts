@@ -13,8 +13,8 @@ import {
 } from "../models/workflow_run_step";
 import { workflow_steps, WorkflowStep } from "../models/workflow_step";
 import { agentRun } from "../ops/AgentOps";
-import { serializeWorkflowRunStep } from "../ops/AgentRunOps";
 import { serializeWorkflowRun } from "../ops/WorkflowRunOps";
+import { serializeWorkflowRunStep } from "../ops/WorkflowRunStepOps";
 
 export class WorkflowRunCreate implements Action {
   name = "workflow:run:create";
@@ -373,22 +373,6 @@ export class WorkflowRunTick implements Action {
         ),
       );
 
-    // Create new workflow run step
-    const [workflowRunStep]: WorkflowRunStep[] = await api.db.db
-      .insert(workflow_run_steps)
-      .values({
-        workflowRunId: workflowRun.id,
-        workflowStepId: thisStep.id,
-        systemPrompt: agent.systemPrompt,
-        userPrompt: agent.userPrompt,
-        input: workflowRun.input,
-        outout: null,
-        responseType: agent.responseType,
-        status: "pending",
-        workflowId: workflowRun.workflowId,
-      })
-      .returning();
-
     const [previousWorkflowRunStep]: WorkflowRunStep[] = await api.db.db
       .select()
       .from(workflow_run_steps)
@@ -403,21 +387,31 @@ export class WorkflowRunTick implements Action {
       )
       .limit(1);
 
+    const input = previousWorkflowRunStep?.output ?? workflowRun.input;
+
+    const [workflowRunStep]: WorkflowRunStep[] = await api.db.db
+      .insert(workflow_run_steps)
+      .values({
+        workflowRunId: workflowRun.id,
+        workflowStepId: thisStep.id,
+        systemPrompt: agent.systemPrompt,
+        userPrompt: agent.userPrompt,
+        input: input,
+        outout: null,
+        rationale: null,
+        responseType: agent.responseType,
+        status: "pending",
+        workflowId: workflowRun.workflowId,
+      })
+      .returning();
+
     await api.db.db
       .update(workflow_run_steps)
       .set({ status: "running" })
       .where(eq(workflow_run_steps.id, workflowRunStep.id));
 
-    const additionalContext = previousWorkflowRunStep
-      ? previousWorkflowRunStep.output
-      : workflowRun.input;
-
     try {
-      const stepResult = await agentRun(
-        agent,
-        workflowRunStep,
-        additionalContext ?? undefined,
-      );
+      const stepResult = await agentRun(agent, workflowRunStep);
 
       // Update step status to completed and fetch the updated workflow run
       const [updatedWorkflowRun] = await api.db.db
@@ -438,9 +432,10 @@ export class WorkflowRunTick implements Action {
       await api.db.db
         .update(workflow_run_steps)
         .set({
-          status: "completed",
+          status: stepResult.status,
           output: stepResult.result,
           error: stepResult.error,
+          rationale: stepResult.rationale,
         })
         .where(eq(workflow_run_steps.id, workflowRunStep.id));
 

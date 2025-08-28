@@ -11,6 +11,7 @@ export function serializeWorkflowRunStep(workflowRunStep: WorkflowRunStep) {
     input: workflowRunStep.input,
     output: workflowRunStep.output,
     responseType: workflowRunStep.responseType,
+    rationale: workflowRunStep.rationale,
     status: workflowRunStep.status,
     createdAt: workflowRunStep.createdAt.getTime(),
     updatedAt: workflowRunStep.updatedAt.getTime(),

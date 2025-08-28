@@ -4,7 +4,6 @@ import { useRouter } from "next/router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
-  Badge,
   Button,
   Card,
   Col,
@@ -18,22 +17,19 @@ import {
 import type { AgentList } from "../../../../backend/actions/agent";
 import type {
   WorkflowEdit,
+  WorkflowView,
+} from "../../../../backend/actions/workflow";
+import {
   WorkflowStepCreate,
   WorkflowStepDelete,
   WorkflowStepEdit,
   WorkflowStepList,
-  WorkflowView,
-} from "../../../../backend/actions/workflow";
+} from "../../../../backend/actions/workflow_step";
 import type { ActionResponse } from "../../../../backend/api";
-import { stepTypes } from "../../../../backend/models/workflow_step";
 import Navigation from "../../../components/Navigation";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { APIWrapper } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth";
-import {
-  getStepTypeColor,
-  getStepTypeDescription,
-} from "../../../lib/workflowUtils";
 
 // Shared types - using backend action input types
 type WorkflowStepCreateInput = WorkflowStepCreate["inputs"]["_type"];
@@ -420,7 +416,6 @@ export default function EditWorkflow() {
                     <thead className="table-light">
                       <tr>
                         <th style={{ width: "60px" }}>#</th>
-                        <th style={{ width: "100px" }}>Type</th>
                         <th>Details</th>
                         <th style={{ width: "120px" }}>Actions</th>
                       </tr>
@@ -439,23 +434,14 @@ export default function EditWorkflow() {
                           <td className="text-center fw-bold">
                             {step.position + 1}
                           </td>
-                          <td>
-                            <Badge bg={getStepTypeColor(step.stepType)}>
-                              {step.stepType}
-                            </Badge>
-                          </td>
+
                           <td>
                             <div>
-                              <strong>
-                                {getStepTypeDescription(step.stepType)}
-                              </strong>
-                              {step.stepType === "agent" && step.agentId && (
-                                <div className="text-muted small mt-1">
-                                  Agent:{" "}
-                                  {agents.find((a) => a.id === step.agentId)
-                                    ?.name || "Unknown"}
-                                </div>
-                              )}
+                              <div className="text-muted small mt-1">
+                                Agent:{" "}
+                                {agents.find((a) => a.id === step.agentId)
+                                  ?.name || "Unknown"}
+                              </div>
                             </div>
                           </td>
                           <td>
@@ -536,10 +522,8 @@ function AddStepModal({
   existingSteps: ActionResponse<WorkflowStepList>["steps"];
 }) {
   const [formData, setFormData] = useState<{
-    stepType: WorkflowStepCreateInput["stepType"];
     agentId: string | undefined;
   }>({
-    stepType: "agent",
     agentId: undefined,
   });
 
@@ -547,10 +531,7 @@ function AddStepModal({
     e.preventDefault();
 
     // Validate that agent is selected if step type is agent
-    if (
-      formData.stepType === "agent" &&
-      (!formData.agentId || formData.agentId === "")
-    ) {
+    if (!formData.agentId || formData.agentId === "") {
       alert("Please select an agent for agent-type steps");
       return;
     }
@@ -570,27 +551,7 @@ function AddStepModal({
       </Modal.Header>
       <Modal.Body>
         <Form onSubmit={handleSubmit}>
-          <Form.Group className="mb-3">
-            <Form.Label>Step Type</Form.Label>
-            <Form.Select
-              value={formData.stepType}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  stepType: e.target
-                    .value as (typeof stepTypes.enumValues)[number],
-                }))
-              }
-            >
-              {stepTypes.enumValues.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </Form.Select>
-          </Form.Group>
-
-          {formData.stepType === "agent" && (
+          {
             <Form.Group className="mb-3">
               <Form.Label>Agent</Form.Label>
               <Form.Select
@@ -608,7 +569,7 @@ function AddStepModal({
                 ))}
               </Form.Select>
             </Form.Group>
-          )}
+          }
         </Form>
       </Modal.Body>
       <Modal.Footer>
@@ -642,7 +603,6 @@ function EditStepModal({
   existingSteps: ActionResponse<WorkflowStepList>["steps"];
 }) {
   const [formData, setFormData] = useState({
-    stepType: step.stepType,
     agentId: step.agentId?.toString() || undefined,
   });
 
@@ -652,10 +612,7 @@ function EditStepModal({
       id: workflowId,
       stepId: step.id,
       ...formData,
-      agentId:
-        formData.stepType === "agent" && formData.agentId
-          ? parseInt(formData.agentId)
-          : undefined,
+      agentId: formData.agentId ? parseInt(formData.agentId) : undefined,
     });
   };
 
@@ -666,27 +623,7 @@ function EditStepModal({
       </Modal.Header>
       <Modal.Body>
         <Form onSubmit={handleSubmit}>
-          <Form.Group className="mb-3">
-            <Form.Label>Step Type</Form.Label>
-            <Form.Select
-              value={formData.stepType}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  stepType: e.target
-                    .value as (typeof stepTypes.enumValues)[number],
-                }))
-              }
-            >
-              {stepTypes.enumValues.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </Form.Select>
-          </Form.Group>
-
-          {formData.stepType === "agent" && (
+          {
             <Form.Group className="mb-3">
               <Form.Label>Agent</Form.Label>
               <Form.Select
@@ -704,7 +641,7 @@ function EditStepModal({
                 ))}
               </Form.Select>
             </Form.Group>
-          )}
+          }
         </Form>
       </Modal.Body>
       <Modal.Footer>

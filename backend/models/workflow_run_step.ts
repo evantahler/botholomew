@@ -44,6 +44,7 @@ export const workflow_run_steps = pgTable("workflow_run_steps", {
   status: workflowRunStepStatus("workflow_run_step_status")
     .default("pending")
     .notNull(),
+  rationale: text("rationale"),
   workflowId: integer("workflow_id").references(() => workflows.id, {
     onDelete: "cascade",
   }),

@@ -74,6 +74,8 @@ export default function EditAgent() {
     Array<{ value: string; label: string }>
   >([]);
   const [modelsLoading, setModelsLoading] = useState(false);
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const [bannerOpacity, setBannerOpacity] = useState(1);
 
   useEffect(() => {
     if (id) {
@@ -232,8 +234,18 @@ export default function EditAgent() {
       const response: ActionResponse<AgentEdit> =
         await APIWrapper.post<AgentEdit>(`/agent/${id}`, submitData);
 
-      // Redirect to the agent detail page
-      router.push(`/agents/${id}`);
+      // Show success banner instead of redirecting
+      setShowSuccessBanner(true);
+      setBannerOpacity(1);
+
+      // Start fade out after 2.5 seconds, then hide after 3 seconds
+      setTimeout(() => {
+        setBannerOpacity(0);
+      }, 2500);
+
+      setTimeout(() => {
+        setShowSuccessBanner(false);
+      }, 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -336,6 +348,24 @@ export default function EditAgent() {
                 dismissible
               >
                 {error}
+              </Alert>
+            </Col>
+          </Row>
+        )}
+
+        {showSuccessBanner && (
+          <Row className="mb-4">
+            <Col>
+              <Alert
+                variant="success"
+                className="fade-in"
+                style={{
+                  animation: "fadeIn 0.5s ease-in-out",
+                  transition: "opacity 0.5s ease-in-out",
+                  opacity: bannerOpacity,
+                }}
+              >
+                ✓ Agent updated successfully!
               </Alert>
             </Col>
           </Row>

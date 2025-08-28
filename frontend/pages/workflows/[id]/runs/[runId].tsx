@@ -436,6 +436,15 @@ export default function ViewWorkflowRun() {
                           </div>
                         )}
 
+                        {step.rationale && (
+                          <div className="mb-2">
+                            <strong>Rationale:</strong>
+                            <div className="mt-1 p-2 bg-light rounded">
+                              <pre className="mb-0 small">{step.rationale}</pre>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="mt-2">
                           <small className="text-muted">
                             Response Type: {step.responseType}
