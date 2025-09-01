@@ -91,6 +91,7 @@ export async function agentRun(
   agent: Agent,
   workflowRunStep: WorkflowRunStep | undefined = undefined,
   additionalContext: string | undefined = undefined,
+  retryableError: string | undefined = undefined,
 ): Promise<AgentRunResult> {
   const runResult = new AgentRunResult();
 
@@ -135,6 +136,7 @@ export async function agentRun(
         name: agent.name + " - " + toolkit,
         instructions: `
         ${RECOMMENDED_PROMPT_PREFIX}
+        ${retryableError ? `\n\n${retryableError}\n\n` : ""}
         You are an expert agent in the ${toolkit} toolkit.
         If you have been delegated to, you must use the tools provided to you.
         You must respond in the ${agent.responseType} format.  Do not include any other text in your response - only the response in the format specified.
@@ -169,6 +171,19 @@ export async function agentRun(
       ? "completed"
       : "failed";
     runResult.rationale = judgeResult?.finalOutput?.rationale;
+
+    // allow one retry
+    if (!retryableError && runResult.status === "failed") {
+      return agentRun(
+        agent,
+        workflowRunStep,
+        additionalContext,
+        `WE ARE RETYING THE AGENT RUN BECAUSE IT FAILED:
+        <ERROR>${runResult.error}</ERROR>
+        <REASONING>${runResult.rationale}</REASONING>
+        `,
+      );
+    }
 
     if (workflowRunStep) {
       await api.db.db
