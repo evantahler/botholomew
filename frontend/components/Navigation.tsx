@@ -1,9 +1,8 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
-import { Navbar, Nav, Container, Button, NavDropdown } from "react-bootstrap";
+import { usePathname, useRouter } from "next/navigation";
+import { Button, Container, Nav, Navbar, NavDropdown } from "react-bootstrap";
 import { useAuth } from "../lib/auth";
 import Logo from "./Logo";
 
@@ -73,6 +72,20 @@ export default function Navigation() {
                   }
                 >
                   Agents
+                </Nav.Link>
+                <Nav.Link
+                  as={Link}
+                  href="/workflows"
+                  className={
+                    isActive("/workflows") ||
+                    isActive("/workflows/create") ||
+                    isActive("/workflows/[id]") ||
+                    isActive("/workflows/edit/[id]")
+                      ? "active"
+                      : ""
+                  }
+                >
+                  Workflows
                 </Nav.Link>
               </>
             )}

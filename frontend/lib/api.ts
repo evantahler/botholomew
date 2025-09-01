@@ -1,5 +1,5 @@
-import { getApiUrl } from "./config";
 import type { Action, ActionResponse } from "../../backend/api";
+import { getApiUrl } from "./config";
 
 // HTTP methods enum
 export enum HTTP_METHOD {
@@ -24,7 +24,7 @@ export class APIWrapper {
     url: string,
     method: HTTP_METHOD,
     params?: Record<string, any>,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<ActionResponse<T>> {
     // Replace route parameters with actual values
     let finalUrl = url;
@@ -81,7 +81,7 @@ export class APIWrapper {
       throw new Error(
         errorRsp?.error
           ? `${errorRsp.error.type}: ${errorRsp.error.message}`
-          : `Failed to execute ${method} ${url} [${response.status}]: ${response.statusText}`
+          : `Failed to execute ${method} ${url} [${response.status}]: ${response.statusText}`,
       );
     }
 
@@ -95,7 +95,7 @@ export class APIWrapper {
     url: string,
     params?: Record<string, any>,
     limit?: number,
-    offset?: number
+    offset?: number,
   ) {
     const queryParams = { ...params };
 
@@ -115,7 +115,7 @@ export class APIWrapper {
    */
   static async post<T extends Action>(
     url: string,
-    params?: Record<string, any>
+    params?: Record<string, any>,
   ) {
     return this.request<T>(url, HTTP_METHOD.POST, params);
   }
@@ -125,7 +125,7 @@ export class APIWrapper {
    */
   static async put<T extends Action>(
     url: string,
-    params?: Record<string, any>
+    params?: Record<string, any>,
   ) {
     return this.request<T>(url, HTTP_METHOD.PUT, params);
   }
@@ -135,7 +135,7 @@ export class APIWrapper {
    */
   static async delete<T extends Action>(
     url: string,
-    params?: Record<string, any>
+    params?: Record<string, any>,
   ) {
     return this.request<T>(url, HTTP_METHOD.DELETE, params);
   }

@@ -1,7 +1,9 @@
-import { ToolkitAuthorization } from "../models/toolkit_authorization";
-import { api } from "../api";
 import { eq } from "drizzle-orm";
-import { toolkit_authorizations } from "../models/toolkit_authorization";
+import { api } from "../api";
+import {
+  toolkit_authorizations,
+  ToolkitAuthorization,
+} from "../models/toolkit_authorization";
 
 export function serializeToolkitAuthorization(tka: ToolkitAuthorization) {
   return {

@@ -1,26 +1,26 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import React, { useEffect, useState } from "react";
 import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Form,
-  Button,
   Alert,
+  Button,
+  Card,
+  Col,
+  Container,
+  Form,
+  Row,
   Spinner,
 } from "react-bootstrap";
-import { useAuth } from "../../lib/auth";
-import { APIWrapper } from "../../lib/api";
+import type { AgentCreate, AgentModels } from "../../../backend/actions/agent";
+import type { ArcadeListToolkits } from "../../../backend/actions/arcade";
+import type { ToolkitAuthorizationList } from "../../../backend/actions/toolkit_authorization";
+import type { ActionResponse } from "../../../backend/api";
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import ToolkitSelector from "../../components/ToolkitSelector";
-import type { ActionResponse } from "../../../backend/api";
-import type { ArcadeListToolkits } from "../../../backend/actions/arcade";
-import type { ToolkitAuthorizationList } from "../../../backend/actions/toolkit_authorization";
-import type { AgentCreate, AgentModels } from "../../../backend/actions/agent";
+import { APIWrapper } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 
 export default function CreateAgent() {
   const router = useRouter();
@@ -60,10 +60,10 @@ export default function CreateAgent() {
   const [modelsLoading, setModelsLoading] = useState(false);
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]:
         type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
@@ -71,7 +71,7 @@ export default function CreateAgent() {
   };
 
   const handleToolkitChange = (toolkitName: string, checked: boolean) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       toolkits: checked
         ? [...prev.toolkits, toolkitName]
@@ -98,15 +98,15 @@ export default function CreateAgent() {
         (
           toolkit: NonNullable<
             ActionResponse<ArcadeListToolkits>["toolkits"]
-          >[0]
+          >[0],
         ) =>
           userAuthorizations.some(
             (
               auth: NonNullable<
                 ActionResponse<ToolkitAuthorizationList>["toolkitAuthorizations"]
-              >[0]
-            ) => auth.toolkitName === toolkit.name
-          )
+              >[0],
+            ) => auth.toolkitName === toolkit.name,
+          ),
       );
 
       setAvailableToolkits(authorizedToolkits);
@@ -230,7 +230,7 @@ export default function CreateAgent() {
                           {modelsLoading ? (
                             <option>Loading models...</option>
                           ) : (
-                            availableModels.map(model => (
+                            availableModels.map((model) => (
                               <option key={model.value} value={model.value}>
                                 {model.label}
                               </option>

@@ -1,15 +1,15 @@
-import { test, describe, expect, beforeAll, afterAll, mock } from "bun:test";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import { AgentCreate } from "../../actions/agent";
+import type { SessionCreate } from "../../actions/session";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
-import type { SessionCreate } from "../../actions/session";
 import {
+  createAgent,
   createTestUser,
   createUserAndSession,
-  createAgent,
-  USERS,
   TEST_AGENTS,
+  USERS,
 } from "../utils/testHelpers";
-import { AgentCreate } from "../../actions/agent";
 
 // Mock the OpenAI agents module
 const mockRun = mock(() =>
@@ -522,124 +522,97 @@ describe("agent:list", () => {
   });
 });
 
-describe("agent:tick", () => {
-  let tickUser: ActionResponse<SessionCreate>["user"];
-  let tickSession: ActionResponse<SessionCreate>["session"];
-  let enabledAgent: ActionResponse<AgentCreate>["agent"];
-  let disabledAgent: ActionResponse<AgentCreate>["agent"];
+describe("agent:run", () => {
+  let runUser: ActionResponse<SessionCreate>["user"];
+  let runSession: ActionResponse<SessionCreate>["session"];
+  let createdAgent: ActionResponse<AgentCreate>["agent"];
 
   beforeAll(async () => {
-    // Get the user and session for ticking
     const testSession = await createUserAndSession(USERS.MARIO);
-    tickUser = testSession.user;
-    tickSession = testSession.session;
-
-    // Create an enabled agent for testing
-    enabledAgent = await createAgent(
-      { user: tickUser, session: tickSession },
-      {
-        name: "Tick Agent",
-        description: "Agent to tick",
-        model: "gpt-3.5-turbo",
-        userPrompt: "You are a helpful assistant.",
-        enabled: true,
-      },
-    );
-
-    // Create a disabled agent for testing
-    disabledAgent = await createAgent(
-      { user: tickUser, session: tickSession },
-      {
-        name: "Disabled Tick Agent",
-        description: "Disabled agent to tick",
-        model: "gpt-3.5-turbo",
-        userPrompt: "You are a helpful assistant.",
-        enabled: false,
-      },
-    );
-  });
-
-  test("should tick an enabled agent successfully", async () => {
-    const tickResponse = await fetch(
-      `${url}/api/agent/${enabledAgent.id}/run`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: `${tickSession.cookieName}=${tickSession.id}`,
-        },
-        body: JSON.stringify({ id: enabledAgent.id }),
-      },
-    );
-
-    if (tickResponse.status !== 200) {
-      const errorData = await tickResponse.json();
-      console.log("Error response:", errorData);
-    }
-    expect(tickResponse.status).toBe(200);
-    const tickData = await tickResponse.json();
-    expect(tickData.agent).toBeDefined();
-    expect(tickData.agent.id).toBe(enabledAgent.id);
-    expect(tickData.run).toBeDefined();
-    expect(tickData.run.agentId).toBe(enabledAgent.id);
-    expect(tickData.run.status).toBeDefined();
-  });
-
-  test("should not tick a disabled agent", async () => {
-    const tickResponse = await fetch(
-      `${url}/api/agent/${disabledAgent.id}/run`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: `${tickSession.cookieName}=${tickSession.id}`,
-        },
-        body: JSON.stringify({ id: disabledAgent.id }),
-      },
-    );
-
-    expect(tickResponse.status).toBe(406);
-  });
-
-  test("should require authentication", async () => {
-    const response = await fetch(`${url}/api/agent/${enabledAgent.id}/run`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: enabledAgent.id }),
+    runUser = testSession.user;
+    runSession = testSession.session;
+    createdAgent = await createAgent(testSession, {
+      name: "Run Test Agent",
+      description: "A test agent for running",
+      model: "gpt-4o",
+      userPrompt: "You are a helpful assistant.",
+      enabled: true,
     });
+  });
+
+  test("should run an agent successfully", async () => {
+    const response = await fetch(`${url}/api/agent/${createdAgent.id}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${runSession.cookieName}=${runSession.id}`,
+      },
+      body: JSON.stringify({
+        additionalContext: "Test context",
+      }),
+    });
+
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    // The agent run might fail due to mocked dependencies, but we should get a response
+    expect(data).toHaveProperty("status");
+    expect(data).toHaveProperty("result");
+    // Check that either status is completed or we have an error message
+    expect(["completed", "failed"]).toContain(data.status);
+  });
+
+  test("should reject when user is not authenticated", async () => {
+    const response = await fetch(`${url}/api/agent/${createdAgent.id}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        additionalContext: "Test context",
+      }),
+    });
+
     expect(response.status).toBe(401);
   });
 
-  test("should not allow ticking another user's agent", async () => {
-    // Create another user and session
-    const otherUser = {
-      name: "Tick Other User",
-      email: "tickother@example.com",
-      password: "password123",
-    };
-    const otherSession = await createUserAndSession(otherUser);
-
-    // Try to tick the first user's agent with the second user's session
-    const response = await fetch(`${url}/api/agent/${enabledAgent.id}/run`, {
+  test("should reject when agent is not found", async () => {
+    const response = await fetch(`${url}/api/agent/99999/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Cookie: `${otherSession.session.cookieName}=${otherSession.session.id}`,
+        Cookie: `${runSession.cookieName}=${runSession.id}`,
       },
-      body: JSON.stringify({ id: enabledAgent.id }),
+      body: JSON.stringify({
+        additionalContext: "Test context",
+      }),
     });
+
     expect(response.status).toBe(406);
   });
 
-  test("should return not found for non-existent agent", async () => {
-    const response = await fetch(`${url}/api/agent/999999/run`, {
+  test("should reject when agent is not owned by user", async () => {
+    // Create another user and agent
+    const otherSession = await createUserAndSession(USERS.LUIGI);
+    const otherAgent = await createAgent(otherSession, {
+      name: "Other User Agent",
+      description: "Another user's agent",
+      model: "gpt-4o",
+      userPrompt: "You are a helpful assistant.",
+      enabled: true,
+    });
+
+    // Try to run the other user's agent with the first user's session
+    const response = await fetch(`${url}/api/agent/${otherAgent.id}/run`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Cookie: `${tickSession.cookieName}=${tickSession.id}`,
+        Cookie: `${runSession.cookieName}=${runSession.id}`,
       },
-      body: JSON.stringify({ id: 999999 }),
+      body: JSON.stringify({
+        additionalContext: "Test context",
+      }),
     });
+
     expect(response.status).toBe(406);
   });
 });

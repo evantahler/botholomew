@@ -1,16 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Alert, Button, Card, Badge } from "react-bootstrap";
-import { APIWrapper } from "../lib/api";
-import type { ActionResponse } from "../../backend/api";
+import { useEffect, useState } from "react";
+import { Alert, Badge, Button, Card } from "react-bootstrap";
 import type { Status } from "../../backend/actions/status";
+import type { ActionResponse } from "../../backend/api";
+import { APIWrapper } from "../lib/api";
 
 type ServerStatusData = ActionResponse<Status>;
 
 export default function ServerStatus() {
   const [status, setStatus] = useState<"loading" | "success" | "error">(
-    "loading"
+    "loading",
   );
   const [statusData, setStatusData] = useState<ServerStatusData | null>(null);
   const [error, setError] = useState<string | null>(null);

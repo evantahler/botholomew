@@ -1,13 +1,13 @@
 import {
-  pgTable,
-  serial,
-  varchar,
-  timestamp,
-  text,
   boolean,
   integer,
   json,
   pgEnum,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  varchar,
 } from "drizzle-orm/pg-core";
 
 import { users } from "./user";
@@ -35,11 +35,6 @@ export const agents = pgTable("agents", {
   userPrompt: text("user_prompt").notNull(),
   responseType: responseTypes("response_type").notNull().default("text"),
   enabled: boolean("enabled").notNull().default(false),
-  schedule: text("schedule"),
-  scheduleNextRun: timestamp("schedule_next_run"),
-  scheduleLastRun: timestamp("schedule_last_run"),
-  scheduleLastRunResult: text("schedule_last_run_result"),
-  scheduleLastRunError: text("schedule_last_run_error"),
   toolkits: json("toolkits").$type<string[]>().default([]).notNull(),
 });
 

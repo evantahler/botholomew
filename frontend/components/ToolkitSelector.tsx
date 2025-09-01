@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Form, Spinner, Modal, Button, ListGroup } from "react-bootstrap";
+import { Button, Form, ListGroup, Modal, Spinner } from "react-bootstrap";
 
 interface Toolkit {
   name: string;
@@ -85,14 +85,14 @@ export default function ToolkitSelector({
             </tr>
           </thead>
           <tbody>
-            {availableToolkits.map(toolkit => (
+            {availableToolkits.map((toolkit) => (
               <tr key={toolkit.name}>
                 <td>
                   <Form.Check
                     type="checkbox"
                     id={`toolkit-${toolkit.name}`}
                     checked={selectedToolkits.includes(toolkit.name)}
-                    onChange={e =>
+                    onChange={(e) =>
                       onToolkitChange(toolkit.name, e.target.checked)
                     }
                     disabled={disabled}
@@ -113,7 +113,7 @@ export default function ToolkitSelector({
                       <span
                         className="badge bg-warning me-1"
                         style={{ cursor: "pointer" }}
-                        onClick={e => handleBadgeClick(toolkit, e)}
+                        onClick={(e) => handleBadgeClick(toolkit, e)}
                         title="Click to view tools"
                       >
                         {toolkit.tools.length} tools

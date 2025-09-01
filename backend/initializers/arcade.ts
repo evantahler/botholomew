@@ -1,9 +1,8 @@
 import { Arcade } from "@arcadeai/arcadejs";
-import { toZod, executeOrAuthorizeZodTool } from "@arcadeai/arcadejs/lib";
-import { config, RUN_MODE, api } from "../api";
-import { Initializer } from "../classes/Initializer";
-import { logger } from "../api";
+import { executeOrAuthorizeZodTool, toZod } from "@arcadeai/arcadejs/lib";
 import { tool } from "@openai/agents";
+import { api, config, logger, RUN_MODE } from "../api";
+import { Initializer } from "../classes/Initializer";
 
 const namespace = "arcade";
 

@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_runs" ADD COLUMN "current_step" integer DEFAULT 0 NOT NULL;

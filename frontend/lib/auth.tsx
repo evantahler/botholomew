@@ -1,21 +1,15 @@
 "use client";
 
+import router from "next/router";
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { APIWrapper } from "./api";
+import type { SessionCreate } from "../../backend/actions/session";
 import type {
   UserCreate,
-  UserView,
   UserEdit,
+  UserView,
 } from "../../backend/actions/user";
-import type {
-  SessionCreate,
-  SessionDestroy,
-} from "../../backend/actions/session";
-import type {
-  ActionResponse,
-  ActionParams,
-} from "../../backend/classes/Action";
-import router from "next/router";
+import type { ActionResponse } from "../../backend/classes/Action";
+import { APIWrapper } from "./api";
 
 type User = ActionResponse<UserView>["user"];
 

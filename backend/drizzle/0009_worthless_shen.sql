@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_steps" ALTER COLUMN "position" SET DEFAULT 1;

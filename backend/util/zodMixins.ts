@@ -1,4 +1,4 @@
-import { z, type ZodTypeAny, type ZodRawShape } from "zod";
+import { z, type ZodRawShape, type ZodTypeAny } from "zod";
 
 // Custom zod extension to mark fields as secret
 // This module augmentation and prototype extension allows .secret() to be used on zod fields

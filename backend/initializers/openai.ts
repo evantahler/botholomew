@@ -1,7 +1,7 @@
 import { setDefaultOpenAIClient } from "@openai/agents";
+import OpenAI from "openai";
 import { config, RUN_MODE } from "../api";
 import { Initializer } from "../classes/Initializer";
-import OpenAI from "openai";
 
 const namespace = "openai";
 

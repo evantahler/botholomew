@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_run_steps" RENAME COLUMN "outout" TO "output";

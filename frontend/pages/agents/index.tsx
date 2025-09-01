@@ -1,25 +1,25 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Button,
-  Badge,
   Alert,
-  Spinner,
+  Badge,
+  Button,
+  Card,
+  Col,
+  Container,
   Modal,
+  Row,
+  Spinner,
 } from "react-bootstrap";
-import { useAuth } from "../../lib/auth";
-import { APIWrapper } from "../../lib/api";
-import { formatDate } from "../../lib/utils";
+import type { AgentDelete, AgentList } from "../../../backend/actions/agent";
 import Navigation from "../../components/Navigation";
-import ProtectedRoute from "../../components/ProtectedRoute";
 import Pagination from "../../components/Pagination";
-import type { AgentList, AgentDelete } from "../../../backend/actions/agent";
+import ProtectedRoute from "../../components/ProtectedRoute";
+import { APIWrapper } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
+import { formatDate } from "../../lib/utils";
 
 export default function AgentsList() {
   const router = useRouter();
@@ -50,10 +50,10 @@ export default function AgentsList() {
         "/agents",
         {},
         pagination.limit,
-        offset
+        offset,
       );
       setAgents(response.agents || []);
-      setPagination(prev => ({
+      setPagination((prev) => ({
         ...prev,
         offset,
         total: response.total || 0,
@@ -74,7 +74,7 @@ export default function AgentsList() {
         id: deleteModal.agent.id,
       });
       // Remove the agent from the list
-      setAgents(agents.filter(a => a.id !== deleteModal.agent!.id));
+      setAgents(agents.filter((a) => a.id !== deleteModal.agent!.id));
       setDeleteModal({ show: false, agent: null });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete agent");
@@ -155,7 +155,7 @@ export default function AgentsList() {
           </Row>
         ) : (
           <Row>
-            {agents.map(agent => (
+            {agents.map((agent) => (
               <Col key={agent.id} lg={4} md={6} className="mb-4">
                 <Card className="h-100">
                   <Card.Header className="d-flex justify-content-between align-items-center">
@@ -202,13 +202,6 @@ export default function AgentsList() {
                   </Card.Body>
                   <Card.Footer>
                     <div className="d-flex gap-2">
-                      <Button
-                        variant="outline-primary"
-                        size="sm"
-                        onClick={() => router.push(`/agents/${agent.id}`)}
-                      >
-                        View
-                      </Button>
                       <Button
                         variant="outline-secondary"
                         size="sm"

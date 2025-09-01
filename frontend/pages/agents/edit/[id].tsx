@@ -1,30 +1,32 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import React, { useEffect, useState } from "react";
 import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Form,
-  Button,
   Alert,
+  Button,
+  Card,
+  Col,
+  Container,
+  Form,
+  Row,
   Spinner,
 } from "react-bootstrap";
-import { useAuth } from "../../../lib/auth";
-import { APIWrapper } from "../../../lib/api";
+import type {
+  AgentEdit,
+  AgentModels,
+  AgentRun,
+  AgentView,
+} from "../../../../backend/actions/agent";
+import type { ArcadeListToolkits } from "../../../../backend/actions/arcade";
+import type { ToolkitAuthorizationList } from "../../../../backend/actions/toolkit_authorization";
+import type { ActionResponse } from "../../../../backend/api";
+import MarkdownRenderer from "../../../components/MarkdownRenderer";
 import Navigation from "../../../components/Navigation";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import ToolkitSelector from "../../../components/ToolkitSelector";
-import type { ActionResponse } from "../../../../backend/api";
-import type { ArcadeListToolkits } from "../../../../backend/actions/arcade";
-import type { ToolkitAuthorizationList } from "../../../../backend/actions/toolkit_authorization";
-import type {
-  AgentEdit,
-  AgentView,
-  AgentModels,
-} from "../../../../backend/actions/agent";
+import { APIWrapper } from "../../../lib/api";
+import { useAuth } from "../../../lib/auth";
 
 export default function EditAgent() {
   const router = useRouter();
@@ -34,7 +36,7 @@ export default function EditAgent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agent, setAgent] = useState<ActionResponse<AgentView>["agent"] | null>(
-    null
+    null,
   );
   const [formData, setFormData] = useState<{
     name: string;
@@ -43,7 +45,6 @@ export default function EditAgent() {
     userPrompt: string;
     responseType: "text" | "json" | "markdown";
     enabled: boolean;
-    schedule: string;
     toolkits: string[];
   }>({
     name: "",
@@ -52,9 +53,15 @@ export default function EditAgent() {
     userPrompt: "",
     responseType: "text",
     enabled: false,
-    schedule: "",
     toolkits: [],
   });
+
+  // Test agent state
+  const [testContext, setTestContext] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<ActionResponse<AgentRun> | null>(
+    null,
+  );
 
   // Toolkits state
   const [availableToolkits, setAvailableToolkits] = useState<
@@ -67,6 +74,8 @@ export default function EditAgent() {
     Array<{ value: string; label: string }>
   >([]);
   const [modelsLoading, setModelsLoading] = useState(false);
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const [bannerOpacity, setBannerOpacity] = useState(1);
 
   useEffect(() => {
     if (id) {
@@ -92,7 +101,6 @@ export default function EditAgent() {
         userPrompt: agentData.userPrompt,
         responseType: agentData.responseType || "text",
         enabled: agentData.enabled,
-        schedule: agentData.schedule || "",
         toolkits: agentData.toolkits || [],
       });
     } catch (err) {
@@ -121,17 +129,17 @@ export default function EditAgent() {
         (
           toolkit: NonNullable<
             ActionResponse<ArcadeListToolkits>["toolkits"]
-          >[0]
+          >[0],
         ) => {
           const isAuthorized = userAuthorizations.some(
             (
               auth: NonNullable<
                 ActionResponse<ToolkitAuthorizationList>["toolkitAuthorizations"]
-              >[0]
-            ) => auth.toolkitName === toolkit.name
+              >[0],
+            ) => auth.toolkitName === toolkit.name,
           );
           return isAuthorized;
-        }
+        },
       );
 
       // Ensure all toolkits have the expected structure
@@ -139,7 +147,7 @@ export default function EditAgent() {
         (
           toolkit: NonNullable<
             ActionResponse<ArcadeListToolkits>["toolkits"]
-          >[0]
+          >[0],
         ) => {
           const isValid =
             toolkit &&
@@ -151,7 +159,7 @@ export default function EditAgent() {
             console.warn("Invalid toolkit structure:", toolkit);
           }
           return isValid;
-        }
+        },
       );
 
       setAvailableToolkits(validatedToolkits);
@@ -178,10 +186,10 @@ export default function EditAgent() {
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]:
         type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
@@ -189,7 +197,7 @@ export default function EditAgent() {
   };
 
   const handleToolkitChange = (toolkitName: string, checked: boolean) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       toolkits: checked
         ? [...prev.toolkits, toolkitName]
@@ -226,8 +234,18 @@ export default function EditAgent() {
       const response: ActionResponse<AgentEdit> =
         await APIWrapper.post<AgentEdit>(`/agent/${id}`, submitData);
 
-      // Redirect to the agent detail page
-      router.push(`/agents/${id}`);
+      // Show success banner instead of redirecting
+      setShowSuccessBanner(true);
+      setBannerOpacity(1);
+
+      // Start fade out after 2.5 seconds, then hide after 3 seconds
+      setTimeout(() => {
+        setBannerOpacity(0);
+      }, 2500);
+
+      setTimeout(() => {
+        setShowSuccessBanner(false);
+      }, 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -237,6 +255,27 @@ export default function EditAgent() {
 
   const handleCancel = () => {
     router.push(`/agents/${id}`);
+  };
+
+  const handleTestAgent = async () => {
+    if (!agent) return;
+
+    setTesting(true);
+    setTestResult(null);
+    setError(null);
+
+    try {
+      const response: ActionResponse<AgentRun> =
+        await APIWrapper.post<AgentRun>(`/agent/${agent.id}/run`, {
+          additionalContext: testContext || undefined,
+        });
+
+      setTestResult(response);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to test agent");
+    } finally {
+      setTesting(false);
+    }
   };
 
   if (!user) {
@@ -314,16 +353,34 @@ export default function EditAgent() {
           </Row>
         )}
 
+        {showSuccessBanner && (
+          <Row className="mb-4">
+            <Col>
+              <Alert
+                variant="success"
+                className="fade-in"
+                style={{
+                  animation: "fadeIn 0.5s ease-in-out",
+                  transition: "opacity 0.5s ease-in-out",
+                  opacity: bannerOpacity,
+                }}
+              >
+                ✓ Agent updated successfully!
+              </Alert>
+            </Col>
+          </Row>
+        )}
+
         <Row>
           <Col lg={8}>
-            <Card>
+            <Card className="mb-4">
               <Card.Header>
                 <h6>Edit Agent Configuration</h6>
               </Card.Header>
               <Card.Body className="p-3">
                 <Form onSubmit={handleSubmit}>
                   <Form.Group className="mb-3">
-                    <Form.Label className="small">Agent Name *</Form.Label>
+                    <Form.Label className="small">Name *</Form.Label>
                     <Form.Control
                       type="text"
                       name="name"
@@ -336,20 +393,21 @@ export default function EditAgent() {
                   </Form.Group>
 
                   <Form.Group className="mb-3">
-                    <Form.Label className="small">AI Model *</Form.Label>
+                    <Form.Label className="small">Model *</Form.Label>
                     <Form.Select
                       name="model"
                       value={formData.model}
-                      // @ts-ignore
-                      onChange={handleInputChange}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          model: e.target.value,
+                        }))
+                      }
                       required
                       size="sm"
-                      disabled={modelsLoading}
                     >
-                      {modelsLoading ? (
-                        <option>Loading models...</option>
-                      ) : availableModels && availableModels.length > 0 ? (
-                        availableModels.map(model => (
+                      {availableModels.length > 0 ? (
+                        availableModels.map((model) => (
                           <option key={model.value} value={model.value}>
                             {model.label}
                           </option>
@@ -392,26 +450,21 @@ export default function EditAgent() {
                     <Form.Select
                       name="responseType"
                       value={formData.responseType}
-                      // @ts-ignore
-                      onChange={handleInputChange}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          responseType: e.target.value as
+                            | "text"
+                            | "json"
+                            | "markdown",
+                        }))
+                      }
                       size="sm"
                     >
                       <option value="text">Text</option>
                       <option value="json">JSON</option>
                       <option value="markdown">Markdown</option>
                     </Form.Select>
-                  </Form.Group>
-
-                  <Form.Group className="mb-3">
-                    <Form.Label className="small">Schedule</Form.Label>
-                    <Form.Control
-                      type="text"
-                      name="schedule"
-                      value={formData.schedule}
-                      onChange={handleInputChange}
-                      size="sm"
-                      placeholder="0 9 * * *"
-                    />
                   </Form.Group>
 
                   <Form.Group className="mb-3">
@@ -535,6 +588,85 @@ export default function EditAgent() {
                         </span>
                       ))}
                     </div>
+                  </div>
+                )}
+              </Card.Body>
+            </Card>
+
+            <Card className="mb-4">
+              <Card.Header>
+                <h6>Test Agent</h6>
+              </Card.Header>
+              <Card.Body className="p-3">
+                <Form.Group className="mb-3">
+                  <Form.Label className="small">
+                    Additional Context (Optional)
+                  </Form.Label>
+                  <Form.Control
+                    type="text"
+                    placeholder="Enter additional context for testing"
+                    value={testContext}
+                    onChange={(e) => setTestContext(e.target.value)}
+                    size="sm"
+                  />
+                </Form.Group>
+
+                <div className="d-grid">
+                  <Button
+                    type="button"
+                    variant="outline-info"
+                    size="sm"
+                    onClick={handleTestAgent}
+                    disabled={testing || !agent}
+                  >
+                    {testing ? (
+                      <>
+                        <Spinner
+                          as="span"
+                          animation="border"
+                          size="sm"
+                          role="status"
+                          aria-hidden="true"
+                          className="me-2"
+                        />
+                        Testing...
+                      </>
+                    ) : (
+                      "Test Agent"
+                    )}
+                  </Button>
+                </div>
+
+                {testResult && (
+                  <div className="mt-3">
+                    <div className="d-flex align-items-center mb-2">
+                      <strong className="me-2">Test Result:</strong>
+                      <span
+                        className={`badge bg-${
+                          testResult.status === "completed"
+                            ? "success"
+                            : "danger"
+                        }`}
+                      >
+                        {testResult.status}
+                      </span>
+                    </div>
+                    {testResult.result && (
+                      <div className="mb-2">
+                        <strong>Output:</strong>
+                        <div className="mt-1 p-2 bg-light rounded small">
+                          <MarkdownRenderer content={testResult.result} />
+                        </div>
+                      </div>
+                    )}
+                    {testResult.error && (
+                      <div className="mb-2">
+                        <strong>Error:</strong>
+                        <div className="mt-1 p-2 bg-danger bg-opacity-10 text-danger rounded small">
+                          {testResult.error}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </Card.Body>

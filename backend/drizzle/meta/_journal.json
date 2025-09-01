@@ -15,6 +15,90 @@
       "when": 1755131850984,
       "tag": "0001_needy_wendell_rand",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1755226927581,
+      "tag": "0002_magenta_zeigeist",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1755229049601,
+      "tag": "0003_nosy_chronomancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1755229186215,
+      "tag": "0004_rapid_banshee",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1755230118231,
+      "tag": "0005_plain_joystick",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1755233229518,
+      "tag": "0006_noisy_tyger_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1755233756953,
+      "tag": "0007_empty_frank_castle",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1755473628875,
+      "tag": "0008_lumpy_jubilee",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1755474127226,
+      "tag": "0009_worthless_shen",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1756185013960,
+      "tag": "0010_modern_frank_castle",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1756268478594,
+      "tag": "0011_sharp_ultimo",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1756269402935,
+      "tag": "0012_mushy_wild_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1756344252643,
+      "tag": "0013_puzzling_starfox",
+      "breakpoints": true
     }
   ]
 }

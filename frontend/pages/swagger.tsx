@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { APIWrapper } from "../lib/api";
 import type { Swagger } from "../../backend/actions/swagger";
+import { APIWrapper } from "../lib/api";
 
 // Type definitions for Swagger UI
 interface SwaggerUIBundle {
@@ -66,17 +66,17 @@ export default function SwaggerPage() {
 
       Promise.all([
         loadScript(
-          "https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"
+          "https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
         ),
         loadScript(
-          "https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-standalone-preset.js"
+          "https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-standalone-preset.js",
         ),
       ])
         .then(() => {
           document.title = "API Documentation - Botholomew";
           loadSwaggerDoc();
         })
-        .catch(err => {
+        .catch((err) => {
           setError("Failed to load Swagger UI: " + err.message);
           setIsLoading(false);
         });
@@ -115,7 +115,7 @@ export default function SwaggerPage() {
             // Handle authentication errors gracefully
             if (response.status === 401) {
               console.warn(
-                "Authentication required. Please sign in to use the API."
+                "Authentication required. Please sign in to use the API.",
               );
             }
             return response;
@@ -125,7 +125,7 @@ export default function SwaggerPage() {
     } catch (err) {
       setIsLoading(false);
       setError(
-        err instanceof Error ? err.message : "Failed to load API documentation"
+        err instanceof Error ? err.message : "Failed to load API documentation",
       );
     }
   };
@@ -186,10 +186,10 @@ export default function SwaggerPage() {
                 cursor: "pointer",
                 fontSize: "16px",
               }}
-              onMouseOver={e => {
+              onMouseOver={(e) => {
                 e.currentTarget.style.background = "#1565c0";
               }}
-              onMouseOut={e => {
+              onMouseOut={(e) => {
                 e.currentTarget.style.background = "#1976d2";
               }}
             >
