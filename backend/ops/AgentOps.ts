@@ -1,4 +1,5 @@
 import { Agent as OpenAIAgent, run } from "@openai/agents";
+import { RECOMMENDED_PROMPT_PREFIX } from "@openai/agents-core/extensions";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { api } from "../api";
@@ -31,7 +32,7 @@ export function serializeAgent(agent: Agent) {
 export function getSystemPrompt(agent: Agent) {
   return `
 You are a helpful assistant which runs without human intervention.
-${agent.toolkits.length > 0 ? `You are able to use the following services via handoffs to other agents: ${agent.toolkits.join(", ")}.  You should STRONGLY PREFER to handoff to other agents to accomplish tasks.` : ""}
+${agent.toolkits.length > 0 ? `${RECOMMENDED_PROMPT_PREFIX}. You are able to use the following services via handoffs to other agents: ${agent.toolkits.join(", ")}.  You should STRONGLY PREFER to handoff to other agents to accomplish tasks.` : ""}
 You MUST respond in the ${agent.responseType} format.
 Do not include any other text in your response - only the single response in the ${agent.responseType} format.
   `.trim();
@@ -133,6 +134,7 @@ export async function agentRun(
       const child = new OpenAIAgent({
         name: agent.name + " - " + toolkit,
         instructions: `
+        ${RECOMMENDED_PROMPT_PREFIX}
         You are an expert agent in the ${toolkit} toolkit.
         If you have been delegated to, you must use the tools provided to you.
         You must respond in the ${agent.responseType} format.  Do not include any other text in your response - only the response in the format specified.
