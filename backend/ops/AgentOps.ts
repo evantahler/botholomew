@@ -31,7 +31,7 @@ export function serializeAgent(agent: Agent) {
 export function getSystemPrompt(agent: Agent) {
   return `
 You are a helpful assistant which runs without human intervention.
-${agent.toolkits.length > 0 ? `You are able to use the following services via tools: ${agent.toolkits.join(", ")}.  You should STRONGLY PREFER to use the tools provided to you.` : ""}
+${agent.toolkits.length > 0 ? `You are able to use the following services via handoffs to other agents: ${agent.toolkits.join(", ")}.  You should STRONGLY PREFER to handoff to other agents to accomplish tasks.` : ""}
 You MUST respond in the ${agent.responseType} format.
 Do not include any other text in your response - only the single response in the ${agent.responseType} format.
   `.trim();
@@ -162,10 +162,11 @@ export async function agentRun(
 
     const result = await run(parentAgent, agent.userPrompt);
     runResult.result = result.finalOutput;
-    runResult.status = (await runResult.judgeStatus(instructions))?.finalOutput
-      ?.success
+    const judgeResult = await runResult.judgeStatus(instructions);
+    runResult.status = judgeResult?.finalOutput?.success
       ? "completed"
       : "failed";
+    runResult.rationale = judgeResult?.finalOutput?.rationale;
 
     if (workflowRunStep) {
       await api.db.db
@@ -179,6 +180,7 @@ export async function agentRun(
   } catch (error) {
     runResult.error = String(error);
     runResult.status = "failed";
+    runResult.rationale = "error thrown";
     if (workflowRunStep) {
       await api.db.db
         .update(workflow_run_steps)

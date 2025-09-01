@@ -1,4 +1,4 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { Action, type ActionParams, api, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
@@ -328,7 +328,7 @@ export class WorkflowRunTick implements Action {
       .select()
       .from(workflow_steps)
       .where(eq(workflow_steps.workflowId, workflowRun.workflowId))
-      .orderBy(workflow_steps.position);
+      .orderBy(asc(workflow_steps.position));
 
     if (workflowSteps.length === 0) {
       return {
@@ -411,7 +411,11 @@ export class WorkflowRunTick implements Action {
       .where(eq(workflow_run_steps.id, workflowRunStep.id));
 
     try {
-      const stepResult = await agentRun(agent, workflowRunStep);
+      const stepResult = await agentRun(
+        agent,
+        workflowRunStep,
+        input ? input : undefined,
+      );
 
       // Update step status to completed and fetch the updated workflow run
       const [updatedWorkflowRun] = await api.db.db
