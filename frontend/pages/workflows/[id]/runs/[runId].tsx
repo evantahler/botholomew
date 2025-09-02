@@ -27,6 +27,14 @@ import { APIWrapper } from "../../../../lib/api";
 import { useAuth } from "../../../../lib/auth";
 import { formatDate } from "../../../../lib/utils";
 
+// Utility function to format step duration in mm:ss format
+const formatStepDuration = (createdAt: number, updatedAt: number): string => {
+  const totalSeconds = Math.round((updatedAt - createdAt) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+
 export default function ViewWorkflowRun() {
   const router = useRouter();
   const { id, runId } = router.query;
@@ -396,10 +404,22 @@ export default function ViewWorkflowRun() {
                               {step.status}
                             </Badge>
                             <span className="fw-bold">Step {index + 1}</span>
+                            {step.status === "completed" && (
+                              <Badge bg="info" className="ms-2">
+                                {formatStepDuration(step.createdAt, step.updatedAt)}
+                              </Badge>
+                            )}
                           </div>
-                          <small className="text-muted">
-                            {formatDate(step.createdAt)}
-                          </small>
+                          <div className="text-end">
+                            <small className="text-muted d-block">
+                              {formatDate(step.createdAt)}
+                            </small>
+                            {step.status === "completed" && (
+                              <small className="text-muted">
+                                Duration: {formatStepDuration(step.createdAt, step.updatedAt)}
+                              </small>
+                            )}
+                          </div>
                         </div>
 
                         <div className="mb-2">
