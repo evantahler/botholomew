@@ -54,10 +54,12 @@
         "scss": "^0.2.4",
       },
       "devDependencies": {
+        "@trivago/prettier-plugin-sort-imports": "^5.2.2",
         "@types/node": "^20",
         "@types/react": "^19",
         "@types/react-dom": "^19",
         "prettier": "^3.0.0",
+        "prettier-plugin-organize-imports": "^4.2.0",
         "typescript": "^5",
       },
     },
