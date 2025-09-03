@@ -17,4 +17,10 @@ export const configTasks = {
   stuckWorkerTimeout: 1000 * 60 * 60,
   // should the scheduler automatically try to retry failed tasks which were failed due to being 'stuck'?
   retryStuckJobs: false,
+  // how often should the workflow ticker run to check for running workflows (in milliseconds)
+  // can be overridden with WORKFLOW_TICKER_FREQUENCY environment variable
+  workflowTickerFrequency: await loadFromEnvIfSet(
+    "WORKFLOW_TICKER_FREQUENCY",
+    10000,
+  ),
 };
