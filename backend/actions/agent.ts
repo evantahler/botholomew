@@ -314,6 +314,7 @@ export class AgentRun implements Action {
     return {
       status: result.status,
       result: result.result,
+      rationale: result.rationale,
       error: result.error,
     };
   }

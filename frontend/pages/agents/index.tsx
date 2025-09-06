@@ -198,6 +198,13 @@ export default function AgentsList() {
                   <Card.Footer>
                     <div className="d-flex gap-2">
                       <Button
+                        variant="outline-primary"
+                        size="sm"
+                        onClick={() => router.push(`/agents/${agent.id}`)}
+                      >
+                        View
+                      </Button>
+                      <Button
                         variant="outline-secondary"
                         size="sm"
                         onClick={() => router.push(`/agents/edit/${agent.id}`)}

@@ -1,4 +1,4 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { Action, type ActionParams, api, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
@@ -46,6 +46,7 @@ type AgentInfo = {
 
 // Type for the final grouped run result
 type GroupedWorkflowRun = ReturnType<typeof serializeWorkflowRun> & {
+  createdAt: number;
   workflowName: string;
   workflowDescription: string | null;
   agents: AgentInfo[];
@@ -99,7 +100,7 @@ export class WorkflowRunListAll implements Action {
       )
       .leftJoin(agents, eq(workflow_steps.agentId, agents.id))
       .where(eq(workflows.userId, userId))
-      .orderBy(workflow_runs.createdAt)
+      .orderBy(desc(workflow_runs.createdAt))
       .limit(limit)
       .offset(offset);
 
@@ -132,6 +133,7 @@ export class WorkflowRunListAll implements Action {
               currentStep: run.currentStep,
               metadata: run.metadata,
             }),
+            createdAt: run.createdAt.getTime(),
             workflowName: run.workflowName,
             workflowDescription: run.workflowDescription,
             agents: [],
@@ -151,7 +153,10 @@ export class WorkflowRunListAll implements Action {
     );
 
     return {
-      runs: Object.values(groupedRuns),
+      runs: Object.values(groupedRuns).sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
       total: total.count,
     } as {
       runs: GroupedWorkflowRun[];
@@ -310,7 +315,7 @@ export class WorkflowRunList implements Action {
       .select()
       .from(workflow_runs)
       .where(eq(workflow_runs.workflowId, id))
-      .orderBy(workflow_runs.createdAt)
+      .orderBy(desc(workflow_runs.createdAt))
       .limit(limit)
       .offset(offset);
 
