@@ -108,75 +108,88 @@ export default function WorkflowsList() {
       <Container className="mt-5 pt-4">
         <Row className="mb-4">
           <Col>
-            <h1>Workflows</h1>
-            <p className="text-muted">
-              Create and manage your automated workflow processes
-            </p>
-          </Col>
-          <Col xs="auto">
-            <Button
-              variant="primary"
-              onClick={() => router.push("/workflows/create")}
-            >
-              Create Workflow
-            </Button>
-          </Col>
-        </Row>
-
-        {error && (
-          <Alert variant="danger" onClose={() => setError(null)} dismissible>
-            {error}
-          </Alert>
-        )}
-
-        {loading ? (
-          <div className="text-center py-5">
-            <Spinner animation="border" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </Spinner>
-          </div>
-        ) : workflows.length === 0 ? (
-          <Card>
-            <Card.Body className="text-center py-5">
-              <h4>No workflows yet</h4>
-              <p className="text-muted">
-                Create your first workflow to get started with automation
-              </p>
+            <div className="d-flex justify-content-between align-items-center">
+              <h1>My Workflows</h1>
               <Button
                 variant="primary"
                 onClick={() => router.push("/workflows/create")}
               >
-                Create Your First Workflow
+                Create New Workflow
               </Button>
-            </Card.Body>
-          </Card>
+            </div>
+          </Col>
+        </Row>
+
+        {error && (
+          <Row className="mb-4">
+            <Col>
+              <Alert
+                variant="danger"
+                onClose={() => setError(null)}
+                dismissible
+              >
+                {error}
+              </Alert>
+            </Col>
+          </Row>
+        )}
+
+        {loading ? (
+          <Row>
+            <Col className="text-center">
+              <Spinner animation="border" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </Spinner>
+            </Col>
+          </Row>
+        ) : workflows.length === 0 ? (
+          <Row>
+            <Col>
+              <Card>
+                <Card.Body className="text-center py-5">
+                  <h4>No workflows found</h4>
+                  <p className="text-muted">
+                    Create your first workflow to get started
+                  </p>
+                  <Button
+                    variant="primary"
+                    onClick={() => router.push("/workflows/create")}
+                  >
+                    Create Your First Workflow
+                  </Button>
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
         ) : (
           <>
             <Row>
               {workflows.map((workflow) => (
-                <Col key={workflow.id} lg={6} xl={4} className="mb-4">
+                <Col key={workflow.id} lg={4} md={6} className="mb-4">
                   <Card className="h-100">
+                    <Card.Header className="d-flex justify-content-between align-items-center">
+                      <h5 className="mb-0">{workflow.name}</h5>
+                      <Badge
+                        bg={workflow.enabled ? "success" : "warning"}
+                        className="text-white"
+                      >
+                        {workflow.enabled ? "Active" : "Inactive"}
+                      </Badge>
+                    </Card.Header>
                     <Card.Body>
-                      <div className="d-flex justify-content-between align-items-start mb-2">
-                        <h5 className="card-title mb-0">{workflow.name}</h5>
-                        <Badge
-                          bg={workflow.enabled ? "success" : "secondary"}
-                          className="ms-2"
-                        >
-                          {workflow.enabled ? "Enabled" : "Disabled"}
-                        </Badge>
-                      </div>
                       {workflow.description && (
-                        <p className="card-text text-muted mb-3">
+                        <p className="text-muted mb-3">
                           {workflow.description}
                         </p>
                       )}
-                      <div className="text-muted small mb-3">
+                      <div className="text-muted small">
                         Created: {formatDate(workflow.createdAt)}
                       </div>
+                    </Card.Body>
+                    <Card.Footer>
                       <div className="d-flex gap-2">
                         <Button
-                          variant="outline-primary"
+                          variant="outline-secondary"
                           size="sm"
                           onClick={() =>
                             router.push(`/workflows/edit/${workflow.id}`)
@@ -185,7 +198,7 @@ export default function WorkflowsList() {
                           Edit
                         </Button>
                         <Button
-                          variant="outline-secondary"
+                          variant="outline-primary"
                           size="sm"
                           onClick={() =>
                             router.push(`/workflows/${workflow.id}`)
@@ -203,21 +216,26 @@ export default function WorkflowsList() {
                           Delete
                         </Button>
                       </div>
-                    </Card.Body>
+                    </Card.Footer>
                   </Card>
                 </Col>
               ))}
             </Row>
 
             {totalPages > 1 && (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-                totalItems={pagination.total}
-                itemsPerPage={pagination.limit}
-                currentOffset={pagination.offset}
-              />
+              <Row className="mt-4">
+                <Col>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                    totalItems={pagination.total}
+                    itemsPerPage={pagination.limit}
+                    currentOffset={pagination.offset}
+                    showInfo={true}
+                  />
+                </Col>
+              </Row>
             )}
           </>
         )}

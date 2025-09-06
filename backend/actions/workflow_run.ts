@@ -4,17 +4,161 @@ import { Action, type ActionParams, api, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { SessionMiddleware } from "../middleware/session";
+import { agents } from "../models/agent";
 import { Workflow, workflows } from "../models/workflow";
 import { workflow_runs, WorkflowRun } from "../models/workflow_run";
 import {
   workflow_run_steps,
   WorkflowRunStep,
 } from "../models/workflow_run_step";
+import { workflow_steps } from "../models/workflow_step";
 import {
   processWorkflowRunTick,
   serializeWorkflowRun,
 } from "../ops/WorkflowRunOps";
 import { serializeWorkflowRunStep } from "../ops/WorkflowRunStepOps";
+
+// Types for the database query result
+type WorkflowRunWithDetails = {
+  id: number;
+  createdAt: Date;
+  updatedAt: Date;
+  workflowId: number;
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  input: string | null;
+  output: Record<string, any> | null;
+  error: string | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  currentStep: number;
+  metadata: Record<string, any>;
+  workflowName: string;
+  workflowDescription: string | null;
+  agentName: string | null;
+  agentDescription: string | null;
+};
+
+// Type for the agent information in grouped runs
+type AgentInfo = {
+  name: string;
+  description: string | null;
+};
+
+// Type for the final grouped run result
+type GroupedWorkflowRun = ReturnType<typeof serializeWorkflowRun> & {
+  workflowName: string;
+  workflowDescription: string | null;
+  agents: AgentInfo[];
+};
+
+export class WorkflowRunListAll implements Action {
+  name = "workflow:run:list:all";
+  description = "List all workflow runs for a user across all their workflows";
+  web = { route: "/workflows/runs", method: HTTP_METHOD.GET };
+  middleware = [SessionMiddleware];
+  inputs = z.object({
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    offset: z.coerce.number().int().min(0).default(0),
+  });
+
+  async run(params: ActionParams<WorkflowRunListAll>, connection: Connection) {
+    const { limit, offset } = params;
+    const userId = connection.session?.data.userId;
+    if (!userId) {
+      throw new TypedError({
+        message: "User session not found",
+        type: ErrorType.CONNECTION_SESSION_NOT_FOUND,
+      });
+    }
+
+    // Get all workflow runs for the user's workflows with workflow and agent information
+    const runs: WorkflowRunWithDetails[] = await api.db.db
+      .select({
+        id: workflow_runs.id,
+        createdAt: workflow_runs.createdAt,
+        updatedAt: workflow_runs.updatedAt,
+        workflowId: workflow_runs.workflowId,
+        status: workflow_runs.status,
+        input: workflow_runs.input,
+        output: workflow_runs.output,
+        error: workflow_runs.error,
+        startedAt: workflow_runs.startedAt,
+        completedAt: workflow_runs.completedAt,
+        currentStep: workflow_runs.currentStep,
+        metadata: workflow_runs.metadata,
+        workflowName: workflows.name,
+        workflowDescription: workflows.description,
+        agentName: agents.name,
+        agentDescription: agents.description,
+      })
+      .from(workflow_runs)
+      .innerJoin(workflows, eq(workflow_runs.workflowId, workflows.id))
+      .leftJoin(
+        workflow_steps,
+        eq(workflow_runs.workflowId, workflow_steps.workflowId),
+      )
+      .leftJoin(agents, eq(workflow_steps.agentId, agents.id))
+      .where(eq(workflows.userId, userId))
+      .orderBy(workflow_runs.createdAt)
+      .limit(limit)
+      .offset(offset);
+
+    // Get total count for pagination
+    const [total] = await api.db.db
+      .select({ count: count() })
+      .from(workflow_runs)
+      .innerJoin(workflows, eq(workflow_runs.workflowId, workflows.id))
+      .where(eq(workflows.userId, userId));
+
+    // Group runs by workflow run ID to handle multiple agents per workflow
+    const groupedRuns = runs.reduce(
+      (
+        acc: Record<number, GroupedWorkflowRun>,
+        run: WorkflowRunWithDetails,
+      ) => {
+        if (!acc[run.id]) {
+          acc[run.id] = {
+            ...serializeWorkflowRun({
+              id: run.id,
+              createdAt: run.createdAt,
+              updatedAt: run.updatedAt,
+              workflowId: run.workflowId,
+              status: run.status,
+              input: run.input,
+              output: run.output,
+              error: run.error,
+              startedAt: run.startedAt,
+              completedAt: run.completedAt,
+              currentStep: run.currentStep,
+              metadata: run.metadata,
+            }),
+            workflowName: run.workflowName,
+            workflowDescription: run.workflowDescription,
+            agents: [],
+          };
+        }
+
+        if (run.agentName) {
+          acc[run.id].agents.push({
+            name: run.agentName,
+            description: run.agentDescription,
+          });
+        }
+
+        return acc;
+      },
+      {} as Record<number, GroupedWorkflowRun>,
+    );
+
+    return {
+      runs: Object.values(groupedRuns),
+      total: total.count,
+    } as {
+      runs: GroupedWorkflowRun[];
+      total: number;
+    };
+  }
+}
 
 export class WorkflowRunCreate implements Action {
   name = "workflow:run:create";

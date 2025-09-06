@@ -688,3 +688,77 @@ describe("workflow:run:tick", () => {
     expect(response.status).toBe(401);
   });
 });
+
+describe("workflow:run:list:all", () => {
+  let user: ActionResponse<SessionCreate>["user"];
+  let session: ActionResponse<SessionCreate>["session"];
+  let workflow1: any;
+  let workflow2: any;
+  let agent: any;
+
+  beforeAll(async () => {
+    const testSession = await createUserAndSession(USERS.LUIGI);
+    user = testSession.user;
+    session = testSession.session;
+
+    // Create an agent
+    agent = await createTestAgent(user.id);
+
+    // Create two workflows
+    workflow1 = await createTestWorkflow(user.id, true);
+    workflow2 = await createTestWorkflow(user.id, true);
+
+    // Add agent to both workflows
+    await api.db.db.insert(workflow_steps).values([
+      { workflowId: workflow1.id, agentId: agent.id, position: 1 },
+      { workflowId: workflow2.id, agentId: agent.id, position: 1 },
+    ]);
+
+    // Create workflow runs with different statuses
+    await createTestWorkflowRun(workflow1.id, "completed");
+    await createTestWorkflowRun(workflow1.id, "running");
+    await createTestWorkflowRun(workflow2.id, "failed");
+  });
+
+  test("should list all workflow runs for user", async () => {
+    const response = await fetch(`${url}/api/workflows/runs`, {
+      method: "GET",
+      headers: {
+        Cookie: `${session.cookieName}=${session.id}`,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.runs).toHaveLength(6); // There are more runs from previous tests
+    expect(data.total).toBe(6);
+
+    // Check that runs include workflow and agent information
+    const run = data.runs[0];
+    expect(run.workflowName).toBeDefined();
+    expect(run.agents).toBeDefined();
+    expect(Array.isArray(run.agents)).toBe(true);
+  });
+
+  test("should list workflow runs with pagination", async () => {
+    const response = await fetch(`${url}/api/workflows/runs?limit=2&offset=0`, {
+      method: "GET",
+      headers: {
+        Cookie: `${session.cookieName}=${session.id}`,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.runs).toHaveLength(2);
+    expect(data.total).toBe(6);
+  });
+
+  test("should fail without session", async () => {
+    const response = await fetch(`${url}/api/workflows/runs`, {
+      method: "GET",
+    });
+
+    expect(response.status).toBe(401);
+  });
+});

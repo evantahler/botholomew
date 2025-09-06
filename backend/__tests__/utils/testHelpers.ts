@@ -6,7 +6,7 @@ import { config } from "../../config";
 import { agents } from "../../models/agent";
 import { users } from "../../models/user";
 import { workflows } from "../../models/workflow";
-import { workflow_runs } from "../../models/workflow_run";
+import { workflow_runs, WorkflowRun } from "../../models/workflow_run";
 import { workflow_steps } from "../../models/workflow_step";
 import { hashPassword } from "../../ops/UserOps";
 
@@ -190,12 +190,15 @@ export async function createTestWorkflowStep(
 /**
  * Create a test workflow run for testing
  */
-export async function createTestWorkflowRun(workflowId: number) {
+export async function createTestWorkflowRun(
+  workflowId: number,
+  status: WorkflowRun["status"] = "pending",
+) {
   const [run] = await api.db.db
     .insert(workflow_runs)
     .values({
       workflowId,
-      status: "pending",
+      status,
       input: "Test input",
       output: null,
       error: null,

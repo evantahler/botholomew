@@ -32,7 +32,7 @@ const formatStepDuration = (createdAt: number, updatedAt: number): string => {
   const totalSeconds = Math.round((updatedAt - createdAt) / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 };
 
 export default function ViewWorkflowRun() {
@@ -406,7 +406,10 @@ export default function ViewWorkflowRun() {
                             <span className="fw-bold">Step {index + 1}</span>
                             {step.status === "completed" && (
                               <Badge bg="info" className="ms-2">
-                                {formatStepDuration(step.createdAt, step.updatedAt)}
+                                {formatStepDuration(
+                                  step.createdAt,
+                                  step.updatedAt,
+                                )}
                               </Badge>
                             )}
                           </div>
@@ -416,7 +419,11 @@ export default function ViewWorkflowRun() {
                             </small>
                             {step.status === "completed" && (
                               <small className="text-muted">
-                                Duration: {formatStepDuration(step.createdAt, step.updatedAt)}
+                                Duration:{" "}
+                                {formatStepDuration(
+                                  step.createdAt,
+                                  step.updatedAt,
+                                )}
                               </small>
                             )}
                           </div>
