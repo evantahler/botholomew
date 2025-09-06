@@ -174,11 +174,6 @@ export default function AgentsList() {
                     <div className="mb-3">
                       <strong>Model:</strong> {agent.model}
                     </div>
-                    {agent.schedule && (
-                      <div className="mb-3">
-                        <strong>Schedule:</strong> {agent.schedule}
-                      </div>
-                    )}
                     {agent.toolkits && agent.toolkits.length > 0 && (
                       <div className="mb-3">
                         <strong>Toolkits:</strong>

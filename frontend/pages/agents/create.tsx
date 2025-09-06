@@ -34,7 +34,6 @@ export default function CreateAgent() {
     userPrompt: string;
     responseType: "text" | "json" | "markdown";
     enabled: boolean;
-    schedule: string;
     toolkits: string[];
   }>({
     name: "",
@@ -43,7 +42,6 @@ export default function CreateAgent() {
     userPrompt: "",
     responseType: "text",
     enabled: false,
-    schedule: "",
     toolkits: [],
   });
 
@@ -276,42 +274,22 @@ export default function CreateAgent() {
                     </Form.Text>
                   </Form.Group>
 
-                  <Row>
-                    <Col md={6}>
-                      <Form.Group className="mb-3">
-                        <Form.Label>Response Type</Form.Label>
-                        <Form.Select
-                          name="responseType"
-                          value={formData.responseType}
-                          // @ts-ignore
-                          onChange={handleInputChange}
-                        >
-                          <option value="text">Text</option>
-                          <option value="json">JSON</option>
-                          <option value="markdown">Markdown</option>
-                        </Form.Select>
-                        <Form.Text className="text-muted">
-                          The format for the agent's responses
-                        </Form.Text>
-                      </Form.Group>
-                    </Col>
-                    <Col md={6}>
-                      <Form.Group className="mb-3">
-                        <Form.Label>Schedule (Cron Expression)</Form.Label>
-                        <Form.Control
-                          type="text"
-                          name="schedule"
-                          value={formData.schedule}
-                          onChange={handleInputChange}
-                          placeholder="0 9 * * * (daily at 9 AM)"
-                        />
-                        <Form.Text className="text-muted">
-                          Optional cron schedule for automated runs (e.g., "0 9
-                          * * *" for daily at 9 AM)
-                        </Form.Text>
-                      </Form.Group>
-                    </Col>
-                  </Row>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Response Type</Form.Label>
+                    <Form.Select
+                      name="responseType"
+                      value={formData.responseType}
+                      // @ts-ignore
+                      onChange={handleInputChange}
+                    >
+                      <option value="text">Text</option>
+                      <option value="json">JSON</option>
+                      <option value="markdown">Markdown</option>
+                    </Form.Select>
+                    <Form.Text className="text-muted">
+                      The format for the agent's responses
+                    </Form.Text>
+                  </Form.Group>
 
                   <Row>
                     <Col md={6}>
@@ -401,10 +379,6 @@ export default function CreateAgent() {
                   <li className="mb-2">
                     <strong>Model Selection:</strong> Choose the appropriate
                     model based on your needs and budget.
-                  </li>
-                  <li className="mb-2">
-                    <strong>Scheduling:</strong> Use cron expressions for
-                    automated execution (e.g., "0 9 * * *" for daily at 9 AM).
                   </li>
                   <li className="mb-2">
                     <strong>Toolkits:</strong> Select toolkits to give your

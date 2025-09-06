@@ -45,10 +45,6 @@ export class AgentCreate implements Action {
     enabled: zBooleanFromString()
       .default(false)
       .describe("Whether the agent is enabled"),
-    schedule: z
-      .string()
-      .optional()
-      .describe("Cron schedule for the agent (if applicable)"),
     toolkits: z
       .union([
         z.array(z.string()),
@@ -95,7 +91,6 @@ export class AgentCreate implements Action {
         userPrompt: params.userPrompt,
         responseType: params.responseType,
         enabled: params.enabled,
-        schedule: params.schedule,
         toolkits: params.toolkits,
       })
       .returning();
@@ -124,7 +119,6 @@ export class AgentEdit implements Action {
     userPrompt: z.string().optional(),
     responseType: z.enum(responseTypes.enumValues).optional(),
     enabled: zBooleanFromString().optional(),
-    schedule: z.string().optional(),
     toolkits: z
       .union([
         z.array(z.string()),
@@ -168,7 +162,6 @@ export class AgentEdit implements Action {
     if (params.responseType !== undefined)
       updates.responseType = params.responseType;
     if (params.enabled !== undefined) updates.enabled = params.enabled;
-    if (params.schedule !== undefined) updates.schedule = params.schedule;
     if (params.toolkits !== undefined) updates.toolkits = params.toolkits;
 
     const [agent]: Agent[] = await api.db.db
