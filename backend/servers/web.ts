@@ -339,7 +339,7 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
       if (!action?.web?.route) continue;
 
       // Convert route with path parameters to regex
-      const routeWithParams = action.web.route.replace(/:\w+/g, "([^/]+)");
+      const routeWithParams = `${action.web.route}`.replace(/:\w+/g, "([^/]+)");
       const matcher =
         action.web.route instanceof RegExp
           ? action.web.route
@@ -352,8 +352,8 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
       ) {
         // Extract path parameters if the route has them
         const pathParams: Record<string, string> = {};
-        const paramNames = (action.web.route.match(/:\w+/g) || []).map((name) =>
-          name.slice(1),
+        const paramNames = (`${action.web.route}`.match(/:\w+/g) || []).map(
+          (name) => name.slice(1),
         );
         const match = pathToMatch.match(matcher);
 

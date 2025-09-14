@@ -77,7 +77,7 @@ export class ArcadeInitializer extends Initializer {
     });
 
     const provider = tools.items[0].requirements?.authorization?.provider_id;
-    if (!provider) throw new Error("No provider found for toolkit: " + toolkit);
+    if (!provider) return undefined;
 
     const scopes = [
       ...new Set(
