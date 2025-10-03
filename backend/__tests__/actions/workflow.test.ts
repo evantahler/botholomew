@@ -100,6 +100,46 @@ describe("Workflow Actions", () => {
 
       expect(response.status).toBe(401);
     });
+
+    test("should create a workflow with valid cron schedule", async () => {
+      const response = await fetch(`${url}/api/workflow`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${testSession.cookieName}=${testSession.id}`,
+        },
+        body: JSON.stringify({
+          name: "Scheduled Workflow",
+          description: "A workflow with a schedule",
+          enabled: true,
+          schedule: "0 * * * *", // Every hour
+        }),
+      });
+
+      const result = (await response.json()) as ActionResponse<WorkflowCreate>;
+      expect(response.status).toBe(200);
+      expect(result.workflow).toBeDefined();
+      expect(result.workflow.schedule).toBe("0 * * * *");
+      expect(result.workflow.lastScheduledAt).toBeNull();
+    });
+
+    test("should reject workflow with invalid cron schedule", async () => {
+      const response = await fetch(`${url}/api/workflow`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${testSession.cookieName}=${testSession.id}`,
+        },
+        body: JSON.stringify({
+          name: "Invalid Scheduled Workflow",
+          description: "A workflow with invalid schedule",
+          enabled: true,
+          schedule: "not a valid cron",
+        }),
+      });
+
+      expect(response.status).toBe(406);
+    });
   });
 
   describe("WorkflowList", () => {
@@ -169,6 +209,39 @@ describe("Workflow Actions", () => {
       expect(result.workflow).toBeDefined();
       expect(result.workflow.name).toBe("Updated Workflow");
       expect(result.workflow.enabled).toBe(true);
+    });
+
+    test("should edit a workflow schedule", async () => {
+      const response = await fetch(`${url}/api/workflow/${testWorkflow.id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${testSession.cookieName}=${testSession.id}`,
+        },
+        body: JSON.stringify({
+          schedule: "*/5 * * * *", // Every 5 minutes
+        }),
+      });
+
+      const result = (await response.json()) as ActionResponse<WorkflowEdit>;
+      expect(response.status).toBe(200);
+      expect(result.workflow).toBeDefined();
+      expect(result.workflow.schedule).toBe("*/5 * * * *");
+    });
+
+    test("should reject invalid cron schedule when editing", async () => {
+      const response = await fetch(`${url}/api/workflow/${testWorkflow.id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${testSession.cookieName}=${testSession.id}`,
+        },
+        body: JSON.stringify({
+          schedule: "invalid cron expression",
+        }),
+      });
+
+      expect(response.status).toBe(406);
     });
   });
 
