@@ -9,6 +9,7 @@ import {
   Col,
   Container,
   Form,
+  ListGroup,
   Modal,
   Row,
   Spinner,
@@ -30,6 +31,11 @@ import Navigation from "../../../components/Navigation";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { APIWrapper } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth";
+import {
+  CRON_EXAMPLES,
+  describeCronExpression,
+  validateCronExpression,
+} from "../../../lib/cronUtils";
 
 // Shared types - using backend action input types
 type WorkflowStepCreateInput = WorkflowStepCreate["inputs"]["_type"];
@@ -52,14 +58,18 @@ export default function EditWorkflow() {
   const [error, setError] = useState<string | null>(null);
   const [showAddStepModal, setShowAddStepModal] = useState(false);
   const [editingStep, setEditingStep] = useState<any>(null);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [showExamples, setShowExamples] = useState(false);
   const [formData, setFormData] = useState<{
     name: string;
     description: string;
     enabled: boolean;
+    schedule?: string;
   }>({
     name: "",
     description: "",
     enabled: false,
+    schedule: "",
   });
 
   // Drag and drop state
@@ -78,6 +88,7 @@ export default function EditWorkflow() {
         name: workflow.name || "",
         description: workflow.description || "",
         enabled: workflow.enabled || false,
+        schedule: workflow.schedule || "",
       });
     }
   }, [workflow]);
@@ -114,13 +125,41 @@ export default function EditWorkflow() {
 
   const handleSaveWorkflow = async () => {
     setSaving(true);
+    setScheduleError(null);
+
+    // Validate schedule if provided
+    if (formData.schedule && formData.schedule.trim()) {
+      const validation = validateCronExpression(formData.schedule);
+      if (!validation.valid) {
+        setScheduleError(validation.error || "Invalid cron expression");
+        setSaving(false);
+        return;
+      }
+    }
+
     try {
-      await APIWrapper.post<WorkflowEdit>(`/workflow/${id}`, formData);
+      await APIWrapper.post<WorkflowEdit>(`/workflow/${id}`, {
+        ...formData,
+        schedule: formData.schedule?.trim() || undefined,
+      });
       setWorkflow((prev) => (prev ? { ...prev, ...formData } : null));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save workflow");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleScheduleChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, schedule: value }));
+    setScheduleError(null);
+
+    // Validate on change for immediate feedback
+    if (value && value.trim()) {
+      const validation = validateCronExpression(value);
+      if (!validation.valid) {
+        setScheduleError(validation.error || "Invalid cron expression");
+      }
     }
   };
 
@@ -366,6 +405,71 @@ export default function EditWorkflow() {
                       }))
                     }
                   />
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                  <Form.Label>
+                    Schedule <small className="text-muted">Optional</small>
+                  </Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formData.schedule || ""}
+                    onChange={(e) => handleScheduleChange(e.target.value)}
+                    placeholder="Cron expression"
+                    isInvalid={!!scheduleError}
+                    maxLength={256}
+                  />
+                  {scheduleError && (
+                    <Form.Control.Feedback type="invalid">
+                      {scheduleError}
+                    </Form.Control.Feedback>
+                  )}
+                  {!scheduleError &&
+                    formData.schedule &&
+                    describeCronExpression(formData.schedule) && (
+                      <Form.Text className="text-success d-block">
+                        {describeCronExpression(formData.schedule)}
+                      </Form.Text>
+                    )}
+                  {!scheduleError && (
+                    <Form.Text className="text-muted d-block mt-1">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0"
+                        onClick={() => setShowExamples(!showExamples)}
+                      >
+                        {showExamples ? "Hide" : "Show"} examples
+                      </Button>
+                    </Form.Text>
+                  )}
+                  {showExamples && (
+                    <Card className="mt-2">
+                      <Card.Header className="py-2">
+                        <small className="fw-bold">Examples</small>
+                      </Card.Header>
+                      <ListGroup variant="flush">
+                        {CRON_EXAMPLES.map((example, idx) => (
+                          <ListGroup.Item
+                            key={idx}
+                            action
+                            onClick={() => {
+                              handleScheduleChange(example.expression);
+                              setShowExamples(false);
+                            }}
+                            style={{ cursor: "pointer", fontSize: "0.85rem" }}
+                          >
+                            <code className="text-primary">
+                              {example.expression}
+                            </code>
+                            <div className="text-muted small">
+                              {example.description}
+                            </div>
+                          </ListGroup.Item>
+                        ))}
+                      </ListGroup>
+                    </Card>
+                  )}
                 </Form.Group>
 
                 <Form.Group className="mb-3">
