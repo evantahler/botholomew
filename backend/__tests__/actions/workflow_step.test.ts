@@ -87,8 +87,11 @@ describe("WorkflowStep Actions", () => {
         session: { data: { userId } },
       };
 
-      await expect(
-        action.run({ id: 99999, position: 1 }, connection as any),
+      expect(
+        action.run(
+          { id: 99999, agentId: agentId, position: 1 },
+          connection as any,
+        ),
       ).rejects.toThrow("Workflow not found or not owned by user");
     });
 
@@ -99,8 +102,11 @@ describe("WorkflowStep Actions", () => {
         session: { data: { userId: otherSession.user.id } },
       };
 
-      await expect(
-        action.run({ id: workflowId, position: 1 }, connection as any),
+      expect(
+        action.run(
+          { id: workflowId, agentId: agentId, position: 1 },
+          connection as any,
+        ),
       ).rejects.toThrow("Workflow not found or not owned by user");
     });
   });

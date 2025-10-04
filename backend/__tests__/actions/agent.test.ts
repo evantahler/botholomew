@@ -1,5 +1,13 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
-import { AgentCreate } from "../../actions/agent";
+import type {
+  AgentCreate,
+  AgentDelete,
+  AgentEdit,
+  AgentList,
+  AgentModels,
+  AgentRun,
+  AgentView,
+} from "../../actions/agent";
 import type { SessionCreate } from "../../actions/session";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
@@ -46,7 +54,7 @@ describe("agent:models", () => {
     });
 
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<AgentModels>;
 
     expect(data.models).toBeDefined();
     expect(Array.isArray(data.models)).toBe(true);
@@ -94,7 +102,7 @@ describe("agent:create", () => {
       }),
     });
 
-    const agentData = await agentResponse.json();
+    const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
     expect(agentResponse.status).toBe(200);
     expect(agentData.agent).toBeDefined();
     expect(agentData.agent.name).toBe("Test Agent");
@@ -174,7 +182,7 @@ describe("agent:edit", () => {
       }),
     });
 
-    const editData = await editResponse.json();
+    const editData = (await editResponse.json()) as ActionResponse<AgentEdit>;
     expect(editResponse.status).toBe(200);
     expect(editData.agent).toBeDefined();
     expect(editData.agent.name).toBe("Updated Agent");
@@ -276,7 +284,7 @@ describe("agent:delete", () => {
       },
       body: JSON.stringify({ id: createdAgent.id }),
     });
-    const deleteData = await deleteResponse.json();
+    const deleteData = (await deleteResponse.json()) as ActionResponse<AgentDelete>;
     expect(deleteResponse.status).toBe(200);
     expect(deleteData.success).toBe(true);
 
@@ -319,7 +327,7 @@ describe("agent:delete", () => {
       },
       body: JSON.stringify({ id: createdAgent.id }),
     });
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<AgentDelete>;
     expect(response.status).toBe(200);
     expect(data.success).toBe(false);
   });
@@ -357,7 +365,7 @@ describe("agent:view", () => {
         Cookie: `${viewSession.cookieName}=${viewSession.id}`,
       },
     });
-    const viewData = await viewResponse.json();
+    const viewData = (await viewResponse.json()) as ActionResponse<AgentView>;
     expect(viewResponse.status).toBe(200);
     expect(viewData.agent).toBeDefined();
     expect(viewData.agent.id).toBe(createdAgent.id);
@@ -455,7 +463,7 @@ describe("agent:list", () => {
         Cookie: `${listSession.cookieName}=${listSession.id}`,
       },
     });
-    const data = await res.json();
+    const data = (await res.json()) as ActionResponse<AgentList>;
     expect(res.status).toBe(200);
     expect(Array.isArray(data.agents)).toBe(true);
     expect(data.agents.length).toBeGreaterThanOrEqual(5);
@@ -472,7 +480,7 @@ describe("agent:list", () => {
         Cookie: `${listSession.cookieName}=${listSession.id}`,
       },
     });
-    const data = await res.json();
+    const data = (await res.json()) as ActionResponse<AgentList>;
     expect(res.status).toBe(200);
     expect(Array.isArray(data.agents)).toBe(true);
     expect(data.agents.length).toBeLessThanOrEqual(2);
@@ -513,7 +521,7 @@ describe("agent:list", () => {
         Cookie: `${listSession.cookieName}=${listSession.id}`,
       },
     });
-    const data = await res.json();
+    const data = (await res.json()) as ActionResponse<AgentList>;
     expect(res.status).toBe(200);
     expect(Array.isArray(data.agents)).toBe(true);
     for (const agent of data.agents) {
@@ -552,7 +560,7 @@ describe("agent:run", () => {
       }),
     });
 
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<AgentRun>;
     expect(response.status).toBe(200);
     // The agent run might fail due to mocked dependencies, but we should get a response
     expect(data).toHaveProperty("status");

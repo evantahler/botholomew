@@ -1,5 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
+import type {
+  AgentCreate,
+  AgentEdit,
+  AgentList,
+  AgentView,
+} from "../../actions/agent";
 import type { SessionCreate } from "../../actions/session";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
@@ -64,7 +70,7 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const agentData = await agentResponse.json();
+      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
       expect(agentResponse.status).toBe(200);
       expect(agentData.agent).toBeDefined();
       expect(agentData.agent.name).toBe("Toolkit Agent");
@@ -95,14 +101,14 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const errorData = await agentResponse.json();
+      const errorData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
 
       expect(agentResponse.status).toBe(406);
-      expect(errorData.error.message).toContain(
+      expect(errorData.error!.message).toContain(
         "You are not authorized to use the following toolkits",
       );
-      expect(errorData.error.message).toContain("unauthorized_toolkit");
-      expect(errorData.error.message).toContain("another_unauthorized");
+      expect(errorData.error!.message).toContain("unauthorized_toolkit");
+      expect(errorData.error!.message).toContain("another_unauthorized");
     });
 
     test("should fail to create agent with mixed authorized/unauthorized toolkits", async () => {
@@ -129,12 +135,12 @@ describe("agent toolkits", () => {
       });
 
       expect(agentResponse.status).toBe(406);
-      const errorData = await agentResponse.json();
-      expect(errorData.error.message).toContain(
+      const errorData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
+      expect(errorData.error!.message).toContain(
         "You are not authorized to use the following toolkits",
       );
-      expect(errorData.error.message).toContain("unauthorized_toolkit");
-      expect(errorData.error.message).not.toContain("web_search");
+      expect(errorData.error!.message).toContain("unauthorized_toolkit");
+      expect(errorData.error!.message).not.toContain("web_search");
     });
 
     test("should create an agent with single toolkit string", async () => {
@@ -160,7 +166,7 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const agentData = await agentResponse.json();
+      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
       expect(agentResponse.status).toBe(200);
       expect(agentData.agent).toBeDefined();
       expect(agentData.agent.name).toBe("Single Toolkit Agent");
@@ -184,7 +190,7 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const agentData = await agentResponse.json();
+      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
       expect(agentResponse.status).toBe(200);
       expect(agentData.agent).toBeDefined();
       expect(agentData.agent.name).toBe("No Toolkit Agent");
@@ -207,7 +213,7 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const agentData = await agentResponse.json();
+      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
       expect(agentResponse.status).toBe(200);
       expect(agentData.agent).toBeDefined();
       expect(agentData.agent.name).toBe("Default Toolkit Agent");
@@ -234,7 +240,7 @@ describe("agent toolkits", () => {
           enabled: false,
         }),
       });
-      const agentData = await agentResponse.json();
+      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
       createdAgent = agentData.agent;
     });
 
@@ -259,7 +265,7 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const editData = await editResponse.json();
+      const editData = (await editResponse.json()) as ActionResponse<AgentEdit>;
       expect(editResponse.status).toBe(200);
       expect(editData.agent).toBeDefined();
       expect(editData.agent.id).toBe(createdAgent.id);
@@ -287,12 +293,12 @@ describe("agent toolkits", () => {
       });
 
       expect(editResponse.status).toBe(406);
-      const errorData = await editResponse.json();
-      expect(errorData.error.message).toContain(
+      const errorData = (await editResponse.json()) as ActionResponse<AgentEdit>;
+      expect(errorData.error!.message).toContain(
         "You are not authorized to use the following toolkits",
       );
-      expect(errorData.error.message).toContain("unauthorized_toolkit");
-      expect(errorData.error.message).toContain("another_unauthorized");
+      expect(errorData.error!.message).toContain("unauthorized_toolkit");
+      expect(errorData.error!.message).toContain("another_unauthorized");
     });
 
     test("should fail to add mixed authorized/unauthorized toolkits", async () => {
@@ -315,12 +321,12 @@ describe("agent toolkits", () => {
       });
 
       expect(editResponse.status).toBe(406);
-      const errorData = await editResponse.json();
-      expect(errorData.error.message).toContain(
+      const errorData = (await editResponse.json()) as ActionResponse<AgentEdit>;
+      expect(errorData.error!.message).toContain(
         "You are not authorized to use the following toolkits",
       );
-      expect(errorData.error.message).toContain("unauthorized_toolkit");
-      expect(errorData.error.message).not.toContain("data_analysis");
+      expect(errorData.error!.message).toContain("unauthorized_toolkit");
+      expect(errorData.error!.message).not.toContain("data_analysis");
     });
 
     test("should remove toolkits from an agent", async () => {
@@ -342,7 +348,7 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const editData = await editResponse.json();
+      const editData = (await editResponse.json()) as ActionResponse<AgentEdit>;
       expect(editResponse.status).toBe(200);
       expect(editData.agent).toBeDefined();
       expect(editData.agent.id).toBe(createdAgent.id);
@@ -362,7 +368,7 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const editData = await editResponse.json();
+      const editData = (await editResponse.json()) as ActionResponse<AgentEdit>;
       expect(editResponse.status).toBe(200);
       expect(editData.agent).toBeDefined();
       expect(editData.agent.id).toBe(createdAgent.id);
@@ -388,7 +394,7 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const editData = await editResponse.json();
+      const editData = (await editResponse.json()) as ActionResponse<AgentEdit>;
       expect(editResponse.status).toBe(200);
       expect(editData.agent).toBeDefined();
       expect(editData.agent.id).toBe(createdAgent.id);
@@ -418,7 +424,7 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const editData = await editResponse.json();
+      const editData = (await editResponse.json()) as ActionResponse<AgentEdit>;
       expect(editResponse.status).toBe(200);
       expect(editData.agent).toBeDefined();
       expect(editData.agent.id).toBe(createdAgent.id);
@@ -453,7 +459,7 @@ describe("agent toolkits", () => {
           enabled: true,
         }),
       });
-      const agentData = await agentResponse.json();
+      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
       toolkitAgent = agentData.agent;
 
       // Add toolkits to the agent (with proper authorization)
@@ -486,7 +492,7 @@ describe("agent toolkits", () => {
         },
       });
 
-      const viewData = await viewResponse.json();
+      const viewData = (await viewResponse.json()) as ActionResponse<AgentView>;
       expect(viewResponse.status).toBe(200);
       expect(viewData.agent).toBeDefined();
       expect(viewData.agent.id).toBe(toolkitAgent.id);
@@ -540,7 +546,7 @@ describe("agent toolkits", () => {
           Cookie: `${session.cookieName}=${session.id}`,
         },
       });
-      const listData = await listResponse.json();
+      const listData = (await listResponse.json()) as ActionResponse<AgentList>;
 
       // Find the agents we just created and add toolkits
       const agent1 = listData.agents.find(
@@ -596,7 +602,7 @@ describe("agent toolkits", () => {
         },
       });
 
-      const listData = await listResponse.json();
+      const listData = (await listResponse.json()) as ActionResponse<AgentList>;
       expect(listResponse.status).toBe(200);
       expect(Array.isArray(listData.agents)).toBe(true);
       expect(listData.agents.length).toBeGreaterThan(0);
@@ -652,7 +658,7 @@ describe("agent toolkits", () => {
           toolkits: ["web_search", "file_operations"],
         }),
       });
-      const agentData = await agentResponse.json();
+      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
       agentWithToolkits = agentData.agent;
     });
 

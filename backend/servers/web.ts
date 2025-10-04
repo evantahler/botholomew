@@ -258,6 +258,7 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
     ) {
       try {
         const bodyContent = await req.json();
+        //@ts-expect-error
         for (const [key, value] of Object.entries(bodyContent)) {
           if (Array.isArray(value)) {
             // Handle arrays by appending each element
@@ -289,6 +290,7 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
     ) {
       const f = await req.formData();
       f.forEach((value, key) => {
+        //@ts-expect-error
         params.append(key, value);
       });
     }

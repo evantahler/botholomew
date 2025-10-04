@@ -100,7 +100,7 @@ export async function createAgent(
     },
     body: JSON.stringify(agentData),
   });
-  const agentDataResponse = await agentResponse.json();
+  const agentDataResponse = (await agentResponse.json()) as ActionResponse<AgentCreate>;
   return agentDataResponse.agent;
 }
 
