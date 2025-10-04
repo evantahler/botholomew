@@ -10,6 +10,10 @@ import {
   workflow_run_steps,
   WorkflowRunStep,
 } from "../models/workflow_run_step";
+import {
+  formatMemoriesForContext,
+  getRelevantMemories,
+} from "./AgentMemoryOps";
 import { getUnauthorizedToolkits } from "./ToolkitAuthorizationOps";
 
 export function serializeAgent(agent: Agent) {
@@ -126,6 +130,13 @@ export async function agentRun(
   const childAgents: OpenAIAgent[] = [];
 
   try {
+    // Load agent memories
+    const memories = await getRelevantMemories(agent.id, 10);
+    const memoryContext =
+      memories.length > 0
+        ? `\n\n---\n\nPrevious interactions and context:\n${formatMemoriesForContext(memories)}\n`
+        : "";
+
     for (const toolkit of agent.toolkits) {
       const arcadeTools = await api.arcade.loadArcadeToolsForAgent(
         [toolkit],
@@ -152,6 +163,7 @@ export async function agentRun(
       agent.systemPrompt +
       "\n\n---\n\n Additional information about the user: \r\n" +
       user.metadata +
+      memoryContext +
       (additionalContext
         ? "\n\n---\n\n Additional context: \r\n" + additionalContext
         : "");

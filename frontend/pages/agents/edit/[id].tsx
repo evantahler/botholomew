@@ -21,6 +21,7 @@ import type {
 import type { ArcadeListToolkits } from "../../../../backend/actions/arcade";
 import type { ToolkitAuthorizationList } from "../../../../backend/actions/toolkit_authorization";
 import type { ActionResponse } from "../../../../backend/api";
+import AgentMemory from "../../../components/AgentMemory";
 import MarkdownRenderer from "../../../components/MarkdownRenderer";
 import Navigation from "../../../components/Navigation";
 import ProtectedRoute from "../../../components/ProtectedRoute";
@@ -671,6 +672,8 @@ export default function EditAgent() {
                 )}
               </Card.Body>
             </Card>
+
+            <AgentMemory agentId={agent.id} />
           </Col>
         </Row>
       </Container>
