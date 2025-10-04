@@ -14,6 +14,7 @@ import {
 } from "react-bootstrap";
 import type { AgentRun, AgentView } from "../../../backend/actions/agent";
 import type { ActionResponse } from "../../../backend/api";
+import AgentMemory from "../../components/AgentMemory";
 import MarkdownRenderer from "../../components/MarkdownRenderer";
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
@@ -310,6 +311,8 @@ export default function ViewAgent() {
                 )}
               </Card.Body>
             </Card>
+
+            <AgentMemory agentId={agent.id} />
           </Col>
         </Row>
       </Container>
