@@ -42,43 +42,59 @@ describe("Frontend Smoke Test", () => {
 
     // Give the server a moment to fully initialize
     await new Promise((resolve) => setTimeout(resolve, 1000));
-  }, 60000); // 60 second timeout for beforeAll hook
+  });
 
   afterAll(async () => {
     if (serverProcess) {
       serverProcess.kill("SIGTERM");
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-  }, 10000); // 10 second timeout for afterAll hook
-
-  it("should start the development server", () => {
-    expect(serverProcess).toBeDefined();
-    expect(serverProcess.pid).toBeDefined();
   });
 
-  it("should load the index page successfully", async () => {
-    const response = await fetch(serverUrl);
-    expect(response.status).toBe(200);
+  it(
+    "should start the development server",
+    () => {
+      expect(serverProcess).toBeDefined();
+      expect(serverProcess.pid).toBeDefined();
+    },
+    { timeout: 60000 },
+  );
 
-    const html = await response.text();
-    expect(html).toContain("Botholomew");
-    expect(html).toContain("The Greatest Agent Framework");
-  });
+  it(
+    "should load the index page successfully",
+    async () => {
+      const response = await fetch(serverUrl);
+      expect(response.status).toBe(200);
 
-  it("should return HTML content type", async () => {
-    const response = await fetch(serverUrl);
-    const contentType = response.headers.get("content-type");
-    expect(contentType).toContain("text/html");
-  });
+      const html = await response.text();
+      expect(html).toContain("Botholomew");
+      expect(html).toContain("The Greatest Agent Framework");
+    },
+    { timeout: 10000 },
+  );
 
-  it("should have proper page structure", async () => {
-    const response = await fetch(serverUrl);
-    const html = await response.text();
+  it(
+    "should return HTML content type",
+    async () => {
+      const response = await fetch(serverUrl);
+      const contentType = response.headers.get("content-type");
+      expect(contentType).toContain("text/html");
+    },
+    { timeout: 10000 },
+  );
 
-    // Check for essential HTML elements
-    expect(html).toContain("<html");
-    expect(html).toContain("<head");
-    expect(html).toContain("<body");
-    expect(html).toContain("title"); // Check for title element (with or without attributes)
-  });
+  it(
+    "should have proper page structure",
+    async () => {
+      const response = await fetch(serverUrl);
+      const html = await response.text();
+
+      // Check for essential HTML elements
+      expect(html).toContain("<html");
+      expect(html).toContain("<head");
+      expect(html).toContain("<body");
+      expect(html).toContain("title"); // Check for title element (with or without attributes)
+    },
+    { timeout: 10000 },
+  );
 });
