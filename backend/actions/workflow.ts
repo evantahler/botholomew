@@ -6,6 +6,7 @@ import { ErrorType, TypedError } from "../classes/TypedError";
 import { SessionMiddleware } from "../middleware/session";
 import { Workflow, workflows } from "../models/workflow";
 import { serializeWorkflow } from "../ops/WorkflowOps";
+import { validateCronExpression } from "../util/cron";
 import { zBooleanFromString } from "../util/zodMixins";
 
 export class WorkflowCreate implements Action {
@@ -23,6 +24,20 @@ export class WorkflowCreate implements Action {
     enabled: zBooleanFromString()
       .default(false)
       .describe("Whether the workflow is enabled"),
+    schedule: z
+      .string()
+      .max(256)
+      .refine(
+        (val) => {
+          if (!val || val.length === 0) return true;
+          return validateCronExpression(val);
+        },
+        {
+          message: "Invalid cron expression",
+        },
+      )
+      .optional()
+      .describe("Cron expression for scheduling the workflow"),
   });
 
   async run(params: ActionParams<WorkflowCreate>, connection: Connection) {
@@ -35,6 +50,7 @@ export class WorkflowCreate implements Action {
         name: params.name,
         description: params.description,
         enabled: params.enabled,
+        schedule: params.schedule ?? null,
       })
       .returning();
 
@@ -52,6 +68,20 @@ export class WorkflowEdit implements Action {
     name: z.string().min(1).max(256).optional(),
     description: z.string().optional(),
     enabled: zBooleanFromString().optional(),
+    schedule: z
+      .string()
+      .max(256)
+      .refine(
+        (val) => {
+          if (!val || val.length === 0) return true;
+          return validateCronExpression(val);
+        },
+        {
+          message: "Invalid cron expression",
+        },
+      )
+      .optional()
+      .describe("Cron expression for scheduling the workflow"),
   });
 
   async run(params: ActionParams<WorkflowEdit>, connection: Connection) {
@@ -62,6 +92,7 @@ export class WorkflowEdit implements Action {
     if (params.description !== undefined)
       updates.description = params.description;
     if (params.enabled !== undefined) updates.enabled = params.enabled;
+    if (params.schedule !== undefined) updates.schedule = params.schedule;
 
     const [workflow]: Workflow[] = await api.db.db
       .update(workflows)

@@ -23,6 +23,8 @@ export const workflows = pgTable("workflows", {
   name: varchar("name", { length: 256 }).notNull(),
   description: text("description"),
   enabled: boolean("enabled").notNull().default(false),
+  schedule: varchar("schedule", { length: 256 }),
+  lastScheduledAt: timestamp("last_scheduled_at"),
 });
 
 export type Workflow = typeof workflows.$inferSelect;

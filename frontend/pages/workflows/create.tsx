@@ -9,6 +9,7 @@ import {
   Col,
   Container,
   Form,
+  ListGroup,
   Row,
   Spinner,
 } from "react-bootstrap";
@@ -17,6 +18,11 @@ import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import { APIWrapper } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
+import {
+  CRON_EXAMPLES,
+  describeCronExpression,
+  validateCronExpression,
+} from "../../lib/cronUtils";
 
 type CreateWorkflowFormData = WorkflowCreate["inputs"]["_type"];
 
@@ -27,20 +33,34 @@ export default function CreateWorkflow() {
     name: "",
     description: "",
     enabled: false,
+    schedule: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [showExamples, setShowExamples] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setScheduleError(null);
+
+    // Validate schedule if provided
+    if (formData.schedule && formData.schedule.trim()) {
+      const validation = validateCronExpression(formData.schedule);
+      if (!validation.valid) {
+        setScheduleError(validation.error || "Invalid cron expression");
+        setLoading(false);
+        return;
+      }
+    }
 
     try {
-      const response = await APIWrapper.put<WorkflowCreate>(
-        "/workflow",
-        formData,
-      );
+      const response = await APIWrapper.put<WorkflowCreate>("/workflow", {
+        ...formData,
+        schedule: formData.schedule?.trim() || undefined,
+      });
       router.push(`/workflows/edit/${response.workflow.id}`);
     } catch (err) {
       setError(
@@ -48,6 +68,19 @@ export default function CreateWorkflow() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleScheduleChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, schedule: value }));
+    setScheduleError(null);
+
+    // Validate on change for immediate feedback
+    if (value && value.trim()) {
+      const validation = validateCronExpression(value);
+      if (!validation.valid) {
+        setScheduleError(validation.error || "Invalid cron expression");
+      }
     }
   };
 
@@ -119,6 +152,74 @@ export default function CreateWorkflow() {
                       Optional description to help you remember what this
                       workflow does
                     </Form.Text>
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>
+                      Schedule (Cron Expression){" "}
+                      <small className="text-muted">Optional</small>
+                    </Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={formData.schedule || ""}
+                      onChange={(e) => handleScheduleChange(e.target.value)}
+                      placeholder="e.g., 0 9 * * * (daily at 9 AM)"
+                      isInvalid={!!scheduleError}
+                      maxLength={256}
+                    />
+                    {scheduleError && (
+                      <Form.Control.Feedback type="invalid">
+                        {scheduleError}
+                      </Form.Control.Feedback>
+                    )}
+                    {!scheduleError &&
+                      formData.schedule &&
+                      describeCronExpression(formData.schedule) && (
+                        <Form.Text className="text-success">
+                          {describeCronExpression(formData.schedule)}
+                        </Form.Text>
+                      )}
+                    {!scheduleError && (
+                      <Form.Text className="text-muted d-block mt-1">
+                        Leave empty to run manually, or enter a cron expression
+                        for automatic scheduling.{" "}
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="p-0"
+                          onClick={() => setShowExamples(!showExamples)}
+                        >
+                          {showExamples ? "Hide" : "Show"} examples
+                        </Button>
+                      </Form.Text>
+                    )}
+                    {showExamples && (
+                      <Card className="mt-2">
+                        <Card.Header className="py-2">
+                          <small className="fw-bold">Common Examples</small>
+                        </Card.Header>
+                        <ListGroup variant="flush">
+                          {CRON_EXAMPLES.map((example, idx) => (
+                            <ListGroup.Item
+                              key={idx}
+                              action
+                              onClick={() => {
+                                handleScheduleChange(example.expression);
+                                setShowExamples(false);
+                              }}
+                              style={{ cursor: "pointer" }}
+                            >
+                              <code className="text-primary">
+                                {example.expression}
+                              </code>
+                              <span className="text-muted ms-2">
+                                - {example.description}
+                              </span>
+                            </ListGroup.Item>
+                          ))}
+                        </ListGroup>
+                      </Card>
+                    )}
                   </Form.Group>
 
                   <Form.Group className="mb-4">

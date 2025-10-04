@@ -7,6 +7,8 @@ export function serializeWorkflow(workflow: Workflow) {
     name: workflow.name,
     description: workflow.description,
     enabled: workflow.enabled,
+    schedule: workflow.schedule,
+    lastScheduledAt: workflow.lastScheduledAt?.getTime() ?? null,
     createdAt: workflow.createdAt.getTime(),
     updatedAt: workflow.updatedAt.getTime(),
   };

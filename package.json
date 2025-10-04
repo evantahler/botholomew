@@ -1,12 +1,14 @@
 {
   "name": "botholomew-monorepo",
   "version": "1.0.0",
-  "private": true,
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
   "description": "Botholomew - The Greatest Agent Framework (Monorepo)",
-  "workspaces": [
-    "backend",
-    "frontend"
-  ],
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "private": true,
   "scripts": {
     "dev": "bun run concurrently --kill-others --prefix name --names 💻,🎨 \"bun run dev:backend\" \"bun run dev:frontend\"",
     "dev:backend": "cd backend && bun run dev",
@@ -18,10 +20,8 @@
     "format:backend": "cd backend && bun run format",
     "format:frontend": "cd frontend && bun run format"
   },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  },
-  "engines": {
-    "bun": ">=1.0.0"
-  }
+  "workspaces": [
+    "backend",
+    "frontend"
+  ]
 }
