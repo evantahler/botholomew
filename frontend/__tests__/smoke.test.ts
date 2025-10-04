@@ -49,7 +49,7 @@ describe("Frontend Smoke Test", () => {
       serverProcess.kill("SIGTERM");
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-  });
+  }, 10000); // 10 second timeout for afterAll hook
 
   it("should start the development server", () => {
     expect(serverProcess).toBeDefined();
