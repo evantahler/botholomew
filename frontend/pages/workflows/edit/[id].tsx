@@ -643,7 +643,7 @@ function AddStepModal({
     onAdd({
       id: workflowId,
       ...formData,
-      agentId: formData.agentId ? parseInt(formData.agentId) : undefined,
+      agentId: formData.agentId ? parseInt(formData.agentId) : 0,
       position: 0, // This will be overridden by the parent component
     });
   };

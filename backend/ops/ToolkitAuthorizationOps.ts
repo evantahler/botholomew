@@ -24,13 +24,13 @@ export async function isUserAuthorizedForToolkits(
   }
 
   // Get all toolkit authorizations for the user
-  const userAuthorizations: { toolkitName: string }[] = await api.db.db
+  const userAuthorizations = await api.db.db
     .select({ toolkitName: toolkit_authorizations.toolkitName })
     .from(toolkit_authorizations)
     .where(eq(toolkit_authorizations.userId, userId));
 
   const authorizedToolkitNames = userAuthorizations.map(
-    (auth) => auth.toolkitName,
+    (auth: { toolkitName: string }) => auth.toolkitName,
   );
 
   // Check if all requested toolkits are in the authorized list
@@ -54,7 +54,7 @@ export async function getUnauthorizedToolkits(
     .where(eq(toolkit_authorizations.userId, userId));
 
   const authorizedToolkitNames = userAuthorizations.map(
-    (auth) => auth.toolkitName,
+    (auth: { toolkitName: string }) => auth.toolkitName,
   );
 
   // Return toolkits that are not in the authorized list
