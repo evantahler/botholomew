@@ -59,8 +59,6 @@ describe("WorkflowRunTickSystem", () => {
       workflowId: workflow.id,
       agentId: agent.id,
       position: 0,
-      name: "Step 1",
-      description: "First step",
     });
 
     // Create a pending workflow run

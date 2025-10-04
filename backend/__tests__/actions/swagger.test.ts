@@ -35,7 +35,8 @@ describe("swagger", () => {
   });
 
   // Helper function to convert route format for swagger tests
-  const convertRouteForSwagger = (route: string): string => {
+  const convertRouteForSwagger = (route: string | RegExp): string => {
+    if (route instanceof RegExp) return route.toString();
     return route.replace(/:\w+/g, (match) => `{${match.slice(1)}}`);
   };
 

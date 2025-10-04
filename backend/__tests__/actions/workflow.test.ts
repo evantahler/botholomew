@@ -6,6 +6,7 @@ import {
   expect,
   test,
 } from "bun:test";
+import type { AgentCreate } from "../../actions/agent";
 import type { SessionCreate } from "../../actions/session";
 import type {
   WorkflowCreate,
@@ -57,7 +58,8 @@ describe("Workflow Actions", () => {
         enabled: true,
       }),
     });
-    const workflowData = await workflowResponse.json();
+    const workflowData =
+      (await workflowResponse.json()) as ActionResponse<WorkflowCreate>;
     testWorkflow = workflowData.workflow;
   });
 
@@ -262,7 +264,8 @@ describe("Workflow Actions", () => {
           enabled: true,
         }),
       });
-      const agentData = await agentResponse.json();
+      const agentData =
+        (await agentResponse.json()) as ActionResponse<AgentCreate>;
       const testAgent = agentData.agent;
 
       const response = await fetch(
@@ -308,7 +311,8 @@ describe("Workflow Actions", () => {
           enabled: true,
         }),
       });
-      const agentData = await agentResponse.json();
+      const agentData =
+        (await agentResponse.json()) as ActionResponse<AgentCreate>;
       const testAgent = agentData.agent;
 
       // Create a workflow step
@@ -383,7 +387,8 @@ describe("Workflow Actions", () => {
           enabled: false,
         }),
       });
-      const disabledWorkflowData = await disabledWorkflowResponse.json();
+      const disabledWorkflowData =
+        (await disabledWorkflowResponse.json()) as ActionResponse<WorkflowCreate>;
       const disabledWorkflow = disabledWorkflowData.workflow;
 
       const response = await fetch(

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
-import { api } from "../../api";
+import type { ArcadeListToolkits } from "../../actions/arcade";
+import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
 import {
   createTestUser,
@@ -109,6 +110,7 @@ beforeAll(async () => {
         },
       ]),
     ),
+    authorizeToolkitForUser: mock(() => Promise.resolve(undefined)),
   };
 
   await api.db.clearDatabase();
@@ -138,7 +140,8 @@ describe("arcade:list-toolkits", () => {
       },
     });
 
-    const toolkitsData = await toolkitsResponse.json();
+    const toolkitsData =
+      (await toolkitsResponse.json()) as ActionResponse<ArcadeListToolkits>;
     expect(toolkitsResponse.status).toBe(200);
     expect(toolkitsData.toolkits).toBeDefined();
     expect(Array.isArray(toolkitsData.toolkits)).toBe(true);

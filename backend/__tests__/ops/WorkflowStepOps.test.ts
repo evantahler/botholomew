@@ -28,13 +28,13 @@ describe("WorkflowStepOps", () => {
       });
     });
 
-    it("should handle null agentId", () => {
+    it("should handle agentId", () => {
       const now = new Date();
 
       const mockStep: WorkflowStep = {
         id: 111,
         workflowId: 222,
-        agentId: null,
+        agentId: 333,
         position: 2,
         createdAt: now,
         updatedAt: now,
@@ -42,7 +42,7 @@ describe("WorkflowStepOps", () => {
 
       const serialized = serializeWorkflowStep(mockStep);
 
-      expect(serialized.agentId).toBe(null);
+      expect(serialized.agentId).toBe(333);
     });
 
     it("should correctly serialize different positions", () => {

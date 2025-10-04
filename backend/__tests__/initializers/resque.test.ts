@@ -35,9 +35,9 @@ class TestAction implements Action {
   inputs = z.object({
     val: z.string().default("I ran"),
   });
-  run = async (params: ActionParams<TestAction>) => {
+  async run(params: ActionParams<TestAction>) {
     ran = params.val;
-  };
+  }
 }
 
 beforeEach(async () => {

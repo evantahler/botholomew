@@ -1,6 +1,14 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import type { SessionCreate } from "../../actions/session";
+import type {
+  WorkflowRunCreate,
+  WorkflowRunDelete,
+  WorkflowRunList,
+  WorkflowRunListAll,
+  WorkflowRunTick,
+  WorkflowRunView,
+} from "../../actions/workflow_run";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
 import { workflow_runs } from "../../models/workflow_run";
@@ -50,7 +58,7 @@ describe("workflow:run:create", () => {
       }),
     });
 
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunCreate>;
     expect(response.status).toBe(200);
     expect(data.run).toBeDefined();
     expect(data.run.workflowId).toBe(workflow.id);
@@ -74,7 +82,7 @@ describe("workflow:run:create", () => {
       }),
     });
 
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunCreate>;
     expect(response.status).toBe(200);
     expect(data.run).toBeDefined();
     // Note: The framework converts null to the string "null" during processing
@@ -94,9 +102,9 @@ describe("workflow:run:create", () => {
     });
 
     expect(response.status).toBe(406);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunCreate>;
     expect(data.error).toBeDefined();
-    expect(data.error.message).toBe("Workflow not found or not owned by user");
+    expect(data.error!.message).toBe("Workflow not found or not owned by user");
   });
 
   test("should fail to create workflow run for disabled workflow", async () => {
@@ -117,9 +125,9 @@ describe("workflow:run:create", () => {
     );
 
     expect(response.status).toBe(406);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunCreate>;
     expect(data.error).toBeDefined();
-    expect(data.error.message).toBe("Workflow is not enabled");
+    expect(data.error!.message).toBe("Workflow is not enabled");
   });
 
   test("should fail to create workflow run for another user's workflow", async () => {
@@ -144,9 +152,9 @@ describe("workflow:run:create", () => {
     );
 
     expect(response.status).toBe(406);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunCreate>;
     expect(data.error).toBeDefined();
-    expect(data.error.message).toBe("Workflow not found or not owned by user");
+    expect(data.error!.message).toBe("Workflow not found or not owned by user");
   });
 
   test("should fail to create workflow run without session", async () => {
@@ -189,7 +197,7 @@ describe("workflow:run:view", () => {
       },
     );
 
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunView>;
     expect(response.status).toBe(200);
     expect(data.run).toBeDefined();
     expect(data.run.id).toBe(workflowRun.id);
@@ -209,9 +217,9 @@ describe("workflow:run:view", () => {
     );
 
     expect(response.status).toBe(406);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunView>;
     expect(data.error).toBeDefined();
-    expect(data.error.message).toBe("Workflow run not found");
+    expect(data.error!.message).toBe("Workflow run not found");
   });
 
   test("should fail to view another user's workflow run", async () => {
@@ -233,9 +241,9 @@ describe("workflow:run:view", () => {
     );
 
     expect(response.status).toBe(406);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunView>;
     expect(data.error).toBeDefined();
-    expect(data.error.message).toBe(
+    expect(data.error!.message).toBe(
       "Workflow run not found or not owned by user",
     );
   });
@@ -280,7 +288,7 @@ describe("workflow:run:list", () => {
       },
     });
 
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunList>;
     expect(response.status).toBe(200);
     expect(data.runs).toBeDefined();
     expect(Array.isArray(data.runs)).toBe(true);
@@ -299,7 +307,7 @@ describe("workflow:run:list", () => {
       },
     );
 
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunList>;
     expect(response.status).toBe(200);
     expect(data.runs).toBeDefined();
     expect(data.runs.length).toBeLessThanOrEqual(3);
@@ -316,7 +324,7 @@ describe("workflow:run:list", () => {
       },
     );
 
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunList>;
     expect(response.status).toBe(200);
     expect(data.runs).toBeDefined();
     expect(data.runs.length).toBeLessThanOrEqual(2);
@@ -331,9 +339,9 @@ describe("workflow:run:list", () => {
     });
 
     expect(response.status).toBe(406);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunList>;
     expect(data.error).toBeDefined();
-    expect(data.error.message).toBe("Workflow not found or not owned by user");
+    expect(data.error!.message).toBe("Workflow not found or not owned by user");
   });
 
   test("should fail to list runs for another user's workflow", async () => {
@@ -354,9 +362,9 @@ describe("workflow:run:list", () => {
     );
 
     expect(response.status).toBe(406);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunList>;
     expect(data.error).toBeDefined();
-    expect(data.error.message).toBe("Workflow not found or not owned by user");
+    expect(data.error!.message).toBe("Workflow not found or not owned by user");
   });
 
   test("should fail to list workflow runs without session", async () => {
@@ -421,7 +429,7 @@ describe("workflow:run:delete", () => {
       },
     );
 
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunDelete>;
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
 
@@ -450,9 +458,9 @@ describe("workflow:run:delete", () => {
     );
 
     expect(response.status).toBe(406);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunDelete>;
     expect(data.error).toBeDefined();
-    expect(data.error.message).toBe("Workflow run not found");
+    expect(data.error!.message).toBe("Workflow run not found");
   });
 
   test("should fail to delete another user's workflow run", async () => {
@@ -474,9 +482,9 @@ describe("workflow:run:delete", () => {
     );
 
     expect(response.status).toBe(406);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunDelete>;
     expect(data.error).toBeDefined();
-    expect(data.error.message).toBe(
+    expect(data.error!.message).toBe(
       "Workflow run not found or not owned by user",
     );
   });
@@ -565,7 +573,7 @@ describe("workflow:run:tick", () => {
       },
     );
 
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunTick>;
     expect(response.status).toBe(200);
     expect(data.workflowRun).toBeDefined();
 
@@ -580,7 +588,7 @@ describe("workflow:run:tick", () => {
       },
     );
 
-    const data2 = await response2.json();
+    const data2 = (await response2.json()) as ActionResponse<WorkflowRunTick>;
     expect(response2.status).toBe(200);
     expect(data2.workflowRun).toBeDefined();
 
@@ -610,7 +618,7 @@ describe("workflow:run:tick", () => {
       },
     );
 
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunTick>;
     expect(response.status).toBe(200);
     expect(data.workflowRun).toBeDefined();
     expect(data.workflowRun.status).toBe("pending");
@@ -628,9 +636,9 @@ describe("workflow:run:tick", () => {
     );
 
     expect(response.status).toBe(406);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunTick>;
     expect(data.error).toBeDefined();
-    expect(data.error.message).toBe("Workflow run not found");
+    expect(data.error!.message).toBe("Workflow run not found");
   });
 
   test("should fail if workflow is not owned by user", async () => {
@@ -652,9 +660,9 @@ describe("workflow:run:tick", () => {
     );
 
     expect(response.status).toBe(406);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunTick>;
     expect(data.error).toBeDefined();
-    expect(data.error.message).toBe("Workflow not found or not owned by user");
+    expect(data.error!.message).toBe("Workflow not found or not owned by user");
   });
 
   test("should fail if workflow is disabled", async () => {
@@ -672,9 +680,9 @@ describe("workflow:run:tick", () => {
     );
 
     expect(response.status).toBe(406);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunTick>;
     expect(data.error).toBeDefined();
-    expect(data.error.message).toBe("Workflow is not enabled");
+    expect(data.error!.message).toBe("Workflow is not enabled");
   });
 
   test("should fail without session", async () => {
@@ -729,7 +737,7 @@ describe("workflow:run:list:all", () => {
     });
 
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunListAll>;
     expect(data.runs).toHaveLength(6); // There are more runs from previous tests
     expect(data.total).toBe(6);
 
@@ -749,7 +757,7 @@ describe("workflow:run:list:all", () => {
     });
 
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = (await response.json()) as ActionResponse<WorkflowRunListAll>;
     expect(data.runs).toHaveLength(2);
     expect(data.total).toBe(6);
   });

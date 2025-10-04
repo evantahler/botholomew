@@ -10,7 +10,7 @@ describe("SessionMiddleware", () => {
           userId: 123,
         },
       },
-    } as Connection;
+    } as unknown as Connection;
 
     await expect(
       SessionMiddleware.runBefore?.({}, connection),
@@ -46,7 +46,7 @@ describe("SessionMiddleware", () => {
           userId: null,
         },
       },
-    } as Connection;
+    } as unknown as Connection;
 
     await expect(SessionMiddleware.runBefore?.({}, connection)).rejects.toThrow(
       "Session not found",

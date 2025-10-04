@@ -190,11 +190,11 @@ describe("toolkit_authorization:create", () => {
     expect(res.status).toBe(200);
     const response =
       (await res.json()) as ActionResponse<ToolkitAuthorizationCreate>;
-    expect(response.toolkitAuthorization.toolkitName).toBe("github");
-    expect(response.toolkitAuthorization.userId).toBe(session.user.id);
-    expect(response.toolkitAuthorization.id).toBeDefined();
-    expect(response.toolkitAuthorization.createdAt).toBeDefined();
-    expect(response.toolkitAuthorization.updatedAt).toBeDefined();
+    expect(response.toolkitAuthorization!.toolkitName).toBe("github");
+    expect(response.toolkitAuthorization!.userId).toBe(session.user.id);
+    expect(response.toolkitAuthorization!.id).toBeDefined();
+    expect(response.toolkitAuthorization!.createdAt).toBeDefined();
+    expect(response.toolkitAuthorization!.updatedAt).toBeDefined();
   });
 
   test("it prevents duplicate authorizations for the same user", async () => {

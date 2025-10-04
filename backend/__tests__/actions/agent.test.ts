@@ -102,7 +102,8 @@ describe("agent:create", () => {
       }),
     });
 
-    const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
+    const agentData =
+      (await agentResponse.json()) as ActionResponse<AgentCreate>;
     expect(agentResponse.status).toBe(200);
     expect(agentData.agent).toBeDefined();
     expect(agentData.agent.name).toBe("Test Agent");
@@ -284,7 +285,8 @@ describe("agent:delete", () => {
       },
       body: JSON.stringify({ id: createdAgent.id }),
     });
-    const deleteData = (await deleteResponse.json()) as ActionResponse<AgentDelete>;
+    const deleteData =
+      (await deleteResponse.json()) as ActionResponse<AgentDelete>;
     expect(deleteResponse.status).toBe(200);
     expect(deleteData.success).toBe(true);
 

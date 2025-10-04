@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { SessionCreate } from "../../actions/session";
+import type { SessionCreate, SessionDestroy } from "../../actions/session";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
 import { createTestUser, USERS } from "../utils/testHelpers";
@@ -104,7 +104,7 @@ describe("session:destroy", () => {
       },
       body: "{}",
     });
-    const response = await res.json();
+    const response = (await res.json()) as ActionResponse<SessionDestroy>;
     expect(res.status).toBe(200);
     expect(response.success).toBe(true);
 
@@ -125,7 +125,7 @@ describe("session:destroy", () => {
       headers: { "Content-Type": "application/json" },
       body: "{}",
     });
-    const response = await res.json();
+    const response = (await res.json()) as ActionResponse<SessionDestroy>;
     expect(res.status).toBe(401);
     expect(response.error?.message).toMatch(/Session not found/);
   });

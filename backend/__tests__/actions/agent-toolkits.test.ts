@@ -70,7 +70,8 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
+      const agentData =
+        (await agentResponse.json()) as ActionResponse<AgentCreate>;
       expect(agentResponse.status).toBe(200);
       expect(agentData.agent).toBeDefined();
       expect(agentData.agent.name).toBe("Toolkit Agent");
@@ -101,7 +102,8 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const errorData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
+      const errorData =
+        (await agentResponse.json()) as ActionResponse<AgentCreate>;
 
       expect(agentResponse.status).toBe(406);
       expect(errorData.error!.message).toContain(
@@ -135,7 +137,8 @@ describe("agent toolkits", () => {
       });
 
       expect(agentResponse.status).toBe(406);
-      const errorData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
+      const errorData =
+        (await agentResponse.json()) as ActionResponse<AgentCreate>;
       expect(errorData.error!.message).toContain(
         "You are not authorized to use the following toolkits",
       );
@@ -166,7 +169,8 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
+      const agentData =
+        (await agentResponse.json()) as ActionResponse<AgentCreate>;
       expect(agentResponse.status).toBe(200);
       expect(agentData.agent).toBeDefined();
       expect(agentData.agent.name).toBe("Single Toolkit Agent");
@@ -190,7 +194,8 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
+      const agentData =
+        (await agentResponse.json()) as ActionResponse<AgentCreate>;
       expect(agentResponse.status).toBe(200);
       expect(agentData.agent).toBeDefined();
       expect(agentData.agent.name).toBe("No Toolkit Agent");
@@ -213,7 +218,8 @@ describe("agent toolkits", () => {
         }),
       });
 
-      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
+      const agentData =
+        (await agentResponse.json()) as ActionResponse<AgentCreate>;
       expect(agentResponse.status).toBe(200);
       expect(agentData.agent).toBeDefined();
       expect(agentData.agent.name).toBe("Default Toolkit Agent");
@@ -240,7 +246,8 @@ describe("agent toolkits", () => {
           enabled: false,
         }),
       });
-      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
+      const agentData =
+        (await agentResponse.json()) as ActionResponse<AgentCreate>;
       createdAgent = agentData.agent;
     });
 
@@ -293,7 +300,8 @@ describe("agent toolkits", () => {
       });
 
       expect(editResponse.status).toBe(406);
-      const errorData = (await editResponse.json()) as ActionResponse<AgentEdit>;
+      const errorData =
+        (await editResponse.json()) as ActionResponse<AgentEdit>;
       expect(errorData.error!.message).toContain(
         "You are not authorized to use the following toolkits",
       );
@@ -321,7 +329,8 @@ describe("agent toolkits", () => {
       });
 
       expect(editResponse.status).toBe(406);
-      const errorData = (await editResponse.json()) as ActionResponse<AgentEdit>;
+      const errorData =
+        (await editResponse.json()) as ActionResponse<AgentEdit>;
       expect(errorData.error!.message).toContain(
         "You are not authorized to use the following toolkits",
       );
@@ -459,7 +468,8 @@ describe("agent toolkits", () => {
           enabled: true,
         }),
       });
-      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
+      const agentData =
+        (await agentResponse.json()) as ActionResponse<AgentCreate>;
       toolkitAgent = agentData.agent;
 
       // Add toolkits to the agent (with proper authorization)
@@ -658,7 +668,8 @@ describe("agent toolkits", () => {
           toolkits: ["web_search", "file_operations"],
         }),
       });
-      const agentData = (await agentResponse.json()) as ActionResponse<AgentCreate>;
+      const agentData =
+        (await agentResponse.json()) as ActionResponse<AgentCreate>;
       agentWithToolkits = agentData.agent;
     });
 

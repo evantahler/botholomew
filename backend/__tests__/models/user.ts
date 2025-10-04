@@ -19,6 +19,7 @@ describe("checkPassword", () => {
       name: "Test User",
       email: "test@example.com",
       password_hash,
+      metadata: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -35,6 +36,7 @@ describe("serializeUser", () => {
       name: "Alice",
       email: "alice@example.com",
       password_hash: "irrelevant",
+      metadata: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -43,6 +45,7 @@ describe("serializeUser", () => {
       id: 2,
       name: "Alice",
       email: "alice@example.com",
+      metadata: "",
       createdAt: now.getTime(),
       updatedAt: now.getTime(),
     });

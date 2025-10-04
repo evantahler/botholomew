@@ -1,5 +1,6 @@
 import type { AgentCreate } from "../../actions/agent";
 import type { SessionCreate } from "../../actions/session";
+import type { UserCreate } from "../../actions/user";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
 import { agents } from "../../models/agent";
@@ -44,7 +45,7 @@ export async function createUserViaAPI(userData: TestUser) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(userData),
   });
-  return response.json();
+  return response.json() as Promise<ActionResponse<UserCreate>>;
 }
 
 /**
@@ -100,7 +101,8 @@ export async function createAgent(
     },
     body: JSON.stringify(agentData),
   });
-  const agentDataResponse = (await agentResponse.json()) as ActionResponse<AgentCreate>;
+  const agentDataResponse =
+    (await agentResponse.json()) as ActionResponse<AgentCreate>;
   return agentDataResponse.agent;
 }
 
