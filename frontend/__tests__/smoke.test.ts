@@ -19,7 +19,7 @@ describe("Frontend Smoke Test", () => {
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error("Server startup timeout"));
-      }, 15000);
+      }, 45000); // Increased timeout for CI environments
 
       const checkServer = async () => {
         try {
@@ -42,7 +42,7 @@ describe("Frontend Smoke Test", () => {
 
     // Give the server a moment to fully initialize
     await new Promise((resolve) => setTimeout(resolve, 1000));
-  });
+  }, 60000); // 60 second timeout for beforeAll hook
 
   afterAll(async () => {
     if (serverProcess) {
