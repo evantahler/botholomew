@@ -51,50 +51,34 @@ describe("Frontend Smoke Test", () => {
     }
   });
 
-  it(
-    "should start the development server",
-    () => {
-      expect(serverProcess).toBeDefined();
-      expect(serverProcess.pid).toBeDefined();
-    },
-    { timeout: 60000 },
-  );
+  it("should start the development server", () => {
+    expect(serverProcess).toBeDefined();
+    expect(serverProcess.pid).toBeDefined();
+  });
 
-  it(
-    "should load the index page successfully",
-    async () => {
-      const response = await fetch(serverUrl);
-      expect(response.status).toBe(200);
+  it("should load the index page successfully", async () => {
+    const response = await fetch(serverUrl);
+    expect(response.status).toBe(200);
 
-      const html = await response.text();
-      expect(html).toContain("Botholomew");
-      expect(html).toContain("The Greatest Agent Framework");
-    },
-    { timeout: 10000 },
-  );
+    const html = await response.text();
+    expect(html).toContain("Botholomew");
+    expect(html).toContain("The Greatest Agent Framework");
+  });
 
-  it(
-    "should return HTML content type",
-    async () => {
-      const response = await fetch(serverUrl);
-      const contentType = response.headers.get("content-type");
-      expect(contentType).toContain("text/html");
-    },
-    { timeout: 10000 },
-  );
+  it("should return HTML content type", async () => {
+    const response = await fetch(serverUrl);
+    const contentType = response.headers.get("content-type");
+    expect(contentType).toContain("text/html");
+  });
 
-  it(
-    "should have proper page structure",
-    async () => {
-      const response = await fetch(serverUrl);
-      const html = await response.text();
+  it("should have proper page structure", async () => {
+    const response = await fetch(serverUrl);
+    const html = await response.text();
 
-      // Check for essential HTML elements
-      expect(html).toContain("<html");
-      expect(html).toContain("<head");
-      expect(html).toContain("<body");
-      expect(html).toContain("title"); // Check for title element (with or without attributes)
-    },
-    { timeout: 10000 },
-  );
+    // Check for essential HTML elements
+    expect(html).toContain("<html");
+    expect(html).toContain("<head");
+    expect(html).toContain("<body");
+    expect(html).toContain("title"); // Check for title element (with or without attributes)
+  });
 });
