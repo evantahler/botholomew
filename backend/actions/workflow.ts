@@ -127,7 +127,7 @@ export class WorkflowDelete implements Action {
       .delete(workflows)
       .where(and(eq(workflows.id, params.id), eq(workflows.userId, userId)));
 
-    return { success: result.rowCount > 0 };
+    return { success: (result.rowCount ?? 0) > 0 };
   }
 }
 

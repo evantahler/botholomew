@@ -15,7 +15,12 @@ export class WorkflowStepCreate implements Action {
   middleware = [SessionMiddleware];
   inputs = z.object({
     id: z.coerce.number().int().describe("The workflow's id"),
-    agentId: z.coerce.number().int().optional().describe("The agent's id"),
+    agentId: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe("The agent's id")
+      .default(0),
     position: z.coerce.number().int().describe("The step's position"),
   });
 
@@ -65,7 +70,7 @@ export class WorkflowStepEdit implements Action {
     const userId = connection.session!.data.userId;
 
     // Verify step ownership through workflow
-    const [step]: (WorkflowStep & { workflows: Workflow })[] = await api.db.db
+    const [step] = await api.db.db
       .select()
       .from(workflow_steps)
       .innerJoin(workflows, eq(workflow_steps.workflowId, workflows.id))
@@ -129,7 +134,7 @@ export class WorkflowStepDelete implements Action {
       .delete(workflow_steps)
       .where(eq(workflow_steps.id, params.stepId));
 
-    return { success: result.rowCount > 0 };
+    return { success: (result.rowCount ?? 0) > 0 };
   }
 }
 

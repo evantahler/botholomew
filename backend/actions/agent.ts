@@ -207,7 +207,7 @@ export class AgentDelete implements Action {
         ),
       );
 
-    return { success: result.rowCount > 0 };
+    return { success: (result.rowCount ?? 0) > 0 };
   }
 }
 
