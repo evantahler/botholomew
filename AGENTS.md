@@ -138,7 +138,7 @@ The backend is built on a custom framework inspired by Actionhero:
 
 - **Minimal, surgical, elegant, and correct** - Before writing code, always make a plan about how to best implement the feature. Then, follow the plan, checking off each step as complete before moving on to the next.
 - Use **Bun** for all commands (not npm, node, or yarn)
-- Run `bun lint` after writing code to auto-format
+- **ALWAYS run `bun run typecheck` and `bun lint` after making changes** - Typecheck catches type errors, lint auto-formats code
 
 ### Backend-Specific Rules
 

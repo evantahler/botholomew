@@ -39,6 +39,12 @@ jobs:
       - name: lint frontend
         run: bun lint
         working-directory: frontend
+      - name: typecheck backend
+        run: bun run typecheck
+        working-directory: backend
+      - name: typecheck frontend
+        run: bun run typecheck
+        working-directory: frontend
 
   test-backend:
     runs-on: ubuntu-latest

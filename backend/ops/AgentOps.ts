@@ -189,7 +189,7 @@ export async function agentRun(
       await api.db.db
         .update(workflow_run_steps)
         .set({
-          outout: runResult.result,
+          output: runResult.result,
           status: runResult.status,
         })
         .where(eq(workflow_run_steps.id, workflowRunStep.id));
@@ -202,7 +202,7 @@ export async function agentRun(
       await api.db.db
         .update(workflow_run_steps)
         .set({
-          outout: runResult.error,
+          output: runResult.error,
           status: runResult.status,
         })
         .where(eq(workflow_run_steps.id, workflowRunStep.id));

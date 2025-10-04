@@ -173,7 +173,7 @@ export async function processWorkflowRunTick(
       systemPrompt: agent.systemPrompt,
       userPrompt: agent.userPrompt,
       input: input,
-      outout: null,
+      output: null,
       rationale: null,
       responseType: agent.responseType,
       status: "pending",
@@ -212,7 +212,6 @@ export async function processWorkflowRunTick(
       .set({
         status: stepResult.status,
         output: stepResult.result,
-        error: stepResult.error,
         rationale: stepResult.rationale,
       })
       .where(eq(workflow_run_steps.id, workflowRunStep.id));
