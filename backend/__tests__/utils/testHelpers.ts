@@ -180,6 +180,7 @@ export async function createTestWorkflowStep(
       workflowId,
       agentId,
       position: 1,
+      stepType: "agent",
     })
     .returning();
   return step;

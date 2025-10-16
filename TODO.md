@@ -12,7 +12,7 @@ This document tracks potential features and enhancements for the Botholomew agen
 
 ## Workflow Enhancements
 
-- [ ] **Conditional Branching** - If/then/else logic in workflows based on agent output or conditions
+- [x] **Conditional Branching** - If/then/else logic in workflows based on agent output or conditions
 - [ ] **Parallel Execution** - Run multiple workflow steps concurrently instead of sequentially
 - [ ] **Human-in-the-Loop** - Workflow steps requiring manual approval/input before proceeding
 - [ ] **Workflow Templates** - Pre-built workflow patterns for common use cases

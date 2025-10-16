@@ -54,7 +54,7 @@ describe("WorkflowStep Actions", () => {
       };
 
       const result = await action.run(
-        { id: workflowId, agentId, position: 1 },
+        { id: workflowId, agentId, position: 1, stepType: "agent" },
         connection as any,
       );
 
@@ -72,7 +72,7 @@ describe("WorkflowStep Actions", () => {
       };
 
       const result = await action.run(
-        { id: workflowId, agentId: agent2.id, position: 2 },
+        { id: workflowId, agentId: agent2.id, position: 2, stepType: "agent" },
         connection as any,
       );
 
@@ -89,7 +89,7 @@ describe("WorkflowStep Actions", () => {
 
       expect(
         action.run(
-          { id: 99999, agentId: agentId, position: 1 },
+          { id: 99999, agentId: agentId, position: 1, stepType: "agent" },
           connection as any,
         ),
       ).rejects.toThrow("Workflow not found or not owned by user");
@@ -104,7 +104,7 @@ describe("WorkflowStep Actions", () => {
 
       expect(
         action.run(
-          { id: workflowId, agentId: agentId, position: 1 },
+          { id: workflowId, agentId: agentId, position: 1, stepType: "agent" },
           connection as any,
         ),
       ).rejects.toThrow("Workflow not found or not owned by user");

@@ -270,6 +270,9 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
                 params.append(key, item);
               }
             }
+          } else if (typeof value === "object" && value !== null) {
+            // Handle objects by JSON stringifying them
+            params.set(key, JSON.stringify(value));
           } else {
             params.set(key, value as any);
           }
