@@ -2,10 +2,11 @@ import { and, count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { Action, type ActionParams, api, Connection } from "../api";
 import { HTTP_METHOD } from "../classes/Action";
+import type { StreamingChunk } from "../classes/Action";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { SessionMiddleware } from "../middleware/session";
 import { Agent, agents, responseTypes } from "../models/agent";
-import { agentRun, getSystemPrompt, serializeAgent } from "../ops/AgentOps";
+import { agentRun, agentRunStreaming, getSystemPrompt, serializeAgent } from "../ops/AgentOps";
 import { getUnauthorizedToolkits } from "../ops/ToolkitAuthorizationOps";
 import { zBooleanFromString } from "../util/zodMixins";
 
@@ -317,5 +318,68 @@ export class AgentRun implements Action {
       rationale: result.rationale,
       error: result.error,
     };
+  }
+}
+
+export class AgentRunStreaming implements Action {
+  name = "agent:run:stream";
+  description = "Run an agent with streaming output";
+  streaming = true;
+  web = { route: "/agent/:id/run/stream", method: HTTP_METHOD.POST };
+  middleware = [SessionMiddleware];
+  inputs = z.object({
+    id: z.coerce.number().int().describe("The agent's id"),
+    additionalContext: z
+      .string()
+      .optional()
+      .describe("Additional context for the agent run"),
+    messageId: z.union([z.string(), z.number()]).optional().describe("Message ID for WebSocket streaming"),
+  });
+
+  async run(params: ActionParams<AgentRunStreaming>, connection: Connection) {
+    // Non-streaming fallback - should not be called for WebSocket connections
+    throw new TypedError({
+      message: "Use WebSocket connection for streaming",
+      type: ErrorType.CONNECTION_TYPE_NOT_FOUND,
+    });
+  }
+
+  async runStreaming(
+    params: ActionParams<AgentRunStreaming>,
+    connection: Connection,
+    onChunk: (chunk: StreamingChunk) => Promise<void>,
+  ): Promise<void> {
+    const userId = connection.session?.data.userId;
+    if (!userId) {
+      throw new TypedError({
+        message: "User session not found",
+        type: ErrorType.CONNECTION_SESSION_NOT_FOUND,
+      });
+    }
+
+    // Get the agent and verify ownership
+    const [agent]: Agent[] = await api.db.db
+      .select()
+      .from(agents)
+      .where(and(eq(agents.id, params.id), eq(agents.userId, userId)))
+      .limit(1);
+
+    if (!agent) {
+      throw new TypedError({
+        message: "Agent not found or not owned by user",
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+      });
+    }
+
+    const messageId = params.messageId || "unknown";
+
+    // Run the agent with streaming
+    await agentRunStreaming(
+      agent,
+      onChunk,
+      messageId,
+      undefined,
+      params.additionalContext,
+    );
   }
 }

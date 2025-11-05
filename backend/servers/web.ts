@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import path from "node:path";
 import { parse } from "node:url";
 import { api, logger } from "../api";
-import { type ActionParams, type HTTP_METHOD } from "../classes/Action";
+import { type ActionParams, type HTTP_METHOD, type StreamingChunk } from "../classes/Action";
 import { Connection } from "../classes/Connection";
 import { Server } from "../classes/Server";
 import { ErrorStatusCodes, ErrorType, TypedError } from "../classes/TypedError";
@@ -163,26 +163,57 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
       params.append(key, value as string);
     }
 
-    const { response, error } = await connection.act(
-      formattedMessage.action,
-      params,
-      "WEBSOCKET",
+    // Check if action supports streaming
+    const action = api.actions.actions.find(
+      (a) => a.name === formattedMessage.action,
     );
 
-    if (error) {
-      ws.send(
-        JSON.stringify({
-          messageId: formattedMessage.messageId,
-          error: { ...buildErrorPayload(error) },
-        }),
-      );
+    if (action?.streaming && action.runStreaming) {
+      // Use streaming mode
+      const sendChunk = async (chunk: StreamingChunk) => {
+        ws.send(JSON.stringify(chunk));
+      };
+
+      try {
+        // Ensure messageId is in params
+        if (!params.has("messageId")) {
+          params.append("messageId", String(formattedMessage.messageId));
+        }
+
+        await connection.actStreaming(
+          formattedMessage.action,
+          params,
+          "WEBSOCKET",
+          "",
+          sendChunk,
+        );
+      } catch (error) {
+        // Error already sent via streaming, but log it
+        logger.error(`Streaming action error: ${error}`);
+      }
     } else {
-      ws.send(
-        JSON.stringify({
-          messageId: formattedMessage.messageId,
-          response: { ...response },
-        }),
+      // Use regular mode
+      const { response, error } = await connection.act(
+        formattedMessage.action,
+        params,
+        "WEBSOCKET",
       );
+
+      if (error) {
+        ws.send(
+          JSON.stringify({
+            messageId: formattedMessage.messageId,
+            error: { ...buildErrorPayload(error) },
+          }),
+        );
+      } else {
+        ws.send(
+          JSON.stringify({
+            messageId: formattedMessage.messageId,
+            response: { ...response },
+          }),
+        );
+      }
     }
   }
 

@@ -9,6 +9,7 @@ import {
   Card,
   Col,
   Container,
+  Form,
   Row,
   Spinner,
 } from "react-bootstrap";
@@ -17,6 +18,7 @@ import type { ActionResponse } from "../../../backend/api";
 import MarkdownRenderer from "../../components/MarkdownRenderer";
 import Navigation from "../../components/Navigation";
 import ProtectedRoute from "../../components/ProtectedRoute";
+import { useStreamingAgentRun } from "../../lib/hooks/useStreamingAgentRun";
 import { APIWrapper } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 
@@ -33,9 +35,18 @@ export default function ViewAgent() {
   // Test agent state
   const [testContext, setTestContext] = useState("");
   const [testing, setTesting] = useState(false);
+  const [useStreaming, setUseStreaming] = useState(true);
   const [testResult, setTestResult] = useState<ActionResponse<AgentRun> | null>(
     null,
   );
+
+  // Streaming hook
+  const {
+    result: streamingResult,
+    streamAgentRun,
+    reset: resetStreaming,
+    isStreaming,
+  } = useStreamingAgentRun();
 
   useEffect(() => {
     if (id) {
@@ -64,14 +75,21 @@ export default function ViewAgent() {
     setTesting(true);
     setTestResult(null);
     setError(null);
+    resetStreaming();
 
     try {
-      const response: ActionResponse<AgentRun> =
-        await APIWrapper.post<AgentRun>(`/agent/${agent.id}/run`, {
-          additionalContext: testContext || undefined,
-        });
+      if (useStreaming) {
+        // Use streaming mode
+        await streamAgentRun(agent.id, testContext || undefined);
+      } else {
+        // Use non-streaming mode
+        const response: ActionResponse<AgentRun> =
+          await APIWrapper.post<AgentRun>(`/agent/${agent.id}/run`, {
+            additionalContext: testContext || undefined,
+          });
 
-      setTestResult(response);
+        setTestResult(response);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to test agent");
     } finally {
@@ -230,6 +248,26 @@ export default function ViewAgent() {
               </Card.Header>
               <Card.Body>
                 <div className="mb-3">
+                  <Form.Check
+                    type="switch"
+                    id="streaming-switch"
+                    label="Enable Streaming"
+                    checked={useStreaming}
+                    onChange={(e) => {
+                      setUseStreaming(e.target.checked);
+                      resetStreaming();
+                      setTestResult(null);
+                    }}
+                    className="small"
+                  />
+                  <small className="text-muted d-block mt-1">
+                    {useStreaming
+                      ? "Results will stream in real-time"
+                      : "Results will be returned after completion"}
+                  </small>
+                </div>
+
+                <div className="mb-3">
                   <label className="form-label small">
                     Additional Context (Optional)
                   </label>
@@ -247,9 +285,9 @@ export default function ViewAgent() {
                     variant="outline-info"
                     size="sm"
                     onClick={handleTestAgent}
-                    disabled={testing}
+                    disabled={testing || isStreaming}
                   >
-                    {testing ? (
+                    {testing || isStreaming ? (
                       <>
                         <Spinner
                           as="span"
@@ -259,7 +297,7 @@ export default function ViewAgent() {
                           aria-hidden="true"
                           className="me-2"
                         />
-                        Testing...
+                        {useStreaming && isStreaming ? "Streaming..." : "Testing..."}
                       </>
                     ) : (
                       "Test Agent"
@@ -267,7 +305,61 @@ export default function ViewAgent() {
                   </Button>
                 </div>
 
-                {testResult && (
+                {/* Streaming Results */}
+                {useStreaming && streamingResult.status !== "idle" && (
+                  <div className="mt-3">
+                    <div className="d-flex align-items-center mb-2">
+                      <strong className="me-2 small">Test Result:</strong>
+                      <Badge
+                        bg={
+                          streamingResult.status === "completed"
+                            ? "success"
+                            : streamingResult.status === "failed"
+                            ? "danger"
+                            : streamingResult.status === "streaming"
+                            ? "info"
+                            : "secondary"
+                        }
+                        className="small"
+                      >
+                        {streamingResult.status}
+                      </Badge>
+                    </div>
+
+                    {streamingResult.accumulated && (
+                      <div className="mb-2">
+                        <strong className="small">Output:</strong>
+                        <div className="mt-1 p-2 bg-light rounded small" style={{ maxHeight: "300px", overflowY: "auto" }}>
+                          <MarkdownRenderer content={streamingResult.accumulated} />
+                          {isStreaming && (
+                            <span className="text-muted">▋</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {streamingResult.finalResult?.rationale && (
+                      <div className="mb-2">
+                        <strong className="small">Rationale:</strong>
+                        <div className="mt-1 p-2 bg-info bg-opacity-10 rounded small">
+                          <MarkdownRenderer content={streamingResult.finalResult.rationale} />
+                        </div>
+                      </div>
+                    )}
+
+                    {streamingResult.error && (
+                      <div className="mb-2">
+                        <strong className="small">Error:</strong>
+                        <div className="mt-1 p-2 bg-danger bg-opacity-10 text-danger rounded small">
+                          {streamingResult.error}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Non-streaming Results */}
+                {!useStreaming && testResult && (
                   <div className="mt-3">
                     <div className="d-flex align-items-center mb-2">
                       <strong className="me-2 small">Test Result:</strong>

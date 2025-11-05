@@ -5,7 +5,7 @@ import { config } from "../config";
 import type { PubSubMessage } from "../initializers/pubsub";
 import type { SessionData } from "../initializers/session";
 import "../util/zodMixins";
-import type { Action, ActionParams } from "./Action";
+import type { Action, ActionParams, StreamingChunk } from "./Action";
 import { ErrorType, TypedError } from "./TypedError";
 
 export class Connection<T extends Record<string, any> = Record<string, any>> {
@@ -16,6 +16,7 @@ export class Connection<T extends Record<string, any> = Record<string, any>> {
   subscriptions: Set<string>;
   sessionLoaded: boolean;
   rawConnection?: any;
+  sendStreamingChunkCallback?: (chunk: StreamingChunk) => Promise<void>;
 
   constructor(
     type: string,
@@ -29,8 +30,171 @@ export class Connection<T extends Record<string, any> = Record<string, any>> {
     this.sessionLoaded = false;
     this.subscriptions = new Set();
     this.rawConnection = rawConnection;
+    this.sendStreamingChunkCallback = undefined;
 
     api.connections.connections.push(this);
+  }
+
+  /**
+   * Sends a streaming chunk to the client.
+   * Only works if connection is in streaming mode (WebSocket).
+   */
+  async sendStreamingChunk(chunk: StreamingChunk): Promise<void> {
+    if (!this.sendStreamingChunkCallback) {
+      throw new TypedError({
+        message: "Connection does not support streaming",
+        type: ErrorType.CONNECTION_TYPE_NOT_FOUND,
+      });
+    }
+    await this.sendStreamingChunkCallback(chunk);
+  }
+
+  /**
+   * Runs an action in streaming mode.
+   * Only works for actions that support streaming and WebSocket connections.
+   */
+  async actStreaming(
+    actionName: string | undefined,
+    params: FormData,
+    method: Request["method"],
+    url: string,
+    sendChunk: (chunk: StreamingChunk) => Promise<void>,
+  ): Promise<void> {
+    const reqStartTime = new Date().getTime();
+    let loggerResponsePrefix: "OK" | "ERROR" = "OK";
+    let error: TypedError | undefined;
+
+    // Store callback for use in action
+    this.sendStreamingChunkCallback = sendChunk;
+
+    let action: Action | undefined;
+    try {
+      action = this.findAction(actionName);
+      if (!action) {
+        throw new TypedError({
+          message: `Action not found${actionName ? `: ${actionName}` : ""}`,
+          type: ErrorType.CONNECTION_ACTION_NOT_FOUND,
+        });
+      }
+
+      if (!action.streaming) {
+        throw new TypedError({
+          message: `Action ${actionName} does not support streaming`,
+          type: ErrorType.CONNECTION_ACTION_RUN,
+        });
+      }
+
+      if (!action.runStreaming) {
+        throw new TypedError({
+          message: `Action ${actionName} declared streaming support but does not implement runStreaming()`,
+          type: ErrorType.CONNECTION_ACTION_RUN,
+        });
+      }
+
+      // Get messageId from raw params first (before formatting)
+      let messageId = "unknown";
+      const rawParamsObj: Record<string, any> = {};
+      params.forEach((value, key) => {
+        rawParamsObj[key] = value;
+        if (key === "messageId") {
+          messageId = String(value);
+        }
+      });
+
+      // load the session once, if it hasn't been loaded yet
+      if (!this.sessionLoaded) await this.loadSession();
+
+      let formattedParams = await this.formatParams(params, action);
+
+      for (const middleware of action.middleware ?? []) {
+        if (middleware.runBefore) {
+          const middlewareResponse = await middleware.runBefore(
+            formattedParams,
+            this,
+          );
+          if (middlewareResponse && middlewareResponse?.updatedParams)
+            formattedParams = middlewareResponse.updatedParams;
+        }
+      }
+
+      // Get messageId from formatted params if not found in raw params
+      if (messageId === "unknown" && (formattedParams as any).messageId) {
+        messageId = String((formattedParams as any).messageId);
+      }
+
+      // Send start message
+      await sendChunk({
+        messageId,
+        type: "stream:start",
+        data: {},
+      });
+
+      // Run streaming action
+      await action.runStreaming(formattedParams, this, sendChunk);
+
+      // Send done message (action should have sent final data in chunks)
+      await sendChunk({
+        messageId,
+        type: "stream:done",
+        data: {},
+      });
+    } catch (e) {
+      loggerResponsePrefix = "ERROR";
+      error =
+        e instanceof TypedError
+          ? e
+          : new TypedError({
+              message: `${e}`,
+              type: ErrorType.CONNECTION_ACTION_RUN,
+              originalError: e,
+            });
+
+      // Send error message
+      const messageId = (action ? await this.formatParams(params, action) : {}) as any;
+      try {
+        await sendChunk({
+          messageId: messageId.messageId || "unknown",
+          type: "stream:error",
+          error: {
+            message: error.message,
+            type: error.type,
+            timestamp: new Date().getTime(),
+          },
+        });
+      } catch (sendError) {
+        // If we can't send error, log it
+        logger.error(`Failed to send streaming error: ${sendError}`);
+      }
+    } finally {
+      // Clear callback
+      this.sendStreamingChunkCallback = undefined;
+    }
+
+    // Log the action execution
+    const sanitizedParams = sanitizeParams(params, action);
+    const loggingParams = config.logger.colorize
+      ? colors.gray(JSON.stringify(sanitizedParams))
+      : JSON.stringify(sanitizedParams);
+
+    const statusMessage = `[ACTION:${loggerResponsePrefix}]`;
+    const messagePrefix = config.logger.colorize
+      ? loggerResponsePrefix === "OK"
+        ? colors.bgBlue(statusMessage)
+        : colors.bgMagenta(statusMessage)
+      : statusMessage;
+
+    const duration = new Date().getTime() - reqStartTime;
+
+    const errorStack =
+      error && error.stack
+        ? config.logger.colorize
+          ? "\r\n" + colors.gray(error.stack)
+          : "\r\n" + error.stack
+        : "";
+
+    logger.info(
+      `${messagePrefix} ${actionName} (${duration}ms) [STREAMING] ${method.length > 0 ? `[${method}]` : ""} ${this.identifier}${url.length > 0 ? `(${url})` : ""} ${error ? error : ""} ${loggingParams} ${errorStack}`,
+    );
   }
 
   /**

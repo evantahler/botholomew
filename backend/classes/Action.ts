@@ -13,6 +13,19 @@ export enum HTTP_METHOD {
 
 export const DEFAULT_QUEUE = "default";
 
+export type StreamingMessageType =
+  | "stream:start"
+  | "stream:chunk"
+  | "stream:done"
+  | "stream:error";
+
+export type StreamingChunk = {
+  messageId: string | number;
+  type: StreamingMessageType;
+  data?: any;
+  error?: any;
+};
+
 export type ActionConstructorInputs = {
   name: string;
   description?: string;
@@ -26,6 +39,7 @@ export type ActionConstructorInputs = {
     frequency?: number;
     queue: string;
   };
+  streaming?: boolean;
 };
 
 export type ActionMiddlewareResponse = {
@@ -57,6 +71,7 @@ export abstract class Action {
     frequency?: number;
     queue: string;
   };
+  streaming?: boolean;
 
   constructor(args: ActionConstructorInputs) {
     this.name = args.name;
@@ -71,6 +86,7 @@ export abstract class Action {
       frequency: args.task?.frequency,
       queue: args.task?.queue ?? DEFAULT_QUEUE,
     };
+    this.streaming = args.streaming ?? false;
   }
 
   /**
@@ -83,6 +99,17 @@ export abstract class Action {
     params: ActionParams<Action>,
     connection?: Connection,
   ): Promise<any>;
+
+  /**
+   * Optional streaming method for actions that support streaming.
+   * Called when action is executed in streaming mode.
+   * Use onChunk callback to send incremental updates to the client.
+   */
+  runStreaming?(
+    params: ActionParams<Action>,
+    connection: Connection,
+    onChunk: (chunk: StreamingChunk) => Promise<void>,
+  ): Promise<void>;
 }
 
 export type ActionParams<A extends Action> =

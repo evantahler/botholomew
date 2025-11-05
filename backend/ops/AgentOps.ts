@@ -3,6 +3,7 @@ import { RECOMMENDED_PROMPT_PREFIX } from "@openai/agents-core/extensions";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { api } from "../api";
+import type { StreamingChunk } from "../classes/Action";
 import { ErrorType, TypedError } from "../classes/TypedError";
 import { type Agent } from "../models/agent";
 import { User, users } from "../models/user";
@@ -221,4 +222,166 @@ export async function agentRun(
   }
 
   return runResult;
+}
+
+/**
+ * Streaming version of agentRun that sends incremental updates via callback.
+ * Uses OpenAI SDK streaming directly for real-time output.
+ */
+export async function agentRunStreaming(
+  agent: Agent,
+  onChunk: (chunk: StreamingChunk) => Promise<void>,
+  messageId: string | number,
+  workflowRunStep: WorkflowRunStep | undefined = undefined,
+  additionalContext: string | undefined = undefined,
+  retryableError: string | undefined = undefined,
+): Promise<void> {
+
+  try {
+    const [user]: User[] = await api.db.db
+      .select()
+      .from(users)
+      .where(eq(users.id, agent.userId))
+      .limit(1);
+
+    if (!user) {
+      throw new TypedError({
+        message: "User not found",
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+      });
+    }
+
+    // Send status update
+    await onChunk({
+      messageId,
+      type: "stream:chunk",
+      data: {
+        status: "initializing",
+        message: "Starting agent run...",
+      },
+    });
+
+    // Check toolkit authorization
+    if (agent.toolkits && agent.toolkits.length > 0) {
+      const unauthorizedToolkits = await getUnauthorizedToolkits(
+        user.id,
+        agent.toolkits,
+      );
+
+      if (unauthorizedToolkits.length > 0) {
+        throw new TypedError({
+          message: `Agent cannot run because you are not authorized to use the following toolkits: ${unauthorizedToolkits.join(", ")}. Please authorize these toolkits or remove them from the agent.`,
+          type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+        });
+      }
+    }
+
+    await onChunk({
+      messageId,
+      type: "stream:chunk",
+      data: {
+        status: "processing",
+        message: "Processing request...",
+      },
+    });
+
+    // For now, use a simplified streaming approach with OpenAI SDK directly
+    // TODO: Enhance to support tool calls and handoffs in streaming mode
+    const instructions =
+      agent.systemPrompt +
+      "\n\n---\n\n Additional information about the user: \r\n" +
+      user.metadata +
+      (additionalContext
+        ? "\n\n---\n\n Additional context: \r\n" + additionalContext
+        : "");
+
+    // Use OpenAI SDK streaming directly
+    const stream = await api.openai.client.chat.completions.create({
+      model: agent.model,
+      messages: [
+        { role: "system", content: instructions },
+        { role: "user", content: agent.userPrompt },
+      ],
+      stream: true,
+    });
+
+    let fullOutput = "";
+    let chunkCount = 0;
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      if (content) {
+        fullOutput += content;
+        chunkCount++;
+
+        // Send chunk every time for smoother streaming
+        await onChunk({
+          messageId,
+          type: "stream:chunk",
+          data: {
+            status: "streaming",
+            chunk: content,
+            accumulated: fullOutput,
+          },
+        });
+      }
+    }
+
+    // Send final accumulated result
+    await onChunk({
+      messageId,
+      type: "stream:chunk",
+      data: {
+        status: "streaming",
+        chunk: "",
+        accumulated: fullOutput,
+        final: true,
+      },
+    });
+
+    // Update workflow step if provided
+    if (workflowRunStep) {
+      await api.db.db
+        .update(workflow_run_steps)
+        .set({
+          output: fullOutput,
+          status: "completed",
+        })
+        .where(eq(workflow_run_steps.id, workflowRunStep.id));
+    }
+
+    // Send final result
+    await onChunk({
+      messageId,
+      type: "stream:chunk",
+      data: {
+        status: "completed",
+        result: fullOutput,
+        rationale: "Stream completed successfully",
+      },
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    await onChunk({
+      messageId,
+      type: "stream:chunk",
+      data: {
+        status: "failed",
+        error: errorMessage,
+      },
+    });
+
+    if (workflowRunStep) {
+      await api.db.db
+        .update(workflow_run_steps)
+        .set({
+          output: errorMessage,
+          status: "failed",
+        })
+        .where(eq(workflow_run_steps.id, workflowRunStep.id));
+    }
+
+    throw error;
+  }
 }
