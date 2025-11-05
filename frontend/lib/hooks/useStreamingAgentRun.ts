@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { getWebSocketClient, type StreamingChunk } from "../lib/websocket";
+import { getWebSocketClient, type StreamingChunk } from "../websocket";
 import type { AgentRunStreaming } from "../../backend/actions/agent";
 
 export type StreamingStatus =
