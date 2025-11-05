@@ -14,8 +14,10 @@ import {
 import { workflow_steps } from "../models/workflow_step";
 import {
   processWorkflowRunTick,
+  processWorkflowRunTickStreaming,
   serializeWorkflowRun,
 } from "../ops/WorkflowRunOps";
+import type { StreamingChunk } from "../classes/Action";
 import { serializeWorkflowRunStep } from "../ops/WorkflowRunStepOps";
 
 // Types for the database query result
@@ -422,6 +424,52 @@ export class WorkflowRunTick implements Action {
     }
 
     return processWorkflowRunTick(params.id, params.runId, true, userId);
+  }
+}
+
+export class WorkflowRunTickStreaming implements Action {
+  name = "workflow:run:tick:stream";
+  description = "Process the next step in a workflow run with streaming output";
+  streaming = true;
+  web = { route: "/workflow/:id/run/:runId/tick/stream", method: HTTP_METHOD.POST };
+  middleware = [SessionMiddleware];
+  inputs = z.object({
+    id: z.coerce.number().int().describe("The workflow's id"),
+    runId: z.coerce.number().int().describe("The run's id"),
+    messageId: z.union([z.string(), z.number()]).optional().describe("Message ID for WebSocket streaming"),
+  });
+
+  async run(params: ActionParams<WorkflowRunTickStreaming>, connection: Connection) {
+    // Non-streaming fallback - should not be called for WebSocket connections
+    throw new TypedError({
+      message: "Use WebSocket connection for streaming",
+      type: ErrorType.CONNECTION_TYPE_NOT_FOUND,
+    });
+  }
+
+  async runStreaming(
+    params: ActionParams<WorkflowRunTickStreaming>,
+    connection: Connection,
+    onChunk: (chunk: StreamingChunk) => Promise<void>,
+  ): Promise<void> {
+    const userId = connection.session?.data.userId;
+    if (!userId) {
+      throw new TypedError({
+        message: "User session not found",
+        type: ErrorType.CONNECTION_SESSION_NOT_FOUND,
+      });
+    }
+
+    const messageId = params.messageId || "unknown";
+
+    await processWorkflowRunTickStreaming(
+      params.id,
+      params.runId,
+      onChunk,
+      messageId,
+      true,
+      userId,
+    );
   }
 }
 

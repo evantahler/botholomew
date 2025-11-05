@@ -9,6 +9,7 @@ import {
   Card,
   Col,
   Container,
+  Form,
   Modal,
   Row,
   Spinner,
@@ -23,6 +24,7 @@ import type {
 import type { ActionResponse } from "../../../../../backend/api";
 import Navigation from "../../../../components/Navigation";
 import ProtectedRoute from "../../../../components/ProtectedRoute";
+import { useStreamingWorkflowRun } from "../../../../lib/hooks/useStreamingWorkflowRun";
 import { APIWrapper } from "../../../../lib/api";
 import { useAuth } from "../../../../lib/auth";
 import { formatDate } from "../../../../lib/utils";
@@ -55,6 +57,23 @@ export default function ViewWorkflowRun() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [useStreaming, setUseStreaming] = useState(true);
+
+  // Streaming hook
+  const {
+    result: streamingResult,
+    streamWorkflowTick,
+    reset: resetStreaming,
+    isStreaming,
+  } = useStreamingWorkflowRun();
+
+  // Update workflow run when streaming completes
+  useEffect(() => {
+    if (streamingResult.workflowRun && !isStreaming) {
+      setWorkflowRun(streamingResult.workflowRun);
+      fetchWorkflowRunSteps();
+    }
+  }, [streamingResult.workflowRun, isStreaming]);
 
   useEffect(() => {
     if (id && runId) {
@@ -109,16 +128,36 @@ export default function ViewWorkflowRun() {
     if (!workflowRun) return;
 
     setTicking(true);
-    try {
-      const response = await APIWrapper.post<WorkflowRunTick>(
-        `/workflow/${id}/run/${runId}/tick`,
-        { id: parseInt(id as string), runId: parseInt(runId as string) },
-      );
-      setWorkflowRun(response.workflowRun);
-      setError(null);
+    setError(null);
+    resetStreaming();
 
-      // Refresh workflow run steps after tick is complete
-      await fetchWorkflowRunSteps();
+    try {
+      if (useStreaming) {
+        // Use streaming mode
+        await streamWorkflowTick(
+          parseInt(id as string),
+          parseInt(runId as string),
+        );
+        
+        // Wait a bit for streaming to complete, then refresh
+        setTimeout(async () => {
+          await fetchWorkflowRunSteps();
+          if (streamingResult.workflowRun) {
+            setWorkflowRun(streamingResult.workflowRun);
+          }
+        }, 500);
+      } else {
+        // Use non-streaming mode
+        const response = await APIWrapper.post<WorkflowRunTick>(
+          `/workflow/${id}/run/${runId}/tick`,
+          { id: parseInt(id as string), runId: parseInt(runId as string) },
+        );
+        setWorkflowRun(response.workflowRun);
+        setError(null);
+
+        // Refresh workflow run steps after tick is complete
+        await fetchWorkflowRunSteps();
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to tick workflow run",
@@ -339,23 +378,70 @@ export default function ViewWorkflowRun() {
                 <h5 className="mb-0">Actions</h5>
               </Card.Header>
               <Card.Body>
+                <div className="mb-3">
+                  <Form.Check
+                    type="switch"
+                    id="streaming-switch"
+                    label="Enable Streaming"
+                    checked={useStreaming}
+                    onChange={(e) => {
+                      setUseStreaming(e.target.checked);
+                      resetStreaming();
+                    }}
+                    className="small"
+                  />
+                  <small className="text-muted d-block mt-1">
+                    {useStreaming
+                      ? "Step results will stream in real-time"
+                      : "Step results will be returned after completion"}
+                  </small>
+                </div>
+
                 <div className="d-grid gap-2">
                   {workflowRun.status === "pending" && (
                     <Button
                       variant="primary"
                       onClick={handleTick}
-                      disabled={ticking}
+                      disabled={ticking || isStreaming}
                     >
-                      {ticking ? "Processing..." : "Start Workflow"}
+                      {ticking || isStreaming ? (
+                        <>
+                          <Spinner
+                            as="span"
+                            animation="border"
+                            size="sm"
+                            role="status"
+                            aria-hidden="true"
+                            className="me-2"
+                          />
+                          {useStreaming && isStreaming ? "Streaming..." : "Processing..."}
+                        </>
+                      ) : (
+                        "Start Workflow"
+                      )}
                     </Button>
                   )}
                   {workflowRun.status === "running" && (
                     <Button
                       variant="info"
                       onClick={handleTick}
-                      disabled={ticking}
+                      disabled={ticking || isStreaming}
                     >
-                      {ticking ? "Processing..." : "Continue Workflow"}
+                      {ticking || isStreaming ? (
+                        <>
+                          <Spinner
+                            as="span"
+                            animation="border"
+                            size="sm"
+                            role="status"
+                            aria-hidden="true"
+                            className="me-2"
+                          />
+                          {useStreaming && isStreaming ? "Streaming..." : "Processing..."}
+                        </>
+                      ) : (
+                        "Continue Workflow"
+                      )}
                     </Button>
                   )}
                   <Button
@@ -365,6 +451,54 @@ export default function ViewWorkflowRun() {
                     View All Runs
                   </Button>
                 </div>
+
+                {/* Streaming Status */}
+                {useStreaming && streamingResult.status !== "idle" && (
+                  <div className="mt-3 pt-3 border-top">
+                    <div className="d-flex align-items-center mb-2">
+                      <strong className="me-2 small">Status:</strong>
+                      <Badge
+                        bg={
+                          streamingResult.status === "completed"
+                            ? "success"
+                            : streamingResult.status === "failed"
+                            ? "danger"
+                            : streamingResult.status === "step_streaming"
+                            ? "info"
+                            : "secondary"
+                        }
+                        className="small"
+                      >
+                        {streamingResult.status}
+                      </Badge>
+                    </div>
+                    {streamingResult.message && (
+                      <div className="small text-muted mb-2">
+                        {streamingResult.message}
+                      </div>
+                    )}
+                    {streamingResult.currentStep && (
+                      <div className="small">
+                        <div className="fw-bold mb-1">
+                          Step {streamingResult.currentStep.stepIndex + 1}
+                          {streamingResult.currentStep.agentName && (
+                            <> - {streamingResult.currentStep.agentName}</>
+                          )}
+                        </div>
+                        {streamingResult.currentStep.output && (
+                          <div className="p-2 bg-light rounded small" style={{ maxHeight: "200px", overflowY: "auto" }}>
+                            <pre className="mb-0 small">
+                              {streamingResult.currentStep.output}
+                              {isStreaming && (
+                                <span className="text-muted">▋</span>
+                              )}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </Card.Body>
             </Card>
           </Col>
