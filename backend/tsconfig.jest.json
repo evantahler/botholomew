@@ -5,7 +5,10 @@
     "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "node",
-    "target": "ES2022"
+    "target": "ES2022",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
   },
   "exclude": ["node_modules", "drizzle"]
 }

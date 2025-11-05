@@ -14,6 +14,7 @@ const config: Config = {
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
     "^bun$": "<rootDir>/__tests__/__mocks__/bun.ts",
+    "^@openai/agents-core/extensions$": "@openai/agents-core/dist/extensions/index.mjs",
   },
   extensionsToTreatAsEsm: [".ts"],
   testTimeout: 60000,
