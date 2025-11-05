@@ -1,4 +1,5 @@
 import path from "path";
+import { fileURLToPath } from "url";
 import { config } from "../config";
 import { globLoader } from "../util/glob";
 import type { Initializer, InitializerSortKeys } from "./Initializer";
@@ -27,7 +28,17 @@ export class API {
 
   constructor() {
     this.bootTime = new Date().getTime();
-    this.rootDir = path.join(import.meta.path, "..", "..");
+    // Support both Bun (import.meta.path) and Node.js (import.meta.url)
+    let metaPath: string;
+    if (typeof import.meta.path !== "undefined") {
+      metaPath = import.meta.path;
+    } else if (typeof import.meta.url !== "undefined") {
+      metaPath = fileURLToPath(import.meta.url);
+    } else {
+      // Fallback for environments without either
+      metaPath = __filename || process.cwd();
+    }
+    this.rootDir = path.join(metaPath, "..", "..");
     this.logger = new Logger(config.logger);
 
     this.initialized = false;

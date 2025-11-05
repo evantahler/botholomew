@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "@jest/globals";
 import { Connection } from "../../classes/Connection";
 import { SessionMiddleware } from "../../middleware/session";
 

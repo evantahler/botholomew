@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "@jest/globals";
 import { config } from "../../config";
 
 describe("Workflow Ticker Config", () => {

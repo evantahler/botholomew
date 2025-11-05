@@ -6,7 +6,7 @@ import {
   describe,
   expect,
   test,
-} from "bun:test";
+} from "@jest/globals";
 import { z } from "zod";
 import { Action, ActionParams, api } from "../../api";
 import { DEFAULT_QUEUE } from "../../classes/Action";

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "@jest/globals";
 import type {
   AgentCreate,
   AgentDelete,
@@ -20,19 +20,18 @@ import {
 } from "../utils/testHelpers";
 
 // Mock the OpenAI agents module
-const mockRun = mock(() =>
-  Promise.resolve({ finalOutput: "Mocked assistant response" }),
-);
-const mockAgent = mock(() => ({}));
-const mockSetDefaultOpenAIClient = mock(() => {});
-const mockTool = mock(() => ({}));
-
-mock.module("@openai/agents", () => ({
-  Agent: mockAgent,
-  run: mockRun,
-  setDefaultOpenAIClient: mockSetDefaultOpenAIClient,
-  tool: mockTool,
-}));
+// Note: jest.mock() calls are hoisted by Jest, so they run before imports
+jest.mock("@openai/agents", () => {
+  // Import jest from @jest/globals in the factory function
+  // This works because jest.mock() is hoisted but the factory runs later
+  const { jest: jestMock } = require("@jest/globals");
+  return {
+    Agent: jestMock.fn(() => ({})),
+    run: jestMock.fn(() => Promise.resolve({ finalOutput: "Mocked assistant response" })),
+    setDefaultOpenAIClient: jestMock.fn(() => {}),
+    tool: jestMock.fn(() => ({})),
+  };
+});
 
 const url = config.server.web.applicationUrl;
 

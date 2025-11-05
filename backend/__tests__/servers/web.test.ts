@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "@jest/globals";
 import type { Status } from "../../actions/status";
 import { api, config, type ActionResponse } from "../../api";
 
@@ -23,7 +23,7 @@ describe("actions", () => {
     const res = await fetch(url + "/api/status");
     expect(res.status).toBe(200);
     const response = (await res.json()) as ActionResponse<Status>;
-    expect(response.name).toInclude("test-server");
+    expect(response.name).toContain("test-server");
   });
 
   test("trying for a non-existent action returns a 404", async () => {

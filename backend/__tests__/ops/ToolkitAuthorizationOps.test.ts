@@ -5,7 +5,7 @@ import {
   describe,
   expect,
   it,
-} from "bun:test";
+} from "@jest/globals";
 import { api } from "../../api";
 import { toolkit_authorizations } from "../../models/toolkit_authorization";
 import {

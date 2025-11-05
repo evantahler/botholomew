@@ -5,7 +5,7 @@ import {
   describe,
   expect,
   test,
-} from "bun:test";
+} from "@jest/globals";
 import type { WorkflowRunTicker } from "../../actions/workflow_run_ticker";
 import { api } from "../../api";
 import { users } from "../../models/user";

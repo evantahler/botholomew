@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "@jest/globals";
 import type { ArcadeListToolkits } from "../../actions/arcade";
 import { api, type ActionResponse } from "../../api";
 import { config } from "../../config";
@@ -8,10 +8,10 @@ import {
   USERS,
 } from "../utils/testHelpers";
 
-// Mock the Arcade client
+// Mock the Arcade client - need to define these before jest.mock calls
 const mockArcadeClient = {
   tools: {
-    list: mock(() =>
+    list: jest.fn(() =>
       Promise.resolve({
         items: [
           {
@@ -57,25 +57,90 @@ const mockArcadeClient = {
   },
 };
 
-const mockToZod = mock(() => [
+const mockToZod = jest.fn(() => [
   { name: "web_search", description: "Search the web for information" },
   { name: "file_operations", description: "Perform file operations" },
   { name: "data_analysis", description: "Analyze data" },
   { name: "image_generation", description: "Generate images" },
 ]);
 
-const mockExecuteOrAuthorizeZodTool = mock(() => ({}));
+const mockExecuteOrAuthorizeZodTool = jest.fn(() => ({}));
 
-mock.module("@arcadeai/arcadejs", () => ({
-  Arcade: mock().mockImplementation(() => mockArcadeClient),
-  toZod: mockToZod,
-  executeOrAuthorizeZodTool: mockExecuteOrAuthorizeZodTool,
-}));
+jest.mock("@arcadeai/arcadejs", () => {
+  const mockArcadeClient = {
+    tools: {
+      list: jest.fn(() =>
+        Promise.resolve({
+          items: [
+            {
+              name: "web_search_tool",
+              description: "Search the web for information",
+              toolkit: { name: "web_search", description: "Web search toolkit" },
+            },
+            {
+              name: "file_read",
+              description: "Read files",
+              toolkit: {
+                name: "file_operations",
+                description: "File operations toolkit",
+              },
+            },
+            {
+              name: "file_write",
+              description: "Write files",
+              toolkit: {
+                name: "file_operations",
+                description: "File operations toolkit",
+              },
+            },
+            {
+              name: "data_analyze",
+              description: "Analyze data",
+              toolkit: {
+                name: "data_analysis",
+                description: "Data analysis toolkit",
+              },
+            },
+            {
+              name: "generate_image",
+              description: "Generate images",
+              toolkit: {
+                name: "image_generation",
+                description: "Image generation toolkit",
+              },
+            },
+          ],
+        }),
+      ),
+    },
+  };
+  const mockToZod = jest.fn(() => [
+    { name: "web_search", description: "Search the web for information" },
+    { name: "file_operations", description: "Perform file operations" },
+    { name: "data_analysis", description: "Analyze data" },
+    { name: "image_generation", description: "Generate images" },
+  ]);
+  const mockExecuteOrAuthorizeZodTool = jest.fn(() => ({}));
+  return {
+    Arcade: jest.fn().mockImplementation(() => mockArcadeClient),
+    toZod: mockToZod,
+    executeOrAuthorizeZodTool: mockExecuteOrAuthorizeZodTool,
+  };
+});
 
-mock.module("@arcadeai/arcadejs/lib", () => ({
-  toZod: mockToZod,
-  executeOrAuthorizeZodTool: mockExecuteOrAuthorizeZodTool,
-}));
+jest.mock("@arcadeai/arcadejs/lib", () => {
+  const mockToZod = jest.fn(() => [
+    { name: "web_search", description: "Search the web for information" },
+    { name: "file_operations", description: "Perform file operations" },
+    { name: "data_analysis", description: "Analyze data" },
+    { name: "image_generation", description: "Generate images" },
+  ]);
+  const mockExecuteOrAuthorizeZodTool = jest.fn(() => ({}));
+  return {
+    toZod: mockToZod,
+    executeOrAuthorizeZodTool: mockExecuteOrAuthorizeZodTool,
+  };
+});
 
 const url = config.server.web.applicationUrl;
 
@@ -85,8 +150,8 @@ beforeAll(async () => {
   // Mock the arcade client after API initialization
   api.arcade = {
     client: mockArcadeClient as any,
-    loadArcadeToolsForAgent: mock(() => Promise.resolve([])),
-    getAvailableToolkits: mock(() =>
+    loadArcadeToolsForAgent: jest.fn(() => Promise.resolve([])),
+    getAvailableToolkits: jest.fn(() =>
       Promise.resolve([
         {
           name: "web_search",
@@ -110,7 +175,7 @@ beforeAll(async () => {
         },
       ]),
     ),
-    authorizeToolkitForUser: mock(() => Promise.resolve(undefined)),
+    authorizeToolkitForUser: jest.fn(() => Promise.resolve(undefined)),
   };
 
   await api.db.clearDatabase();

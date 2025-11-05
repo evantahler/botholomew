@@ -5,7 +5,7 @@ import {
   describe,
   expect,
   it,
-} from "bun:test";
+} from "@jest/globals";
 import { WorkflowRunStepList } from "../../actions/workflow_run";
 import { api } from "../../api";
 import { workflow_runs } from "../../models/workflow_run";

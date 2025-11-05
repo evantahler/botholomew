@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
 import { spawn } from "child_process";
+import path from "path";
 
 describe("Frontend Smoke Test", () => {
   let serverProcess: any;
@@ -8,7 +9,7 @@ describe("Frontend Smoke Test", () => {
   beforeAll(async () => {
     // Start the Next.js development server
     serverProcess = spawn("bun", ["run", "dev"], {
-      cwd: import.meta.dir,
+      cwd: path.join(__dirname, ".."),
       stdio: "pipe",
       env: { ...process.env, PORT: "3000" },
     });

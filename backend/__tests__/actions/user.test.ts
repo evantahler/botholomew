@@ -5,7 +5,7 @@ import {
   describe,
   expect,
   test,
-} from "bun:test";
+} from "@jest/globals";
 import { eq } from "drizzle-orm";
 import type { UserCreate, UserEdit, UserView } from "../../actions/user";
 import { api, logger, type ActionResponse } from "../../api";

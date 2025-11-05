@@ -1,12 +1,12 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { Logger, LogLevel } from "../../classes/Logger";
 
 describe("Logger", () => {
-  let mockOutput: ReturnType<typeof mock>;
+  let mockOutput: jest.Mock;
   let logger: Logger;
 
   beforeEach(() => {
-    mockOutput = mock(() => {});
+    mockOutput = jest.fn();
     logger = new Logger({
       level: LogLevel.info,
       colorize: false,
@@ -144,7 +144,7 @@ describe("Logger", () => {
       logger.info("Test", { key: "value" });
 
       // When colorize is enabled, the output contains ANSI color codes
-      const output = mockOutput.mock.calls[0][0];
+      const output = mockOutput.mock.calls[0][0] as string;
       expect(typeof output).toBe("string");
       expect(output.length).toBeGreaterThan(0);
     });

@@ -4,9 +4,8 @@ import {
   beforeAll,
   describe,
   expect,
-  mock,
   test,
-} from "bun:test";
+} from "@jest/globals";
 import { eq } from "drizzle-orm";
 import type {
   ToolkitAuthorizationCreate,
@@ -23,7 +22,7 @@ const url = config.server.web.applicationUrl;
 // Mock the Arcade client
 const mockArcadeClient = {
   tools: {
-    list: mock(() =>
+    list: jest.fn(() =>
       Promise.resolve({
         items: [
           {
@@ -41,7 +40,7 @@ const mockArcadeClient = {
     ),
   },
   auth: {
-    start: mock(() => Promise.resolve({ status: "completed" })),
+    start: jest.fn(() => Promise.resolve({ status: "completed" })),
   },
 };
 
@@ -51,8 +50,8 @@ beforeAll(async () => {
   // Mock the arcade client after API initialization
   api.arcade = {
     client: mockArcadeClient as any,
-    loadArcadeToolsForAgent: mock(() => Promise.resolve([])),
-    getAvailableToolkits: mock(() =>
+    loadArcadeToolsForAgent: jest.fn(() => Promise.resolve([])),
+    getAvailableToolkits: jest.fn(() =>
       Promise.resolve([
         {
           name: "github",
@@ -61,7 +60,7 @@ beforeAll(async () => {
         },
       ]),
     ),
-    authorizeToolkitForUser: mock(() => Promise.resolve(undefined)), // Mock to return undefined (no auth URL needed)
+    authorizeToolkitForUser: jest.fn(() => Promise.resolve(undefined)), // Mock to return undefined (no auth URL needed)
   };
 
   await api.db.clearDatabase();

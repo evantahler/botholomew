@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "@jest/globals";
 
 import { config } from "../config";
 import { loadFromEnvIfSet } from "../util/config";

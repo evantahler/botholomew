@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "@jest/globals";
 import { WorkflowRunStep } from "../../models/workflow_run_step";
 import { serializeWorkflowRunStep } from "../../ops/WorkflowRunStepOps";
 

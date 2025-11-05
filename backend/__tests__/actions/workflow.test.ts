@@ -5,7 +5,7 @@ import {
   describe,
   expect,
   test,
-} from "bun:test";
+} from "@jest/globals";
 import type { AgentCreate } from "../../actions/agent";
 import type { SessionCreate } from "../../actions/session";
 import type {

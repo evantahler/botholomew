@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "@jest/globals";
 import { User } from "../../models/user";
 import { checkPassword, hashPassword, serializeUser } from "../../ops/UserOps";
 

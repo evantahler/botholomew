@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "@jest/globals";
 import type { WorkflowRunTickSystem } from "../../actions/workflow_run_tick_system";
 import { api } from "../../api";
 import { Agent, agents } from "../../models/agent";

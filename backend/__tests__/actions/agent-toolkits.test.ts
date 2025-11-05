@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "@jest/globals";
 import { eq } from "drizzle-orm";
 import type {
   AgentCreate,
@@ -714,7 +714,7 @@ describe("agent toolkits", () => {
         // We're just testing that the authorization check passes
         expect(tickResponse.status).not.toBe(400);
       },
-      { timeout: 1000 * 10 },
+      1000 * 10,
     );
   });
 });

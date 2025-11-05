@@ -1,5 +1,5 @@
 import { $ } from "bun";
-import { beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "@jest/globals";
 import { api } from "../../api";
 import pkg from "./../../package.json";
 

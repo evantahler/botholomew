@@ -1,4 +1,4 @@
-// import { test, expect, describe, beforeAll, afterAll } from "bun:test";
+// import { test, expect, describe, beforeAll, afterAll } from "@jest/globals";
 // import { api, config } from "../../api";
 
 // const wsUrl = config.server.web.applicationUrl
