@@ -17,6 +17,8 @@ export class Connection<T extends Record<string, any> = Record<string, any>> {
   sessionLoaded: boolean;
   rawConnection?: any;
   sendStreamingChunkCallback?: (chunk: StreamingChunk) => Promise<void>;
+  streamingMessageIds?: Set<string | number>;
+  onStreamingChunkReceived?: (chunk: StreamingChunk) => void;
 
   constructor(
     type: string,
@@ -31,6 +33,8 @@ export class Connection<T extends Record<string, any> = Record<string, any>> {
     this.subscriptions = new Set();
     this.rawConnection = rawConnection;
     this.sendStreamingChunkCallback = undefined;
+    this.streamingMessageIds = new Set();
+    this.onStreamingChunkReceived = undefined;
 
     api.connections.connections.push(this);
   }
@@ -310,6 +314,24 @@ export class Connection<T extends Record<string, any> = Record<string, any>> {
 
   unsubscribe(channel: string) {
     this.subscriptions.delete(channel);
+  }
+
+  /**
+   * Registers a messageId for streaming updates via Redis pub/sub.
+   * Used for multi-node streaming support.
+   */
+  registerStreamingMessageId(messageId: string | number) {
+    if (!this.streamingMessageIds) {
+      this.streamingMessageIds = new Set();
+    }
+    this.streamingMessageIds.add(messageId);
+  }
+
+  /**
+   * Unregisters a messageId from streaming updates.
+   */
+  unregisterStreamingMessageId(messageId: string | number) {
+    this.streamingMessageIds?.delete(messageId);
   }
 
   async broadcast(channel: string, message: string) {

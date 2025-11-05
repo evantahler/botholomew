@@ -144,6 +144,13 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
       ws.data.id,
     );
     try {
+      // Unregister all streaming messageIds
+      if (connection?.streamingMessageIds) {
+        for (const messageId of connection.streamingMessageIds) {
+          connection.unregisterStreamingMessageId(messageId);
+        }
+      }
+      connection.onStreamingChunkReceived = undefined;
       connection.destroy();
       logger.info(
         `websocket connection closed from ${connection.identifier} (${connection.id})`,
@@ -169,27 +176,45 @@ export class WebServer extends Server<ReturnType<typeof Bun.serve>> {
     );
 
     if (action?.streaming && action.runStreaming) {
-      // Use streaming mode
-      const sendChunk = async (chunk: StreamingChunk) => {
+      // Use streaming mode with Redis pub/sub for multi-node support
+      const messageId = formattedMessage.messageId;
+      
+      // Register this messageId for streaming updates
+      connection.registerStreamingMessageId(messageId);
+      
+      // Set up callback to forward chunks from Redis pub/sub to WebSocket
+      connection.onStreamingChunkReceived = async (chunk: StreamingChunk) => {
         ws.send(JSON.stringify(chunk));
+        
+        // Unregister when streaming is complete
+        if (chunk.type === "stream:done" || chunk.type === "stream:error") {
+          connection.unregisterStreamingMessageId(messageId);
+          connection.onStreamingChunkReceived = undefined;
+        }
       };
 
-      try {
-        // Ensure messageId is in params
-        if (!params.has("messageId")) {
-          params.append("messageId", String(formattedMessage.messageId));
-        }
+      // Ensure messageId is in params
+      if (!params.has("messageId")) {
+        params.append("messageId", String(messageId));
+      }
 
+      try {
         await connection.actStreaming(
           formattedMessage.action,
           params,
           "WEBSOCKET",
           "",
-          sendChunk,
+          async (chunk: StreamingChunk) => {
+            // Publish to Redis instead of sending directly
+            // This allows chunks generated on any node to reach the correct WebSocket connection
+            await api.pubsub.broadcastStreamingChunk(chunk);
+          },
         );
       } catch (error) {
         // Error already sent via streaming, but log it
         logger.error(`Streaming action error: ${error}`);
+        connection.unregisterStreamingMessageId(messageId);
+        connection.onStreamingChunkReceived = undefined;
       }
     } else {
       // Use regular mode
