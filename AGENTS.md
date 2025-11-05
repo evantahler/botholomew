@@ -140,6 +140,15 @@ The backend is built on a custom framework inspired by Actionhero:
 - Use **Bun** for all commands (not npm, node, or yarn)
 - **ALWAYS run `bun run typecheck` and `bun lint` after making changes** - Typecheck catches type errors, lint auto-formats code
 
+### AI Plans
+
+When creating implementation plans for features (like `STREAMING_IMPLEMENTATION_PLAN.md`), **always store them in the `/ai-plans` directory**. This keeps plans organized and makes them easy to reference later.
+
+- Create plans before implementing complex features
+- Store all plans in `/ai-plans/`
+- Use descriptive filenames (e.g., `STREAMING_IMPLEMENTATION_PLAN.md`)
+- Plans can include architecture decisions, implementation steps, and technical details
+
 ### Backend-Specific Rules
 
 1. **Error Handling**: Always use `TypedError` class for throwing errors
