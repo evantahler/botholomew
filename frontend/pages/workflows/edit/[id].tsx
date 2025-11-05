@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
+  Badge,
   Button,
   Card,
   Col,
@@ -541,11 +542,59 @@ export default function EditWorkflow() {
 
                           <td>
                             <div>
-                              <div className="text-muted small mt-1">
-                                Agent:{" "}
-                                {agents.find((a) => a.id === step.agentId)
-                                  ?.name || "Unknown"}
+                              <div className="d-flex align-items-center mb-1">
+                                <Badge
+                                  bg={
+                                    step.stepType === "condition"
+                                      ? "warning"
+                                      : step.stepType === "early-exit"
+                                        ? "danger"
+                                        : "secondary"
+                                  }
+                                  className="me-2"
+                                >
+                                  {step.stepType === "condition"
+                                    ? "Condition"
+                                    : step.stepType === "early-exit"
+                                      ? "Early Exit"
+                                      : "Agent"}
+                                </Badge>
                               </div>
+                              {step.stepType === "agent" && (
+                                <div className="text-muted small">
+                                  Agent:{" "}
+                                  {agents.find((a) => a.id === step.agentId)
+                                    ?.name || "Unknown"}
+                                </div>
+                              )}
+                              {(step.stepType === "condition" ||
+                                step.stepType === "early-exit") && (
+                                <div className="text-muted small">
+                                  {step.stepType === "early-exit"
+                                    ? "Exit if"
+                                    : "Condition"}
+                                  : {step.conditionType}: "{step.conditionValue}
+                                  "
+                                  {step.stepType === "condition" &&
+                                    step.branches && (
+                                      <div className="mt-1">
+                                        <small>
+                                          True → Step{" "}
+                                          {step.branches.true || "next"}, False
+                                          → Step {step.branches.false || "next"}
+                                        </small>
+                                      </div>
+                                    )}
+                                  {step.stepType === "early-exit" && (
+                                    <div className="mt-1">
+                                      <small className="text-danger">
+                                        Will terminate workflow if condition is
+                                        true
+                                      </small>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </td>
                           <td>
@@ -627,23 +676,51 @@ function AddStepModal({
 }) {
   const [formData, setFormData] = useState<{
     agentId: string | undefined;
+    stepType: "agent" | "condition" | "early-exit";
+    conditionType?: "output_contains" | "output_equals" | "output_matches";
+    conditionValue?: string;
+    branches?: {
+      true?: number;
+      false?: number;
+    };
   }>({
     agentId: undefined,
+    stepType: "agent",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate that agent is selected if step type is agent
-    if (!formData.agentId || formData.agentId === "") {
-      alert("Please select an agent for agent-type steps");
-      return;
+    // Validate based on step type
+    if (formData.stepType === "agent") {
+      if (!formData.agentId || formData.agentId === "") {
+        alert("Please select an agent for agent-type steps");
+        return;
+      }
+    } else if (formData.stepType === "condition") {
+      if (!formData.conditionType) {
+        alert("Please select a condition type");
+        return;
+      }
+      if (!formData.conditionValue) {
+        alert("Please provide a condition value");
+        return;
+      }
+    } else if (formData.stepType === "early-exit") {
+      if (!formData.conditionType) {
+        alert("Please select a condition type");
+        return;
+      }
+      if (!formData.conditionValue) {
+        alert("Please provide a condition value");
+        return;
+      }
     }
 
     onAdd({
       id: workflowId,
       ...formData,
-      agentId: formData.agentId ? parseInt(formData.agentId) : 0,
+      agentId: formData.agentId ? parseInt(formData.agentId) : undefined,
       position: 0, // This will be overridden by the parent component
     });
   };
@@ -655,7 +732,42 @@ function AddStepModal({
       </Modal.Header>
       <Modal.Body>
         <Form onSubmit={handleSubmit}>
-          {
+          <Form.Group className="mb-3">
+            <Form.Label>Step Type</Form.Label>
+            <Form.Select
+              value={formData.stepType}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  stepType: e.target.value as
+                    | "agent"
+                    | "condition"
+                    | "early-exit",
+                  // Reset fields when switching step types
+                  ...(e.target.value === "agent"
+                    ? {
+                        conditionType: undefined,
+                        conditionValue: undefined,
+                        branches: undefined,
+                      }
+                    : e.target.value === "early-exit"
+                      ? {
+                          agentId: undefined,
+                          conditionType: undefined,
+                          conditionValue: undefined,
+                          branches: undefined,
+                        }
+                      : {}),
+                }))
+              }
+            >
+              <option value="agent">Agent Step</option>
+              <option value="condition">Conditional Step</option>
+              <option value="early-exit">Early Exit Step</option>
+            </Form.Select>
+          </Form.Group>
+
+          {formData.stepType === "agent" && (
             <Form.Group className="mb-3">
               <Form.Label>Agent</Form.Label>
               <Form.Select
@@ -673,7 +785,116 @@ function AddStepModal({
                 ))}
               </Form.Select>
             </Form.Group>
-          }
+          )}
+
+          {(formData.stepType === "condition" ||
+            formData.stepType === "early-exit") && (
+            <>
+              <Form.Group className="mb-3">
+                <Form.Label>Condition Type</Form.Label>
+                <Form.Select
+                  value={formData.conditionType || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      conditionType: e.target.value as any,
+                      // Reset values when changing condition type
+                      conditionValue: undefined,
+                      conditionExpression: undefined,
+                    }))
+                  }
+                  required
+                >
+                  <option value="">Select condition type</option>
+                  <option value="output_contains">Output Contains</option>
+                  <option value="output_equals">Output Equals</option>
+                  <option value="output_matches">Output Matches (Regex)</option>
+                </Form.Select>
+              </Form.Group>
+
+              {formData.conditionType && (
+                <Form.Group className="mb-3">
+                  <Form.Label>Condition Value</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formData.conditionValue || ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        conditionValue: e.target.value,
+                      }))
+                    }
+                    placeholder={
+                      formData.conditionType === "output_matches"
+                        ? "Enter regex pattern (e.g., \\d+)"
+                        : "Enter value to match"
+                    }
+                    required
+                  />
+                  <Form.Text className="text-muted">
+                    {formData.conditionType === "output_matches"
+                      ? "Use regex syntax for pattern matching"
+                      : "Text to search for in the previous step's output"}
+                  </Form.Text>
+                </Form.Group>
+              )}
+
+              {formData.stepType === "condition" && (
+                <Form.Group className="mb-3">
+                  <Form.Label>Branching Configuration</Form.Label>
+                  <Row>
+                    <Col md={6}>
+                      <Form.Label className="small">
+                        If True, go to step:
+                      </Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="1"
+                        value={formData.branches?.true || ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            branches: {
+                              ...prev.branches,
+                              true: e.target.value
+                                ? parseInt(e.target.value)
+                                : undefined,
+                            },
+                          }))
+                        }
+                        placeholder="Step number"
+                      />
+                    </Col>
+                    <Col md={6}>
+                      <Form.Label className="small">
+                        If False, go to step:
+                      </Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="1"
+                        value={formData.branches?.false || ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            branches: {
+                              ...prev.branches,
+                              false: e.target.value
+                                ? parseInt(e.target.value)
+                                : undefined,
+                            },
+                          }))
+                        }
+                        placeholder="Step number"
+                      />
+                    </Col>
+                  </Row>
+                  <Form.Text className="text-muted">
+                    Leave empty to continue to the next step
+                  </Form.Text>
+                </Form.Group>
+              )}
+            </>
+          )}
         </Form>
       </Modal.Body>
       <Modal.Footer>
@@ -708,10 +929,41 @@ function EditStepModal({
 }) {
   const [formData, setFormData] = useState({
     agentId: step.agentId?.toString() || undefined,
+    stepType: step.stepType || "agent",
+    conditionType: step.conditionType || undefined,
+    conditionValue: step.conditionValue || undefined,
+    branches: step.branches || undefined,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate based on step type
+    if (formData.stepType === "agent") {
+      if (!formData.agentId || formData.agentId === "") {
+        alert("Please select an agent for agent-type steps");
+        return;
+      }
+    } else if (formData.stepType === "condition") {
+      if (!formData.conditionType) {
+        alert("Please select a condition type");
+        return;
+      }
+      if (!formData.conditionValue) {
+        alert("Please provide a condition value");
+        return;
+      }
+    } else if (formData.stepType === "early-exit") {
+      if (!formData.conditionType) {
+        alert("Please select a condition type");
+        return;
+      }
+      if (!formData.conditionValue) {
+        alert("Please provide a condition value");
+        return;
+      }
+    }
+
     onSave({
       id: workflowId,
       stepId: step.id,
@@ -727,7 +979,42 @@ function EditStepModal({
       </Modal.Header>
       <Modal.Body>
         <Form onSubmit={handleSubmit}>
-          {
+          <Form.Group className="mb-3">
+            <Form.Label>Step Type</Form.Label>
+            <Form.Select
+              value={formData.stepType}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  stepType: e.target.value as
+                    | "agent"
+                    | "condition"
+                    | "early-exit",
+                  // Reset fields when switching step types
+                  ...(e.target.value === "agent"
+                    ? {
+                        conditionType: undefined,
+                        conditionValue: undefined,
+                        branches: undefined,
+                      }
+                    : e.target.value === "early-exit"
+                      ? {
+                          agentId: undefined,
+                          conditionType: undefined,
+                          conditionValue: undefined,
+                          branches: undefined,
+                        }
+                      : {}),
+                }))
+              }
+            >
+              <option value="agent">Agent Step</option>
+              <option value="condition">Conditional Step</option>
+              <option value="early-exit">Early Exit Step</option>
+            </Form.Select>
+          </Form.Group>
+
+          {formData.stepType === "agent" && (
             <Form.Group className="mb-3">
               <Form.Label>Agent</Form.Label>
               <Form.Select
@@ -745,7 +1032,116 @@ function EditStepModal({
                 ))}
               </Form.Select>
             </Form.Group>
-          }
+          )}
+
+          {(formData.stepType === "condition" ||
+            formData.stepType === "early-exit") && (
+            <>
+              <Form.Group className="mb-3">
+                <Form.Label>Condition Type</Form.Label>
+                <Form.Select
+                  value={formData.conditionType || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      conditionType: e.target.value as any,
+                      // Reset values when changing condition type
+                      conditionValue: undefined,
+                      conditionExpression: undefined,
+                    }))
+                  }
+                  required
+                >
+                  <option value="">Select condition type</option>
+                  <option value="output_contains">Output Contains</option>
+                  <option value="output_equals">Output Equals</option>
+                  <option value="output_matches">Output Matches (Regex)</option>
+                </Form.Select>
+              </Form.Group>
+
+              {formData.conditionType && (
+                <Form.Group className="mb-3">
+                  <Form.Label>Condition Value</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={formData.conditionValue || ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        conditionValue: e.target.value,
+                      }))
+                    }
+                    placeholder={
+                      formData.conditionType === "output_matches"
+                        ? "Enter regex pattern (e.g., \\d+)"
+                        : "Enter value to match"
+                    }
+                    required
+                  />
+                  <Form.Text className="text-muted">
+                    {formData.conditionType === "output_matches"
+                      ? "Use regex syntax for pattern matching"
+                      : "Text to search for in the previous step's output"}
+                  </Form.Text>
+                </Form.Group>
+              )}
+
+              {formData.stepType === "condition" && (
+                <Form.Group className="mb-3">
+                  <Form.Label>Branching Configuration</Form.Label>
+                  <Row>
+                    <Col md={6}>
+                      <Form.Label className="small">
+                        If True, go to step:
+                      </Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="1"
+                        value={formData.branches?.true || ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            branches: {
+                              ...prev.branches,
+                              true: e.target.value
+                                ? parseInt(e.target.value)
+                                : undefined,
+                            },
+                          }))
+                        }
+                        placeholder="Step number"
+                      />
+                    </Col>
+                    <Col md={6}>
+                      <Form.Label className="small">
+                        If False, go to step:
+                      </Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="1"
+                        value={formData.branches?.false || ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            branches: {
+                              ...prev.branches,
+                              false: e.target.value
+                                ? parseInt(e.target.value)
+                                : undefined,
+                            },
+                          }))
+                        }
+                        placeholder="Step number"
+                      />
+                    </Col>
+                  </Row>
+                  <Form.Text className="text-muted">
+                    Leave empty to continue to the next step
+                  </Form.Text>
+                </Form.Group>
+              )}
+            </>
+          )}
         </Form>
       </Modal.Body>
       <Modal.Footer>

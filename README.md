@@ -4,15 +4,66 @@ Botholomew is an Agent Framework for general purpose agents. It is based on [Act
 
 This is a monorepo containing both the backend API and frontend dashboard.
 
+## Project Overview
+
+Botholomew is a modern, full-stack AI agent framework designed to create, manage, and execute general-purpose AI agents.
+
+### 🤖 Key Features
+
+**Agent Management System**
+- Create & configure custom AI agents with specific models (GPT-4o, GPT-3.5-turbo, etc.)
+- Multi-agent architecture with parent-child delegation capabilities
+- Toolkit integration via Arcade.ai for extended functionality
+- User isolation with proper authentication and authorization
+
+**Technical Architecture**
+- **Backend**: Bun runtime, TypeScript, PostgreSQL with Drizzle ORM, Redis
+- **Frontend**: Next.js, React 19, TypeScript, Bootstrap 5
+- **APIs**: RESTful endpoints with WebSocket support
+
+**Core Components**
+- **Agent Execution System**: OpenAI-powered agent execution with automatic toolkit loading
+- **Smart Delegation**: Hierarchical task delegation between agents
+- **Error Recovery**: Built-in retry logic with failure analysis
+- **Result Evaluation**: AI-powered judging to determine task success
+
+**Workflows & Integration**
+- Multi-step workflow execution with status tracking
+- Arcade.ai integration for external toolkits and services
+- OAuth2-based authorization for external services
+- Multiple OpenAI models with advanced prompt engineering
+
 ## Project Structure
 
 ```
 botholomew/
-├── backend/          # API server (Bun + TypeScript)
-├── frontend/         # Next.js dashboard (React + Bootstrap)
-├── package.json      # Monorepo configuration
-└── README.md         # This file
+├── backend/          # Bun-based API server
+│   ├── actions/      # API endpoint implementations
+│   ├── models/       # Database models (Drizzle)
+│   ├── ops/          # Business logic operations
+│   ├── middleware/   # Authentication & validation
+│   ├── initializers/ # Service initialization (Arcade, OpenAI)
+│   └── __tests__/    # Comprehensive test suite
+├── frontend/         # Next.js React application
+│   ├── components/   # Reusable React components
+│   ├── pages/        # Application pages/routes
+│   ├── lib/          # Client-side utilities
+│   └── public/       # Static assets
+└── package.json      # Monorepo configuration
 ```
+
+## Development Features
+
+Botholomew emphasizes modern development practices:
+
+- **Type Safety**: Full TypeScript coverage across frontend and backend
+- **Testing**: Comprehensive test suite with mocked dependencies
+- **Code Quality**: Prettier for formatting, ESLint for linting
+- **Developer Tools**: Hot reload, API documentation via Swagger
+- **Monorepo**: Unified dependency management and scripts
+- **Error Handling**: Structured error types with proper HTTP status codes
+- **Security**: Session-based authentication with middleware protection
+- **Performance**: Bun runtime for fast execution, Redis for caching
 
 ## Prerequisites
 
@@ -98,22 +149,59 @@ bun run start
 
 The backend is a Bun-based API server with:
 
-- TypeScript
-- PostgreSQL with Drizzle ORM
-- Redis for caching and queues
-- WebSocket support
-- RESTful API endpoints
+### Core Technologies
+- **Runtime**: Bun for fast JavaScript/TypeScript execution
+- **Database**: PostgreSQL with Drizzle ORM for type-safe database operations
+- **Cache/Queues**: Redis for caching and background job processing
+- **WebSocket**: Real-time bidirectional communication
+- **API**: RESTful endpoints with comprehensive validation
+
+### Key Features
+- **Agent Management**: CRUD operations for AI agents with user isolation
+- **Toolkit Integration**: Dynamic loading of Arcade.ai toolkits
+- **Workflow Engine**: Multi-step workflow execution with status tracking
+- **Authentication**: Session-based auth with middleware protection
+- **Error Handling**: Comprehensive error types with proper HTTP status codes
+- **Testing**: Full test suite with mocked dependencies
+- **API Documentation**: Swagger UI for endpoint exploration
 
 ## Frontend
 
 The frontend is a Next.js application with:
 
-- React 19 + TypeScript
-- Bootstrap 5 + React-Bootstrap
-- Real-time server status monitoring
-- WebSocket integration
-- Message logging system
-- Environment-based server configuration (`NEXT_PUBLIC_SERVER_HOSTNAME`)
+### Core Technologies
+- **Framework**: Next.js 15 with App Router
+- **UI**: React 19 + TypeScript for type-safe component development
+- **Styling**: Bootstrap 5 + React-Bootstrap for responsive design
+- **Real-time**: WebSocket integration for live updates
+
+### Key Features
+- **Agent Dashboard**: Create, edit, and manage AI agents
+- **Toolkit Management**: Authorize and configure external toolkits
+- **Workflow Monitoring**: Real-time workflow execution status
+- **Server Status**: Live server health monitoring
+- **Message Logging**: Interactive message log with filtering
+- **Responsive Design**: Mobile-friendly Bootstrap-based UI
+- **Environment Config**: Dynamic server configuration (`NEXT_PUBLIC_SERVER_HOSTNAME`)
+
+## Database Schema
+
+Botholomew uses PostgreSQL with the following core entities:
+
+### Core Tables
+- **`agents`**: AI agent configurations (name, model, prompts, toolkits, etc.)
+- **`users`**: User management with authentication
+- **`toolkit_authorizations`**: User permissions for external tool access
+- **`workflows`**: Multi-step workflow definitions
+- **`workflow_runs`**: Workflow execution instances with status tracking
+- **`workflow_run_steps`**: Individual step execution within workflows
+
+### Key Features
+- **User Isolation**: All entities are scoped to individual users
+- **Toolkit Security**: Explicit authorization required for external tool access
+- **Workflow Tracking**: Complete audit trail of workflow executions
+- **Type Safety**: Drizzle ORM ensures type-safe database operations
+- **Migrations**: Version-controlled schema changes
 
 ## API Documentation
 

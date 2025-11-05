@@ -260,16 +260,55 @@ export default function ViewWorkflow() {
                       >
                         <div>
                           <div className="d-flex align-items-center">
-                            <Badge bg="secondary" className="me-2">
-                              Agent
+                            <Badge
+                              bg={
+                                step.stepType === "condition"
+                                  ? "warning"
+                                  : step.stepType === "early-exit"
+                                    ? "danger"
+                                    : "secondary"
+                              }
+                              className="me-2"
+                            >
+                              {step.stepType === "condition"
+                                ? "Condition"
+                                : step.stepType === "early-exit"
+                                  ? "Early Exit"
+                                  : "Agent"}
                             </Badge>
                             <span className="fw-bold">Step {index + 1}</span>
                           </div>
-                          {step.agentId && (
+                          {step.stepType === "agent" && step.agentId && (
                             <div className="text-muted small mt-1">
                               Agent:{" "}
                               {agents.find((a) => a.id === step.agentId)
                                 ?.name || "Unknown"}
+                            </div>
+                          )}
+                          {(step.stepType === "condition" ||
+                            step.stepType === "early-exit") && (
+                            <div className="text-muted small mt-1">
+                              {step.stepType === "early-exit"
+                                ? "Exit if"
+                                : "Condition"}
+                              : {step.conditionType} "{step.conditionValue}"
+                              {step.stepType === "condition" &&
+                                step.branches && (
+                                  <div className="mt-1">
+                                    <small>
+                                      True → Step {step.branches.true || "next"}
+                                      , False → Step{" "}
+                                      {step.branches.false || "next"}
+                                    </small>
+                                  </div>
+                                )}
+                              {step.stepType === "early-exit" && (
+                                <div className="mt-1">
+                                  <small className="text-danger">
+                                    Will terminate workflow if condition is true
+                                  </small>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

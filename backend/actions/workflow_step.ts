@@ -15,13 +15,49 @@ export class WorkflowStepCreate implements Action {
   middleware = [SessionMiddleware];
   inputs = z.object({
     id: z.coerce.number().int().describe("The workflow's id"),
-    agentId: z.coerce
-      .number()
-      .int()
-      .optional()
-      .describe("The agent's id")
-      .default(0),
+    agentId: z.coerce.number().int().optional().describe("The agent's id"),
     position: z.coerce.number().int().describe("The step's position"),
+    stepType: z
+      .enum(["agent", "condition", "early-exit"])
+      .default("agent")
+      .describe("The type of step"),
+    conditionType: z
+      .enum(["output_contains", "output_equals", "output_matches"])
+      .optional()
+      .describe("The type of condition for conditional steps"),
+    conditionValue: z
+      .string()
+      .max(1000)
+      .optional()
+      .describe("The value to compare against for conditions"),
+    branches: z
+      .union([
+        z.string().transform((str, ctx) => {
+          try {
+            return JSON.parse(str);
+          } catch {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Invalid JSON string for branches",
+            });
+            return z.NEVER;
+          }
+        }),
+        z.object({
+          true: z
+            .number()
+            .int()
+            .optional()
+            .describe("Next step position if condition is true"),
+          false: z
+            .number()
+            .int()
+            .optional()
+            .describe("Next step position if condition is false"),
+        }),
+      ])
+      .optional()
+      .describe("Branching configuration for conditional steps"),
   });
 
   async run(params: ActionParams<WorkflowStepCreate>, connection: Connection) {
@@ -45,8 +81,12 @@ export class WorkflowStepCreate implements Action {
       .insert(workflow_steps)
       .values({
         workflowId: params.id,
-        agentId: params.agentId,
+        agentId: params.agentId || null,
         position: params.position,
+        stepType: params.stepType,
+        conditionType: params.conditionType,
+        conditionValue: params.conditionValue,
+        branches: params.branches,
       })
       .returning();
 
@@ -64,6 +104,30 @@ export class WorkflowStepEdit implements Action {
     stepId: z.coerce.number().int().describe("The step's id"),
     agentId: z.coerce.number().int().optional(),
     position: z.coerce.number().int().optional(),
+    stepType: z.enum(["agent", "condition", "early-exit"]).optional(),
+    conditionType: z
+      .enum(["output_contains", "output_equals", "output_matches"])
+      .optional(),
+    conditionValue: z.string().max(1000).optional(),
+    branches: z
+      .union([
+        z.string().transform((str, ctx) => {
+          try {
+            return JSON.parse(str);
+          } catch {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Invalid JSON string for branches",
+            });
+            return z.NEVER;
+          }
+        }),
+        z.object({
+          true: z.number().int().optional(),
+          false: z.number().int().optional(),
+        }),
+      ])
+      .optional(),
   });
 
   async run(params: ActionParams<WorkflowStepEdit>, connection: Connection) {
@@ -89,6 +153,12 @@ export class WorkflowStepEdit implements Action {
     const updates: Record<string, any> = {};
     if (params.agentId !== undefined) updates.agentId = params.agentId;
     if (params.position !== undefined) updates.position = params.position;
+    if (params.stepType !== undefined) updates.stepType = params.stepType;
+    if (params.conditionType !== undefined)
+      updates.conditionType = params.conditionType;
+    if (params.conditionValue !== undefined)
+      updates.conditionValue = params.conditionValue;
+    if (params.branches !== undefined) updates.branches = params.branches;
 
     const [updatedStep]: WorkflowStep[] = await api.db.db
       .update(workflow_steps)

@@ -9,6 +9,7 @@ import {
   workflow_run_steps,
 } from "../models/workflow_run_step";
 import { WorkflowStep, workflow_steps } from "../models/workflow_step";
+import { evaluateCondition } from "../util/conditionEvaluator";
 import { agentRun } from "./AgentOps";
 
 export function serializeWorkflowRun(workflowRun: WorkflowRun) {
@@ -64,9 +65,9 @@ export async function processWorkflowRunTick(
   const workflowQuery =
     requireUserOwnership && userId
       ? and(
-          eq(workflows.id, workflowRun.workflowId),
-          eq(workflows.userId, userId),
-        )
+        eq(workflows.id, workflowRun.workflowId),
+        eq(workflows.userId, userId),
+      )
       : eq(workflows.id, workflowRun.workflowId);
 
   const [workflow]: Workflow[] = await api.db.db
@@ -127,6 +128,120 @@ export async function processWorkflowRunTick(
     return {
       workflowRun: serializeWorkflowRun(workflowRun),
     };
+  }
+
+  // Handle conditional and early-exit steps
+  if (thisStep.stepType === "condition" || thisStep.stepType === "early-exit") {
+    const [previousWorkflowRunStep]: WorkflowRunStep[] = await api.db.db
+      .select()
+      .from(workflow_run_steps)
+      .where(
+        and(
+          eq(workflow_run_steps.workflowRunId, workflowRun.id),
+          eq(
+            workflow_run_steps.workflowStepId,
+            previousStep ? previousStep.id : -1,
+          ),
+        ),
+      )
+      .limit(1);
+
+    const previousOutput = previousWorkflowRunStep?.output ?? null;
+
+    try {
+      const conditionResult = evaluateCondition(thisStep, previousOutput);
+
+      // Handle early-exit steps
+      if (thisStep.stepType === "early-exit" && conditionResult.shouldExit) {
+        // Mark workflow run as completed if early-exit condition is met
+        const [updatedWorkflowRun] = await api.db.db
+          .update(workflow_runs)
+          .set({
+            status: "completed",
+            completedAt: new Date(),
+            startedAt:
+              workflowRun.status === "pending"
+                ? new Date()
+                : workflowRun.startedAt,
+          })
+          .where(eq(workflow_runs.id, workflowRun.id))
+          .returning();
+
+        return {
+          workflowRun: serializeWorkflowRun(updatedWorkflowRun),
+        };
+      }
+
+      // Update workflow run to jump to the next step based on condition
+      // Convert position (1-based) to index (0-based)
+      if (!conditionResult.nextStepPosition) {
+        throw new Error("Condition result missing nextStepPosition");
+      }
+
+      const nextStepIndex = workflowSteps.findIndex(
+        (step) => step.position === conditionResult.nextStepPosition,
+      );
+
+      if (nextStepIndex === -1) {
+        // If the target step position doesn't exist, mark as completed
+        await api.db.db
+          .update(workflow_runs)
+          .set({
+            status: "completed",
+            completedAt: new Date(),
+          })
+          .where(eq(workflow_runs.id, workflowRun.id));
+
+        const [updatedWorkflowRun] = await api.db.db
+          .select()
+          .from(workflow_runs)
+          .where(eq(workflow_runs.id, workflowRun.id))
+          .limit(1);
+
+        return {
+          workflowRun: serializeWorkflowRun(updatedWorkflowRun),
+        };
+      }
+
+      const [updatedWorkflowRun] = await api.db.db
+        .update(workflow_runs)
+        .set({
+          currentStep: nextStepIndex,
+          status:
+            workflowRun.status === "pending" ? "running" : workflowRun.status,
+          startedAt:
+            workflowRun.status === "pending"
+              ? new Date()
+              : workflowRun.startedAt,
+        })
+        .where(eq(workflow_runs.id, workflowRun.id))
+        .returning();
+
+      return {
+        workflowRun: serializeWorkflowRun(updatedWorkflowRun),
+      };
+    } catch (error) {
+      // Mark workflow run as failed if condition evaluation fails
+      await api.db.db
+        .update(workflow_runs)
+        .set({
+          status: "failed",
+          error: `Condition evaluation failed: ${error}`,
+          completedAt: new Date(),
+        })
+        .where(eq(workflow_runs.id, workflowRun.id));
+
+      throw new TypedError({
+        message: `Condition evaluation failed: ${error}`,
+        type: ErrorType.CONNECTION_ACTION_PARAM_VALIDATION,
+      });
+    }
+  }
+
+  if (!thisStep.agentId) {
+    throw new Error(
+      `Agent step at position ${thisStep.position} is missing agentId`,
+    );
   }
 
   const [agent]: Agent[] = await api.db.db
@@ -194,10 +309,13 @@ export async function processWorkflowRunTick(
     );
 
     // Update step status to completed and fetch the updated workflow run
+    // For regular agent steps, increment by 1 (conditional steps are handled earlier)
+    const nextStepPosition = workflowRun.currentStep + 1;
+
     const [updatedWorkflowRun] = await api.db.db
       .update(workflow_runs)
       .set({
-        currentStep: workflowRun.currentStep + 1,
+        currentStep: nextStepPosition,
         status:
           workflowRun.status === "pending" ? "running" : workflowRun.status,
         startedAt:
