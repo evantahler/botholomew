@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Botholomew project data (contains API keys and DB)
+.botholomew/config.json
+.botholomew/data.duckdb
+.botholomew/data.duckdb.wal
+.botholomew/daemon.pid
+.botholomew/daemon.log
