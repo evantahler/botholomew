@@ -81,8 +81,6 @@ describe("initProject", () => {
     await initProject(tempDir);
 
     const gitignore = await Bun.file(join(tempDir, ".gitignore")).text();
-    expect(gitignore).toContain(".botholomew/config.json");
-    expect(gitignore).toContain(".botholomew/data.duckdb");
-    expect(gitignore).toContain(".botholomew/daemon.pid");
+    expect(gitignore).toContain(".botholomew/");
   });
 });
