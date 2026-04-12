@@ -1,84 +1,33 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type {
   MessageParam,
-  Tool,
   ToolUseBlock,
   ToolResultBlockParam,
 } from "@anthropic-ai/sdk/resources/messages";
 import type { DuckDBConnection } from "../db/connection.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { Task } from "../db/tasks.ts";
-import { createTask } from "../db/tasks.ts";
 import { logInteraction } from "../db/threads.ts";
 import { logger } from "../utils/logger.ts";
+import {
+  getTool,
+  toAnthropicTools,
+  type ToolContext,
+} from "../tools/tool.ts";
+import { registerAllTools } from "../tools/registry.ts";
 
-const DAEMON_TOOLS: Tool[] = [
-  {
-    name: "complete_task",
-    description:
-      "Mark the current task as complete with a summary of what was accomplished.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        summary: { type: "string", description: "Summary of work done" },
-      },
-      required: ["summary"],
-    },
-  },
-  {
-    name: "fail_task",
-    description: "Mark the current task as failed with a reason.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        reason: { type: "string", description: "Why the task failed" },
-      },
-      required: ["reason"],
-    },
-  },
-  {
-    name: "wait_task",
-    description:
-      "Put the task in waiting status (e.g., needs human input, rate limited).",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        reason: {
-          type: "string",
-          description: "Why the task is waiting",
-        },
-      },
-      required: ["reason"],
-    },
-  },
-  {
-    name: "create_task",
-    description: "Create a new task to be worked on later.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        name: { type: "string", description: "Task name" },
-        description: { type: "string", description: "Task description" },
-        priority: {
-          type: "string",
-          enum: ["low", "medium", "high"],
-          description: "Task priority",
-        },
-        blocked_by: {
-          type: "array",
-          items: { type: "string" },
-          description: "IDs of tasks that must complete first",
-        },
-      },
-      required: ["name"],
-    },
-  },
-];
+registerAllTools();
 
 export interface AgentLoopResult {
   status: "complete" | "failed" | "waiting";
   reason?: string;
 }
+
+const STATUS_MAP: Record<string, AgentLoopResult["status"]> = {
+  complete_task: "complete",
+  fail_task: "failed",
+  wait_task: "waiting",
+};
 
 export async function runAgentLoop(input: {
   systemPrompt: string;
@@ -86,12 +35,15 @@ export async function runAgentLoop(input: {
   config: Required<BotholomewConfig>;
   conn: DuckDBConnection;
   threadId: string;
+  projectDir: string;
 }): Promise<AgentLoopResult> {
-  const { systemPrompt, task, config, conn, threadId } = input;
+  const { systemPrompt, task, config, conn, threadId, projectDir } = input;
 
   const client = new Anthropic({
     apiKey: config.anthropic_api_key || undefined,
   });
+
+  const toolCtx: ToolContext = { conn, projectDir, config };
 
   const userMessage = `Please work on this task:\n\nName: ${task.name}\nDescription: ${task.description}\nPriority: ${task.priority}\n\nUse the available tools to complete this task, then call complete_task, fail_task, or wait_task to indicate the outcome.`;
 
@@ -104,6 +56,8 @@ export async function runAgentLoop(input: {
     content: userMessage,
   });
 
+  const daemonTools = toAnthropicTools();
+
   const maxTurns = 10;
   for (let turn = 0; turn < maxTurns; turn++) {
     const startTime = Date.now();
@@ -112,7 +66,7 @@ export async function runAgentLoop(input: {
       max_tokens: 4096,
       system: systemPrompt,
       messages,
-      tools: DAEMON_TOOLS,
+      tools: daemonTools,
     });
     const durationMs = Date.now() - startTime;
     const tokenCount =
@@ -162,7 +116,7 @@ export async function runAgentLoop(input: {
       });
 
       const toolStart = Date.now();
-      const result = await executeToolCall(toolUse, conn);
+      const result = await executeToolCall(toolUse, toolCtx);
       const toolDuration = Date.now() - toolStart;
 
       // Log tool result
@@ -199,59 +153,39 @@ interface ToolCallResult {
 
 async function executeToolCall(
   toolUse: ToolUseBlock,
-  conn: DuckDBConnection,
+  ctx: ToolContext,
 ): Promise<ToolCallResult> {
-  const input = toolUse.input as Record<string, unknown>;
+  const tool = getTool(toolUse.name);
+  if (!tool) {
+    return { output: `Unknown tool: ${toolUse.name}`, terminal: false };
+  }
 
-  switch (toolUse.name) {
-    case "complete_task":
+  const parsed = tool.inputSchema.safeParse(toolUse.input);
+  if (!parsed.success) {
+    return {
+      output: `Invalid input: ${JSON.stringify(parsed.error)}`,
+      terminal: false,
+    };
+  }
+
+  const result = await tool.execute(parsed.data, ctx);
+  const output = typeof result === "string" ? result : JSON.stringify(result);
+
+  // Check if this is a terminal tool (complete/fail/wait)
+  if (tool.terminal) {
+    const status = STATUS_MAP[tool.name];
+    if (status) {
+      const reason =
+        (parsed.data as Record<string, unknown>).summary ??
+        (parsed.data as Record<string, unknown>).reason ??
+        "";
       return {
-        output: `Task completed: ${input.summary}`,
+        output,
         terminal: true,
-        agentResult: {
-          status: "complete",
-          reason: String(input.summary ?? ""),
-        },
-      };
-
-    case "fail_task":
-      return {
-        output: `Task failed: ${input.reason}`,
-        terminal: true,
-        agentResult: {
-          status: "failed",
-          reason: String(input.reason ?? ""),
-        },
-      };
-
-    case "wait_task":
-      return {
-        output: `Task waiting: ${input.reason}`,
-        terminal: true,
-        agentResult: {
-          status: "waiting",
-          reason: String(input.reason ?? ""),
-        },
-      };
-
-    case "create_task": {
-      const newTask = await createTask(conn, {
-        name: String(input.name),
-        description: input.description ? String(input.description) : undefined,
-        priority: input.priority as Task["priority"] | undefined,
-        blocked_by: input.blocked_by as string[] | undefined,
-      });
-      logger.info(`Created subtask: ${newTask.name} (${newTask.id})`);
-      return {
-        output: `Created task "${newTask.name}" with ID ${newTask.id}`,
-        terminal: false,
+        agentResult: { status, reason: String(reason) },
       };
     }
-
-    default:
-      return {
-        output: `Unknown tool: ${toolUse.name}`,
-        terminal: false,
-      };
   }
+
+  return { output, terminal: false };
 }

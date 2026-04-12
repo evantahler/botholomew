@@ -7,6 +7,7 @@ import { registerTaskCommand } from "./commands/task.ts";
 import { registerChatCommand } from "./commands/chat.ts";
 import { registerContextCommand } from "./commands/context.ts";
 import { registerMcpxCommand } from "./commands/mcpx.ts";
+import { registerToolCommands } from "./commands/tools.ts";
 
 const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
 
@@ -22,5 +23,6 @@ registerTaskCommand(program);
 registerChatCommand(program);
 registerContextCommand(program);
 registerMcpxCommand(program);
+registerToolCommands(program);
 
 program.parse();
