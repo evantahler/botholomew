@@ -76,17 +76,9 @@ async function updateGitignore(projectDir: string): Promise<void> {
     content = await file.text();
   }
 
-  const entries = [
-    ".botholomew/config.json",
-    ".botholomew/data.duckdb",
-    ".botholomew/data.duckdb.wal",
-    ".botholomew/daemon.pid",
-    ".botholomew/daemon.log",
-  ];
+  const entry = ".botholomew/";
+  if (content.includes(entry)) return;
 
-  const linesToAdd = entries.filter((entry) => !content.includes(entry));
-  if (linesToAdd.length === 0) return;
-
-  const section = "\n# Botholomew (auto-generated)\n" + linesToAdd.join("\n") + "\n";
+  const section = "\n# Botholomew (auto-generated)\n" + entry + "\n";
   await Bun.write(gitignorePath, content.trimEnd() + "\n" + section);
 }
