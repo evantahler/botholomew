@@ -40,6 +40,7 @@ export async function tick(
       config,
       conn,
       threadId,
+      projectDir,
     });
 
     // Update task status

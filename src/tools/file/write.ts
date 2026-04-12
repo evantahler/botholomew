@@ -1,0 +1,88 @@
+import { z } from "zod";
+import { isText } from "istextorbinary";
+import type { ToolDefinition } from "../tool.ts";
+import {
+  createContextItem,
+  getContextItemByPath,
+  updateContextItemContent,
+  updateContextItem,
+} from "../../db/context.ts";
+
+function mimeFromPath(path: string): string {
+  return Bun.file(path).type.split(";")[0]!;
+}
+
+function isTextualPath(path: string): boolean {
+  const filename = path.split("/").pop() ?? path;
+  const result = isText(filename);
+  // isText returns null if it can't determine from filename alone — default to true
+  return result !== false;
+}
+
+export const fileWriteTool: ToolDefinition<any, any> = {
+  name: "file_write",
+  description:
+    "Write content to a file in the virtual filesystem. Creates the file if it doesn't exist, or overwrites if it does.",
+  group: "file",
+  inputSchema: z.object({
+    path: z.string().describe("File path to write"),
+    content: z.string().describe("Text content to write"),
+    content_base64: z
+      .string()
+      .optional()
+      .describe("Base64-encoded binary content (used instead of content for binary files)"),
+    title: z
+      .string()
+      .optional()
+      .describe("Title for the file (defaults to filename)"),
+    description: z
+      .string()
+      .optional()
+      .describe("Description of the file"),
+  }),
+  outputSchema: z.object({
+    id: z.string(),
+    path: z.string(),
+  }),
+  execute: async (input, ctx) => {
+    const mimeType = mimeFromPath(input.path);
+    const isTextual = isTextualPath(input.path);
+    const existing = await getContextItemByPath(ctx.conn, input.path);
+
+    if (existing) {
+      if (input.content_base64) {
+        // Binary update — store as content for now (DB blob support can be added later)
+        await updateContextItemContent(
+          ctx.conn,
+          input.path,
+          input.content_base64,
+        );
+      } else {
+        await updateContextItemContent(ctx.conn, input.path, input.content);
+      }
+      if (input.title || input.description) {
+        await updateContextItem(ctx.conn, existing.id, {
+          title: input.title,
+          description: input.description,
+        });
+      }
+      return { id: existing.id, path: input.path };
+    }
+
+    const title =
+      input.title ??
+      input.path.split("/").filter(Boolean).pop() ??
+      input.path;
+
+    const item = await createContextItem(ctx.conn, {
+      title,
+      description: input.description,
+      content: input.content_base64 ?? input.content,
+      contextPath: input.path,
+      mimeType,
+      isTextual,
+    });
+
+    return { id: item.id, path: item.context_path };
+  },
+};
