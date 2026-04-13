@@ -4,8 +4,12 @@ import { getExtensionPath } from "@sqliteai/sqlite-vector";
 
 export type DbConnection = Database;
 
-// On macOS, Bun's bundled SQLite doesn't support extensions.
-// We must call setCustomSQLite() exactly once, before any Database is created.
+// Bun bundles its own SQLite, but on macOS it uses Apple's proprietary build
+// which has sqlite3_load_extension() disabled for security. Since we need
+// loadable extensions (sqlite-vector), we swap in Homebrew's vanilla SQLite
+// via setCustomSQLite(). This must be called exactly once, before any
+// Database instance is created. On Linux, Bun's bundled SQLite supports
+// extensions natively, so no swap is needed.
 let sqliteConfigured = false;
 
 function ensureCustomSQLite(): void {
