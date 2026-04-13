@@ -18,8 +18,8 @@ export function registerTaskCommand(program: Command) {
     .option("-l, --limit <n>", "max number of tasks", parseInt)
     .action(async (opts) => {
       const dir = program.opts().dir;
-      const conn = await getConnection(getDbPath(dir));
-      await migrate(conn);
+      const conn = getConnection(getDbPath(dir));
+      migrate(conn);
 
       const tasks = await listTasks(conn, {
         status: opts.status,
@@ -36,7 +36,7 @@ export function registerTaskCommand(program: Command) {
         printTask(t);
       }
 
-      conn.closeSync();
+      conn.close();
     });
 
   task
@@ -46,8 +46,8 @@ export function registerTaskCommand(program: Command) {
     .option("-p, --priority <priority>", "low, medium, or high", "medium")
     .action(async (name, opts) => {
       const dir = program.opts().dir;
-      const conn = await getConnection(getDbPath(dir));
-      await migrate(conn);
+      const conn = getConnection(getDbPath(dir));
+      migrate(conn);
 
       const t = await createTask(conn, {
         name,
@@ -56,7 +56,7 @@ export function registerTaskCommand(program: Command) {
       });
 
       logger.success(`Created task: ${t.name} (${t.id})`);
-      conn.closeSync();
+      conn.close();
     });
 
   task
@@ -64,8 +64,8 @@ export function registerTaskCommand(program: Command) {
     .description("View task details")
     .action(async (id) => {
       const dir = program.opts().dir;
-      const conn = await getConnection(getDbPath(dir));
-      await migrate(conn);
+      const conn = getConnection(getDbPath(dir));
+      migrate(conn);
 
       const t = await getTask(conn, id);
       if (!t) {
@@ -74,7 +74,7 @@ export function registerTaskCommand(program: Command) {
       }
 
       printTaskDetail(t);
-      conn.closeSync();
+      conn.close();
     });
 }
 

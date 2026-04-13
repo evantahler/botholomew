@@ -1,4 +1,5 @@
-import type { DuckDBConnection } from "./connection.ts";
+import type { DbConnection } from "./connection.ts";
+import { uuidv7 } from "./uuid.ts";
 
 export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
 export const TASK_STATUSES = [
@@ -24,25 +25,40 @@ export interface Task {
   updated_at: Date;
 }
 
-function rowToTask(row: unknown[]): Task {
+interface TaskRow {
+  id: string;
+  name: string;
+  description: string;
+  priority: string;
+  status: string;
+  waiting_reason: string | null;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  blocked_by: string;
+  context_ids: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function rowToTask(row: TaskRow): Task {
   return {
-    id: String(row[0]),
-    name: String(row[1]),
-    description: String(row[2]),
-    priority: String(row[3]) as Task["priority"],
-    status: String(row[4]) as Task["status"],
-    waiting_reason: row[5] ? String(row[5]) : null,
-    claimed_by: row[6] ? String(row[6]) : null,
-    claimed_at: row[7] ? new Date(String(row[7])) : null,
-    blocked_by: row[8] ? (row[8] as string[]) : [],
-    context_ids: row[9] ? (row[9] as string[]) : [],
-    created_at: new Date(String(row[10])),
-    updated_at: new Date(String(row[11])),
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    priority: row.priority as Task["priority"],
+    status: row.status as Task["status"],
+    waiting_reason: row.waiting_reason,
+    claimed_by: row.claimed_by,
+    claimed_at: row.claimed_at ? new Date(row.claimed_at) : null,
+    blocked_by: JSON.parse(row.blocked_by || "[]"),
+    context_ids: JSON.parse(row.context_ids || "[]"),
+    created_at: new Date(row.created_at),
+    updated_at: new Date(row.updated_at),
   };
 }
 
 export async function createTask(
-  conn: DuckDBConnection,
+  db: DbConnection,
   params: {
     name: string;
     description?: string;
@@ -51,36 +67,40 @@ export async function createTask(
     context_ids?: string[];
   },
 ): Promise<Task> {
-  const blockedBy = params.blocked_by?.length
-    ? `ARRAY[${params.blocked_by.map((id) => `'${id}'`).join(",")}]::VARCHAR[]`
-    : "NULL";
-  const contextIds = params.context_ids?.length
-    ? `ARRAY[${params.context_ids.map((id) => `'${id}'`).join(",")}]::VARCHAR[]`
-    : "NULL";
+  const id = uuidv7();
+  const blockedBy = JSON.stringify(params.blocked_by ?? []);
+  const contextIds = JSON.stringify(params.context_ids ?? []);
 
-  const result = await conn.runAndReadAll(`
-    INSERT INTO tasks (name, description, priority, blocked_by, context_ids)
-    VALUES ('${escapeSql(params.name)}', '${escapeSql(params.description ?? "")}', '${params.priority ?? "medium"}', ${blockedBy}, ${contextIds})
-    RETURNING *
-  `);
-  const row = result.getRows()[0];
+  const row = db
+    .query(
+      `INSERT INTO tasks (id, name, description, priority, blocked_by, context_ids)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+     RETURNING *`,
+    )
+    .get(
+      id,
+      params.name,
+      params.description ?? "",
+      params.priority ?? "medium",
+      blockedBy,
+      contextIds,
+    ) as TaskRow | null;
   if (!row) throw new Error("INSERT did not return a row");
   return rowToTask(row);
 }
 
 export async function getTask(
-  conn: DuckDBConnection,
+  db: DbConnection,
   id: string,
 ): Promise<Task | null> {
-  const result = await conn.runAndReadAll(
-    `SELECT * FROM tasks WHERE id = '${escapeSql(id)}'`,
-  );
-  const rows = result.getRows();
-  return rows[0] ? rowToTask(rows[0]) : null;
+  const row = db
+    .query("SELECT * FROM tasks WHERE id = ?1")
+    .get(id) as TaskRow | null;
+  return row ? rowToTask(row) : null;
 }
 
 export async function listTasks(
-  conn: DuckDBConnection,
+  db: DbConnection,
   filters?: {
     status?: Task["status"];
     priority?: Task["priority"];
@@ -88,82 +108,87 @@ export async function listTasks(
   },
 ): Promise<Task[]> {
   const conditions: string[] = [];
-  if (filters?.status) conditions.push(`status = '${filters.status}'`);
-  if (filters?.priority) conditions.push(`priority = '${filters.priority}'`);
+  const params: string[] = [];
+
+  if (filters?.status) {
+    params.push(filters.status);
+    conditions.push(`status = ?${params.length}`);
+  }
+  if (filters?.priority) {
+    params.push(filters.priority);
+    conditions.push(`priority = ?${params.length}`);
+  }
 
   const where =
     conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
 
-  const result = await conn.runAndReadAll(`
-    SELECT * FROM tasks ${where}
-    ORDER BY
-      CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
-      created_at ASC
-    ${limit}
-  `);
-  return result.getRows().map(rowToTask);
+  const rows = db
+    .query(
+      `SELECT * FROM tasks ${where}
+     ORDER BY
+       CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
+       created_at ASC
+     ${limit}`,
+    )
+    .all(...params) as TaskRow[];
+  return rows.map(rowToTask);
 }
 
 export async function updateTaskStatus(
-  conn: DuckDBConnection,
+  db: DbConnection,
   id: string,
   status: Task["status"],
   reason?: string,
 ): Promise<void> {
-  const reasonClause = reason
-    ? `, waiting_reason = '${escapeSql(reason)}'`
-    : ", waiting_reason = NULL";
-
-  await conn.run(`
-    UPDATE tasks
-    SET status = '${status}', updated_at = current_timestamp ${reasonClause}
-    WHERE id = '${escapeSql(id)}'
-  `);
+  db.query(
+    `UPDATE tasks
+     SET status = ?1, waiting_reason = ?2, updated_at = datetime('now')
+     WHERE id = ?3`,
+  ).run(status, reason ?? null, id);
 }
 
 export async function claimNextTask(
-  conn: DuckDBConnection,
+  db: DbConnection,
   claimedBy = "daemon",
 ): Promise<Task | null> {
   // Find highest-priority unblocked pending task
-  const result = await conn.runAndReadAll(`
-    SELECT * FROM tasks
-    WHERE status = 'pending'
-      AND (
-        blocked_by IS NULL
-        OR array_length(blocked_by) = 0
-        OR NOT EXISTS (
-          SELECT 1 FROM unnest(blocked_by) AS b(id)
-          WHERE b.id NOT IN (SELECT id FROM tasks WHERE status = 'complete')
-        )
-      )
-    ORDER BY
-      CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
-      created_at ASC
-    LIMIT 1
-  `);
+  const row = db
+    .query(
+      `SELECT * FROM tasks
+     WHERE status = 'pending'
+       AND (
+         blocked_by = '[]'
+         OR blocked_by IS NULL
+         OR NOT EXISTS (
+           SELECT 1 FROM json_each(blocked_by) AS b
+           WHERE b.value NOT IN (SELECT id FROM tasks WHERE status = 'complete')
+         )
+       )
+     ORDER BY
+       CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
+       created_at ASC
+     LIMIT 1`,
+    )
+    .get() as TaskRow | null;
 
-  const rows = result.getRows();
-  if (rows.length === 0) return null;
+  if (!row) return null;
+  const task = rowToTask(row);
 
-  const firstRow = rows[0];
-  if (!firstRow) return null;
-  const task = rowToTask(firstRow);
+  // Claim it
+  db.query(
+    `UPDATE tasks
+     SET status = 'in_progress',
+         claimed_by = ?1,
+         claimed_at = datetime('now'),
+         updated_at = datetime('now')
+     WHERE id = ?2 AND status = 'pending'`,
+  ).run(claimedBy, task.id);
 
-  // Claim it atomically
-  await conn.run(`
-    UPDATE tasks
-    SET status = 'in_progress',
-        claimed_by = '${escapeSql(claimedBy)}',
-        claimed_at = current_timestamp,
-        updated_at = current_timestamp
-    WHERE id = '${escapeSql(task.id)}' AND status = 'pending'
-  `);
-
-  return { ...task, status: "in_progress", claimed_by: claimedBy };
-}
-
-function escapeSql(str: string): string {
-  return str.replace(/'/g, "''");
+  return {
+    ...task,
+    status: "in_progress",
+    claimed_by: claimedBy,
+    claimed_at: new Date(),
+  };
 }

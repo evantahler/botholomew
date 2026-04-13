@@ -7,7 +7,7 @@ An AI Agent for knowledge work. Unlike coding agents, Botholomew is focused on i
 1. **No shell / filesystem access.** The agent has no bash, read/write, or direct filesystem tools. All storage is abstracted through manage-context tools scoped to `.botholomew/`.
 2. **Distributed from the start.** Orchestrator, tool execution, memory, and context are separate modules, making it possible to run locally and on the web.
 3. **TUI interface.** A terminal UI built with Ink (React for CLI), styled after Claude Code.
-4. **It's all files.** Each Botholomew project is a collection of markdown and DuckDB files — portable and shareable.
+4. **It's all files.** Each Botholomew project is a collection of markdown and a SQLite database — portable and shareable.
 
 ---
 
@@ -23,7 +23,7 @@ The interactive TUI session. The chat agent doesn't work tasks itself — it enq
 
 ### Data
 
-Both daemon and chat share the same DuckDB file at `.botholomew/data.duckdb`. Each opens its own connection. DuckDB handles concurrent access with file-level locking; a retry-on-lock layer handles contention.
+Both daemon and chat share the same SQLite database at `.botholomew/data.sqlite`. Each opens its own connection. SQLite WAL mode enables concurrent readers; a retry-on-lock layer handles write contention.
 
 ---
 
@@ -55,9 +55,9 @@ New projects start with:
 
 ---
 
-## Dynamic Context (DuckDB)
+## Dynamic Context (SQLite)
 
-The `.botholomew/data.duckdb` file powers tasks, schedules, context, embeddings, and interaction logs.
+The `.botholomew/data.sqlite` file powers tasks, schedules, context, embeddings, and interaction logs.
 
 ### Tasks
 
@@ -82,9 +82,9 @@ Context is stored in the database (not raw files), with:
 
 Content is chunked and vectorized locally using `@huggingface/transformers` with `Xenova/bge-small-en-v1.5` (384-dimensional embeddings). Chunking strategy is determined by the LLM after reading each piece of content.
 
-Embeddings are stored alongside and indexed with DuckDB's `vss` extension (HNSW, cosine metric) for hybrid keyword + vector search.
+Embeddings are stored as JSON arrays in TEXT columns and searched via brute-force cosine similarity for hybrid keyword + vector search.
 
-Embedding fields: `id`, `context_item_id`, `chunk_index`, `chunk_content`, `title`, `description`, `source_path`, `embedding` (FLOAT[384]), `created_at`.
+Embedding fields: `id`, `context_item_id`, `chunk_index`, `chunk_content`, `title`, `description`, `source_path`, `embedding` (JSON array of 384 floats), `created_at`.
 
 ### Threads & Interactions (Logging)
 
@@ -149,8 +149,8 @@ Plus meta-utils: `--help`, `--version`
 - **Runtime**: Bun + TypeScript
 - **CLI framework**: Commander.js
 - **TUI**: Ink 6 (React 19 for CLI)
-- **Database**: DuckDB via `@duckdb/node-api`
-- **Vector search**: DuckDB `vss` extension (HNSW indexes)
+- **Database**: SQLite via `bun:sqlite` (built-in, zero dependencies)
+- **Vector search**: TBD (future milestone)
 - **Embeddings**: `@huggingface/transformers` with `Xenova/bge-small-en-v1.5` (local, no 3rd party)
 - **LLM**: `@anthropic-ai/sdk` (direct)
 - **Tools**: MCPX imported as TS library
@@ -176,7 +176,8 @@ botholomew/
       schemas.ts                    # BotholomewConfig type + defaults
       loader.ts                     # load/validate .botholomew/config.json
     db/
-      connection.ts                 # DuckDB connection factory w/ retry-on-lock
+      connection.ts                 # SQLite connection via bun:sqlite w/ retry-on-lock
+      uuid.ts                       # UUIDv7 re-export from uuid package
       schema.ts                     # SQL migrations + migrate()
       tasks.ts                      # task CRUD
       schedules.ts                  # schedule CRUD (stubs)
@@ -225,7 +226,7 @@ botholomew/
 {
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
-    "@duckdb/node-api": "^1.5.1",
+    "uuid": "^13.0.0",
     "@evantahler/mcpx": "^0.17.0",
     "commander": "^14.0.3",
     "gray-matter": "^4.0.3",
@@ -241,126 +242,20 @@ botholomew/
 ```
 
 Notes:
-- `@duckdb/node-api` is the official new API (old `duckdb` is deprecated for v1.5+). Works with Bun v1.2.2+.
+- SQLite is built into Bun via `bun:sqlite` — zero external dependencies needed.
+- UUIDv7 for IDs generated via the `uuid` package.
 - `@xenova/transformers` for embeddings is NOT in M1 — context/embedding CRUD are stubs.
 - Ink 6 requires React 19.
 
-### DuckDB Schema
+### SQLite Schema
 
-All tables in `src/db/schema.ts`. A `_migrations` table tracks applied migrations.
-
-```sql
--- Enums
-CREATE TYPE task_priority AS ENUM ('low', 'medium', 'high');
-CREATE TYPE task_status AS ENUM ('pending', 'in_progress', 'failed', 'complete', 'waiting');
-CREATE TYPE thread_type AS ENUM ('daemon_tick', 'chat_session');
-CREATE TYPE interaction_role AS ENUM ('user', 'assistant', 'system', 'tool');
-CREATE TYPE interaction_kind AS ENUM (
-  'message', 'thinking', 'tool_use', 'tool_result', 'context_update', 'status_change'
-);
-
--- Core tables
-CREATE TABLE tasks (
-  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
-  name VARCHAR NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  priority task_priority NOT NULL DEFAULT 'medium',
-  status task_status NOT NULL DEFAULT 'pending',
-  waiting_reason TEXT,
-  claimed_by VARCHAR,
-  claimed_at TIMESTAMP,
-  blocked_by VARCHAR[],
-  context_ids VARCHAR[],
-  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
-  updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
-);
-
-CREATE TABLE schedules (
-  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
-  name VARCHAR NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  frequency VARCHAR NOT NULL,
-  last_run_at TIMESTAMP,
-  enabled BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
-  updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
-);
-
-CREATE TABLE context_items (
-  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
-  title VARCHAR NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  content TEXT,
-  content_blob BLOB,
-  mime_type VARCHAR NOT NULL DEFAULT 'text/plain',
-  is_textual BOOLEAN NOT NULL DEFAULT true,
-  source_path VARCHAR,
-  context_path VARCHAR NOT NULL,
-  indexed_at TIMESTAMP,
-  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
-  updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
-);
-
-CREATE TABLE embeddings (
-  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
-  context_item_id VARCHAR NOT NULL REFERENCES context_items(id) ON DELETE CASCADE,
-  chunk_index INTEGER NOT NULL,
-  chunk_content TEXT,
-  title VARCHAR NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  source_path VARCHAR,
-  embedding FLOAT[384],
-  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
-  UNIQUE(context_item_id, chunk_index)
-);
-
--- Logging tables
-CREATE TABLE threads (
-  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
-  type thread_type NOT NULL,
-  task_id VARCHAR,
-  title VARCHAR NOT NULL DEFAULT '',
-  started_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
-  ended_at TIMESTAMP,
-  metadata TEXT
-);
-
-CREATE TABLE interactions (
-  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
-  thread_id VARCHAR NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-  sequence INTEGER NOT NULL,
-  role interaction_role NOT NULL,
-  kind interaction_kind NOT NULL,
-  content TEXT NOT NULL,
-  tool_name VARCHAR,
-  tool_input TEXT,
-  duration_ms INTEGER,
-  token_count INTEGER,
-  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
-  UNIQUE(thread_id, sequence)
-);
-
--- Daemon state (key-value)
-CREATE TABLE daemon_state (
-  key VARCHAR PRIMARY KEY,
-  value TEXT NOT NULL,
-  updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
-);
-```
-
-VSS index (lazy, separate migration — falls back gracefully if unavailable):
-
-```sql
-INSTALL vss;
-LOAD vss;
-CREATE INDEX embeddings_vss_idx ON embeddings USING HNSW (embedding) WITH (metric = 'cosine');
-```
+All tables in `src/db/schema.ts`. A `_migrations` table tracks applied migrations. UUIDv7 IDs are generated in application code via the `uuid` package. Enums are enforced with CHECK constraints. Array columns (blocked_by, context_ids) use JSON TEXT with `json_each()` for in-SQL filtering. Timestamps are ISO 8601 TEXT with `datetime('now')` defaults. See `src/db/sql/*.sql` for the current schema.
 
 ### Key Module Details
 
 **`src/db/connection.ts`**
-- `getConnection(dbPath)` — opens DuckDB, retries up to 5x with exponential backoff on lock
-- `getDbPath(projectDir)` — returns `${projectDir}/.botholomew/data.duckdb`
+- `getConnection(dbPath)` — opens SQLite via `bun:sqlite` with WAL mode and foreign keys enabled
+- `withRetry()` — retries on SQLITE_BUSY with exponential backoff
 
 **`src/config/loader.ts`**
 - Loads `.botholomew/config.json`, merges with defaults
@@ -368,8 +263,8 @@ CREATE INDEX embeddings_vss_idx ON embeddings USING HNSW (embedding) WITH (metri
 
 **`src/init/index.ts`**
 - Creates `.botholomew/` directory with `soul.md`, `beliefs.md`, `goals.md`, `config.json`, `mcpx/servers.json`
-- Opens DuckDB and runs migrations
-- Updates `.gitignore` to exclude `config.json` and `data.duckdb*`
+- Opens SQLite and runs migrations
+- Updates `.gitignore` to exclude `.botholomew/`
 
 **`src/daemon/tick.ts`**
 1. Creates a thread for this tick

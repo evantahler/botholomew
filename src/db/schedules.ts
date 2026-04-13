@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "./connection.ts";
+import type { DbConnection } from "./connection.ts";
 
 export interface Schedule {
   id: string;
@@ -12,8 +12,6 @@ export interface Schedule {
 }
 
 // Stub — full implementation in a later milestone
-export async function listSchedules(
-  _conn: DuckDBConnection,
-): Promise<Schedule[]> {
+export async function listSchedules(_db: DbConnection): Promise<Schedule[]> {
   return [];
 }

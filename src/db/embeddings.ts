@@ -1,4 +1,4 @@
-import type { DuckDBConnection } from "./connection.ts";
+import type { DbConnection } from "./connection.ts";
 
 export interface Embedding {
   id: string;
@@ -14,7 +14,7 @@ export interface Embedding {
 
 // Stub — full implementation in a later milestone
 export async function searchEmbeddings(
-  _conn: DuckDBConnection,
+  _db: DbConnection,
   _query: number[],
   _limit?: number,
 ): Promise<Embedding[]> {

@@ -96,8 +96,8 @@ function registerToolAsCLI(
 
   cmd.action(async (...args: unknown[]) => {
     const dir = program.opts().dir;
-    const conn = await getConnection(getDbPath(dir));
-    await migrate(conn);
+    const conn = getConnection(getDbPath(dir));
+    migrate(conn);
 
     try {
       const input = buildInput(tool, positionals, options, shape, args);
@@ -114,7 +114,7 @@ function registerToolAsCLI(
       logger.error(String(err));
       process.exit(1);
     } finally {
-      conn.closeSync();
+      conn.close();
     }
   });
 }

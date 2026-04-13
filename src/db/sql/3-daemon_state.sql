@@ -1,5 +1,5 @@
 CREATE TABLE daemon_state (
-  key VARCHAR PRIMARY KEY,
+  key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
-  updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import {
-  type DuckDBConnection,
-  getMemoryConnection,
-} from "../../src/db/connection.ts";
+import { type DbConnection, getConnection } from "../../src/db/connection.ts";
 import {
   applyPatchesToContextItem,
   contextPathExists,
@@ -23,11 +20,11 @@ import {
 } from "../../src/db/context.ts";
 import { migrate } from "../../src/db/schema.ts";
 
-let conn: DuckDBConnection;
+let conn: DbConnection;
 
-beforeEach(async () => {
-  conn = await getMemoryConnection();
-  await migrate(conn);
+beforeEach(() => {
+  conn = getConnection(":memory:");
+  migrate(conn);
 });
 
 describe("context CRUD", () => {

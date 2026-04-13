@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { DuckDBConnection } from "./connection.ts";
+import type { DbConnection } from "./connection.ts";
 
 interface Migration {
   id: number;
@@ -29,19 +29,21 @@ function loadMigrations(): Migration[] {
   });
 }
 
-export async function migrate(conn: DuckDBConnection): Promise<void> {
+export function migrate(db: DbConnection): void {
   // Create migrations tracking table
-  await conn.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS _migrations (
       id INTEGER PRIMARY KEY,
-      name VARCHAR NOT NULL,
-      applied_at TIMESTAMP DEFAULT current_timestamp
+      name TEXT NOT NULL,
+      applied_at TEXT DEFAULT (datetime('now'))
     )
   `);
 
   // Get already-applied migrations
-  const result = await conn.runAndReadAll("SELECT id FROM _migrations");
-  const applied = new Set(result.getRows().map((row) => Number(row[0])));
+  const rows = db.query("SELECT id FROM _migrations").all() as {
+    id: number;
+  }[];
+  const applied = new Set(rows.map((row) => row.id));
 
   // Run pending migrations in order
   for (const migration of loadMigrations()) {
@@ -54,26 +56,11 @@ export async function migrate(conn: DuckDBConnection): Promise<void> {
       .filter((s) => s.length > 0);
 
     for (const statement of statements) {
-      await conn.run(statement);
+      db.exec(statement);
     }
 
-    await conn.run(
+    db.exec(
       `INSERT INTO _migrations (id, name) VALUES (${migration.id}, '${migration.name}')`,
     );
-  }
-}
-
-export async function installVss(conn: DuckDBConnection): Promise<boolean> {
-  try {
-    await conn.run("INSTALL vss");
-    await conn.run("LOAD vss");
-    await conn.run(`
-      CREATE INDEX IF NOT EXISTS embeddings_vss_idx
-      ON embeddings USING HNSW (embedding)
-      WITH (metric = 'cosine')
-    `);
-    return true;
-  } catch {
-    return false;
   }
 }

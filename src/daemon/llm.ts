@@ -5,7 +5,7 @@ import type {
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import type { DuckDBConnection } from "../db/connection.ts";
+import type { DbConnection } from "../db/connection.ts";
 import type { Task } from "../db/tasks.ts";
 import { logInteraction } from "../db/threads.ts";
 import { registerAllTools } from "../tools/registry.ts";
@@ -28,7 +28,7 @@ export async function runAgentLoop(input: {
   systemPrompt: string;
   task: Task;
   config: Required<BotholomewConfig>;
-  conn: DuckDBConnection;
+  conn: DbConnection;
   threadId: string;
   projectDir: string;
 }): Promise<AgentLoopResult> {
