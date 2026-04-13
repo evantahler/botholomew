@@ -53,5 +53,6 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 
 ## Testing
 
+- **Tests are required**: all new features and bug fixes must include tests. `bun test` and `bun run lint` must pass before merging.
 - Use `getConnection(":memory:")` for in-memory test databases
 - Call `migrate(conn)` in `beforeEach` to get a fresh schema each test
