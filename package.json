@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
+    "@sqliteai/sqlite-vector": "^0.9.95",
     "ansis": "^4.2.0",
     "commander": "^14.0.0",
     "gray-matter": "^4.0.3",

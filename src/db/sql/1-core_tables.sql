@@ -47,7 +47,7 @@ CREATE TABLE embeddings (
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   source_path TEXT,
-  embedding TEXT,
+  embedding BLOB,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(context_item_id, chunk_index)
 );

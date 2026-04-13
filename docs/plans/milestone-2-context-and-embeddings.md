@@ -62,7 +62,6 @@ src/tools/
     exists.ts             ← file_exists tool
     count-lines.ts        ← file_count_lines tool
   search/
-    find.ts               ← search_find tool
     grep.ts               ← search_grep tool
     semantic.ts           ← search_semantic tool
 ```
@@ -152,7 +151,6 @@ Replace the stub with full implementation:
 
 | Tool | Input | Output | DB operation |
 |------|-------|--------|-------------|
-| `search_find` | `{ pattern, path?, max_results? }` | `{ matches: string[] }` | `context_path` glob match via SQLite `GLOB` |
 | `search_grep` | `{ pattern, path?, glob?, ignore_case?, context?, max_results? }` | `{ matches: {path, line, content, context_lines}[] }` | `LIKE` / application-level regex on `content` |
 | `search_semantic` | `{ query, top_k?, threshold? }` | `{ results: {path, title, score, snippet}[] }` | `embed([query])` → `hybridSearch()` |
 
