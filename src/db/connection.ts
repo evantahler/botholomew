@@ -1,11 +1,45 @@
 import { Database } from "bun:sqlite";
+import { existsSync } from "node:fs";
+import { getExtensionPath } from "@sqliteai/sqlite-vector";
 
 export type DbConnection = Database;
 
+// Bun bundles its own SQLite, but on macOS it uses Apple's proprietary build
+// which has sqlite3_load_extension() disabled for security. Since we need
+// loadable extensions (sqlite-vector), we swap in Homebrew's vanilla SQLite
+// via setCustomSQLite(). This must be called exactly once, before any
+// Database instance is created. On Linux, Bun's bundled SQLite supports
+// extensions natively, so no swap is needed.
+let sqliteConfigured = false;
+
+function ensureCustomSQLite(): void {
+  if (sqliteConfigured) return;
+  sqliteConfigured = true;
+
+  if (process.platform !== "darwin") return;
+
+  // Homebrew sqlite paths (arm64 and x86_64)
+  const candidates = [
+    "/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib",
+    "/usr/local/opt/sqlite/lib/libsqlite3.dylib",
+  ];
+  const sqlitePath = candidates.find((p) => existsSync(p));
+  if (!sqlitePath) {
+    throw new Error(
+      "Homebrew SQLite not found. On macOS, Botholomew requires Homebrew's SQLite " +
+        "to load the sqlite-vector extension (Apple's build disables extension loading). " +
+        "Install it with: brew install sqlite",
+    );
+  }
+  Database.setCustomSQLite(sqlitePath);
+}
+
 export function getConnection(dbPath: string): Database {
+  ensureCustomSQLite();
   const db = new Database(dbPath, { create: true });
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");
+  db.loadExtension(getExtensionPath());
   return db;
 }
 

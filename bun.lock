@@ -6,6 +6,7 @@
       "name": "botholomew",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.88.0",
+        "@sqliteai/sqlite-vector": "^0.9.95",
         "ansis": "^4.2.0",
         "commander": "^14.0.0",
         "gray-matter": "^4.0.3",
@@ -48,6 +49,22 @@
     "@biomejs/cli-win32-arm64": ["@biomejs/cli-win32-arm64@2.4.11", "", { "os": "win32", "cpu": "arm64" }, "sha512-RJhaTnY8byzxDt4bDVb7AFPHkPcjOPK3xBip4ZRTrN3TEfyhjLRm3r3mqknqydgVTB74XG8l4jMLwEACEeihVg=="],
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.4.11", "", { "os": "win32", "cpu": "x64" }, "sha512-A8D3JM/00C2KQgUV3oj8Ba15EHEYwebAGCy5Sf9GAjr5Y3+kJIYOiESoqRDeuRZueuMdCsbLZIUqmPhpYXJE9A=="],
+
+    "@sqliteai/sqlite-vector": ["@sqliteai/sqlite-vector@0.9.95", "", { "optionalDependencies": { "@sqliteai/sqlite-vector-darwin-arm64": "0.9.95", "@sqliteai/sqlite-vector-darwin-x86_64": "0.9.95", "@sqliteai/sqlite-vector-linux-arm64": "0.9.95", "@sqliteai/sqlite-vector-linux-arm64-musl": "0.9.95", "@sqliteai/sqlite-vector-linux-x86_64": "0.9.95", "@sqliteai/sqlite-vector-linux-x86_64-musl": "0.9.95", "@sqliteai/sqlite-vector-win32-x86_64": "0.9.95" } }, "sha512-Y/m7yUmesZ0UQlVprs+NxdU+tnaNStufCO+g0hJmRJNy7QKzHz70wBOCpC3dENNoALB8q7+FazCthre7g9Y6Fg=="],
+
+    "@sqliteai/sqlite-vector-darwin-arm64": ["@sqliteai/sqlite-vector-darwin-arm64@0.9.95", "", { "os": "darwin", "cpu": "arm64" }, "sha512-EwAUVcFHDoPWRHRXgR7K0DpjyUU/X1OG7W348/GiLxknsD8WI1cQpMNzeq9daGfy3ayADMF33E/5zA7eanO8UA=="],
+
+    "@sqliteai/sqlite-vector-darwin-x86_64": ["@sqliteai/sqlite-vector-darwin-x86_64@0.9.95", "", { "os": "darwin", "cpu": [ "x64", "ia32", ] }, "sha512-Fnf1ImQ55XlD26nHQqnbt0noPagqo2b3OCOEeuNlH4Y+MMFRC2WGIq9sC+qhuVeltpQARRYAzMxqOl/CX0R9PA=="],
+
+    "@sqliteai/sqlite-vector-linux-arm64": ["@sqliteai/sqlite-vector-linux-arm64@0.9.95", "", { "os": "linux", "cpu": "arm64" }, "sha512-CF+c0IUd8zbx74MHVmMZuuGdTwMyId3UNcvgL5hiefywOwY5k8YVO2NfFGmpt8u/hSwR4cDh62bYa+cBPrZypQ=="],
+
+    "@sqliteai/sqlite-vector-linux-arm64-musl": ["@sqliteai/sqlite-vector-linux-arm64-musl@0.9.95", "", { "os": "linux", "cpu": "arm64" }, "sha512-OIp4PcRtRbv4dwD38iUDj3zxNxRjvFEO0FrVbl2Y0xA1c2bd4sVVk2qEKGwAMzPGF99dIU8ZI327YFOpQiEUaQ=="],
+
+    "@sqliteai/sqlite-vector-linux-x86_64": ["@sqliteai/sqlite-vector-linux-x86_64@0.9.95", "", { "os": "linux", "cpu": [ "x64", "ia32", ] }, "sha512-NqPZ7obOBh3thk+xYeDI0n/H0WwL616/RkCRITqmnUx50nDuykX2TGkG9E9ryw0QZzMYAW481TWkvVhw/s9w7Q=="],
+
+    "@sqliteai/sqlite-vector-linux-x86_64-musl": ["@sqliteai/sqlite-vector-linux-x86_64-musl@0.9.95", "", { "os": "linux", "cpu": [ "x64", "ia32", ] }, "sha512-bLZ8iJqlDylfvQStCJ4x0+DXSUd8/iIuatd36OtMnY1qO2Q4bmPBg98DVhTZprv19armIZzCut3kuh74uxG8vQ=="],
+
+    "@sqliteai/sqlite-vector-win32-x86_64": ["@sqliteai/sqlite-vector-win32-x86_64@0.9.95", "", { "os": "win32", "cpu": [ "x64", "ia32", ] }, "sha512-t8PknhQZy/yBsJ8s3A1oktevY41DMbSdh49Y8tKT7UScZinsSGttGFLtmPdFoO0dTUJYhhlptf9YS1hmfgVouw=="],
 
     "@types/bun": ["@types/bun@1.3.12", "", { "dependencies": { "bun-types": "1.3.12" } }, "sha512-DBv81elK+/VSwXHDlnH3Qduw+KxkTIWi7TXkAeh24zpi5l0B2kUg9Ga3tb4nJaPcOFswflgi/yAvMVBPrxMB+A=="],
 
