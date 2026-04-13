@@ -25,4 +25,8 @@ registerContextCommand(program);
 registerMcpxCommand(program);
 registerToolCommands(program);
 
+program.action(() => {
+  program.help();
+});
+
 program.parse();
