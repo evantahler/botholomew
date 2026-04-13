@@ -24,9 +24,14 @@ function ensureCustomSQLite(): void {
     "/usr/local/opt/sqlite/lib/libsqlite3.dylib",
   ];
   const sqlitePath = candidates.find((p) => existsSync(p));
-  if (sqlitePath) {
-    Database.setCustomSQLite(sqlitePath);
+  if (!sqlitePath) {
+    throw new Error(
+      "Homebrew SQLite not found. On macOS, Botholomew requires Homebrew's SQLite " +
+        "to load the sqlite-vector extension (Apple's build disables extension loading). " +
+        "Install it with: brew install sqlite",
+    );
   }
+  Database.setCustomSQLite(sqlitePath);
 }
 
 export function getConnection(dbPath: string): Database {
