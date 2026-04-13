@@ -9,6 +9,7 @@ import { registerDaemonCommand } from "./commands/daemon.ts";
 import { registerInitCommand } from "./commands/init.ts";
 import { registerMcpxCommand } from "./commands/mcpx.ts";
 import { registerPrepareCommand } from "./commands/prepare.ts";
+import { registerScheduleCommand } from "./commands/schedule.ts";
 import { registerTaskCommand } from "./commands/task.ts";
 import { registerToolCommands } from "./commands/tools.ts";
 import { registerUpgradeCommand } from "./commands/upgrade.ts";
@@ -32,6 +33,7 @@ program
 registerInitCommand(program);
 registerDaemonCommand(program);
 registerTaskCommand(program);
+registerScheduleCommand(program);
 registerChatCommand(program);
 registerContextCommand(program);
 registerMcpxCommand(program);

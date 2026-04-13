@@ -1,10 +1,15 @@
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
-import { claimNextTask, updateTaskStatus } from "../db/tasks.ts";
+import {
+  claimNextTask,
+  resetStaleTasks,
+  updateTaskStatus,
+} from "../db/tasks.ts";
 import { createThread, endThread, logInteraction } from "../db/threads.ts";
 import { logger } from "../utils/logger.ts";
 import { runAgentLoop } from "./llm.ts";
 import { buildSystemPrompt } from "./prompt.ts";
+import { processSchedules } from "./schedules.ts";
 
 export async function tick(
   projectDir: string,
@@ -12,6 +17,24 @@ export async function tick(
   config: Required<BotholomewConfig>,
 ): Promise<void> {
   logger.debug("Tick starting...");
+
+  // Reset stale tasks stuck in in_progress
+  const resetIds = await resetStaleTasks(
+    conn,
+    config.max_tick_duration_seconds * 3,
+  );
+  if (resetIds.length > 0) {
+    logger.warn(
+      `Reset ${resetIds.length} stale task(s): ${resetIds.join(", ")}`,
+    );
+  }
+
+  // Process schedules (may create new tasks)
+  try {
+    await processSchedules(conn, config);
+  } catch (err) {
+    logger.error(`Schedule processing failed: ${err}`);
+  }
 
   // Claim a task
   const task = await claimNextTask(conn);

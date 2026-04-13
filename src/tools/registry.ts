@@ -13,6 +13,9 @@ import { fileMoveTool } from "./file/move.ts";
 // File tools
 import { fileReadTool } from "./file/read.ts";
 import { fileWriteTool } from "./file/write.ts";
+// Schedule tools
+import { createScheduleTool } from "./schedule/create.ts";
+import { listSchedulesTool } from "./schedule/list.ts";
 // Search tools
 import { searchGrepTool } from "./search/grep.ts";
 import { searchSemanticTool } from "./search/semantic.ts";
@@ -46,6 +49,10 @@ export function registerAllTools(): void {
   registerTool(fileInfoTool);
   registerTool(fileExistsTool);
   registerTool(fileCountLinesTool);
+
+  // Schedule
+  registerTool(createScheduleTool);
+  registerTool(listSchedulesTool);
 
   // Search
   registerTool(searchGrepTool);

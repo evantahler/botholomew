@@ -1,0 +1,43 @@
+import { z } from "zod";
+import { listSchedules } from "../../db/schedules.ts";
+import type { ToolDefinition } from "../tool.ts";
+
+const inputSchema = z.object({
+  enabled: z.boolean().optional().describe("Filter by enabled status"),
+});
+
+const outputSchema = z.object({
+  schedules: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      frequency: z.string(),
+      enabled: z.boolean(),
+      last_run_at: z.string().nullable(),
+    }),
+  ),
+  count: z.number(),
+});
+
+export const listSchedulesTool = {
+  name: "list_schedules",
+  description: "List existing recurring schedules.",
+  group: "schedule",
+  inputSchema,
+  outputSchema,
+  execute: async (input, ctx) => {
+    const schedules = await listSchedules(ctx.conn, {
+      enabled: input.enabled,
+    });
+    return {
+      schedules: schedules.map((s) => ({
+        id: s.id,
+        name: s.name,
+        frequency: s.frequency,
+        enabled: s.enabled,
+        last_run_at: s.last_run_at?.toISOString() ?? null,
+      })),
+      count: schedules.length,
+    };
+  },
+} satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

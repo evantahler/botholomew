@@ -4,7 +4,14 @@ import { getDbPath } from "../constants.ts";
 import { getConnection } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
 import type { Task } from "../db/tasks.ts";
-import { createTask, getTask, listTasks } from "../db/tasks.ts";
+import {
+  createTask,
+  deleteTask,
+  getTask,
+  listTasks,
+  resetTask,
+  updateTask,
+} from "../db/tasks.ts";
 import { logger } from "../utils/logger.ts";
 
 export function registerTaskCommand(program: Command) {
@@ -74,6 +81,75 @@ export function registerTaskCommand(program: Command) {
       }
 
       printTaskDetail(t);
+      conn.close();
+    });
+
+  task
+    .command("update <id>")
+    .description("Update a task")
+    .option("--name <text>", "new task name")
+    .option("--description <text>", "new description")
+    .option("-p, --priority <priority>", "low, medium, or high")
+    .option("-s, --status <status>", "new status")
+    .action(async (id, opts) => {
+      const dir = program.opts().dir;
+      const conn = getConnection(getDbPath(dir));
+      migrate(conn);
+
+      const updates: Parameters<typeof updateTask>[2] = {};
+      if (opts.name) updates.name = opts.name;
+      if (opts.description) updates.description = opts.description;
+      if (opts.priority) updates.priority = opts.priority;
+      if (opts.status) updates.status = opts.status;
+
+      try {
+        const t = await updateTask(conn, id, updates);
+        if (!t) {
+          logger.error(`Task not found: ${id}`);
+          process.exit(1);
+        }
+        printTaskDetail(t);
+      } catch (err) {
+        logger.error(String(err));
+        process.exit(1);
+      }
+
+      conn.close();
+    });
+
+  task
+    .command("delete <id>")
+    .description("Delete a task")
+    .action(async (id) => {
+      const dir = program.opts().dir;
+      const conn = getConnection(getDbPath(dir));
+      migrate(conn);
+
+      const deleted = await deleteTask(conn, id);
+      if (!deleted) {
+        logger.error(`Task not found: ${id}`);
+        process.exit(1);
+      }
+
+      logger.success(`Deleted task: ${id}`);
+      conn.close();
+    });
+
+  task
+    .command("reset <id>")
+    .description("Reset a stuck task back to pending")
+    .action(async (id) => {
+      const dir = program.opts().dir;
+      const conn = getConnection(getDbPath(dir));
+      migrate(conn);
+
+      const t = await resetTask(conn, id);
+      if (!t) {
+        logger.error(`Task not found: ${id}`);
+        process.exit(1);
+      }
+
+      logger.success(`Reset task: ${t.name} (${t.id})`);
       conn.close();
     });
 }

@@ -68,7 +68,9 @@ export async function createTask(
   },
 ): Promise<Task> {
   const id = uuidv7();
-  const blockedBy = JSON.stringify(params.blocked_by ?? []);
+  const blockedByArr = params.blocked_by ?? [];
+  await validateBlockedBy(db, id, blockedByArr);
+  const blockedBy = JSON.stringify(blockedByArr);
   const contextIds = JSON.stringify(params.context_ids ?? []);
 
   const row = db
@@ -146,6 +148,137 @@ export async function updateTaskStatus(
      SET status = ?1, waiting_reason = ?2, updated_at = datetime('now')
      WHERE id = ?3`,
   ).run(status, reason ?? null, id);
+}
+
+export async function validateBlockedBy(
+  db: DbConnection,
+  taskId: string,
+  blockedBy: string[],
+): Promise<void> {
+  if (blockedBy.length === 0) return;
+
+  // Check for direct self-reference
+  if (blockedBy.includes(taskId)) {
+    throw new Error(`Circular dependency: task ${taskId} cannot block itself`);
+  }
+
+  // DFS through transitive blocked_by chains
+  const visited = new Set<string>();
+
+  async function dfs(currentId: string): Promise<void> {
+    if (visited.has(currentId)) return;
+    visited.add(currentId);
+
+    const task = await getTask(db, currentId);
+    if (!task) return;
+
+    for (const dep of task.blocked_by) {
+      if (dep === taskId) {
+        throw new Error(
+          `Circular dependency: adding blocked_by would create cycle involving task ${taskId}`,
+        );
+      }
+      await dfs(dep);
+    }
+  }
+
+  for (const blockerId of blockedBy) {
+    await dfs(blockerId);
+  }
+}
+
+export async function updateTask(
+  db: DbConnection,
+  id: string,
+  updates: Partial<
+    Pick<Task, "name" | "description" | "priority" | "status" | "blocked_by">
+  >,
+): Promise<Task | null> {
+  if (updates.blocked_by !== undefined) {
+    await validateBlockedBy(db, id, updates.blocked_by);
+  }
+
+  const setClauses: string[] = [];
+  const params: (string | number | null)[] = [];
+
+  if (updates.name !== undefined) {
+    params.push(updates.name);
+    setClauses.push(`name = ?${params.length}`);
+  }
+  if (updates.description !== undefined) {
+    params.push(updates.description);
+    setClauses.push(`description = ?${params.length}`);
+  }
+  if (updates.priority !== undefined) {
+    params.push(updates.priority);
+    setClauses.push(`priority = ?${params.length}`);
+  }
+  if (updates.status !== undefined) {
+    params.push(updates.status);
+    setClauses.push(`status = ?${params.length}`);
+  }
+  if (updates.blocked_by !== undefined) {
+    params.push(JSON.stringify(updates.blocked_by));
+    setClauses.push(`blocked_by = ?${params.length}`);
+  }
+
+  if (setClauses.length === 0) {
+    return getTask(db, id);
+  }
+
+  setClauses.push("updated_at = datetime('now')");
+  params.push(id);
+
+  const row = db
+    .query(
+      `UPDATE tasks SET ${setClauses.join(", ")} WHERE id = ?${params.length} RETURNING *`,
+    )
+    .get(...params) as TaskRow | null;
+  return row ? rowToTask(row) : null;
+}
+
+export async function deleteTask(
+  db: DbConnection,
+  id: string,
+): Promise<boolean> {
+  const result = db.query("DELETE FROM tasks WHERE id = ?1").run(id);
+  return result.changes > 0;
+}
+
+export async function resetTask(
+  db: DbConnection,
+  id: string,
+): Promise<Task | null> {
+  const row = db
+    .query(
+      `UPDATE tasks
+     SET status = 'pending', claimed_by = NULL, claimed_at = NULL,
+         waiting_reason = NULL, updated_at = datetime('now')
+     WHERE id = ?1
+     RETURNING *`,
+    )
+    .get(id) as TaskRow | null;
+  return row ? rowToTask(row) : null;
+}
+
+export async function resetStaleTasks(
+  db: DbConnection,
+  timeoutSeconds: number,
+): Promise<string[]> {
+  const rows = db
+    .query(
+      `UPDATE tasks
+     SET status = 'pending',
+         claimed_by = NULL,
+         claimed_at = NULL,
+         updated_at = datetime('now')
+     WHERE status = 'in_progress'
+       AND claimed_at IS NOT NULL
+       AND claimed_at < datetime('now', '-' || ?1 || ' seconds')
+     RETURNING id`,
+    )
+    .all(timeoutSeconds) as { id: string }[];
+  return rows.map((r) => r.id);
 }
 
 export async function claimNextTask(
