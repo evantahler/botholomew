@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ToolDefinition } from "../tool.ts";
 import { listContextItemsByPrefix } from "../../db/context.ts";
+import type { ToolDefinition } from "../tool.ts";
 
 const GrepMatchSchema = z.object({
   path: z.string(),

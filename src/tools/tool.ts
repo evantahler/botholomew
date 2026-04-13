@@ -1,7 +1,7 @@
-import { z } from "zod";
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
-import type { DuckDBConnection } from "../db/connection.ts";
+import { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import type { DuckDBConnection } from "../db/connection.ts";
 
 export interface ToolContext {
   conn: DuckDBConnection;
@@ -53,9 +53,7 @@ export function getToolsByGroup(group: string): ToolDefinition<any, any>[] {
 
 // --- Anthropic adapter ---
 
-export function toAnthropicTool(
-  tool: ToolDefinition<any, any>,
-): AnthropicTool {
+export function toAnthropicTool(tool: ToolDefinition<any, any>): AnthropicTool {
   const jsonSchema = z.toJSONSchema(tool.inputSchema);
   return {
     name: tool.name,

@@ -1,7 +1,13 @@
 import type { DuckDBConnection } from "./connection.ts";
 
 export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
-export const TASK_STATUSES = ["pending", "in_progress", "failed", "complete", "waiting"] as const;
+export const TASK_STATUSES = [
+  "pending",
+  "in_progress",
+  "failed",
+  "complete",
+  "waiting",
+] as const;
 
 export interface Task {
   id: string;
@@ -54,7 +60,7 @@ export async function createTask(
 
   const result = await conn.runAndReadAll(`
     INSERT INTO tasks (name, description, priority, blocked_by, context_ids)
-    VALUES ('${escape(params.name)}', '${escape(params.description ?? "")}', '${params.priority ?? "medium"}', ${blockedBy}, ${contextIds})
+    VALUES ('${escapeSql(params.name)}', '${escapeSql(params.description ?? "")}', '${params.priority ?? "medium"}', ${blockedBy}, ${contextIds})
     RETURNING *
   `);
   return rowToTask(result.getRows()[0]!);
@@ -65,7 +71,7 @@ export async function getTask(
   id: string,
 ): Promise<Task | null> {
   const result = await conn.runAndReadAll(
-    `SELECT * FROM tasks WHERE id = '${escape(id)}'`,
+    `SELECT * FROM tasks WHERE id = '${escapeSql(id)}'`,
   );
   const rows = result.getRows();
   return rows.length > 0 ? rowToTask(rows[0]!) : null;
@@ -83,7 +89,8 @@ export async function listTasks(
   if (filters?.status) conditions.push(`status = '${filters.status}'`);
   if (filters?.priority) conditions.push(`priority = '${filters.priority}'`);
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const where =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
 
   const result = await conn.runAndReadAll(`
@@ -103,13 +110,13 @@ export async function updateTaskStatus(
   reason?: string,
 ): Promise<void> {
   const reasonClause = reason
-    ? `, waiting_reason = '${escape(reason)}'`
+    ? `, waiting_reason = '${escapeSql(reason)}'`
     : ", waiting_reason = NULL";
 
   await conn.run(`
     UPDATE tasks
     SET status = '${status}', updated_at = current_timestamp ${reasonClause}
-    WHERE id = '${escape(id)}'
+    WHERE id = '${escapeSql(id)}'
   `);
 }
 
@@ -144,15 +151,15 @@ export async function claimNextTask(
   await conn.run(`
     UPDATE tasks
     SET status = 'in_progress',
-        claimed_by = '${escape(claimedBy)}',
+        claimed_by = '${escapeSql(claimedBy)}',
         claimed_at = current_timestamp,
         updated_at = current_timestamp
-    WHERE id = '${escape(task.id)}' AND status = 'pending'
+    WHERE id = '${escapeSql(task.id)}' AND status = 'pending'
   `);
 
   return { ...task, status: "in_progress", claimed_by: claimedBy };
 }
 
-function escape(str: string): string {
+function escapeSql(str: string): string {
   return str.replace(/'/g, "''");
 }

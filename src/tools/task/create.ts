@@ -1,8 +1,8 @@
 import { z } from "zod";
-import type { ToolDefinition } from "../tool.ts";
 import type { Task } from "../../db/tasks.ts";
 import { createTask, TASK_PRIORITIES } from "../../db/tasks.ts";
 import { logger } from "../../utils/logger.ts";
+import type { ToolDefinition } from "../tool.ts";
 
 export const createTaskTool: ToolDefinition<any, any> = {
   name: "create_task",
@@ -11,10 +11,7 @@ export const createTaskTool: ToolDefinition<any, any> = {
   inputSchema: z.object({
     name: z.string().describe("Task name"),
     description: z.string().optional().describe("Task description"),
-    priority: z
-      .enum(TASK_PRIORITIES)
-      .optional()
-      .describe("Task priority"),
+    priority: z.enum(TASK_PRIORITIES).optional().describe("Task priority"),
     blocked_by: z
       .array(z.string())
       .optional()

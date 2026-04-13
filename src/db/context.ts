@@ -37,7 +37,7 @@ function rowToContextItem(row: unknown[]): ContextItem {
   };
 }
 
-function escape(str: string): string {
+function escapeSql(str: string): string {
   return str.replace(/'/g, "''");
 }
 
@@ -58,13 +58,13 @@ export async function createContextItem(
   const result = await conn.runAndReadAll(`
     INSERT INTO context_items (title, description, content, mime_type, is_textual, source_path, context_path)
     VALUES (
-      '${escape(params.title)}',
-      '${escape(params.description ?? "")}',
-      ${params.content != null ? `'${escape(params.content)}'` : "NULL"},
-      '${escape(params.mimeType ?? "text/plain")}',
+      '${escapeSql(params.title)}',
+      '${escapeSql(params.description ?? "")}',
+      ${params.content != null ? `'${escapeSql(params.content)}'` : "NULL"},
+      '${escapeSql(params.mimeType ?? "text/plain")}',
       ${params.isTextual !== false},
-      ${params.sourcePath != null ? `'${escape(params.sourcePath)}'` : "NULL"},
-      '${escape(params.contextPath)}'
+      ${params.sourcePath != null ? `'${escapeSql(params.sourcePath)}'` : "NULL"},
+      '${escapeSql(params.contextPath)}'
     )
     RETURNING *
   `);
@@ -76,7 +76,7 @@ export async function getContextItem(
   id: string,
 ): Promise<ContextItem | null> {
   const result = await conn.runAndReadAll(
-    `SELECT * FROM context_items WHERE id = '${escape(id)}'`,
+    `SELECT * FROM context_items WHERE id = '${escapeSql(id)}'`,
   );
   const rows = result.getRows();
   return rows.length > 0 ? rowToContextItem(rows[0]!) : null;
@@ -87,7 +87,7 @@ export async function getContextItemByPath(
   contextPath: string,
 ): Promise<ContextItem | null> {
   const result = await conn.runAndReadAll(
-    `SELECT * FROM context_items WHERE context_path = '${escape(contextPath)}'`,
+    `SELECT * FROM context_items WHERE context_path = '${escapeSql(contextPath)}'`,
   );
   const rows = result.getRows();
   return rows.length > 0 ? rowToContextItem(rows[0]!) : null;
@@ -103,9 +103,9 @@ export async function listContextItems(
 ): Promise<ContextItem[]> {
   const conditions: string[] = [];
   if (filters?.contextPath)
-    conditions.push(`context_path = '${escape(filters.contextPath)}'`);
+    conditions.push(`context_path = '${escapeSql(filters.contextPath)}'`);
   if (filters?.mimeType)
-    conditions.push(`mime_type = '${escape(filters.mimeType)}'`);
+    conditions.push(`mime_type = '${escapeSql(filters.mimeType)}'`);
 
   const where =
     conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -127,11 +127,11 @@ export async function listContextItemsByPrefix(
   let where: string;
   if (opts?.recursive) {
     // All items under this prefix at any depth
-    where = `WHERE context_path LIKE '${escape(normalizedPrefix)}%'`;
+    where = `WHERE context_path LIKE '${escapeSql(normalizedPrefix)}%'`;
   } else {
     // Only immediate children: match prefix but no further slashes
-    where = `WHERE context_path LIKE '${escape(normalizedPrefix)}%'
-      AND context_path NOT LIKE '${escape(normalizedPrefix)}%/%'`;
+    where = `WHERE context_path LIKE '${escapeSql(normalizedPrefix)}%'
+      AND context_path NOT LIKE '${escapeSql(normalizedPrefix)}%/%'`;
   }
 
   const limit = opts?.limit ? `LIMIT ${opts.limit}` : "";
@@ -147,7 +147,7 @@ export async function contextPathExists(
   contextPath: string,
 ): Promise<boolean> {
   const result = await conn.runAndReadAll(
-    `SELECT 1 FROM context_items WHERE context_path = '${escape(contextPath)}' LIMIT 1`,
+    `SELECT 1 FROM context_items WHERE context_path = '${escapeSql(contextPath)}' LIMIT 1`,
   );
   return result.getRows().length > 0;
 }
@@ -164,13 +164,13 @@ export async function getDistinctDirectories(
 
   // Extract the directory portion after the prefix, taking only the first path segment
   const where = prefix
-    ? `WHERE context_path LIKE '${escape(normalizedPrefix)}%/%'`
+    ? `WHERE context_path LIKE '${escapeSql(normalizedPrefix)}%/%'`
     : `WHERE context_path LIKE '%/%'`;
 
   const result = await conn.runAndReadAll(`
     SELECT DISTINCT
-      '${escape(normalizedPrefix)}' || split_part(
-        substr(context_path, length('${escape(normalizedPrefix)}') + 1),
+      '${escapeSql(normalizedPrefix)}' || split_part(
+        substr(context_path, length('${escapeSql(normalizedPrefix)}') + 1),
         '/',
         1
       ) AS dir
@@ -193,18 +193,22 @@ export async function updateContextItem(
 ): Promise<ContextItem | null> {
   const setClauses: string[] = ["updated_at = current_timestamp"];
   if (updates.title !== undefined)
-    setClauses.push(`title = '${escape(updates.title)}'`);
+    setClauses.push(`title = '${escapeSql(updates.title)}'`);
   if (updates.description !== undefined)
-    setClauses.push(`description = '${escape(updates.description)}'`);
+    setClauses.push(`description = '${escapeSql(updates.description)}'`);
   if (updates.content !== undefined)
-    setClauses.push(`content = '${escape(updates.content)}'`);
+    setClauses.push(
+      updates.content === null
+        ? "content = NULL"
+        : `content = '${escapeSql(updates.content)}'`,
+    );
   if (updates.mime_type !== undefined)
-    setClauses.push(`mime_type = '${escape(updates.mime_type)}'`);
+    setClauses.push(`mime_type = '${escapeSql(updates.mime_type)}'`);
 
   const result = await conn.runAndReadAll(`
     UPDATE context_items
     SET ${setClauses.join(", ")}
-    WHERE id = '${escape(id)}'
+    WHERE id = '${escapeSql(id)}'
     RETURNING *
   `);
   const rows = result.getRows();
@@ -218,8 +222,8 @@ export async function updateContextItemContent(
 ): Promise<ContextItem | null> {
   const result = await conn.runAndReadAll(`
     UPDATE context_items
-    SET content = '${escape(content)}', updated_at = current_timestamp
-    WHERE context_path = '${escape(contextPath)}'
+    SET content = '${escapeSql(content)}', updated_at = current_timestamp
+    WHERE context_path = '${escapeSql(contextPath)}'
     RETURNING *
   `);
   const rows = result.getRows();
@@ -243,14 +247,12 @@ export async function applyPatchesToContextItem(
   for (const patch of sorted) {
     if (patch.end_line === 0) {
       // Insert at start_line without replacing
-      const insertLines =
-        patch.content === "" ? [] : patch.content.split("\n");
+      const insertLines = patch.content === "" ? [] : patch.content.split("\n");
       lines.splice(patch.start_line - 1, 0, ...insertLines);
     } else {
       // Replace lines [start_line, end_line] inclusive (1-based)
       const deleteCount = patch.end_line - patch.start_line + 1;
-      const insertLines =
-        patch.content === "" ? [] : patch.content.split("\n");
+      const insertLines = patch.content === "" ? [] : patch.content.split("\n");
       lines.splice(patch.start_line - 1, deleteCount, ...insertLines);
     }
   }
@@ -287,8 +289,8 @@ export async function moveContextItem(
 ): Promise<void> {
   const result = await conn.runAndReadAll(`
     UPDATE context_items
-    SET context_path = '${escape(newPath)}', updated_at = current_timestamp
-    WHERE context_path = '${escape(oldPath)}'
+    SET context_path = '${escapeSql(newPath)}', updated_at = current_timestamp
+    WHERE context_path = '${escapeSql(oldPath)}'
     RETURNING id
   `);
   if (result.getRows().length === 0) {
@@ -304,10 +306,10 @@ export async function deleteContextItem(
 ): Promise<boolean> {
   // Delete embeddings first (foreign key)
   await conn.run(
-    `DELETE FROM embeddings WHERE context_item_id = '${escape(id)}'`,
+    `DELETE FROM embeddings WHERE context_item_id = '${escapeSql(id)}'`,
   );
   const result = await conn.runAndReadAll(
-    `DELETE FROM context_items WHERE id = '${escape(id)}' RETURNING id`,
+    `DELETE FROM context_items WHERE id = '${escapeSql(id)}' RETURNING id`,
   );
   return result.getRows().length > 0;
 }
@@ -333,13 +335,13 @@ export async function deleteContextItemsByPrefix(
     DELETE FROM embeddings
     WHERE context_item_id IN (
       SELECT id FROM context_items
-      WHERE context_path LIKE '${escape(normalizedPrefix)}%'
+      WHERE context_path LIKE '${escapeSql(normalizedPrefix)}%'
     )
   `);
 
   const result = await conn.runAndReadAll(`
     DELETE FROM context_items
-    WHERE context_path LIKE '${escape(normalizedPrefix)}%'
+    WHERE context_path LIKE '${escapeSql(normalizedPrefix)}%'
     RETURNING id
   `);
   return result.getRows().length;
@@ -352,7 +354,7 @@ export async function searchContextByKeyword(
   query: string,
   limit = 20,
 ): Promise<ContextItem[]> {
-  const escaped = escape(query);
+  const escaped = escapeSql(query);
   const result = await conn.runAndReadAll(`
     SELECT * FROM context_items
     WHERE content IS NOT NULL

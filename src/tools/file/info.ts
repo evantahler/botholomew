@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ToolDefinition } from "../tool.ts";
 import { getContextItemByPath } from "../../db/context.ts";
+import type { ToolDefinition } from "../tool.ts";
 
 export const fileInfoTool: ToolDefinition<any, any> = {
   name: "file_info",

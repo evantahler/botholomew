@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ToolDefinition } from "../tool.ts";
 import { listContextItemsByPrefix } from "../../db/context.ts";
+import type { ToolDefinition } from "../tool.ts";
 
 const DEFAULT_MAX_ITEMS = 200;
 
@@ -18,7 +18,9 @@ export const dirTreeTool: ToolDefinition<any, any> = {
       .number()
       .optional()
       .default(DEFAULT_MAX_ITEMS)
-      .describe(`Maximum number of items to include (defaults to ${DEFAULT_MAX_ITEMS})`),
+      .describe(
+        `Maximum number of items to include (defaults to ${DEFAULT_MAX_ITEMS})`,
+      ),
   }),
   outputSchema: z.object({
     tree: z.string(),

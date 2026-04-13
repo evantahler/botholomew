@@ -1,20 +1,17 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type {
   MessageParam,
-  ToolUseBlock,
+  Tool,
   ToolResultBlockParam,
+  ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
-import type { DuckDBConnection } from "../db/connection.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import type { DuckDBConnection } from "../db/connection.ts";
 import type { Task } from "../db/tasks.ts";
 import { logInteraction } from "../db/threads.ts";
-import { logger } from "../utils/logger.ts";
-import {
-  getTool,
-  toAnthropicTools,
-  type ToolContext,
-} from "../tools/tool.ts";
 import { registerAllTools } from "../tools/registry.ts";
+import { getTool, type ToolContext, toAnthropicTools } from "../tools/tool.ts";
+import { logger } from "../utils/logger.ts";
 
 registerAllTools();
 

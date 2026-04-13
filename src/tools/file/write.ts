@@ -1,12 +1,12 @@
-import { z } from "zod";
 import { isText } from "istextorbinary";
-import type { ToolDefinition } from "../tool.ts";
+import { z } from "zod";
 import {
   createContextItem,
   getContextItemByPath,
-  updateContextItemContent,
   updateContextItem,
+  updateContextItemContent,
 } from "../../db/context.ts";
+import type { ToolDefinition } from "../tool.ts";
 
 function mimeFromPath(path: string): string {
   return Bun.file(path).type.split(";")[0]!;
@@ -30,15 +30,14 @@ export const fileWriteTool: ToolDefinition<any, any> = {
     content_base64: z
       .string()
       .optional()
-      .describe("Base64-encoded binary content (used instead of content for binary files)"),
+      .describe(
+        "Base64-encoded binary content (used instead of content for binary files)",
+      ),
     title: z
       .string()
       .optional()
       .describe("Title for the file (defaults to filename)"),
-    description: z
-      .string()
-      .optional()
-      .describe("Description of the file"),
+    description: z.string().optional().describe("Description of the file"),
   }),
   outputSchema: z.object({
     id: z.string(),
@@ -70,9 +69,7 @@ export const fileWriteTool: ToolDefinition<any, any> = {
     }
 
     const title =
-      input.title ??
-      input.path.split("/").filter(Boolean).pop() ??
-      input.path;
+      input.title ?? input.path.split("/").filter(Boolean).pop() ?? input.path;
 
     const item = await createContextItem(ctx.conn, {
       title,

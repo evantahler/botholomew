@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ToolDefinition } from "../tool.ts";
 import { applyPatchesToContextItem } from "../../db/context.ts";
+import type { ToolDefinition } from "../tool.ts";
 
 const PatchSchema = z.object({
   start_line: z.number().describe("1-based inclusive start line"),

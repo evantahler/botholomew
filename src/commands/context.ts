@@ -2,9 +2,7 @@ import type { Command } from "commander";
 import { logger } from "../utils/logger.ts";
 
 export function registerContextCommand(program: Command) {
-  const ctx = program
-    .command("context")
-    .description("Manage context items");
+  const ctx = program.command("context").description("Manage context items");
 
   ctx
     .command("list")

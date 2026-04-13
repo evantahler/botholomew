@@ -1,9 +1,9 @@
 import { z } from "zod";
-import type { ToolDefinition } from "../tool.ts";
 import {
-  listContextItemsByPrefix,
   getDistinctDirectories,
+  listContextItemsByPrefix,
 } from "../../db/context.ts";
+import type { ToolDefinition } from "../tool.ts";
 
 const DirEntrySchema = z.object({
   name: z.string(),

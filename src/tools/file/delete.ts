@@ -1,9 +1,9 @@
 import { z } from "zod";
-import type { ToolDefinition } from "../tool.ts";
 import {
   deleteContextItemByPath,
   deleteContextItemsByPrefix,
 } from "../../db/context.ts";
+import type { ToolDefinition } from "../tool.ts";
 
 export const fileDeleteTool: ToolDefinition<any, any> = {
   name: "file_delete",

@@ -1,13 +1,11 @@
-import { getPidPath } from "../constants.ts";
 import { unlink } from "fs/promises";
+import { getPidPath } from "../constants.ts";
 
 export function writePidFile(projectDir: string, pid: number): void {
   Bun.write(getPidPath(projectDir), String(pid));
 }
 
-export async function readPidFile(
-  projectDir: string,
-): Promise<number | null> {
+export async function readPidFile(projectDir: string): Promise<number | null> {
   const file = Bun.file(getPidPath(projectDir));
   if (!(await file.exists())) return null;
   const text = await file.text();

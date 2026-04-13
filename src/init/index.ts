@@ -1,16 +1,16 @@
-import { join } from "path";
 import { mkdir } from "fs/promises";
-import { getBotholomewDir, getMcpxDir, getDbPath } from "../constants.ts";
+import { join } from "path";
+import { getBotholomewDir, getDbPath, getMcpxDir } from "../constants.ts";
 import { getConnection } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
+import { logger } from "../utils/logger.ts";
 import {
-  SOUL_MD,
   BELIEFS_MD,
-  GOALS_MD,
   DEFAULT_CONFIG,
   DEFAULT_MCPX_SERVERS,
+  GOALS_MD,
+  SOUL_MD,
 } from "./templates.ts";
-import { logger } from "../utils/logger.ts";
 
 export async function initProject(
   projectDir: string,

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { ToolDefinition } from "../tool.ts";
 import { contextPathExists, copyContextItem } from "../../db/context.ts";
+import type { ToolDefinition } from "../tool.ts";
 
 export const fileCopyTool: ToolDefinition<any, any> = {
   name: "file_copy",

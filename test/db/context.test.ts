@@ -1,27 +1,27 @@
-import { describe, expect, test, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import {
-  getMemoryConnection,
   type DuckDBConnection,
+  getMemoryConnection,
 } from "../../src/db/connection.ts";
-import { migrate } from "../../src/db/schema.ts";
 import {
-  createContextItem,
-  getContextItem,
-  getContextItemByPath,
-  listContextItems,
-  listContextItemsByPrefix,
-  contextPathExists,
-  getDistinctDirectories,
-  updateContextItem,
-  updateContextItemContent,
   applyPatchesToContextItem,
+  contextPathExists,
   copyContextItem,
-  moveContextItem,
+  createContextItem,
   deleteContextItem,
   deleteContextItemByPath,
   deleteContextItemsByPrefix,
+  getContextItem,
+  getContextItemByPath,
+  getDistinctDirectories,
+  listContextItems,
+  listContextItemsByPrefix,
+  moveContextItem,
   searchContextByKeyword,
+  updateContextItem,
+  updateContextItemContent,
 } from "../../src/db/context.ts";
+import { migrate } from "../../src/db/schema.ts";
 
 let conn: DuckDBConnection;
 

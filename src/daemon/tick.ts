@@ -1,10 +1,10 @@
-import type { DuckDBConnection } from "../db/connection.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import type { DuckDBConnection } from "../db/connection.ts";
 import { claimNextTask, updateTaskStatus } from "../db/tasks.ts";
 import { createThread, endThread, logInteraction } from "../db/threads.ts";
-import { buildSystemPrompt } from "./prompt.ts";
-import { runAgentLoop } from "./llm.ts";
 import { logger } from "../utils/logger.ts";
+import { runAgentLoop } from "./llm.ts";
+import { buildSystemPrompt } from "./prompt.ts";
 
 export async function tick(
   projectDir: string,

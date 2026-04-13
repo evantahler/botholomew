@@ -1,6 +1,6 @@
 import { z } from "zod";
+import { contextPathExists, createContextItem } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
-import { createContextItem, contextPathExists } from "../../db/context.ts";
 
 export const dirCreateTool: ToolDefinition<any, any> = {
   name: "dir_create",

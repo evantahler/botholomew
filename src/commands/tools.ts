@@ -1,17 +1,17 @@
 import type { Command } from "commander";
 import { z } from "zod";
+import type { BotholomewConfig } from "../config/schemas.ts";
+import { DEFAULT_CONFIG } from "../config/schemas.ts";
 import { getDbPath } from "../constants.ts";
 import { getConnection } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
+import { registerAllTools } from "../tools/registry.ts";
 import {
   getToolsByGroup,
-  type ToolDefinition,
   type ToolContext,
+  type ToolDefinition,
 } from "../tools/tool.ts";
-import type { BotholomewConfig } from "../config/schemas.ts";
-import { DEFAULT_CONFIG } from "../config/schemas.ts";
 import { logger } from "../utils/logger.ts";
-import { registerAllTools } from "../tools/registry.ts";
 
 registerAllTools();
 
@@ -44,7 +44,12 @@ function registerToolAsCLI(
   // Inspect zod schema to determine positional args and options
   const shape = tool.inputSchema.shape as Record<string, z.ZodType>;
   const positionals: string[] = [];
-  const options: { key: string; flag: string; description: string; isArray: boolean }[] = [];
+  const options: {
+    key: string;
+    flag: string;
+    description: string;
+    isArray: boolean;
+  }[] = [];
 
   for (const [key, schema] of Object.entries(shape)) {
     const desc = schema.description ?? key;
@@ -95,13 +100,7 @@ function registerToolAsCLI(
     await migrate(conn);
 
     try {
-      const input = buildInput(
-        tool,
-        positionals,
-        options,
-        shape,
-        args,
-      );
+      const input = buildInput(tool, positionals, options, shape, args);
 
       const ctx: ToolContext = {
         conn,
@@ -123,7 +122,12 @@ function registerToolAsCLI(
 function buildInput(
   tool: ToolDefinition<any, any>,
   positionals: string[],
-  options: { key: string; flag: string; description: string; isArray: boolean }[],
+  options: {
+    key: string;
+    flag: string;
+    description: string;
+    isArray: boolean;
+  }[],
   shape: Record<string, z.ZodType>,
   args: unknown[],
 ): Record<string, unknown> {
@@ -131,7 +135,7 @@ function buildInput(
 
   // Positional args come first in Commander's action callback
   for (let i = 0; i < positionals.length; i++) {
-    const key = positionals[i]!.replace(/[<>\[\]]/g, "");
+    const key = positionals[i]!.replace(/[<>[\]]/g, "");
     const value = args[i];
     if (value !== undefined) input[key] = value;
   }
@@ -245,7 +249,7 @@ function isPositionalArg(key: string, toolName: string): boolean {
 
 function unwrapOptional(schema: z.ZodType): z.ZodType {
   if (schema instanceof z.ZodOptional) {
-    return schema.unwrap();
+    return schema.unwrap() as z.ZodType;
   }
   return schema;
 }
