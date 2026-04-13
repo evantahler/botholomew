@@ -18,6 +18,7 @@ export const LOG_FILENAME = "daemon.log";
 export const CONFIG_FILENAME = "config.json";
 export const MCPX_DIR = "mcpx";
 export const MCPX_SERVERS_FILENAME = "servers.json";
+export const EMBEDDING_DIMENSION = 384;
 
 export function getBotholomewDir(projectDir: string): string {
   return join(projectDir, BOTHOLOMEW_DIR);

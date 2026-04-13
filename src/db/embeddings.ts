@@ -1,7 +1,6 @@
+import { EMBEDDING_DIMENSION } from "../constants.ts";
 import type { DbConnection } from "./connection.ts";
 import { uuidv7 } from "./uuid.ts";
-
-const EMBEDDING_DIMENSION = 384;
 
 // Track which connections have been initialized for vector search
 const initializedConnections = new WeakSet<DbConnection>();
