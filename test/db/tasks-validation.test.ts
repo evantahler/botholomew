@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { type DbConnection, getConnection } from "../../src/db/connection.ts";
-import { migrate } from "../../src/db/schema.ts";
+import type { DbConnection } from "../../src/db/connection.ts";
 import {
   createTask,
   deleteTask,
@@ -10,12 +9,12 @@ import {
   updateTask,
   updateTaskStatus,
 } from "../../src/db/tasks.ts";
+import { setupTestDb } from "../helpers.ts";
 
 let conn: DbConnection;
 
 beforeEach(() => {
-  conn = getConnection(":memory:");
-  migrate(conn);
+  conn = setupTestDb();
 });
 
 describe("cycle detection", () => {

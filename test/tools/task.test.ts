@@ -1,20 +1,15 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
-import { type DbConnection, getConnection } from "../../src/db/connection.ts";
-import { migrate } from "../../src/db/schema.ts";
 import { completeTaskTool } from "../../src/tools/task/complete.ts";
 import { createTaskTool } from "../../src/tools/task/create.ts";
 import { failTaskTool } from "../../src/tools/task/fail.ts";
 import { waitTaskTool } from "../../src/tools/task/wait.ts";
 import type { ToolContext } from "../../src/tools/tool.ts";
+import { setupToolContext } from "../helpers.ts";
 
-let conn: DbConnection;
 let ctx: ToolContext;
 
 beforeEach(() => {
-  conn = getConnection(":memory:");
-  migrate(conn);
-  ctx = { conn, projectDir: "/tmp/test", config: { ...DEFAULT_CONFIG } };
+  ({ ctx } = setupToolContext());
 });
 
 // ── create_task ─────────────────────────────────────────────

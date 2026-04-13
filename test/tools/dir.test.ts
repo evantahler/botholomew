@@ -1,41 +1,18 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
-import { type DbConnection, getConnection } from "../../src/db/connection.ts";
-import { createContextItem } from "../../src/db/context.ts";
-import { migrate } from "../../src/db/schema.ts";
+import type { DbConnection } from "../../src/db/connection.ts";
 import { dirCreateTool } from "../../src/tools/dir/create.ts";
 import { dirListTool } from "../../src/tools/dir/list.ts";
 import { dirSizeTool } from "../../src/tools/dir/size.ts";
 import { dirTreeTool } from "../../src/tools/dir/tree.ts";
 import type { ToolContext } from "../../src/tools/tool.ts";
+import { seedDir, seedFile, setupToolContext } from "../helpers.ts";
 
 let conn: DbConnection;
 let ctx: ToolContext;
 
 beforeEach(() => {
-  conn = getConnection(":memory:");
-  migrate(conn);
-  ctx = { conn, projectDir: "/tmp/test", config: { ...DEFAULT_CONFIG } };
+  ({ conn, ctx } = setupToolContext());
 });
-
-async function seedFile(path: string, content: string) {
-  return createContextItem(conn, {
-    title: path.split("/").pop() ?? path,
-    content,
-    contextPath: path,
-    mimeType: "text/plain",
-    isTextual: true,
-  });
-}
-
-async function seedDir(path: string) {
-  return createContextItem(conn, {
-    title: path.split("/").pop() ?? path,
-    contextPath: path,
-    mimeType: "inode/directory",
-    isTextual: false,
-  });
-}
 
 // ── dir_create ──────────────────────────────────────────────
 
@@ -47,7 +24,7 @@ describe("dir_create", () => {
   });
 
   test("returns created=false if directory already exists", async () => {
-    await seedDir("/existing");
+    await seedDir(conn, "/existing");
     const result = await dirCreateTool.execute({ path: "/existing" }, ctx);
     expect(result.created).toBe(false);
     expect(result.path).toBe("/existing");
@@ -58,8 +35,8 @@ describe("dir_create", () => {
 
 describe("dir_list", () => {
   test("lists files at root", async () => {
-    await seedFile("/a.txt", "aaa");
-    await seedFile("/b.txt", "bbb");
+    await seedFile(conn, "/a.txt", "aaa");
+    await seedFile(conn, "/b.txt", "bbb");
     const result = await dirListTool.execute(
       { path: "/", recursive: true, limit: 100, offset: 0 },
       ctx,
@@ -71,9 +48,9 @@ describe("dir_list", () => {
   });
 
   test("lists with pagination", async () => {
-    await seedFile("/p1.txt", "1");
-    await seedFile("/p2.txt", "2");
-    await seedFile("/p3.txt", "3");
+    await seedFile(conn, "/p1.txt", "1");
+    await seedFile(conn, "/p2.txt", "2");
+    await seedFile(conn, "/p3.txt", "3");
 
     const page1 = await dirListTool.execute(
       { path: "/", recursive: true, limit: 2, offset: 0 },
@@ -99,8 +76,8 @@ describe("dir_list", () => {
   });
 
   test("non-recursive lists only immediate children", async () => {
-    await seedFile("/top/child.txt", "child");
-    await seedFile("/top/sub/deep.txt", "deep");
+    await seedFile(conn, "/top/child.txt", "child");
+    await seedFile(conn, "/top/sub/deep.txt", "deep");
     const result = await dirListTool.execute(
       { path: "/top", recursive: false, limit: 100, offset: 0 },
       ctx,
@@ -110,7 +87,7 @@ describe("dir_list", () => {
   });
 
   test("entries include type and size", async () => {
-    await seedFile("/typed.txt", "content");
+    await seedFile(conn, "/typed.txt", "content");
     const result = await dirListTool.execute(
       { path: "/", recursive: true, limit: 100, offset: 0 },
       ctx,
@@ -126,8 +103,8 @@ describe("dir_list", () => {
 
 describe("dir_size", () => {
   test("returns total size of files", async () => {
-    await seedFile("/size/a.txt", "hello"); // 5 bytes
-    await seedFile("/size/b.txt", "world!"); // 6 bytes
+    await seedFile(conn, "/size/a.txt", "hello"); // 5 bytes
+    await seedFile(conn, "/size/b.txt", "world!"); // 6 bytes
     const result = await dirSizeTool.execute({ path: "/size" }, ctx);
     expect(result.bytes).toBe(11);
     expect(result.formatted).toBeTruthy();
@@ -140,8 +117,8 @@ describe("dir_size", () => {
   });
 
   test("includes subdirectories by default", async () => {
-    await seedFile("/deep/a.txt", "aaa");
-    await seedFile("/deep/sub/b.txt", "bbb");
+    await seedFile(conn, "/deep/a.txt", "aaa");
+    await seedFile(conn, "/deep/sub/b.txt", "bbb");
     const result = await dirSizeTool.execute({ path: "/deep" }, ctx);
     expect(result.bytes).toBe(6);
   });
@@ -151,8 +128,8 @@ describe("dir_size", () => {
 
 describe("dir_tree", () => {
   test("renders a tree with files", async () => {
-    await seedFile("/tree/a.txt", "a");
-    await seedFile("/tree/sub/b.txt", "b");
+    await seedFile(conn, "/tree/a.txt", "a");
+    await seedFile(conn, "/tree/sub/b.txt", "b");
     const result = await dirTreeTool.execute(
       { path: "/tree", max_items: 200 },
       ctx,
@@ -173,7 +150,7 @@ describe("dir_tree", () => {
   test("respects max_items", async () => {
     // Seed more items than max_items
     for (let i = 0; i < 5; i++) {
-      await seedFile(`/many/file${i}.txt`, `content ${i}`);
+      await seedFile(conn, `/many/file${i}.txt`, `content ${i}`);
     }
     const result = await dirTreeTool.execute(
       { path: "/many", max_items: 3 },

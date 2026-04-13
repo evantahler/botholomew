@@ -2,9 +2,6 @@ import type { Command } from "commander";
 import { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { DEFAULT_CONFIG } from "../config/schemas.ts";
-import { getDbPath } from "../constants.ts";
-import { getConnection } from "../db/connection.ts";
-import { migrate } from "../db/schema.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
   type AnyToolDefinition,
@@ -12,6 +9,7 @@ import {
   type ToolContext,
 } from "../tools/tool.ts";
 import { logger } from "../utils/logger.ts";
+import { withDb } from "./with-db.ts";
 
 registerAllTools();
 
@@ -94,29 +92,25 @@ function registerToolAsCLI(
     }
   }
 
-  cmd.action(async (...args: unknown[]) => {
-    const dir = program.opts().dir;
-    const conn = getConnection(getDbPath(dir));
-    migrate(conn);
+  cmd.action((...args: unknown[]) =>
+    withDb(program, async (conn, dir) => {
+      try {
+        const input = buildInput(tool, positionals, options, shape, args);
 
-    try {
-      const input = buildInput(tool, positionals, options, shape, args);
+        const ctx: ToolContext = {
+          conn,
+          projectDir: dir,
+          config: DEFAULT_CONFIG as Required<BotholomewConfig>,
+        };
 
-      const ctx: ToolContext = {
-        conn,
-        projectDir: dir,
-        config: DEFAULT_CONFIG as Required<BotholomewConfig>,
-      };
-
-      const result = await tool.execute(input, ctx);
-      formatOutput(result, tool.name);
-    } catch (err) {
-      logger.error(String(err));
-      process.exit(1);
-    } finally {
-      conn.close();
-    }
-  });
+        const result = await tool.execute(input, ctx);
+        formatOutput(result, tool.name);
+      } catch (err) {
+        logger.error(String(err));
+        process.exit(1);
+      }
+    }),
+  );
 }
 
 function buildInput(

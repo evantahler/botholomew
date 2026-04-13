@@ -1,18 +1,15 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
-import { type DbConnection, getConnection } from "../../src/db/connection.ts";
-import { migrate } from "../../src/db/schema.ts";
+import type { DbConnection } from "../../src/db/connection.ts";
 import { createScheduleTool } from "../../src/tools/schedule/create.ts";
 import { listSchedulesTool } from "../../src/tools/schedule/list.ts";
 import type { ToolContext } from "../../src/tools/tool.ts";
+import { setupToolContext } from "../helpers.ts";
 
 let conn: DbConnection;
 let ctx: ToolContext;
 
 beforeEach(() => {
-  conn = getConnection(":memory:");
-  migrate(conn);
-  ctx = { conn, projectDir: "/tmp/test", config: { ...DEFAULT_CONFIG } };
+  ({ conn, ctx } = setupToolContext());
 });
 
 describe("create_schedule", () => {

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { type DbConnection, getConnection } from "../../src/db/connection.ts";
+import type { DbConnection } from "../../src/db/connection.ts";
 import { createSchedule, getSchedule } from "../../src/db/schedules.ts";
-import { migrate } from "../../src/db/schema.ts";
 import { listTasks } from "../../src/db/tasks.ts";
+import { setupTestDb } from "../helpers.ts";
 
 let mockResponse: Record<string, unknown> = {};
 
@@ -37,8 +37,7 @@ const testConfig = {
 };
 
 beforeEach(() => {
-  conn = getConnection(":memory:");
-  migrate(conn);
+  conn = setupTestDb();
   mockResponse = {};
 });
 

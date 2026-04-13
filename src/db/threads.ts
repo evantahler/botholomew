@@ -1,4 +1,5 @@
 import type { DbConnection } from "./connection.ts";
+import { buildWhereClause } from "./query.ts";
 import { uuidv7 } from "./uuid.ts";
 
 export interface Thread {
@@ -175,20 +176,10 @@ export async function listThreads(
     limit?: number;
   },
 ): Promise<Thread[]> {
-  const conditions: string[] = [];
-  const params: string[] = [];
-
-  if (filters?.type) {
-    params.push(filters.type);
-    conditions.push(`type = ?${params.length}`);
-  }
-  if (filters?.taskId) {
-    params.push(filters.taskId);
-    conditions.push(`task_id = ?${params.length}`);
-  }
-
-  const where =
-    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const { where, params } = buildWhereClause([
+    ["type", filters?.type],
+    ["task_id", filters?.taskId],
+  ]);
   const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
 
   const rows = db
