@@ -64,8 +64,8 @@ export async function createThread(
   taskId?: string,
   title?: string,
 ): Promise<string> {
-  const taskIdVal = taskId ? `'${escape(taskId)}'` : "NULL";
-  const titleVal = title ? `'${escape(title)}'` : "''";
+  const taskIdVal = taskId ? `'${escapeSql(taskId)}'` : "NULL";
+  const titleVal = title ? `'${escapeSql(title)}'` : "''";
 
   const result = await conn.runAndReadAll(`
     INSERT INTO threads (type, task_id, title)
@@ -90,18 +90,20 @@ export async function logInteraction(
 ): Promise<string> {
   // Get next sequence number
   const seqResult = await conn.runAndReadAll(`
-    SELECT COALESCE(MAX(sequence), 0) + 1 FROM interactions WHERE thread_id = '${escape(threadId)}'
+    SELECT COALESCE(MAX(sequence), 0) + 1 FROM interactions WHERE thread_id = '${escapeSql(threadId)}'
   `);
   const sequence = Number(seqResult.getRows()[0]![0]);
 
-  const toolName = params.toolName ? `'${escape(params.toolName)}'` : "NULL";
-  const toolInput = params.toolInput ? `'${escape(params.toolInput)}'` : "NULL";
+  const toolName = params.toolName ? `'${escapeSql(params.toolName)}'` : "NULL";
+  const toolInput = params.toolInput
+    ? `'${escapeSql(params.toolInput)}'`
+    : "NULL";
   const durationMs = params.durationMs ?? "NULL";
   const tokenCount = params.tokenCount ?? "NULL";
 
   const result = await conn.runAndReadAll(`
     INSERT INTO interactions (thread_id, sequence, role, kind, content, tool_name, tool_input, duration_ms, token_count)
-    VALUES ('${escape(threadId)}', ${sequence}, '${params.role}', '${params.kind}', '${escape(params.content)}', ${toolName}, ${toolInput}, ${durationMs}, ${tokenCount})
+    VALUES ('${escapeSql(threadId)}', ${sequence}, '${params.role}', '${params.kind}', '${escapeSql(params.content)}', ${toolName}, ${toolInput}, ${durationMs}, ${tokenCount})
     RETURNING id
   `);
   return String(result.getRows()[0]![0]);
@@ -112,7 +114,7 @@ export async function endThread(
   threadId: string,
 ): Promise<void> {
   await conn.run(`
-    UPDATE threads SET ended_at = current_timestamp WHERE id = '${escape(threadId)}'
+    UPDATE threads SET ended_at = current_timestamp WHERE id = '${escapeSql(threadId)}'
   `);
 }
 
@@ -121,13 +123,13 @@ export async function getThread(
   threadId: string,
 ): Promise<{ thread: Thread; interactions: Interaction[] } | null> {
   const threadResult = await conn.runAndReadAll(
-    `SELECT * FROM threads WHERE id = '${escape(threadId)}'`,
+    `SELECT * FROM threads WHERE id = '${escapeSql(threadId)}'`,
   );
   const threadRows = threadResult.getRows();
   if (threadRows.length === 0) return null;
 
   const interactionsResult = await conn.runAndReadAll(`
-    SELECT * FROM interactions WHERE thread_id = '${escape(threadId)}' ORDER BY sequence ASC
+    SELECT * FROM interactions WHERE thread_id = '${escapeSql(threadId)}' ORDER BY sequence ASC
   `);
 
   return {
@@ -146,9 +148,11 @@ export async function listThreads(
 ): Promise<Thread[]> {
   const conditions: string[] = [];
   if (filters?.type) conditions.push(`type = '${filters.type}'`);
-  if (filters?.taskId) conditions.push(`task_id = '${escape(filters.taskId)}'`);
+  if (filters?.taskId)
+    conditions.push(`task_id = '${escapeSql(filters.taskId)}'`);
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const where =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
 
   const result = await conn.runAndReadAll(`
@@ -159,6 +163,6 @@ export async function listThreads(
   return result.getRows().map(rowToThread);
 }
 
-function escape(str: string): string {
+function escapeSql(str: string): string {
   return str.replace(/'/g, "''");
 }

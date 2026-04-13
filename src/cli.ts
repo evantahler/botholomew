@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 
 import { program } from "commander";
-import { registerInitCommand } from "./commands/init.ts";
-import { registerDaemonCommand } from "./commands/daemon.ts";
-import { registerTaskCommand } from "./commands/task.ts";
 import { registerChatCommand } from "./commands/chat.ts";
 import { registerContextCommand } from "./commands/context.ts";
+import { registerDaemonCommand } from "./commands/daemon.ts";
+import { registerInitCommand } from "./commands/init.ts";
 import { registerMcpxCommand } from "./commands/mcpx.ts";
+import { registerTaskCommand } from "./commands/task.ts";
 
 const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
 

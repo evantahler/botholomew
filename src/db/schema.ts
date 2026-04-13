@@ -19,8 +19,8 @@ function loadMigrations(): Migration[] {
     const match = file.match(/^(\d+)-(.+)\.sql$/);
     if (!match) throw new Error(`Invalid migration filename: ${file}`);
     return {
-      id: parseInt(match[1], 10),
-      name: match[2],
+      id: parseInt(match[1]!, 10),
+      name: match[2]!,
       sql: readFileSync(join(sqlDir, file), "utf-8"),
     };
   });

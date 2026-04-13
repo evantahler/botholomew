@@ -1,12 +1,15 @@
-import { describe, expect, test, beforeEach } from "bun:test";
-import { getMemoryConnection, type DuckDBConnection } from "../../src/db/connection.ts";
+import { beforeEach, describe, expect, test } from "bun:test";
+import {
+  type DuckDBConnection,
+  getMemoryConnection,
+} from "../../src/db/connection.ts";
 import { migrate } from "../../src/db/schema.ts";
 import {
   createThread,
-  logInteraction,
   endThread,
   getThread,
   listThreads,
+  logInteraction,
 } from "../../src/db/threads.ts";
 
 let conn: DuckDBConnection;
@@ -18,7 +21,12 @@ beforeEach(async () => {
 
 describe("thread CRUD", () => {
   test("create and get a thread", async () => {
-    const threadId = await createThread(conn, "daemon_tick", undefined, "Test tick");
+    const threadId = await createThread(
+      conn,
+      "daemon_tick",
+      undefined,
+      "Test tick",
+    );
 
     const result = await getThread(conn, threadId);
     expect(result).not.toBeNull();
@@ -29,7 +37,12 @@ describe("thread CRUD", () => {
   });
 
   test("create thread with task_id", async () => {
-    const threadId = await createThread(conn, "daemon_tick", "task-123", "Working task");
+    const threadId = await createThread(
+      conn,
+      "daemon_tick",
+      "task-123",
+      "Working task",
+    );
 
     const result = await getThread(conn, threadId);
     expect(result!.thread.task_id).toBe("task-123");
@@ -99,7 +112,9 @@ describe("interaction logging", () => {
     expect(result!.interactions[0]!.role).toBe("user");
     expect(result!.interactions[0]!.kind).toBe("message");
     expect(result!.interactions[2]!.tool_name).toBe("search_context");
-    expect(result!.interactions[2]!.tool_input).toBe('{"query": "relevant docs"}');
+    expect(result!.interactions[2]!.tool_input).toBe(
+      '{"query": "relevant docs"}',
+    );
     expect(result!.interactions[3]!.duration_ms).toBe(150);
     expect(result!.interactions[4]!.token_count).toBe(500);
   });

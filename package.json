@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "bun run src/cli.ts",
     "test": "bun test",
-    "build": "bun build --compile --minify --sourcemap ./src/cli.ts --outfile dist/botholomew"
+    "build": "bun build --compile --minify --sourcemap ./src/cli.ts --outfile dist/botholomew",
+    "lint": "tsc --noEmit && biome check ."
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
@@ -21,7 +22,9 @@
     "react": "^19.1.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.11",
     "@types/bun": "latest",
-    "@types/react": "^19.1.0"
+    "@types/react": "^19.1.0",
+    "typescript": "^6.0.2"
   }
 }

@@ -1,5 +1,5 @@
 import { getConfigPath } from "../constants.ts";
-import { DEFAULT_CONFIG, type BotholomewConfig } from "./schemas.ts";
+import { type BotholomewConfig, DEFAULT_CONFIG } from "./schemas.ts";
 
 export async function loadConfig(
   projectDir: string,

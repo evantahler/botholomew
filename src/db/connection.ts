@@ -1,5 +1,5 @@
-import { DuckDBInstance } from "@duckdb/node-api";
 import type { DuckDBConnection } from "@duckdb/node-api";
+import { DuckDBInstance } from "@duckdb/node-api";
 
 export type { DuckDBConnection } from "@duckdb/node-api";
 
@@ -30,7 +30,7 @@ export async function withRetry<T>(
         (err.message.includes("BUSY") || err.message.includes("lock"));
       if (!isBusy || attempt === maxRetries - 1) throw err;
       // exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
-      await Bun.sleep(100 * Math.pow(2, attempt));
+      await Bun.sleep(100 * 2 ** attempt);
     }
   }
   throw lastError;

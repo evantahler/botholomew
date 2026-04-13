@@ -1,16 +1,14 @@
-import type { Command } from "commander";
 import ansis from "ansis";
+import type { Command } from "commander";
 import { getDbPath } from "../constants.ts";
 import { getConnection } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
-import { createTask, listTasks, getTask } from "../db/tasks.ts";
 import type { Task } from "../db/tasks.ts";
+import { createTask, getTask, listTasks } from "../db/tasks.ts";
 import { logger } from "../utils/logger.ts";
 
 export function registerTaskCommand(program: Command) {
-  const task = program
-    .command("task")
-    .description("Manage tasks");
+  const task = program.command("task").description("Manage tasks");
 
   task
     .command("list")
@@ -82,25 +80,35 @@ export function registerTaskCommand(program: Command) {
 
 function statusColor(status: Task["status"]): string {
   switch (status) {
-    case "pending": return ansis.yellow(status);
-    case "in_progress": return ansis.blue(status);
-    case "complete": return ansis.green(status);
-    case "failed": return ansis.red(status);
-    case "waiting": return ansis.magenta(status);
+    case "pending":
+      return ansis.yellow(status);
+    case "in_progress":
+      return ansis.blue(status);
+    case "complete":
+      return ansis.green(status);
+    case "failed":
+      return ansis.red(status);
+    case "waiting":
+      return ansis.magenta(status);
   }
 }
 
 function priorityColor(priority: Task["priority"]): string {
   switch (priority) {
-    case "high": return ansis.red(priority);
-    case "medium": return ansis.yellow(priority);
-    case "low": return ansis.dim(priority);
+    case "high":
+      return ansis.red(priority);
+    case "medium":
+      return ansis.yellow(priority);
+    case "low":
+      return ansis.dim(priority);
   }
 }
 
 function printTask(t: Task) {
   const id = ansis.dim(t.id.slice(0, 8));
-  console.log(`  ${id}  ${statusColor(t.status)}  ${priorityColor(t.priority)}  ${t.name}`);
+  console.log(
+    `  ${id}  ${statusColor(t.status)}  ${priorityColor(t.priority)}  ${t.name}`,
+  );
 }
 
 function printTaskDetail(t: Task) {
@@ -111,7 +119,8 @@ function printTaskDetail(t: Task) {
   if (t.description) console.log(`  Description: ${t.description}`);
   if (t.waiting_reason) console.log(`  Waiting:     ${t.waiting_reason}`);
   if (t.claimed_by) console.log(`  Claimed by:  ${t.claimed_by}`);
-  if (t.blocked_by.length > 0) console.log(`  Blocked by:  ${t.blocked_by.join(", ")}`);
+  if (t.blocked_by.length > 0)
+    console.log(`  Blocked by:  ${t.blocked_by.join(", ")}`);
   console.log(`  Created:     ${t.created_at.toISOString()}`);
   console.log(`  Updated:     ${t.updated_at.toISOString()}`);
 }

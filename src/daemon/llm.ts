@@ -2,11 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import type {
   MessageParam,
   Tool,
-  ToolUseBlock,
   ToolResultBlockParam,
+  ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
-import type { DuckDBConnection } from "../db/connection.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import type { DuckDBConnection } from "../db/connection.ts";
 import type { Task } from "../db/tasks.ts";
 import { createTask } from "../db/tasks.ts";
 import { logInteraction } from "../db/threads.ts";

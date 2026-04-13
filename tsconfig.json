@@ -2,6 +2,7 @@
   "compilerOptions": {
     "lib": ["ESNext"],
     "target": "ESNext",
+    "types": ["bun-types"],
     "module": "Preserve",
     "moduleDetection": "force",
     "jsx": "react-jsx",

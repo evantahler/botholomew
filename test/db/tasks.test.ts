@@ -1,12 +1,15 @@
-import { describe, expect, test, beforeEach } from "bun:test";
-import { getMemoryConnection, type DuckDBConnection } from "../../src/db/connection.ts";
+import { beforeEach, describe, expect, test } from "bun:test";
+import {
+  type DuckDBConnection,
+  getMemoryConnection,
+} from "../../src/db/connection.ts";
 import { migrate } from "../../src/db/schema.ts";
 import {
+  claimNextTask,
   createTask,
   getTask,
   listTasks,
   updateTaskStatus,
-  claimNextTask,
 } from "../../src/db/tasks.ts";
 
 let conn: DuckDBConnection;

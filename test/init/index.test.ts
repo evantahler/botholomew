@@ -1,7 +1,7 @@
-import { describe, expect, test, afterEach } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "fs/promises";
-import { join } from "path";
 import { tmpdir } from "os";
+import { join } from "path";
 import { initProject } from "../../src/init/index.ts";
 import { parseContextFile } from "../../src/utils/frontmatter.ts";
 
@@ -25,7 +25,9 @@ describe("initProject", () => {
     expect(await Bun.file(join(dotDir, "beliefs.md")).exists()).toBe(true);
     expect(await Bun.file(join(dotDir, "goals.md")).exists()).toBe(true);
     expect(await Bun.file(join(dotDir, "config.json")).exists()).toBe(true);
-    expect(await Bun.file(join(dotDir, "mcpx", "servers.json")).exists()).toBe(true);
+    expect(await Bun.file(join(dotDir, "mcpx", "servers.json")).exists()).toBe(
+      true,
+    );
     expect(await Bun.file(join(dotDir, "data.duckdb")).exists()).toBe(true);
   });
 
@@ -44,7 +46,9 @@ describe("initProject", () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    const raw = await Bun.file(join(tempDir, ".botholomew", "beliefs.md")).text();
+    const raw = await Bun.file(
+      join(tempDir, ".botholomew", "beliefs.md"),
+    ).text();
     const { meta } = parseContextFile(raw);
 
     expect(meta.loading).toBe("always");

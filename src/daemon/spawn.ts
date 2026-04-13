@@ -1,7 +1,7 @@
 import { join } from "path";
-import { getLogPath, getBotholomewDir } from "../constants.ts";
-import { readPidFile, isProcessAlive } from "../utils/pid.ts";
+import { getBotholomewDir, getLogPath } from "../constants.ts";
 import { logger } from "../utils/logger.ts";
+import { isProcessAlive, readPidFile } from "../utils/pid.ts";
 
 export async function spawnDaemon(projectDir: string): Promise<void> {
   // Check if already running
@@ -15,9 +15,7 @@ export async function spawnDaemon(projectDir: string): Promise<void> {
   const dotDir = getBotholomewDir(projectDir);
   const dirExists = await Bun.file(join(dotDir, "config.json")).exists();
   if (!dirExists) {
-    logger.error(
-      "Project not initialized. Run 'botholomew init' first.",
-    );
+    logger.error("Project not initialized. Run 'botholomew init' first.");
     process.exit(1);
   }
 

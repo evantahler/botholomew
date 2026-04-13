@@ -16,9 +16,7 @@ export async function buildSystemPrompt(projectDir: string): Promise<string> {
   parts.push(`Current time: ${new Date().toISOString()}`);
   parts.push(`Project directory: ${projectDir}`);
   parts.push(`OS: ${process.platform} ${process.arch}`);
-  parts.push(
-    `User: ${process.env.USER || process.env.USERNAME || "unknown"}`,
-  );
+  parts.push(`User: ${process.env.USER || process.env.USERNAME || "unknown"}`);
   parts.push("");
 
   // Load all "always" context files
@@ -46,9 +44,7 @@ export async function buildSystemPrompt(projectDir: string): Promise<string> {
   parts.push(
     "You are the Botholomew daemon. You wake up periodically to work through tasks.",
   );
-  parts.push(
-    "When given a task, use the available tools to complete it.",
-  );
+  parts.push("When given a task, use the available tools to complete it.");
   parts.push(
     "Always call complete_task, fail_task, or wait_task when you are done.",
   );
