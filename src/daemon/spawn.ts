@@ -1,4 +1,4 @@
-import { join } from "path";
+import { join } from "node:path";
 import { getBotholomewDir, getLogPath } from "../constants.ts";
 import { logger } from "../utils/logger.ts";
 import { isProcessAlive, readPidFile } from "../utils/pid.ts";

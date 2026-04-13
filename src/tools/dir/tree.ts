@@ -4,27 +4,31 @@ import type { ToolDefinition } from "../tool.ts";
 
 const DEFAULT_MAX_ITEMS = 200;
 
-export const dirTreeTool: ToolDefinition<any, any> = {
+const inputSchema = z.object({
+  path: z
+    .string()
+    .optional()
+    .describe("Root path for the tree (defaults to /)"),
+  max_items: z
+    .number()
+    .optional()
+    .default(DEFAULT_MAX_ITEMS)
+    .describe(
+      `Maximum number of items to include (defaults to ${DEFAULT_MAX_ITEMS})`,
+    ),
+});
+
+const outputSchema = z.object({
+  tree: z.string(),
+});
+
+export const dirTreeTool = {
   name: "dir_tree",
   description:
     "Render a directory as a markdown-style tree in the virtual filesystem.",
   group: "dir",
-  inputSchema: z.object({
-    path: z
-      .string()
-      .optional()
-      .describe("Root path for the tree (defaults to /)"),
-    max_items: z
-      .number()
-      .optional()
-      .default(DEFAULT_MAX_ITEMS)
-      .describe(
-        `Maximum number of items to include (defaults to ${DEFAULT_MAX_ITEMS})`,
-      ),
-  }),
-  outputSchema: z.object({
-    tree: z.string(),
-  }),
+  inputSchema,
+  outputSchema,
   execute: async (input, ctx) => {
     const path = input.path ?? "/";
     const maxItems = input.max_items ?? DEFAULT_MAX_ITEMS;
@@ -65,14 +69,15 @@ export const dirTreeTool: ToolDefinition<any, any> = {
     ].sort((a, b) => a.path.localeCompare(b.path));
 
     for (let i = 0; i < allEntries.length; i++) {
-      const entry = allEntries[i]!;
+      const entry = allEntries[i];
+      if (!entry) continue;
       const depth = entry.path.split("/").length - 1;
       const isLast =
         i === allEntries.length - 1 ||
-        allEntries[i + 1]!.path.split("/").length - 1 <= depth;
+        (allEntries[i + 1]?.path.split("/").length ?? 0) - 1 <= depth;
       const prefix = isLast ? "└── " : "├── ";
       const indent = "│   ".repeat(depth);
-      const name = entry.path.split("/").pop()!;
+      const name = entry.path.split("/").pop() ?? "";
       const suffix = entry.isDir ? "/" : "";
       lines.push(`${indent}${prefix}${name}${suffix}`);
     }
@@ -83,4 +88,4 @@ export const dirTreeTool: ToolDefinition<any, any> = {
 
     return { tree: lines.join("\n") };
   },
-};
+} satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

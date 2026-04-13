@@ -1,7 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type {
   MessageParam,
-  Tool,
   ToolResultBlockParam,
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
@@ -11,7 +10,6 @@ import type { Task } from "../db/tasks.ts";
 import { logInteraction } from "../db/threads.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import { getTool, type ToolContext, toAnthropicTools } from "../tools/tool.ts";
-import { logger } from "../utils/logger.ts";
 
 registerAllTools();
 
@@ -125,8 +123,8 @@ export async function runAgentLoop(input: {
         durationMs: toolDuration,
       });
 
-      if (result.terminal) {
-        return result.agentResult!;
+      if (result.terminal && result.agentResult) {
+        return result.agentResult;
       }
 
       toolResults.push({

@@ -10,21 +10,25 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-export const dirSizeTool: ToolDefinition<any, any> = {
+const inputSchema = z.object({
+  path: z.string().optional().describe("Directory path (defaults to /)"),
+  recursive: z
+    .boolean()
+    .optional()
+    .describe("Include subdirectories (defaults to true)"),
+});
+
+const outputSchema = z.object({
+  bytes: z.number(),
+  formatted: z.string(),
+});
+
+export const dirSizeTool = {
   name: "dir_size",
   description: "Get the total size of files in a directory.",
   group: "dir",
-  inputSchema: z.object({
-    path: z.string().optional().describe("Directory path (defaults to /)"),
-    recursive: z
-      .boolean()
-      .optional()
-      .describe("Include subdirectories (defaults to true)"),
-  }),
-  outputSchema: z.object({
-    bytes: z.number(),
-    formatted: z.string(),
-  }),
+  inputSchema,
+  outputSchema,
   execute: async (input, ctx) => {
     const path = input.path ?? "/";
     const items = await listContextItemsByPrefix(ctx.conn, path, {
@@ -38,4 +42,4 @@ export const dirSizeTool: ToolDefinition<any, any> = {
 
     return { bytes, formatted: formatBytes(bytes) };
   },
-};
+} satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

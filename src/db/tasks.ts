@@ -63,7 +63,9 @@ export async function createTask(
     VALUES ('${escapeSql(params.name)}', '${escapeSql(params.description ?? "")}', '${params.priority ?? "medium"}', ${blockedBy}, ${contextIds})
     RETURNING *
   `);
-  return rowToTask(result.getRows()[0]!);
+  const row = result.getRows()[0];
+  if (!row) throw new Error("INSERT did not return a row");
+  return rowToTask(row);
 }
 
 export async function getTask(
@@ -74,7 +76,7 @@ export async function getTask(
     `SELECT * FROM tasks WHERE id = '${escapeSql(id)}'`,
   );
   const rows = result.getRows();
-  return rows.length > 0 ? rowToTask(rows[0]!) : null;
+  return rows[0] ? rowToTask(rows[0]) : null;
 }
 
 export async function listTasks(
@@ -145,7 +147,9 @@ export async function claimNextTask(
   const rows = result.getRows();
   if (rows.length === 0) return null;
 
-  const task = rowToTask(rows[0]!);
+  const firstRow = rows[0];
+  if (!firstRow) return null;
+  const task = rowToTask(firstRow);
 
   // Claim it atomically
   await conn.run(`

@@ -45,7 +45,7 @@ describe("context CRUD", () => {
 
     const fetched = await getContextItem(conn, item.id);
     expect(fetched).not.toBeNull();
-    expect(fetched!.title).toBe("Test");
+    expect(fetched?.title).toBe("Test");
   });
 
   test("get by path", async () => {
@@ -57,7 +57,7 @@ describe("context CRUD", () => {
 
     const item = await getContextItemByPath(conn, "/notes/meeting.md");
     expect(item).not.toBeNull();
-    expect(item!.title).toBe("Notes");
+    expect(item?.title).toBe("Notes");
 
     const missing = await getContextItemByPath(conn, "/nonexistent");
     expect(missing).toBeNull();
@@ -83,7 +83,7 @@ describe("context CRUD", () => {
       mimeType: "application/json",
     });
     expect(jsonOnly.length).toBe(1);
-    expect(jsonOnly[0]!.title).toBe("B");
+    expect(jsonOnly[0]?.title).toBe("B");
   });
 });
 
@@ -151,8 +151,8 @@ describe("mutations", () => {
       content: "new content",
     });
     expect(updated).not.toBeNull();
-    expect(updated!.title).toBe("New");
-    expect(updated!.content).toBe("new content");
+    expect(updated?.title).toBe("New");
+    expect(updated?.content).toBe("new content");
   });
 
   test("updateContextItemContent", async () => {
@@ -168,7 +168,7 @@ describe("mutations", () => {
       "replaced",
     );
     expect(updated).not.toBeNull();
-    expect(updated!.content).toBe("replaced");
+    expect(updated?.content).toBe("replaced");
   });
 
   test("applyPatches — replace lines", async () => {
@@ -260,7 +260,7 @@ describe("mutations", () => {
     expect(await getContextItemByPath(conn, "/old.md")).toBeNull();
     const moved = await getContextItemByPath(conn, "/new.md");
     expect(moved).not.toBeNull();
-    expect(moved!.content).toBe("content");
+    expect(moved?.content).toBe("content");
   });
 });
 
@@ -327,7 +327,7 @@ describe("search", () => {
 
     const results = await searchContextByKeyword(conn, "revenue");
     expect(results.length).toBe(1);
-    expect(results[0]!.title).toBe("Meeting");
+    expect(results[0]?.title).toBe("Meeting");
   });
 
   test("searchContextByKeyword finds by title", async () => {

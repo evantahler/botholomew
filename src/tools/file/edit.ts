@@ -12,19 +12,23 @@ const PatchSchema = z.object({
     .describe("Replacement text (empty string to delete lines)"),
 });
 
-export const fileEditTool: ToolDefinition<any, any> = {
+const inputSchema = z.object({
+  path: z.string().describe("File path to edit"),
+  patches: z.array(PatchSchema).describe("Patches to apply"),
+});
+
+const outputSchema = z.object({
+  applied: z.number(),
+  content: z.string(),
+});
+
+export const fileEditTool = {
   name: "file_edit",
   description:
     "Apply git-style patches to a file. Each patch specifies a line range to replace.",
   group: "file",
-  inputSchema: z.object({
-    path: z.string().describe("File path to edit"),
-    patches: z.array(PatchSchema).describe("Patches to apply"),
-  }),
-  outputSchema: z.object({
-    applied: z.number(),
-    content: z.string(),
-  }),
+  inputSchema,
+  outputSchema,
   execute: async (input, ctx) => {
     const { item, applied } = await applyPatchesToContextItem(
       ctx.conn,
@@ -33,4 +37,4 @@ export const fileEditTool: ToolDefinition<any, any> = {
     );
     return { applied, content: item.content ?? "" };
   },
-};
+} satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

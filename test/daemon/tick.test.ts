@@ -57,7 +57,7 @@ describe("daemon tick", () => {
 
     // Task should be completed
     const updated = await getTask(conn, task.id);
-    expect(updated!.status).toBe("complete");
+    expect(updated?.status).toBe("complete");
   });
 
   test("creates a thread with interactions", async () => {
@@ -77,14 +77,16 @@ describe("daemon tick", () => {
     // Should have created a thread
     const threads = await listThreads(conn, { type: "daemon_tick" });
     expect(threads).toHaveLength(1);
-    expect(threads[0]!.ended_at).not.toBeNull();
+    expect(threads[0]?.ended_at).not.toBeNull();
 
     // Thread should have interactions
-    const threadData = await getThread(conn, threads[0]!.id);
-    expect(threadData!.interactions.length).toBeGreaterThan(0);
+    const threadId = threads[0]?.id;
+    expect(threadId).toBeDefined();
+    const threadData = await getThread(conn, threadId as string);
+    expect(threadData?.interactions.length).toBeGreaterThan(0);
 
     // Should have: user message, assistant message, tool_use, tool_result, status_change
-    const kinds = threadData!.interactions.map((i) => i.kind);
+    const kinds = threadData?.interactions.map((i) => i.kind);
     expect(kinds).toContain("message");
     expect(kinds).toContain("tool_use");
     expect(kinds).toContain("tool_result");

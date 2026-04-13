@@ -1,4 +1,4 @@
-import { unlink } from "fs/promises";
+import { unlink } from "node:fs/promises";
 import { getPidPath } from "../constants.ts";
 
 export function writePidFile(projectDir: string, pid: number): void {
@@ -10,7 +10,7 @@ export async function readPidFile(projectDir: string): Promise<number | null> {
   if (!(await file.exists())) return null;
   const text = await file.text();
   const pid = parseInt(text.trim(), 10);
-  return isNaN(pid) ? null : pid;
+  return Number.isNaN(pid) ? null : pid;
 }
 
 export async function removePidFile(projectDir: string): Promise<void> {

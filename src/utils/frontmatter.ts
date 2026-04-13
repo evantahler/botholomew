@@ -20,5 +20,5 @@ export function serializeContextFile(
   meta: ContextFileMeta,
   content: string,
 ): string {
-  return matter.stringify("\n" + content + "\n", meta);
+  return matter.stringify(`\n${content}\n`, meta);
 }
