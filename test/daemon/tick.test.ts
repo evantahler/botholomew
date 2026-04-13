@@ -105,4 +105,94 @@ describe("daemon tick", () => {
     const threads = await listThreads(conn);
     expect(threads).toHaveLength(0);
   });
+
+  test("marks task as failed when LLM throws an error", async () => {
+    // Override mock to throw
+    mock.module("@anthropic-ai/sdk", () => ({
+      default: class MockAnthropic {
+        messages = {
+          create: async () => {
+            throw new Error("API rate limit exceeded");
+          },
+        };
+      },
+    }));
+
+    const { tick: tickFresh } = await import("../../src/daemon/tick.ts");
+
+    const task = await createTask(conn, {
+      name: "Will fail",
+      description: "LLM will error",
+    });
+
+    await tickFresh("/tmp/test-project", conn, {
+      anthropic_api_key: "test-key",
+      model: "claude-opus-4-20250514",
+      chunker_model: "claude-haiku-4-20250514",
+      tick_interval_seconds: 300,
+      max_tick_duration_seconds: 120,
+      system_prompt_override: "",
+    });
+
+    const updated = await getTask(conn, task.id);
+    expect(updated?.status).toBe("failed");
+
+    // Thread should still be created and ended
+    const threads = await listThreads(conn, { type: "daemon_tick" });
+    expect(threads.length).toBeGreaterThanOrEqual(1);
+    const thread = threads.find((t) => t.task_id === task.id);
+    expect(thread?.ended_at).not.toBeNull();
+
+    // Restore original mock
+    mock.module("@anthropic-ai/sdk", () => ({
+      default: class MockAnthropic {
+        messages = {
+          create: async () => ({
+            content: [
+              { type: "text", text: "I'll complete this task." },
+              {
+                type: "tool_use",
+                id: "tool_1",
+                name: "complete_task",
+                input: { summary: "Task done successfully" },
+              },
+            ],
+            stop_reason: "tool_use",
+            usage: { input_tokens: 100, output_tokens: 50 },
+          }),
+        };
+      },
+    }));
+  });
+
+  test("processes highest priority task first", async () => {
+    // Create low priority first, then high priority
+    const lowTask = await createTask(conn, {
+      name: "Low priority task",
+      description: "Not urgent",
+      priority: "low",
+    });
+    const highTask = await createTask(conn, {
+      name: "High priority task",
+      description: "Very urgent",
+      priority: "high",
+    });
+
+    await tick("/tmp/test-project", conn, {
+      anthropic_api_key: "test-key",
+      model: "claude-opus-4-20250514",
+      chunker_model: "claude-haiku-4-20250514",
+      tick_interval_seconds: 300,
+      max_tick_duration_seconds: 120,
+      system_prompt_override: "",
+    });
+
+    // High priority task should be completed
+    const updatedHigh = await getTask(conn, highTask.id);
+    expect(updatedHigh?.status).toBe("complete");
+
+    // Low priority task should still be pending
+    const updatedLow = await getTask(conn, lowTask.id);
+    expect(updatedLow?.status).toBe("pending");
+  });
 });
