@@ -8,6 +8,7 @@ import { registerContextCommand } from "./commands/context.ts";
 import { registerDaemonCommand } from "./commands/daemon.ts";
 import { registerInitCommand } from "./commands/init.ts";
 import { registerMcpxCommand } from "./commands/mcpx.ts";
+import { registerPrepareCommand } from "./commands/prepare.ts";
 import { registerTaskCommand } from "./commands/task.ts";
 import { registerToolCommands } from "./commands/tools.ts";
 import { registerUpgradeCommand } from "./commands/upgrade.ts";
@@ -35,6 +36,7 @@ registerChatCommand(program);
 registerContextCommand(program);
 registerMcpxCommand(program);
 registerToolCommands(program);
+registerPrepareCommand(program);
 registerCheckUpdateCommand(program);
 registerUpgradeCommand(program);
 

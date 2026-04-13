@@ -1,5 +1,6 @@
 import { loadConfig } from "../config/loader.ts";
 import { getDbPath } from "../constants.ts";
+import { warmupEmbedder } from "../context/embedder.ts";
 import { getConnection } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
 import { logger } from "../utils/logger.ts";
@@ -11,6 +12,9 @@ export async function startDaemon(projectDir: string): Promise<void> {
   const dbPath = getDbPath(projectDir);
   const conn = getConnection(dbPath);
   migrate(conn);
+
+  // Ensure embedding model is downloaded and loaded before accepting work
+  await warmupEmbedder();
 
   writePidFile(projectDir, process.pid);
 

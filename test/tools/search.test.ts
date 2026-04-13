@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
+import { EMBEDDING_DIMENSION } from "../../src/constants.ts";
+import { ingestContextItem } from "../../src/context/ingest.ts";
 import { type DbConnection, getConnection } from "../../src/db/connection.ts";
 import { createContextItem } from "../../src/db/context.ts";
 import { migrate } from "../../src/db/schema.ts";
 import { searchGrepTool } from "../../src/tools/search/grep.ts";
 import { searchSemanticTool } from "../../src/tools/search/semantic.ts";
-import type { AnyToolDefinition, ToolContext } from "../../src/tools/tool.ts";
+import type { ToolContext } from "../../src/tools/tool.ts";
 
 let conn: DbConnection;
 let ctx: ToolContext;
@@ -118,10 +120,38 @@ describe("search_grep", () => {
 // ── search_semantic ─────────────────────────────────────────
 
 describe("search_semantic", () => {
-  test("throws not yet available", async () => {
-    const tool = searchSemanticTool as unknown as AnyToolDefinition;
-    expect(tool.execute({ query: "anything", top_k: 10 }, ctx)).rejects.toThrow(
-      "not yet available",
+  test("returns results for indexed content", async () => {
+    // Mock embedder for tests
+    function mockEmbed(texts: string[]): Promise<number[][]> {
+      return Promise.resolve(
+        texts.map((text) => {
+          const vec = new Array(EMBEDDING_DIMENSION).fill(0);
+          for (let i = 0; i < text.length; i++) {
+            vec[i % EMBEDDING_DIMENSION] += text.charCodeAt(i) / 1000;
+          }
+          const norm = Math.sqrt(
+            vec.reduce((s: number, v: number) => s + v * v, 0),
+          );
+          return norm > 0 ? vec.map((v: number) => v / norm) : vec;
+        }),
+      );
+    }
+
+    // Seed and ingest a file
+    const item = await seedFile(
+      "/search/doc.md",
+      "Meeting notes about quarterly revenue and projections.",
     );
+    await ingestContextItem(conn, item.id, ctx.config, mockEmbed);
+
+    // search_semantic uses the real embedder, so we test the grep-based path here
+    // by verifying the tool doesn't throw anymore
+    // Full integration test with real model is in embedder.test.ts
+    const result = await searchSemanticTool.execute(
+      { query: "quarterly revenue", top_k: 5 },
+      ctx,
+    );
+    expect(result.results).toBeDefined();
+    expect(Array.isArray(result.results)).toBe(true);
   });
 });

@@ -46,7 +46,8 @@ describe("daemon tick", () => {
 
     await tick("/tmp/test-project", conn, {
       anthropic_api_key: "test-key",
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-20250514",
+      chunker_model: "claude-haiku-4-20250514",
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
       system_prompt_override: "",
@@ -65,7 +66,8 @@ describe("daemon tick", () => {
 
     await tick("/tmp/test-project", conn, {
       anthropic_api_key: "test-key",
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-20250514",
+      chunker_model: "claude-haiku-4-20250514",
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
       system_prompt_override: "",
@@ -93,7 +95,8 @@ describe("daemon tick", () => {
   test("does nothing when no tasks available", async () => {
     await tick("/tmp/test-project", conn, {
       anthropic_api_key: "test-key",
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-20250514",
+      chunker_model: "claude-haiku-4-20250514",
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
       system_prompt_override: "",

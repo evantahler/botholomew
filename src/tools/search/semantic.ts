@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { embedSingle } from "../../context/embedder.ts";
+import { hybridSearch, initVectorSearch } from "../../db/embeddings.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
@@ -32,9 +34,27 @@ export const searchSemanticTool = {
   group: "search",
   inputSchema,
   outputSchema,
-  execute: async () => {
-    throw new Error(
-      "Semantic search is not yet available — requires the embeddings pipeline (M2)",
-    );
+  execute: async (input, ctx) => {
+    initVectorSearch(ctx.conn);
+
+    const queryVec = await embedSingle(input.query);
+    const results = hybridSearch(ctx.conn, input.query, queryVec, input.top_k);
+
+    const threshold = input.threshold;
+    const filtered =
+      threshold !== undefined
+        ? results.filter((r) => r.score >= threshold)
+        : results;
+
+    return {
+      results: filtered
+        .map((r) => ({
+          path: r.source_path || r.context_item_id,
+          title: r.title,
+          score: Math.round(r.score * 1000) / 1000,
+          snippet: (r.chunk_content || "").slice(0, 300),
+        }))
+        .sort((a, b) => b.score - a.score),
+    };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;
