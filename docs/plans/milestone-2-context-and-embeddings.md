@@ -4,7 +4,7 @@
 
 Build the knowledge management foundation — the ability to ingest, chunk, embed, and search content. This is Botholomew's core differentiator: a local hybrid search system that makes the agent's context rich and relevant.
 
-The agent interacts with context items through a **virtual filesystem abstraction** — `dir`, `file`, and `search` tools that map to the `context_items` and `embeddings` tables in DuckDB. The `context_path` column acts as the file path; `content` is the file body.
+The agent interacts with context items through a **virtual filesystem abstraction** — `dir`, `file`, and `search` tools that map to the `context_items` and `embeddings` tables in SQLite. The `context_path` column acts as the file path; `content` is the file body.
 
 ## What Gets Unblocked
 
@@ -30,7 +30,7 @@ Every tool (task, dir, file, search) is an instance of a shared `Tool` base clas
 - **Name** and **description** — used for both LLM tool definitions and CLI help text
 - **Zod input schema** — per-field descriptions; validates args, generates JSON Schema for Anthropic API, generates Commander options
 - **Zod output schema** — strongly typed, guaranteed response format
-- **`execute()` method** — the actual implementation (DuckDB-backed)
+- **`execute()` method** — the actual implementation (SQLite-backed)
 
 The same Tool definition serves two consumers with thin adapters:
 1. **Daemon agent** — Zod input → Anthropic `Tool` JSON Schema; `execute()` called from `executeToolCall()`
@@ -77,7 +77,7 @@ Each file exports a single Tool instance and self-registers on import. One tool 
 
 - `Tool<TInput, TOutput>` abstract class with `name`, `description`, `group`, `inputSchema`, `outputSchema`, `execute()`
 - `toAnthropicTool()` method — converts Zod input schema to Anthropic API JSON Schema via `zod-to-json-schema`
-- `ToolContext` interface — `{ conn: DuckDBConnection, projectDir: string, config: Required<BotholomewConfig> }`
+- `ToolContext` interface — `{ conn: DbConnection, projectDir: string, config: Required<BotholomewConfig> }`
 - Global registry: `registerTool()`, `getTool()`, `getAllTools()`, `getToolsByGroup()`
 - Adapter: `toAnthropicTools()` — returns full `Tool[]` array for the Anthropic API
 - Adapter: `registerToolsAsCLI(program)` — auto-generates Commander subcommands from the registry
@@ -152,8 +152,8 @@ Replace the stub with full implementation:
 
 | Tool | Input | Output | DB operation |
 |------|-------|--------|-------------|
-| `search_find` | `{ pattern, path?, max_results? }` | `{ matches: string[] }` | `context_path` glob match via DuckDB `glob()` |
-| `search_grep` | `{ pattern, path?, glob?, ignore_case?, context?, max_results? }` | `{ matches: {path, line, content, context_lines}[] }` | `regexp_matches()` on `content` |
+| `search_find` | `{ pattern, path?, max_results? }` | `{ matches: string[] }` | `context_path` glob match via SQLite `GLOB` |
+| `search_grep` | `{ pattern, path?, glob?, ignore_case?, context?, max_results? }` | `{ matches: {path, line, content, context_lines}[] }` | `LIKE` / application-level regex on `content` |
 | `search_semantic` | `{ query, top_k?, threshold? }` | `{ results: {path, title, score, snippet}[] }` | `embed([query])` → `hybridSearch()` |
 
 ### 7. Embedding Pipeline (`src/context/`)
@@ -183,16 +183,12 @@ Replace the stub with full implementation:
 
 - `createEmbedding(conn, { contextItemId, chunkIndex, chunkContent, title, description, sourcePath, embedding })` — insert
 - `deleteEmbeddingsForItem(conn, contextItemId)` — remove all chunks for a context item
-- `searchEmbeddings(conn, queryEmbedding, limit?)` — vector similarity search via DuckDB VSS
+- `searchEmbeddings(conn, queryEmbedding, limit?)` — vector similarity search (brute-force cosine in SQL)
 - `hybridSearch(conn, query, queryEmbedding, limit?)` — combine keyword search on chunk_content/title with vector similarity, merge and re-rank results
 
-### 9. VSS Extension Management
+### 9. Vector Search
 
-In `src/db/schema.ts`, improve `installVss()`:
-- Try to install/load the vss extension
-- If available, create the HNSW index
-- Track in `daemon_state` whether VSS is available
-- `searchEmbeddings` falls back to brute-force cosine similarity in SQL if VSS unavailable
+SQLite does not have a native vector search extension. Embedding search uses brute-force cosine similarity computed in application code (or via a SQL expression over JSON-encoded float arrays). For the scale of a single-user knowledge base, this is sufficient.
 
 ### 10. Embeddings Cascade on Mutations
 

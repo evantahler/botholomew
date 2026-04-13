@@ -9,15 +9,15 @@ import { tick } from "./tick.ts";
 export async function startDaemon(projectDir: string): Promise<void> {
   const config = await loadConfig(projectDir);
   const dbPath = getDbPath(projectDir);
-  const conn = await getConnection(dbPath);
-  await migrate(conn);
+  const conn = getConnection(dbPath);
+  migrate(conn);
 
   writePidFile(projectDir, process.pid);
 
   const shutdown = async () => {
     logger.info("Daemon shutting down...");
     await removePidFile(projectDir);
-    conn.closeSync();
+    conn.close();
     process.exit(0);
   };
 

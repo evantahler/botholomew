@@ -1,4 +1,5 @@
-import type { DuckDBConnection } from "./connection.ts";
+import type { DbConnection } from "./connection.ts";
+import { uuidv7 } from "./uuid.ts";
 
 export interface ContextItem {
   id: string;
@@ -20,31 +21,41 @@ export interface Patch {
   content: string;
 }
 
-function rowToContextItem(row: unknown[]): ContextItem {
-  return {
-    id: String(row[0]),
-    title: String(row[1]),
-    description: String(row[2]),
-    content: row[3] != null ? String(row[3]) : null,
-    // skip content_blob (row[4])
-    mime_type: String(row[5]),
-    is_textual: Boolean(row[6]),
-    source_path: row[7] != null ? String(row[7]) : null,
-    context_path: String(row[8]),
-    indexed_at: row[9] != null ? new Date(String(row[9])) : null,
-    created_at: new Date(String(row[10])),
-    updated_at: new Date(String(row[11])),
-  };
+interface ContextItemRow {
+  id: string;
+  title: string;
+  description: string;
+  content: string | null;
+  content_blob: unknown;
+  mime_type: string;
+  is_textual: number;
+  source_path: string | null;
+  context_path: string;
+  indexed_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-function escapeSql(str: string): string {
-  return str.replace(/'/g, "''");
+function rowToContextItem(row: ContextItemRow): ContextItem {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    content: row.content,
+    mime_type: row.mime_type,
+    is_textual: row.is_textual === 1,
+    source_path: row.source_path,
+    context_path: row.context_path,
+    indexed_at: row.indexed_at ? new Date(row.indexed_at) : null,
+    created_at: new Date(row.created_at),
+    updated_at: new Date(row.updated_at),
+  };
 }
 
 // --- Basic CRUD ---
 
 export async function createContextItem(
-  conn: DuckDBConnection,
+  db: DbConnection,
   params: {
     title: string;
     content?: string;
@@ -55,48 +66,49 @@ export async function createContextItem(
     isTextual?: boolean;
   },
 ): Promise<ContextItem> {
-  const result = await conn.runAndReadAll(`
-    INSERT INTO context_items (title, description, content, mime_type, is_textual, source_path, context_path)
-    VALUES (
-      '${escapeSql(params.title)}',
-      '${escapeSql(params.description ?? "")}',
-      ${params.content != null ? `'${escapeSql(params.content)}'` : "NULL"},
-      '${escapeSql(params.mimeType ?? "text/plain")}',
-      ${params.isTextual !== false},
-      ${params.sourcePath != null ? `'${escapeSql(params.sourcePath)}'` : "NULL"},
-      '${escapeSql(params.contextPath)}'
+  const id = uuidv7();
+  const row = db
+    .query(
+      `INSERT INTO context_items (id, title, description, content, mime_type, is_textual, source_path, context_path)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+     RETURNING *`,
     )
-    RETURNING *
-  `);
-  const row = result.getRows()[0];
+    .get(
+      id,
+      params.title,
+      params.description ?? "",
+      params.content ?? null,
+      params.mimeType ?? "text/plain",
+      params.isTextual !== false ? 1 : 0,
+      params.sourcePath ?? null,
+      params.contextPath,
+    ) as ContextItemRow | null;
   if (!row) throw new Error("INSERT did not return a row");
   return rowToContextItem(row);
 }
 
 export async function getContextItem(
-  conn: DuckDBConnection,
+  db: DbConnection,
   id: string,
 ): Promise<ContextItem | null> {
-  const result = await conn.runAndReadAll(
-    `SELECT * FROM context_items WHERE id = '${escapeSql(id)}'`,
-  );
-  const rows = result.getRows();
-  return rows[0] ? rowToContextItem(rows[0]) : null;
+  const row = db
+    .query("SELECT * FROM context_items WHERE id = ?1")
+    .get(id) as ContextItemRow | null;
+  return row ? rowToContextItem(row) : null;
 }
 
 export async function getContextItemByPath(
-  conn: DuckDBConnection,
+  db: DbConnection,
   contextPath: string,
 ): Promise<ContextItem | null> {
-  const result = await conn.runAndReadAll(
-    `SELECT * FROM context_items WHERE context_path = '${escapeSql(contextPath)}'`,
-  );
-  const rows = result.getRows();
-  return rows[0] ? rowToContextItem(rows[0]) : null;
+  const row = db
+    .query("SELECT * FROM context_items WHERE context_path = ?1")
+    .get(contextPath) as ContextItemRow | null;
+  return row ? rowToContextItem(row) : null;
 }
 
 export async function listContextItems(
-  conn: DuckDBConnection,
+  db: DbConnection,
   filters?: {
     contextPath?: string;
     mimeType?: string;
@@ -104,58 +116,79 @@ export async function listContextItems(
   },
 ): Promise<ContextItem[]> {
   const conditions: string[] = [];
-  if (filters?.contextPath)
-    conditions.push(`context_path = '${escapeSql(filters.contextPath)}'`);
-  if (filters?.mimeType)
-    conditions.push(`mime_type = '${escapeSql(filters.mimeType)}'`);
+  const params: (string | null)[] = [];
+
+  if (filters?.contextPath) {
+    params.push(filters.contextPath);
+    conditions.push(`context_path = ?${params.length}`);
+  }
+  if (filters?.mimeType) {
+    params.push(filters.mimeType);
+    conditions.push(`mime_type = ?${params.length}`);
+  }
 
   const where =
     conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
 
-  const result = await conn.runAndReadAll(
-    `SELECT * FROM context_items ${where} ORDER BY context_path ASC ${limit}`,
-  );
-  return result.getRows().map(rowToContextItem);
+  const rows = db
+    .query(
+      `SELECT * FROM context_items ${where} ORDER BY context_path ASC ${limit}`,
+    )
+    .all(...params) as ContextItemRow[];
+  return rows.map(rowToContextItem);
 }
 
 export async function listContextItemsByPrefix(
-  conn: DuckDBConnection,
+  db: DbConnection,
   prefix: string,
   opts?: { recursive?: boolean; limit?: number },
 ): Promise<ContextItem[]> {
   const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
 
-  let where: string;
-  if (opts?.recursive) {
-    // All items under this prefix at any depth
-    where = `WHERE context_path LIKE '${escapeSql(normalizedPrefix)}%'`;
-  } else {
-    // Only immediate children: match prefix but no further slashes
-    where = `WHERE context_path LIKE '${escapeSql(normalizedPrefix)}%'
-      AND context_path NOT LIKE '${escapeSql(normalizedPrefix)}%/%'`;
-  }
-
   const limit = opts?.limit ? `LIMIT ${opts.limit}` : "";
 
-  const result = await conn.runAndReadAll(
-    `SELECT * FROM context_items ${where} ORDER BY context_path ASC ${limit}`,
-  );
-  return result.getRows().map(rowToContextItem);
+  let rows: ContextItemRow[];
+  if (opts?.recursive) {
+    rows = db
+      .query(
+        `SELECT * FROM context_items
+       WHERE context_path LIKE ?1
+       ORDER BY context_path ASC ${limit}`,
+      )
+      .all(`${normalizedPrefix}%`) as ContextItemRow[];
+  } else {
+    // Only immediate children: match prefix but no further slashes
+    rows = db
+      .query(
+        `SELECT * FROM context_items
+       WHERE context_path LIKE ?1
+         AND context_path NOT LIKE ?2
+       ORDER BY context_path ASC ${limit}`,
+      )
+      .all(
+        `${normalizedPrefix}%`,
+        `${normalizedPrefix}%/%`,
+      ) as ContextItemRow[];
+  }
+
+  return rows.map(rowToContextItem);
 }
 
 export async function contextPathExists(
-  conn: DuckDBConnection,
+  db: DbConnection,
   contextPath: string,
 ): Promise<boolean> {
-  const result = await conn.runAndReadAll(
-    `SELECT 1 FROM context_items WHERE context_path = '${escapeSql(contextPath)}' LIMIT 1`,
-  );
-  return result.getRows().length > 0;
+  const row = db
+    .query(
+      "SELECT 1 AS found FROM context_items WHERE context_path = ?1 LIMIT 1",
+    )
+    .get(contextPath);
+  return row != null;
 }
 
 export async function getDistinctDirectories(
-  conn: DuckDBConnection,
+  db: DbConnection,
   prefix?: string,
 ): Promise<string[]> {
   const normalizedPrefix = prefix
@@ -164,80 +197,87 @@ export async function getDistinctDirectories(
       : `${prefix}/`
     : "/";
 
-  // Extract the directory portion after the prefix, taking only the first path segment
-  const where = prefix
-    ? `WHERE context_path LIKE '${escapeSql(normalizedPrefix)}%/%'`
-    : `WHERE context_path LIKE '%/%'`;
+  // Extract the first path segment after the prefix
+  const rows = db
+    .query(
+      `SELECT DISTINCT
+        ?1 || CASE
+          WHEN instr(substr(context_path, length(?1) + 1), '/') > 0
+          THEN substr(substr(context_path, length(?1) + 1), 1, instr(substr(context_path, length(?1) + 1), '/') - 1)
+          ELSE substr(context_path, length(?1) + 1)
+        END AS dir
+      FROM context_items
+      WHERE context_path LIKE ?2
+      ORDER BY dir ASC`,
+    )
+    .all(normalizedPrefix, `${normalizedPrefix}%/%`) as { dir: string }[];
 
-  const result = await conn.runAndReadAll(`
-    SELECT DISTINCT
-      '${escapeSql(normalizedPrefix)}' || split_part(
-        substr(context_path, length('${escapeSql(normalizedPrefix)}') + 1),
-        '/',
-        1
-      ) AS dir
-    FROM context_items
-    ${where}
-    ORDER BY dir ASC
-  `);
-
-  return result.getRows().map((row) => String(row[0]));
+  return rows.map((row) => row.dir);
 }
 
 // --- Mutations ---
 
 export async function updateContextItem(
-  conn: DuckDBConnection,
+  db: DbConnection,
   id: string,
   updates: Partial<
     Pick<ContextItem, "title" | "description" | "content" | "mime_type">
   >,
 ): Promise<ContextItem | null> {
-  const setClauses: string[] = ["updated_at = current_timestamp"];
-  if (updates.title !== undefined)
-    setClauses.push(`title = '${escapeSql(updates.title)}'`);
-  if (updates.description !== undefined)
-    setClauses.push(`description = '${escapeSql(updates.description)}'`);
-  if (updates.content !== undefined)
-    setClauses.push(
-      updates.content === null
-        ? "content = NULL"
-        : `content = '${escapeSql(updates.content)}'`,
-    );
-  if (updates.mime_type !== undefined)
-    setClauses.push(`mime_type = '${escapeSql(updates.mime_type)}'`);
+  const setClauses: string[] = ["updated_at = datetime('now')"];
+  const params: (string | null)[] = [];
 
-  const result = await conn.runAndReadAll(`
-    UPDATE context_items
-    SET ${setClauses.join(", ")}
-    WHERE id = '${escapeSql(id)}'
-    RETURNING *
-  `);
-  const rows = result.getRows();
-  return rows[0] ? rowToContextItem(rows[0]) : null;
+  if (updates.title !== undefined) {
+    params.push(updates.title);
+    setClauses.push(`title = ?${params.length}`);
+  }
+  if (updates.description !== undefined) {
+    params.push(updates.description);
+    setClauses.push(`description = ?${params.length}`);
+  }
+  if (updates.content !== undefined) {
+    params.push(updates.content);
+    setClauses.push(`content = ?${params.length}`);
+  }
+  if (updates.mime_type !== undefined) {
+    params.push(updates.mime_type);
+    setClauses.push(`mime_type = ?${params.length}`);
+  }
+
+  params.push(id);
+  const row = db
+    .query(
+      `UPDATE context_items
+     SET ${setClauses.join(", ")}
+     WHERE id = ?${params.length}
+     RETURNING *`,
+    )
+    .get(...params) as ContextItemRow | null;
+  return row ? rowToContextItem(row) : null;
 }
 
 export async function updateContextItemContent(
-  conn: DuckDBConnection,
+  db: DbConnection,
   contextPath: string,
   content: string,
 ): Promise<ContextItem | null> {
-  const result = await conn.runAndReadAll(`
-    UPDATE context_items
-    SET content = '${escapeSql(content)}', updated_at = current_timestamp
-    WHERE context_path = '${escapeSql(contextPath)}'
-    RETURNING *
-  `);
-  const rows = result.getRows();
-  return rows[0] ? rowToContextItem(rows[0]) : null;
+  const row = db
+    .query(
+      `UPDATE context_items
+     SET content = ?1, updated_at = datetime('now')
+     WHERE context_path = ?2
+     RETURNING *`,
+    )
+    .get(content, contextPath) as ContextItemRow | null;
+  return row ? rowToContextItem(row) : null;
 }
 
 export async function applyPatchesToContextItem(
-  conn: DuckDBConnection,
+  db: DbConnection,
   contextPath: string,
   patches: Patch[],
 ): Promise<{ item: ContextItem; applied: number }> {
-  const item = await getContextItemByPath(conn, contextPath);
+  const item = await getContextItemByPath(db, contextPath);
   if (!item) throw new Error(`Not found: ${contextPath}`);
   if (item.content == null) throw new Error(`No text content: ${contextPath}`);
 
@@ -260,20 +300,20 @@ export async function applyPatchesToContextItem(
   }
 
   const newContent = lines.join("\n");
-  const updated = await updateContextItemContent(conn, contextPath, newContent);
+  const updated = await updateContextItemContent(db, contextPath, newContent);
   if (!updated) throw new Error(`Failed to update: ${contextPath}`);
   return { item: updated, applied: patches.length };
 }
 
 export async function copyContextItem(
-  conn: DuckDBConnection,
+  db: DbConnection,
   srcPath: string,
   dstPath: string,
 ): Promise<ContextItem> {
-  const src = await getContextItemByPath(conn, srcPath);
+  const src = await getContextItemByPath(db, srcPath);
   if (!src) throw new Error(`Not found: ${srcPath}`);
 
-  return createContextItem(conn, {
+  return createContextItem(db, {
     title: src.title,
     description: src.description,
     content: src.content ?? undefined,
@@ -285,17 +325,19 @@ export async function copyContextItem(
 }
 
 export async function moveContextItem(
-  conn: DuckDBConnection,
+  db: DbConnection,
   oldPath: string,
   newPath: string,
 ): Promise<void> {
-  const result = await conn.runAndReadAll(`
-    UPDATE context_items
-    SET context_path = '${escapeSql(newPath)}', updated_at = current_timestamp
-    WHERE context_path = '${escapeSql(oldPath)}'
-    RETURNING id
-  `);
-  if (result.getRows().length === 0) {
+  const row = db
+    .query(
+      `UPDATE context_items
+     SET context_path = ?1, updated_at = datetime('now')
+     WHERE context_path = ?2
+     RETURNING id`,
+    )
+    .get(newPath, oldPath);
+  if (!row) {
     throw new Error(`Not found: ${oldPath}`);
   }
 }
@@ -303,69 +345,71 @@ export async function moveContextItem(
 // --- Deletion ---
 
 export async function deleteContextItem(
-  conn: DuckDBConnection,
+  db: DbConnection,
   id: string,
 ): Promise<boolean> {
   // Delete embeddings first (foreign key)
-  await conn.run(
-    `DELETE FROM embeddings WHERE context_item_id = '${escapeSql(id)}'`,
-  );
-  const result = await conn.runAndReadAll(
-    `DELETE FROM context_items WHERE id = '${escapeSql(id)}' RETURNING id`,
-  );
-  return result.getRows().length > 0;
+  db.query("DELETE FROM embeddings WHERE context_item_id = ?1").run(id);
+  const row = db
+    .query("DELETE FROM context_items WHERE id = ?1 RETURNING id")
+    .get(id);
+  return row != null;
 }
 
 export async function deleteContextItemByPath(
-  conn: DuckDBConnection,
+  db: DbConnection,
   contextPath: string,
 ): Promise<boolean> {
   // Get ID first so we can cascade embeddings
-  const item = await getContextItemByPath(conn, contextPath);
+  const item = await getContextItemByPath(db, contextPath);
   if (!item) return false;
-  return deleteContextItem(conn, item.id);
+  return deleteContextItem(db, item.id);
 }
 
 export async function deleteContextItemsByPrefix(
-  conn: DuckDBConnection,
+  db: DbConnection,
   prefix: string,
 ): Promise<number> {
   const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
 
   // Delete embeddings for all matching items
-  await conn.run(`
-    DELETE FROM embeddings
-    WHERE context_item_id IN (
-      SELECT id FROM context_items
-      WHERE context_path LIKE '${escapeSql(normalizedPrefix)}%'
-    )
-  `);
+  db.query(
+    `DELETE FROM embeddings
+     WHERE context_item_id IN (
+       SELECT id FROM context_items
+       WHERE context_path LIKE ?1
+     )`,
+  ).run(`${normalizedPrefix}%`);
 
-  const result = await conn.runAndReadAll(`
-    DELETE FROM context_items
-    WHERE context_path LIKE '${escapeSql(normalizedPrefix)}%'
-    RETURNING id
-  `);
-  return result.getRows().length;
+  const rows = db
+    .query(
+      `DELETE FROM context_items
+     WHERE context_path LIKE ?1
+     RETURNING id`,
+    )
+    .all(`${normalizedPrefix}%`);
+  return rows.length;
 }
 
 // --- Search ---
 
 export async function searchContextByKeyword(
-  conn: DuckDBConnection,
+  db: DbConnection,
   query: string,
   limit = 20,
 ): Promise<ContextItem[]> {
-  const escaped = escapeSql(query);
-  const result = await conn.runAndReadAll(`
-    SELECT * FROM context_items
-    WHERE content IS NOT NULL
-      AND (
-        lower(content) LIKE lower('%${escaped}%')
-        OR lower(title) LIKE lower('%${escaped}%')
-      )
-    ORDER BY updated_at DESC
-    LIMIT ${limit}
-  `);
-  return result.getRows().map(rowToContextItem);
+  const pattern = `%${query}%`;
+  const rows = db
+    .query(
+      `SELECT * FROM context_items
+     WHERE content IS NOT NULL
+       AND (
+         content LIKE ?1 COLLATE NOCASE
+         OR title LIKE ?1 COLLATE NOCASE
+       )
+     ORDER BY updated_at DESC
+     LIMIT ?2`,
+    )
+    .all(pattern, limit) as ContextItemRow[];
+  return rows.map(rowToContextItem);
 }

@@ -9,7 +9,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `commands/` — CLI subcommand handlers
   - `config/` — Configuration loading/schemas
   - `daemon/` — Daemon tick loop, LLM integration, prompt building
-  - `db/` — DuckDB connection, schema migrations, CRUD modules
+  - `db/` — SQLite connection (bun:sqlite), schema migrations, CRUD modules
   - `init/` — Project initialization
   - `tui/` — Ink (React) TUI components
   - `utils/` — Logger, frontmatter, PID management
@@ -25,7 +25,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 ## Tech Stack
 
 - **Runtime**: Bun + TypeScript
-- **Database**: DuckDB (`@duckdb/node-api`)
+- **Database**: SQLite (`bun:sqlite`)
 - **LLM**: Anthropic SDK (`@anthropic-ai/sdk`)
 - **CLI**: Commander.js
 - **TUI**: Ink 6 + React 19
@@ -33,7 +33,24 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 
 ## Conventions
 
-- Use `bun test` before committing
+- Run `bun run lint` and `bun test` before committing
+- `bun run lint` runs both `tsc --noEmit` and `biome check`
 - All database access goes through `src/db/` modules
 - All agent interactions are logged to the threads/interactions tables
 - No filesystem tools for the agent — FS access is abstracted through CRUD modules scoped to `.botholomew/`
+
+## Database Patterns
+
+- **Connection**: use `DbConnection` type from `src/db/connection.ts` (re-export of `bun:sqlite` `Database`)
+- **Migrations**: always call `migrate(db)` after opening a connection — it's idempotent
+- **IDs**: UUIDv7 generated in application code via `uuidv7()` from `src/db/uuid.ts` (re-exports `uuid` package)
+- **Queries**: use parameterized queries (`?1, ?2, ...`) — never string interpolation
+- **Timestamps**: stored as ISO 8601 TEXT in SQLite (`datetime('now')`), converted to `Date` objects in TypeScript interfaces
+- **Booleans**: stored as INTEGER (0/1) in SQLite, converted to `boolean` in TypeScript
+- **Arrays**: `blocked_by`/`context_ids` are JSON TEXT columns — `JSON.stringify()` on write, `JSON.parse()` on read, `json_each()` for in-SQL filtering
+- **Row mapping**: each module has a `RowType` interface (raw SQLite strings/numbers) and a `rowToX()` function that converts to the public TypeScript interface with proper types
+
+## Testing
+
+- Use `getConnection(":memory:")` for in-memory test databases
+- Call `migrate(conn)` in `beforeEach` to get a fresh schema each test

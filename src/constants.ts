@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 export const BOTHOLOMEW_DIR = ".botholomew";
-export const DB_FILENAME = "data.duckdb";
+export const DB_FILENAME = "data.sqlite";
 export const PID_FILENAME = "daemon.pid";
 export const LOG_FILENAME = "daemon.log";
 export const CONFIG_FILENAME = "config.json";

@@ -1,18 +1,12 @@
-import type { DuckDBConnection } from "@duckdb/node-api";
-import { DuckDBInstance } from "@duckdb/node-api";
+import { Database } from "bun:sqlite";
 
-export type { DuckDBConnection } from "@duckdb/node-api";
+export type DbConnection = Database;
 
-export async function getConnection(dbPath: string): Promise<DuckDBConnection> {
-  return withRetry(async () => {
-    const instance = await DuckDBInstance.create(dbPath);
-    return instance.connect();
-  });
-}
-
-export async function getMemoryConnection(): Promise<DuckDBConnection> {
-  const instance = await DuckDBInstance.create(":memory:");
-  return instance.connect();
+export function getConnection(dbPath: string): Database {
+  const db = new Database(dbPath, { create: true });
+  db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA foreign_keys = ON");
+  return db;
 }
 
 export async function withRetry<T>(
@@ -27,7 +21,8 @@ export async function withRetry<T>(
       lastError = err;
       const isBusy =
         err instanceof Error &&
-        (err.message.includes("BUSY") || err.message.includes("lock"));
+        (err.message.includes("SQLITE_BUSY") ||
+          err.message.includes("database is locked"));
       if (!isBusy || attempt === maxRetries - 1) throw err;
       // exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
       await Bun.sleep(100 * 2 ** attempt);

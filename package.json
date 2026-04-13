@@ -9,24 +9,25 @@
   "scripts": {
     "dev": "bun run src/cli.ts",
     "test": "bun test",
-    "build": "bun build --minify --sourcemap ./src/cli.ts --outdir dist --external @duckdb/node-bindings",
+    "build": "bun build --compile --minify --sourcemap ./src/cli.ts --outfile dist/botholomew",
     "lint": "tsc --noEmit && biome check ."
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
-    "@duckdb/node-api": "1.5.1-r.2",
     "ansis": "^4.2.0",
     "commander": "^14.0.0",
     "gray-matter": "^4.0.3",
     "ink": "^6.0.0",
     "istextorbinary": "^9.5.0",
     "react": "^19.1.0",
+    "uuid": "^13.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.11",
     "@types/bun": "latest",
     "@types/react": "^19.1.0",
+    "@types/uuid": "^11.0.0",
     "typescript": "^6.0.2"
   }
 }

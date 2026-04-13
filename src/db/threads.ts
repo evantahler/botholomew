@@ -1,4 +1,5 @@
-import type { DuckDBConnection } from "./connection.ts";
+import type { DbConnection } from "./connection.ts";
+import { uuidv7 } from "./uuid.ts";
 
 export interface Thread {
   id: string;
@@ -30,53 +31,74 @@ export interface Interaction {
   created_at: Date;
 }
 
-function rowToThread(row: unknown[]): Thread {
+interface ThreadRow {
+  id: string;
+  type: string;
+  task_id: string | null;
+  title: string;
+  started_at: string;
+  ended_at: string | null;
+  metadata: string | null;
+}
+
+interface InteractionRow {
+  id: string;
+  thread_id: string;
+  sequence: number;
+  role: string;
+  kind: string;
+  content: string;
+  tool_name: string | null;
+  tool_input: string | null;
+  duration_ms: number | null;
+  token_count: number | null;
+  created_at: string;
+}
+
+function rowToThread(row: ThreadRow): Thread {
   return {
-    id: String(row[0]),
-    type: String(row[1]) as Thread["type"],
-    task_id: row[2] ? String(row[2]) : null,
-    title: String(row[3]),
-    started_at: new Date(String(row[4])),
-    ended_at: row[5] ? new Date(String(row[5])) : null,
-    metadata: row[6] ? String(row[6]) : null,
+    id: row.id,
+    type: row.type as Thread["type"],
+    task_id: row.task_id,
+    title: row.title,
+    started_at: new Date(row.started_at),
+    ended_at: row.ended_at ? new Date(row.ended_at) : null,
+    metadata: row.metadata,
   };
 }
 
-function rowToInteraction(row: unknown[]): Interaction {
+function rowToInteraction(row: InteractionRow): Interaction {
   return {
-    id: String(row[0]),
-    thread_id: String(row[1]),
-    sequence: Number(row[2]),
-    role: String(row[3]) as Interaction["role"],
-    kind: String(row[4]) as Interaction["kind"],
-    content: String(row[5]),
-    tool_name: row[6] ? String(row[6]) : null,
-    tool_input: row[7] ? String(row[7]) : null,
-    duration_ms: row[8] ? Number(row[8]) : null,
-    token_count: row[9] ? Number(row[9]) : null,
-    created_at: new Date(String(row[10])),
+    id: row.id,
+    thread_id: row.thread_id,
+    sequence: row.sequence,
+    role: row.role as Interaction["role"],
+    kind: row.kind as Interaction["kind"],
+    content: row.content,
+    tool_name: row.tool_name,
+    tool_input: row.tool_input,
+    duration_ms: row.duration_ms,
+    token_count: row.token_count,
+    created_at: new Date(row.created_at),
   };
 }
 
 export async function createThread(
-  conn: DuckDBConnection,
+  db: DbConnection,
   type: Thread["type"],
   taskId?: string,
   title?: string,
 ): Promise<string> {
-  const taskIdVal = taskId ? `'${escapeSql(taskId)}'` : "NULL";
-  const titleVal = title ? `'${escapeSql(title)}'` : "''";
-
-  const result = await conn.runAndReadAll(`
-    INSERT INTO threads (type, task_id, title)
-    VALUES ('${type}', ${taskIdVal}, ${titleVal})
-    RETURNING id
-  `);
-  return String(result.getRows()[0]?.[0]);
+  const id = uuidv7();
+  db.query(
+    `INSERT INTO threads (id, type, task_id, title)
+     VALUES (?1, ?2, ?3, ?4)`,
+  ).run(id, type, taskId ?? null, title ?? "");
+  return id;
 }
 
 export async function logInteraction(
-  conn: DuckDBConnection,
+  db: DbConnection,
   threadId: string,
   params: {
     role: Interaction["role"];
@@ -89,58 +111,64 @@ export async function logInteraction(
   },
 ): Promise<string> {
   // Get next sequence number
-  const seqResult = await conn.runAndReadAll(`
-    SELECT COALESCE(MAX(sequence), 0) + 1 FROM interactions WHERE thread_id = '${escapeSql(threadId)}'
-  `);
-  const sequence = Number(seqResult.getRows()[0]?.[0]);
+  const seqRow = db
+    .query(
+      "SELECT COALESCE(MAX(sequence), 0) + 1 AS next_seq FROM interactions WHERE thread_id = ?1",
+    )
+    .get(threadId) as { next_seq: number };
+  const sequence = seqRow.next_seq;
 
-  const toolName = params.toolName ? `'${escapeSql(params.toolName)}'` : "NULL";
-  const toolInput = params.toolInput
-    ? `'${escapeSql(params.toolInput)}'`
-    : "NULL";
-  const durationMs = params.durationMs ?? "NULL";
-  const tokenCount = params.tokenCount ?? "NULL";
-
-  const result = await conn.runAndReadAll(`
-    INSERT INTO interactions (thread_id, sequence, role, kind, content, tool_name, tool_input, duration_ms, token_count)
-    VALUES ('${escapeSql(threadId)}', ${sequence}, '${params.role}', '${params.kind}', '${escapeSql(params.content)}', ${toolName}, ${toolInput}, ${durationMs}, ${tokenCount})
-    RETURNING id
-  `);
-  return String(result.getRows()[0]?.[0]);
+  const id = uuidv7();
+  db.query(
+    `INSERT INTO interactions (id, thread_id, sequence, role, kind, content, tool_name, tool_input, duration_ms, token_count)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
+  ).run(
+    id,
+    threadId,
+    sequence,
+    params.role,
+    params.kind,
+    params.content,
+    params.toolName ?? null,
+    params.toolInput ?? null,
+    params.durationMs ?? null,
+    params.tokenCount ?? null,
+  );
+  return id;
 }
 
 export async function endThread(
-  conn: DuckDBConnection,
+  db: DbConnection,
   threadId: string,
 ): Promise<void> {
-  await conn.run(`
-    UPDATE threads SET ended_at = current_timestamp WHERE id = '${escapeSql(threadId)}'
-  `);
+  db.query("UPDATE threads SET ended_at = datetime('now') WHERE id = ?1").run(
+    threadId,
+  );
 }
 
 export async function getThread(
-  conn: DuckDBConnection,
+  db: DbConnection,
   threadId: string,
 ): Promise<{ thread: Thread; interactions: Interaction[] } | null> {
-  const threadResult = await conn.runAndReadAll(
-    `SELECT * FROM threads WHERE id = '${escapeSql(threadId)}'`,
-  );
-  const threadRows = threadResult.getRows();
-  const firstRow = threadRows[0];
-  if (!firstRow) return null;
+  const threadRow = db
+    .query("SELECT * FROM threads WHERE id = ?1")
+    .get(threadId) as ThreadRow | null;
+  if (!threadRow) return null;
 
-  const interactionsResult = await conn.runAndReadAll(`
-    SELECT * FROM interactions WHERE thread_id = '${escapeSql(threadId)}' ORDER BY sequence ASC
-  `);
+  const interactionRows = db
+    .query(
+      "SELECT * FROM interactions WHERE thread_id = ?1 ORDER BY sequence ASC",
+    )
+    .all(threadId) as InteractionRow[];
 
   return {
-    thread: rowToThread(firstRow),
-    interactions: interactionsResult.getRows().map(rowToInteraction),
+    thread: rowToThread(threadRow),
+    interactions: interactionRows.map(rowToInteraction),
   };
 }
 
 export async function listThreads(
-  conn: DuckDBConnection,
+  db: DbConnection,
   filters?: {
     type?: Thread["type"];
     taskId?: string;
@@ -148,22 +176,27 @@ export async function listThreads(
   },
 ): Promise<Thread[]> {
   const conditions: string[] = [];
-  if (filters?.type) conditions.push(`type = '${filters.type}'`);
-  if (filters?.taskId)
-    conditions.push(`task_id = '${escapeSql(filters.taskId)}'`);
+  const params: string[] = [];
+
+  if (filters?.type) {
+    params.push(filters.type);
+    conditions.push(`type = ?${params.length}`);
+  }
+  if (filters?.taskId) {
+    params.push(filters.taskId);
+    conditions.push(`task_id = ?${params.length}`);
+  }
 
   const where =
     conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
 
-  const result = await conn.runAndReadAll(`
-    SELECT * FROM threads ${where}
-    ORDER BY started_at DESC
-    ${limit}
-  `);
-  return result.getRows().map(rowToThread);
-}
-
-function escapeSql(str: string): string {
-  return str.replace(/'/g, "''");
+  const rows = db
+    .query(
+      `SELECT * FROM threads ${where}
+     ORDER BY started_at DESC
+     ${limit}`,
+    )
+    .all(...params) as ThreadRow[];
+  return rows.map(rowToThread);
 }

@@ -1,5 +1,5 @@
 import type { BotholomewConfig } from "../config/schemas.ts";
-import type { DuckDBConnection } from "../db/connection.ts";
+import type { DbConnection } from "../db/connection.ts";
 import { claimNextTask, updateTaskStatus } from "../db/tasks.ts";
 import { createThread, endThread, logInteraction } from "../db/threads.ts";
 import { logger } from "../utils/logger.ts";
@@ -8,7 +8,7 @@ import { buildSystemPrompt } from "./prompt.ts";
 
 export async function tick(
   projectDir: string,
-  conn: DuckDBConnection,
+  conn: DbConnection,
   config: Required<BotholomewConfig>,
 ): Promise<void> {
   logger.debug("Tick starting...");

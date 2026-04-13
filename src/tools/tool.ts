@@ -1,10 +1,10 @@
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
 import { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import type { DuckDBConnection } from "../db/connection.ts";
+import type { DbConnection } from "../db/connection.ts";
 
 export interface ToolContext {
-  conn: DuckDBConnection;
+  conn: DbConnection;
   projectDir: string;
   config: Required<BotholomewConfig>;
 }

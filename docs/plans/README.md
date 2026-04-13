@@ -2,7 +2,7 @@
 
 | # | Milestone | Status | Summary |
 |---|-----------|--------|---------|
-| 1 | [Foundation](milestone-1-foundation.md) | **Done** | Scaffolding, DuckDB schema, CLI skeleton, daemon tick loop |
+| 1 | [Foundation](milestone-1-foundation.md) | **Done** | Scaffolding, SQLite schema, CLI skeleton, daemon tick loop |
 | 2 | [Context & Embeddings](milestone-2-context-and-embeddings.md) | Planned | Ingest, chunk, embed, and search content with hybrid vector search |
 | 3 | [Schedules & Task Hardening](milestone-3-schedules-and-task-hardening.md) | Planned | Recurring schedules, cycle detection, timeouts, full task/schedule CLI |
 | 4 | [MCPX Integration](milestone-4-mcpx-integration.md) | Planned | External tools via MCP servers (Gmail, Slack, web, etc.) |

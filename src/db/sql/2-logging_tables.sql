@@ -1,35 +1,24 @@
-CREATE TYPE thread_type AS ENUM ('daemon_tick', 'chat_session');
-CREATE TYPE interaction_role AS ENUM ('user', 'assistant', 'system', 'tool');
-CREATE TYPE interaction_kind AS ENUM (
-  'message',
-  'thinking',
-  'tool_use',
-  'tool_result',
-  'context_update',
-  'status_change'
-);
-
 CREATE TABLE threads (
-  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
-  type thread_type NOT NULL,
-  task_id VARCHAR,
-  title VARCHAR NOT NULL DEFAULT '',
-  started_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
-  ended_at TIMESTAMP,
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL CHECK(type IN ('daemon_tick', 'chat_session')),
+  task_id TEXT,
+  title TEXT NOT NULL DEFAULT '',
+  started_at TEXT NOT NULL DEFAULT (datetime('now')),
+  ended_at TEXT,
   metadata TEXT
 );
 
 CREATE TABLE interactions (
-  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
-  thread_id VARCHAR NOT NULL REFERENCES threads(id),
+  id TEXT PRIMARY KEY,
+  thread_id TEXT NOT NULL REFERENCES threads(id),
   sequence INTEGER NOT NULL,
-  role interaction_role NOT NULL,
-  kind interaction_kind NOT NULL,
+  role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system', 'tool')),
+  kind TEXT NOT NULL CHECK(kind IN ('message', 'thinking', 'tool_use', 'tool_result', 'context_update', 'status_change')),
   content TEXT NOT NULL,
-  tool_name VARCHAR,
+  tool_name TEXT,
   tool_input TEXT,
   duration_ms INTEGER,
   token_count INTEGER,
-  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(thread_id, sequence)
 );
