@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ingestByPath } from "../../context/ingest.ts";
 import { applyPatchesToContextItem } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
@@ -35,6 +36,8 @@ export const fileEditTool = {
       input.path,
       input.patches,
     );
+
+    await ingestByPath(ctx.conn, input.path, ctx.config);
     return { applied, content: item.content ?? "" };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

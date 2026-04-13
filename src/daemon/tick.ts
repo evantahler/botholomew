@@ -30,8 +30,8 @@ export async function tick(
     `Working: ${task.name}`,
   );
 
-  // Build system prompt
-  const systemPrompt = await buildSystemPrompt(projectDir);
+  // Build system prompt (includes task-relevant context from embeddings)
+  const systemPrompt = await buildSystemPrompt(projectDir, task, conn, config);
 
   try {
     const result = await runAgentLoop({
