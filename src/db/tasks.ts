@@ -1,11 +1,20 @@
 import type { DuckDBConnection } from "./connection.ts";
 
+export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
+export const TASK_STATUSES = [
+  "pending",
+  "in_progress",
+  "failed",
+  "complete",
+  "waiting",
+] as const;
+
 export interface Task {
   id: string;
   name: string;
   description: string;
-  priority: "low" | "medium" | "high";
-  status: "pending" | "in_progress" | "failed" | "complete" | "waiting";
+  priority: (typeof TASK_PRIORITIES)[number];
+  status: (typeof TASK_STATUSES)[number];
   waiting_reason: string | null;
   claimed_by: string | null;
   claimed_at: Date | null;

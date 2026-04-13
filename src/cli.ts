@@ -7,6 +7,7 @@ import { registerDaemonCommand } from "./commands/daemon.ts";
 import { registerInitCommand } from "./commands/init.ts";
 import { registerMcpxCommand } from "./commands/mcpx.ts";
 import { registerTaskCommand } from "./commands/task.ts";
+import { registerToolCommands } from "./commands/tools.ts";
 
 const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
 
@@ -22,5 +23,6 @@ registerTaskCommand(program);
 registerChatCommand(program);
 registerContextCommand(program);
 registerMcpxCommand(program);
+registerToolCommands(program);
 
 program.parse();
