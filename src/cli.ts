@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import ansis from "ansis";
 import { program } from "commander";
 import { registerChatCommand } from "./commands/chat.ts";
 import { registerContextCommand } from "./commands/context.ts";
@@ -13,9 +14,16 @@ const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
 
 program
   .name("botholomew")
-  .description("An AI agent for knowledge work")
+  .description(ansis.bold(pkg.description))
   .version(pkg.version)
-  .option("-d, --dir <path>", "project directory", process.cwd());
+  .option("-d, --dir <path>", "project directory", process.cwd())
+  .configureHelp({
+    styleTitle: (str) => ansis.bold(str),
+    styleUsage: (str) => ansis.cyan(str),
+    styleCommandText: (str) => ansis.green(str),
+    styleOptionTerm: (str) => ansis.yellow(str),
+    styleDescriptionText: (str) => ansis.dim(str),
+  });
 
 registerInitCommand(program);
 registerDaemonCommand(program);
