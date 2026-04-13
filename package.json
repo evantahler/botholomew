@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "bun run src/cli.ts",
     "test": "bun test",
-    "build": "bun build --compile --minify --sourcemap ./src/cli.ts --outfile dist/botholomew",
+    "build": "bun build --minify --sourcemap ./src/cli.ts --outdir dist --external @duckdb/node-bindings",
     "lint": "tsc --noEmit && biome check ."
   },
   "dependencies": {
