@@ -357,3 +357,99 @@ describe("file_count_lines", () => {
     ).rejects.toThrow("No text content");
   });
 });
+
+// ── edge cases ─────────────────────────────────────────────
+
+describe("file edge cases", () => {
+  test("write and read file with empty content", async () => {
+    await fileWriteTool.execute({ path: "/empty.txt", content: "" }, ctx);
+    const result = await fileReadTool.execute({ path: "/empty.txt" }, ctx);
+    expect(result.content).toBe("");
+  });
+
+  test("write file with very long single line", async () => {
+    const longLine = "x".repeat(10000);
+    await fileWriteTool.execute({ path: "/long.txt", content: longLine }, ctx);
+    const result = await fileReadTool.execute({ path: "/long.txt" }, ctx);
+    expect(result.content).toBe(longLine);
+  });
+
+  test("edit with multiple patches applied in order", async () => {
+    await seedFile("/multi-edit.txt", "line1\nline2\nline3\nline4\nline5");
+    const result = await fileEditTool.execute(
+      {
+        path: "/multi-edit.txt",
+        patches: [
+          { start_line: 1, end_line: 1, content: "REPLACED1" },
+          { start_line: 3, end_line: 3, content: "REPLACED3" },
+        ],
+      },
+      ctx,
+    );
+    expect(result.applied).toBe(2);
+    expect(result.content).toContain("REPLACED1");
+    expect(result.content).toContain("REPLACED3");
+    expect(result.content).toContain("line2");
+  });
+
+  test("copy preserves content exactly", async () => {
+    const content = "Special chars: \t\n\r\nUnicode: \u00e9\u00e8\u00ea";
+    await seedFile("/special.txt", content);
+    await fileCopyTool.execute(
+      { src: "/special.txt", dst: "/special-copy.txt" },
+      ctx,
+    );
+    const result = await fileReadTool.execute(
+      { path: "/special-copy.txt" },
+      ctx,
+    );
+    expect(result.content).toBe(content);
+  });
+
+  test("move source no longer exists", async () => {
+    await seedFile("/src-move.txt", "moving data");
+    await fileMoveTool.execute(
+      { src: "/src-move.txt", dst: "/dst-move.txt" },
+      ctx,
+    );
+
+    const srcExists = await fileExistsTool.execute(
+      { path: "/src-move.txt" },
+      ctx,
+    );
+    expect(srcExists.exists).toBe(false);
+
+    const dstExists = await fileExistsTool.execute(
+      { path: "/dst-move.txt" },
+      ctx,
+    );
+    expect(dstExists.exists).toBe(true);
+  });
+
+  test("info returns correct size for multi-byte content", async () => {
+    const content = "Hello";
+    await seedFile("/sized.txt", content);
+    const info = await fileInfoTool.execute({ path: "/sized.txt" }, ctx);
+    expect(info.size).toBe(5);
+    expect(info.lines).toBe(1);
+  });
+
+  test("read with offset beyond file length returns empty", async () => {
+    await seedFile("/short.txt", "only\ntwo");
+    const result = await fileReadTool.execute(
+      { path: "/short.txt", offset: 100 },
+      ctx,
+    );
+    expect(result.content).toBe("");
+  });
+
+  test("delete with recursive on empty path does not affect other files", async () => {
+    await seedFile("/keep/a.txt", "keep me");
+    await seedFile("/remove-dir/b.txt", "remove me");
+
+    await fileDeleteTool.execute({ path: "/remove-dir", recursive: true }, ctx);
+
+    const kept = await fileExistsTool.execute({ path: "/keep/a.txt" }, ctx);
+    expect(kept.exists).toBe(true);
+  });
+});

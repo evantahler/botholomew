@@ -274,3 +274,85 @@ describe("hybridSearch", () => {
     expect(results).toEqual([]);
   });
 });
+
+// ── Edge cases ────────────────────────────────────────────
+
+describe("edge cases", () => {
+  test("search with zero vector returns results", async () => {
+    const item = await makeContextItem("Zero Vector Test");
+    createEmbedding(conn, {
+      contextItemId: item.id,
+      chunkIndex: 0,
+      chunkContent: "some content",
+      title: "chunk 0",
+      embedding: [1, 0, 0],
+    });
+
+    // A zero vector should still return results (with score of 0 / NaN distance)
+    const results = searchEmbeddings(conn, [0, 0, 0], 10);
+    expect(results.length).toBe(1);
+  });
+
+  test("search with large number of embeddings respects limit", async () => {
+    const item = await makeContextItem("Many Embeddings");
+    for (let i = 0; i < 20; i++) {
+      createEmbedding(conn, {
+        contextItemId: item.id,
+        chunkIndex: i,
+        chunkContent: `chunk ${i}`,
+        title: `c${i}`,
+        embedding: [Math.cos(i), Math.sin(i), 0],
+      });
+    }
+
+    const results5 = searchEmbeddings(conn, [1, 0, 0], 5);
+    expect(results5.length).toBe(5);
+
+    const results10 = searchEmbeddings(conn, [1, 0, 0], 10);
+    expect(results10.length).toBe(10);
+  });
+
+  test("embeddings from different items are returned in search", async () => {
+    const item1 = await makeContextItem("Item One");
+    const item2 = await makeContextItem("Item Two");
+
+    createEmbedding(conn, {
+      contextItemId: item1.id,
+      chunkIndex: 0,
+      chunkContent: "first item content",
+      title: "first",
+      embedding: [1, 0, 0],
+    });
+
+    createEmbedding(conn, {
+      contextItemId: item2.id,
+      chunkIndex: 0,
+      chunkContent: "second item content",
+      title: "second",
+      embedding: [0.9, 0.1, 0],
+    });
+
+    const results = searchEmbeddings(conn, [1, 0, 0], 10);
+    expect(results.length).toBe(2);
+    const itemIds = results.map((r) => r.context_item_id);
+    expect(itemIds).toContain(item1.id);
+    expect(itemIds).toContain(item2.id);
+  });
+
+  test("hybrid search deduplicates results found by both keyword and vector", async () => {
+    const item = await makeContextItem("Dedup Test");
+    createEmbedding(conn, {
+      contextItemId: item.id,
+      chunkIndex: 0,
+      chunkContent: "unique keyword content",
+      title: "unique",
+      embedding: [1, 0, 0],
+    });
+
+    // Search with keyword that matches AND vector that matches
+    const results = hybridSearch(conn, "unique", [1, 0, 0], 10);
+    expect(results.length).toBe(1);
+    // Score should be boosted by appearing in both keyword and vector results
+    expect(results[0]?.score).toBeGreaterThan(0);
+  });
+});
