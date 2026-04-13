@@ -1,6 +1,17 @@
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 export const BOTHOLOMEW_DIR = ".botholomew";
+export const HOME_CONFIG_DIR = join(homedir(), ".botholomew");
+
+export const ENV = {
+  NO_UPDATE_CHECK: "BOTHOLOMEW_NO_UPDATE_CHECK",
+} as const;
+
+export const DEFAULTS = {
+  UPDATE_CHECK_INTERVAL_MS: 24 * 60 * 60 * 1000, // 24 hours
+  UPDATE_CHECK_TIMEOUT_MS: 5_000,
+} as const;
 export const DB_FILENAME = "data.sqlite";
 export const PID_FILENAME = "daemon.pid";
 export const LOG_FILENAME = "daemon.log";
