@@ -7,9 +7,9 @@ import { getConnection } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
+  type AnyToolDefinition,
   getToolsByGroup,
   type ToolContext,
-  type ToolDefinition,
 } from "../tools/tool.ts";
 import { logger } from "../utils/logger.ts";
 
@@ -35,7 +35,7 @@ export function registerToolCommands(program: Command) {
 
 function registerToolAsCLI(
   parent: Command,
-  tool: ToolDefinition<any, any>,
+  tool: AnyToolDefinition,
   program: Command,
 ) {
   // Derive subcommand name: "file_read" → "read", "file_count_lines" → "count-lines"
@@ -120,7 +120,7 @@ function registerToolAsCLI(
 }
 
 function buildInput(
-  tool: ToolDefinition<any, any>,
+  tool: AnyToolDefinition,
   positionals: string[],
   options: {
     key: string;
@@ -135,9 +135,9 @@ function buildInput(
 
   // Positional args come first in Commander's action callback
   for (let i = 0; i < positionals.length; i++) {
-    const key = positionals[i]!.replace(/[<>[\]]/g, "");
+    const key = positionals[i]?.replace(/[<>[\]]/g, "");
     const value = args[i];
-    if (value !== undefined) input[key] = value;
+    if (key !== undefined && value !== undefined) input[key] = value;
   }
 
   // Options object is the last argument before the Command object
@@ -151,7 +151,9 @@ function buildInput(
 
     if (value === undefined) continue;
 
-    const unwrapped = unwrapOptional(shape[opt.key]!);
+    const schemaForKey = shape[opt.key];
+    if (!schemaForKey) continue;
+    const unwrapped = unwrapOptional(schemaForKey);
 
     // Parse JSON for array types
     if (opt.isArray && typeof value === "string") {
@@ -174,7 +176,7 @@ function buildInput(
   return parsed.data;
 }
 
-function formatOutput(result: unknown, toolName: string) {
+function formatOutput(result: unknown, _toolName: string) {
   if (result == null) return;
 
   if (typeof result === "object") {

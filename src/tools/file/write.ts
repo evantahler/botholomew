@@ -9,7 +9,8 @@ import {
 import type { ToolDefinition } from "../tool.ts";
 
 function mimeFromPath(path: string): string {
-  return Bun.file(path).type.split(";")[0]!;
+  const type = Bun.file(path).type.split(";")[0];
+  return type ?? "application/octet-stream";
 }
 
 function isTextualPath(path: string): boolean {
@@ -19,30 +20,34 @@ function isTextualPath(path: string): boolean {
   return result !== false;
 }
 
-export const fileWriteTool: ToolDefinition<any, any> = {
+const inputSchema = z.object({
+  path: z.string().describe("File path to write"),
+  content: z.string().describe("Text content to write"),
+  content_base64: z
+    .string()
+    .optional()
+    .describe(
+      "Base64-encoded binary content (used instead of content for binary files)",
+    ),
+  title: z
+    .string()
+    .optional()
+    .describe("Title for the file (defaults to filename)"),
+  description: z.string().optional().describe("Description of the file"),
+});
+
+const outputSchema = z.object({
+  id: z.string(),
+  path: z.string(),
+});
+
+export const fileWriteTool = {
   name: "file_write",
   description:
     "Write content to a file in the virtual filesystem. Creates the file if it doesn't exist, or overwrites if it does.",
   group: "file",
-  inputSchema: z.object({
-    path: z.string().describe("File path to write"),
-    content: z.string().describe("Text content to write"),
-    content_base64: z
-      .string()
-      .optional()
-      .describe(
-        "Base64-encoded binary content (used instead of content for binary files)",
-      ),
-    title: z
-      .string()
-      .optional()
-      .describe("Title for the file (defaults to filename)"),
-    description: z.string().optional().describe("Description of the file"),
-  }),
-  outputSchema: z.object({
-    id: z.string(),
-    path: z.string(),
-  }),
+  inputSchema,
+  outputSchema,
   execute: async (input, ctx) => {
     const mimeType = mimeFromPath(input.path);
     const isTextual = isTextualPath(input.path);
@@ -82,4 +87,4 @@ export const fileWriteTool: ToolDefinition<any, any> = {
 
     return { id: item.id, path: item.context_path };
   },
-};
+} satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

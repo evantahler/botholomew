@@ -72,7 +72,7 @@ export async function createThread(
     VALUES ('${type}', ${taskIdVal}, ${titleVal})
     RETURNING id
   `);
-  return String(result.getRows()[0]![0]);
+  return String(result.getRows()[0]?.[0]);
 }
 
 export async function logInteraction(
@@ -92,7 +92,7 @@ export async function logInteraction(
   const seqResult = await conn.runAndReadAll(`
     SELECT COALESCE(MAX(sequence), 0) + 1 FROM interactions WHERE thread_id = '${escapeSql(threadId)}'
   `);
-  const sequence = Number(seqResult.getRows()[0]![0]);
+  const sequence = Number(seqResult.getRows()[0]?.[0]);
 
   const toolName = params.toolName ? `'${escapeSql(params.toolName)}'` : "NULL";
   const toolInput = params.toolInput
@@ -106,7 +106,7 @@ export async function logInteraction(
     VALUES ('${escapeSql(threadId)}', ${sequence}, '${params.role}', '${params.kind}', '${escapeSql(params.content)}', ${toolName}, ${toolInput}, ${durationMs}, ${tokenCount})
     RETURNING id
   `);
-  return String(result.getRows()[0]![0]);
+  return String(result.getRows()[0]?.[0]);
 }
 
 export async function endThread(
@@ -126,14 +126,15 @@ export async function getThread(
     `SELECT * FROM threads WHERE id = '${escapeSql(threadId)}'`,
   );
   const threadRows = threadResult.getRows();
-  if (threadRows.length === 0) return null;
+  const firstRow = threadRows[0];
+  if (!firstRow) return null;
 
   const interactionsResult = await conn.runAndReadAll(`
     SELECT * FROM interactions WHERE thread_id = '${escapeSql(threadId)}' ORDER BY sequence ASC
   `);
 
   return {
-    thread: rowToThread(threadRows[0]!),
+    thread: rowToThread(firstRow),
     interactions: interactionsResult.getRows().map(rowToInteraction),
   };
 }

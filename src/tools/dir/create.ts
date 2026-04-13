@@ -2,21 +2,25 @@ import { z } from "zod";
 import { contextPathExists, createContextItem } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
-export const dirCreateTool: ToolDefinition<any, any> = {
+const inputSchema = z.object({
+  path: z.string().describe("Directory path to create"),
+  parents: z
+    .boolean()
+    .optional()
+    .describe("Create parent directories as needed"),
+});
+
+const outputSchema = z.object({
+  created: z.boolean(),
+  path: z.string(),
+});
+
+export const dirCreateTool = {
   name: "dir_create",
   description: "Create a directory in the virtual filesystem.",
   group: "dir",
-  inputSchema: z.object({
-    path: z.string().describe("Directory path to create"),
-    parents: z
-      .boolean()
-      .optional()
-      .describe("Create parent directories as needed"),
-  }),
-  outputSchema: z.object({
-    created: z.boolean(),
-    path: z.string(),
-  }),
+  inputSchema,
+  outputSchema,
   execute: async (input, ctx) => {
     const exists = await contextPathExists(ctx.conn, input.path);
     if (exists) {
@@ -32,4 +36,4 @@ export const dirCreateTool: ToolDefinition<any, any> = {
 
     return { created: true, path: input.path };
   },
-};
+} satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

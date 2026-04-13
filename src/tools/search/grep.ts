@@ -9,34 +9,38 @@ const GrepMatchSchema = z.object({
   context_lines: z.array(z.string()),
 });
 
-export const searchGrepTool: ToolDefinition<any, any> = {
+const inputSchema = z.object({
+  pattern: z.string().describe("Regex pattern to search for"),
+  path: z
+    .string()
+    .optional()
+    .describe("Directory to search in (defaults to /)"),
+  glob: z
+    .string()
+    .optional()
+    .describe("Only search files matching this glob pattern"),
+  ignore_case: z.boolean().optional().describe("Case-insensitive search"),
+  context: z
+    .number()
+    .optional()
+    .describe("Number of context lines before and after each match"),
+  max_results: z
+    .number()
+    .optional()
+    .describe("Maximum number of matches to return"),
+});
+
+const outputSchema = z.object({
+  matches: z.array(GrepMatchSchema),
+});
+
+export const searchGrepTool = {
   name: "search_grep",
   description:
     "Search file contents by regex pattern in the virtual filesystem.",
   group: "search",
-  inputSchema: z.object({
-    pattern: z.string().describe("Regex pattern to search for"),
-    path: z
-      .string()
-      .optional()
-      .describe("Directory to search in (defaults to /)"),
-    glob: z
-      .string()
-      .optional()
-      .describe("Only search files matching this glob pattern"),
-    ignore_case: z.boolean().optional().describe("Case-insensitive search"),
-    context: z
-      .number()
-      .optional()
-      .describe("Number of context lines before and after each match"),
-    max_results: z
-      .number()
-      .optional()
-      .describe("Maximum number of matches to return"),
-  }),
-  outputSchema: z.object({
-    matches: z.array(GrepMatchSchema),
-  }),
+  inputSchema,
+  outputSchema,
   execute: async (input, ctx) => {
     const searchPath = input.path ?? "/";
     const items = await listContextItemsByPrefix(ctx.conn, searchPath, {
@@ -62,13 +66,14 @@ export const searchGrepTool: ToolDefinition<any, any> = {
       const lines = item.content.split("\n");
       for (let i = 0; i < lines.length; i++) {
         regex.lastIndex = 0;
-        if (regex.test(lines[i]!)) {
+        const line = lines[i];
+        if (line !== undefined && regex.test(line)) {
           const start = Math.max(0, i - contextLines);
           const end = Math.min(lines.length, i + contextLines + 1);
           matches.push({
             path: item.context_path,
             line: i + 1,
-            content: lines[i]!,
+            content: line,
             context_lines: lines.slice(start, end),
           });
           if (matches.length >= maxResults) return { matches };
@@ -78,7 +83,7 @@ export const searchGrepTool: ToolDefinition<any, any> = {
 
     return { matches };
   },
-};
+} satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;
 
 function globToRegex(glob: string): RegExp {
   const escaped = glob

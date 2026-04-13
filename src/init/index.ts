@@ -1,5 +1,5 @@
-import { mkdir } from "fs/promises";
-import { join } from "path";
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import { getBotholomewDir, getDbPath, getMcpxDir } from "../constants.ts";
 import { getConnection } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
@@ -39,13 +39,13 @@ export async function initProject(
   // Write config (without API key)
   await Bun.write(
     join(dotDir, "config.json"),
-    JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n",
+    `${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`,
   );
 
   // Write mcpx servers config
   await Bun.write(
     join(mcpxDir, "servers.json"),
-    JSON.stringify(DEFAULT_MCPX_SERVERS, null, 2) + "\n",
+    `${JSON.stringify(DEFAULT_MCPX_SERVERS, null, 2)}\n`,
   );
 
   // Initialize database
@@ -79,6 +79,6 @@ async function updateGitignore(projectDir: string): Promise<void> {
   const entry = ".botholomew/";
   if (content.includes(entry)) return;
 
-  const section = "\n# Botholomew (auto-generated)\n" + entry + "\n";
-  await Bun.write(gitignorePath, content.trimEnd() + "\n" + section);
+  const section = `\n# Botholomew (auto-generated)\n${entry}\n`;
+  await Bun.write(gitignorePath, `${content.trimEnd()}\n${section}`);
 }

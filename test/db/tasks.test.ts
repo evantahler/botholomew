@@ -35,7 +35,7 @@ describe("task CRUD", () => {
 
     const fetched = await getTask(conn, task.id);
     expect(fetched).not.toBeNull();
-    expect(fetched!.name).toBe("Test task");
+    expect(fetched?.name).toBe("Test task");
   });
 
   test("list tasks ordered by priority", async () => {
@@ -45,9 +45,9 @@ describe("task CRUD", () => {
 
     const tasks = await listTasks(conn);
     expect(tasks.length).toBe(3);
-    expect(tasks[0]!.name).toBe("High");
-    expect(tasks[1]!.name).toBe("Medium");
-    expect(tasks[2]!.name).toBe("Low");
+    expect(tasks[0]?.name).toBe("High");
+    expect(tasks[1]?.name).toBe("Medium");
+    expect(tasks[2]?.name).toBe("Low");
   });
 
   test("list tasks with status filter", async () => {
@@ -57,7 +57,7 @@ describe("task CRUD", () => {
 
     const pending = await listTasks(conn, { status: "pending" });
     expect(pending.length).toBe(1);
-    expect(pending[0]!.name).toBe("Task 2");
+    expect(pending[0]?.name).toBe("Task 2");
   });
 
   test("update task status", async () => {
@@ -65,8 +65,8 @@ describe("task CRUD", () => {
     await updateTaskStatus(conn, task.id, "waiting", "needs clarification");
 
     const updated = await getTask(conn, task.id);
-    expect(updated!.status).toBe("waiting");
-    expect(updated!.waiting_reason).toBe("needs clarification");
+    expect(updated?.status).toBe("waiting");
+    expect(updated?.waiting_reason).toBe("needs clarification");
   });
 
   test("get nonexistent task returns null", async () => {
@@ -82,9 +82,9 @@ describe("claimNextTask", () => {
 
     const claimed = await claimNextTask(conn);
     expect(claimed).not.toBeNull();
-    expect(claimed!.name).toBe("High");
-    expect(claimed!.status).toBe("in_progress");
-    expect(claimed!.claimed_by).toBe("daemon");
+    expect(claimed?.name).toBe("High");
+    expect(claimed?.status).toBe("in_progress");
+    expect(claimed?.claimed_by).toBe("daemon");
   });
 
   test("returns null when no tasks available", async () => {
@@ -111,7 +111,7 @@ describe("claimNextTask", () => {
     // Should not claim the blocked task even though it's higher priority
     const claimed = await claimNextTask(conn);
     expect(claimed).not.toBeNull();
-    expect(claimed!.name).toBe("Blocker");
+    expect(claimed?.name).toBe("Blocker");
   });
 
   test("unblocks task when blocker completes", async () => {
@@ -128,6 +128,6 @@ describe("claimNextTask", () => {
     // Now claim — should get the previously blocked task
     const claimed = await claimNextTask(conn);
     expect(claimed).not.toBeNull();
-    expect(claimed!.name).toBe("Blocked");
+    expect(claimed?.name).toBe("Blocked");
   });
 });

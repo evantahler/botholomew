@@ -11,32 +11,36 @@ const DirEntrySchema = z.object({
   size: z.number(),
 });
 
-export const dirListTool: ToolDefinition<any, any> = {
+const inputSchema = z.object({
+  path: z.string().optional().describe("Directory path (defaults to /)"),
+  recursive: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe("Include contents of subdirectories (defaults to true)"),
+  limit: z
+    .number()
+    .optional()
+    .default(100)
+    .describe("Maximum number of entries to return (defaults to 100)"),
+  offset: z
+    .number()
+    .optional()
+    .default(0)
+    .describe("Number of entries to skip (defaults to 0)"),
+});
+
+const outputSchema = z.object({
+  entries: z.array(DirEntrySchema),
+  total: z.number(),
+});
+
+export const dirListTool = {
   name: "dir_list",
   description: "List directory contents in the virtual filesystem.",
   group: "dir",
-  inputSchema: z.object({
-    path: z.string().optional().describe("Directory path (defaults to /)"),
-    recursive: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Include contents of subdirectories (defaults to true)"),
-    limit: z
-      .number()
-      .optional()
-      .default(100)
-      .describe("Maximum number of entries to return (defaults to 100)"),
-    offset: z
-      .number()
-      .optional()
-      .default(0)
-      .describe("Number of entries to skip (defaults to 0)"),
-  }),
-  outputSchema: z.object({
-    entries: z.array(DirEntrySchema),
-    total: z.number(),
-  }),
+  inputSchema,
+  outputSchema,
   execute: async (input, ctx) => {
     const path = input.path ?? "/";
     const recursive = input.recursive ?? true;
@@ -80,4 +84,4 @@ export const dirListTool: ToolDefinition<any, any> = {
 
     return { entries: paginated, total };
   },
-};
+} satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

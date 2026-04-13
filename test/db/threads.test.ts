@@ -30,10 +30,10 @@ describe("thread CRUD", () => {
 
     const result = await getThread(conn, threadId);
     expect(result).not.toBeNull();
-    expect(result!.thread.type).toBe("daemon_tick");
-    expect(result!.thread.title).toBe("Test tick");
-    expect(result!.thread.ended_at).toBeNull();
-    expect(result!.interactions).toHaveLength(0);
+    expect(result?.thread.type).toBe("daemon_tick");
+    expect(result?.thread.title).toBe("Test tick");
+    expect(result?.thread.ended_at).toBeNull();
+    expect(result?.interactions).toHaveLength(0);
   });
 
   test("create thread with task_id", async () => {
@@ -45,7 +45,7 @@ describe("thread CRUD", () => {
     );
 
     const result = await getThread(conn, threadId);
-    expect(result!.thread.task_id).toBe("task-123");
+    expect(result?.thread.task_id).toBe("task-123");
   });
 
   test("end a thread sets ended_at", async () => {
@@ -53,7 +53,7 @@ describe("thread CRUD", () => {
     await endThread(conn, threadId);
 
     const result = await getThread(conn, threadId);
-    expect(result!.thread.ended_at).not.toBeNull();
+    expect(result?.thread.ended_at).not.toBeNull();
   });
 
   test("get nonexistent thread returns null", async () => {
@@ -102,21 +102,21 @@ describe("interaction logging", () => {
     });
 
     const result = await getThread(conn, threadId);
-    expect(result!.interactions).toHaveLength(5);
+    expect(result?.interactions).toHaveLength(5);
 
     // Verify ordering
-    expect(result!.interactions[0]!.sequence).toBe(1);
-    expect(result!.interactions[4]!.sequence).toBe(5);
+    expect(result?.interactions[0]?.sequence).toBe(1);
+    expect(result?.interactions[4]?.sequence).toBe(5);
 
     // Verify content
-    expect(result!.interactions[0]!.role).toBe("user");
-    expect(result!.interactions[0]!.kind).toBe("message");
-    expect(result!.interactions[2]!.tool_name).toBe("search_context");
-    expect(result!.interactions[2]!.tool_input).toBe(
+    expect(result?.interactions[0]?.role).toBe("user");
+    expect(result?.interactions[0]?.kind).toBe("message");
+    expect(result?.interactions[2]?.tool_name).toBe("search_context");
+    expect(result?.interactions[2]?.tool_input).toBe(
       '{"query": "relevant docs"}',
     );
-    expect(result!.interactions[3]!.duration_ms).toBe(150);
-    expect(result!.interactions[4]!.token_count).toBe(500);
+    expect(result?.interactions[3]?.duration_ms).toBe(150);
+    expect(result?.interactions[4]?.token_count).toBe(500);
   });
 
   test("interactions with special characters in content", async () => {
@@ -129,7 +129,7 @@ describe("interaction logging", () => {
     });
 
     const result = await getThread(conn, threadId);
-    expect(result!.interactions[0]!.content).toBe(
+    expect(result?.interactions[0]?.content).toBe(
       "What's the user's name? It's O'Brien.",
     );
   });

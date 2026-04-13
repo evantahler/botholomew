@@ -2,16 +2,20 @@ import { z } from "zod";
 import { getContextItemByPath } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
-export const fileCountLinesTool: ToolDefinition<any, any> = {
+const inputSchema = z.object({
+  path: z.string().describe("File path"),
+});
+
+const outputSchema = z.object({
+  lines: z.number(),
+});
+
+export const fileCountLinesTool = {
   name: "file_count_lines",
   description: "Count the number of lines in a text file.",
   group: "file",
-  inputSchema: z.object({
-    path: z.string().describe("File path"),
-  }),
-  outputSchema: z.object({
-    lines: z.number(),
-  }),
+  inputSchema,
+  outputSchema,
   execute: async (input, ctx) => {
     const item = await getContextItemByPath(ctx.conn, input.path);
     if (!item) throw new Error(`Not found: ${input.path}`);
@@ -19,4 +23,4 @@ export const fileCountLinesTool: ToolDefinition<any, any> = {
 
     return { lines: item.content.split("\n").length };
   },
-};
+} satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

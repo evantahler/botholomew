@@ -2,27 +2,31 @@ import { z } from "zod";
 import { getContextItemByPath } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
-export const fileInfoTool: ToolDefinition<any, any> = {
+const inputSchema = z.object({
+  path: z.string().describe("File path"),
+});
+
+const outputSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  mime_type: z.string(),
+  is_textual: z.boolean(),
+  size: z.number(),
+  lines: z.number(),
+  source_path: z.string().nullable(),
+  context_path: z.string(),
+  indexed_at: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const fileInfoTool = {
   name: "file_info",
   description: "Show file metadata (size, MIME type, line count, etc.).",
   group: "file",
-  inputSchema: z.object({
-    path: z.string().describe("File path"),
-  }),
-  outputSchema: z.object({
-    id: z.string(),
-    title: z.string(),
-    description: z.string(),
-    mime_type: z.string(),
-    is_textual: z.boolean(),
-    size: z.number(),
-    lines: z.number(),
-    source_path: z.string().nullable(),
-    context_path: z.string(),
-    indexed_at: z.string().nullable(),
-    created_at: z.string(),
-    updated_at: z.string(),
-  }),
+  inputSchema,
+  outputSchema,
   execute: async (input, ctx) => {
     const item = await getContextItemByPath(ctx.conn, input.path);
     if (!item) throw new Error(`Not found: ${input.path}`);
@@ -43,4 +47,4 @@ export const fileInfoTool: ToolDefinition<any, any> = {
       updated_at: item.updated_at.toISOString(),
     };
   },
-};
+} satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

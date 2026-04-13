@@ -21,35 +21,33 @@ import { completeTaskTool } from "./task/complete.ts";
 import { createTaskTool } from "./task/create.ts";
 import { failTaskTool } from "./task/fail.ts";
 import { waitTaskTool } from "./task/wait.ts";
-import { registerTools } from "./tool.ts";
+import { registerTool } from "./tool.ts";
 
 export function registerAllTools(): void {
-  registerTools([
-    // Task
-    completeTaskTool,
-    failTaskTool,
-    waitTaskTool,
-    createTaskTool,
+  // Task
+  registerTool(completeTaskTool);
+  registerTool(failTaskTool);
+  registerTool(waitTaskTool);
+  registerTool(createTaskTool);
 
-    // Directory
-    dirCreateTool,
-    dirListTool,
-    dirTreeTool,
-    dirSizeTool,
+  // Directory
+  registerTool(dirCreateTool);
+  registerTool(dirListTool);
+  registerTool(dirTreeTool);
+  registerTool(dirSizeTool);
 
-    // File
-    fileReadTool,
-    fileWriteTool,
-    fileEditTool,
-    fileDeleteTool,
-    fileCopyTool,
-    fileMoveTool,
-    fileInfoTool,
-    fileExistsTool,
-    fileCountLinesTool,
+  // File
+  registerTool(fileReadTool);
+  registerTool(fileWriteTool);
+  registerTool(fileEditTool);
+  registerTool(fileDeleteTool);
+  registerTool(fileCopyTool);
+  registerTool(fileMoveTool);
+  registerTool(fileInfoTool);
+  registerTool(fileExistsTool);
+  registerTool(fileCountLinesTool);
 
-    // Search
-    searchGrepTool,
-    searchSemanticTool,
-  ]);
+  // Search
+  registerTool(searchGrepTool);
+  registerTool(searchSemanticTool);
 }

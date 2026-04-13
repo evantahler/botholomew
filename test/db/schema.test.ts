@@ -29,7 +29,7 @@ describe("schema migrations", () => {
     await migrate(conn); // should not throw
 
     const result = await conn.runAndReadAll("SELECT COUNT(*) FROM _migrations");
-    const count = Number(result.getRows()[0]![0]);
+    const count = Number(result.getRows()[0]?.[0]);
     expect(count).toBe(3);
   });
 

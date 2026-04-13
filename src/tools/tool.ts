@@ -10,7 +10,7 @@ export interface ToolContext {
 }
 
 export interface ToolDefinition<
-  TInput extends z.ZodObject,
+  TInput extends z.ZodObject<z.ZodRawShape>,
   TOutput extends z.ZodType,
 > {
   name: string;
@@ -27,33 +27,35 @@ export interface ToolDefinition<
 
 // --- Registry ---
 
-const tools = new Map<string, ToolDefinition<any, any>>();
+export type AnyToolDefinition = ToolDefinition<
+  z.ZodObject<z.ZodRawShape>,
+  z.ZodType
+>;
 
-export function registerTool(tool: ToolDefinition<any, any>): void {
-  tools.set(tool.name, tool);
+const tools = new Map<string, AnyToolDefinition>();
+
+export function registerTool<
+  TInput extends z.ZodObject<z.ZodRawShape>,
+  TOutput extends z.ZodType,
+>(tool: ToolDefinition<TInput, TOutput>): void {
+  tools.set(tool.name, tool as unknown as AnyToolDefinition);
 }
 
-export function registerTools(toolList: ToolDefinition<any, any>[]): void {
-  for (const tool of toolList) {
-    registerTool(tool);
-  }
-}
-
-export function getTool(name: string): ToolDefinition<any, any> | undefined {
+export function getTool(name: string): AnyToolDefinition | undefined {
   return tools.get(name);
 }
 
-export function getAllTools(): ToolDefinition<any, any>[] {
+export function getAllTools(): AnyToolDefinition[] {
   return Array.from(tools.values());
 }
 
-export function getToolsByGroup(group: string): ToolDefinition<any, any>[] {
+export function getToolsByGroup(group: string): AnyToolDefinition[] {
   return getAllTools().filter((t) => t.group === group);
 }
 
 // --- Anthropic adapter ---
 
-export function toAnthropicTool(tool: ToolDefinition<any, any>): AnthropicTool {
+export function toAnthropicTool(tool: AnyToolDefinition): AnthropicTool {
   const jsonSchema = z.toJSONSchema(tool.inputSchema);
   return {
     name: tool.name,

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { z } from "zod";
+import type { ToolContext } from "../../src/tools/tool.ts";
 
 // Fresh-import the module each test to reset the registry
 let registerTool: typeof import("../../src/tools/tool.ts").registerTool;
@@ -115,10 +116,10 @@ describe("Tool execution", () => {
       }),
     });
 
-    const result = await tool.execute(
+    const result = (await tool.execute(
       { path: "/test.md" },
-      {} as any, // ctx not needed for this test
-    );
+      {} as ToolContext, // ctx not needed for this test
+    )) as { content: string; lines: number };
     expect(result.content).toBe("read: /test.md");
     expect(result.lines).toBe(0);
   });

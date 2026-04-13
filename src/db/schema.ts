@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync } from "fs";
-import { join } from "path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { DuckDBConnection } from "./connection.ts";
 
 interface Migration {
@@ -18,9 +18,12 @@ function loadMigrations(): Migration[] {
   return files.map((file) => {
     const match = file.match(/^(\d+)-(.+)\.sql$/);
     if (!match) throw new Error(`Invalid migration filename: ${file}`);
+    const id = match[1];
+    const name = match[2];
+    if (!id || !name) throw new Error(`Invalid migration filename: ${file}`);
     return {
-      id: parseInt(match[1]!, 10),
-      name: match[2]!,
+      id: parseInt(id, 10),
+      name,
       sql: readFileSync(join(sqlDir, file), "utf-8"),
     };
   });

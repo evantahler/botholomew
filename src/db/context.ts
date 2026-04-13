@@ -68,7 +68,9 @@ export async function createContextItem(
     )
     RETURNING *
   `);
-  return rowToContextItem(result.getRows()[0]!);
+  const row = result.getRows()[0];
+  if (!row) throw new Error("INSERT did not return a row");
+  return rowToContextItem(row);
 }
 
 export async function getContextItem(
@@ -79,7 +81,7 @@ export async function getContextItem(
     `SELECT * FROM context_items WHERE id = '${escapeSql(id)}'`,
   );
   const rows = result.getRows();
-  return rows.length > 0 ? rowToContextItem(rows[0]!) : null;
+  return rows[0] ? rowToContextItem(rows[0]) : null;
 }
 
 export async function getContextItemByPath(
@@ -90,7 +92,7 @@ export async function getContextItemByPath(
     `SELECT * FROM context_items WHERE context_path = '${escapeSql(contextPath)}'`,
   );
   const rows = result.getRows();
-  return rows.length > 0 ? rowToContextItem(rows[0]!) : null;
+  return rows[0] ? rowToContextItem(rows[0]) : null;
 }
 
 export async function listContextItems(
@@ -212,7 +214,7 @@ export async function updateContextItem(
     RETURNING *
   `);
   const rows = result.getRows();
-  return rows.length > 0 ? rowToContextItem(rows[0]!) : null;
+  return rows[0] ? rowToContextItem(rows[0]) : null;
 }
 
 export async function updateContextItemContent(
@@ -227,7 +229,7 @@ export async function updateContextItemContent(
     RETURNING *
   `);
   const rows = result.getRows();
-  return rows.length > 0 ? rowToContextItem(rows[0]!) : null;
+  return rows[0] ? rowToContextItem(rows[0]) : null;
 }
 
 export async function applyPatchesToContextItem(

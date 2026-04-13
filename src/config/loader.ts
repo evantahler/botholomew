@@ -27,5 +27,5 @@ export async function saveConfig(
   config: Partial<BotholomewConfig>,
 ): Promise<void> {
   const configPath = getConfigPath(projectDir);
-  await Bun.write(configPath, JSON.stringify(config, null, 2) + "\n");
+  await Bun.write(configPath, `${JSON.stringify(config, null, 2)}\n`);
 }
