@@ -1,4 +1,5 @@
 import type { DbConnection } from "./connection.ts";
+import { buildSetClauses, buildWhereClause } from "./query.ts";
 import { uuidv7 } from "./uuid.ts";
 
 export interface Schedule {
@@ -75,16 +76,12 @@ export async function listSchedules(
   db: DbConnection,
   filters?: { enabled?: boolean },
 ): Promise<Schedule[]> {
-  const conditions: string[] = [];
-  const params: (string | number)[] = [];
-
-  if (filters?.enabled !== undefined) {
-    params.push(filters.enabled ? 1 : 0);
-    conditions.push(`enabled = ?${params.length}`);
-  }
-
-  const where =
-    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const { where, params } = buildWhereClause([
+    [
+      "enabled",
+      filters?.enabled !== undefined ? (filters.enabled ? 1 : 0) : undefined,
+    ],
+  ]);
 
   const rows = db
     .query(`SELECT * FROM schedules ${where} ORDER BY created_at ASC`)
@@ -99,25 +96,15 @@ export async function updateSchedule(
     Pick<Schedule, "name" | "description" | "frequency" | "enabled">
   >,
 ): Promise<Schedule | null> {
-  const setClauses: string[] = [];
-  const params: (string | number)[] = [];
-
-  if (updates.name !== undefined) {
-    params.push(updates.name);
-    setClauses.push(`name = ?${params.length}`);
-  }
-  if (updates.description !== undefined) {
-    params.push(updates.description);
-    setClauses.push(`description = ?${params.length}`);
-  }
-  if (updates.frequency !== undefined) {
-    params.push(updates.frequency);
-    setClauses.push(`frequency = ?${params.length}`);
-  }
-  if (updates.enabled !== undefined) {
-    params.push(updates.enabled ? 1 : 0);
-    setClauses.push(`enabled = ?${params.length}`);
-  }
+  const { setClauses, params } = buildSetClauses([
+    ["name", updates.name],
+    ["description", updates.description],
+    ["frequency", updates.frequency],
+    [
+      "enabled",
+      updates.enabled !== undefined ? (updates.enabled ? 1 : 0) : undefined,
+    ],
+  ]);
 
   if (setClauses.length === 0) {
     return getSchedule(db, id);

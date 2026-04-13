@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 import { EMBEDDING_DIMENSION } from "../../src/constants.ts";
 import { ingestByPath, ingestContextItem } from "../../src/context/ingest.ts";
-import { type DbConnection, getConnection } from "../../src/db/connection.ts";
+import type { DbConnection } from "../../src/db/connection.ts";
 import { createContextItem, getContextItem } from "../../src/db/context.ts";
 import { initVectorSearch, searchEmbeddings } from "../../src/db/embeddings.ts";
-import { migrate } from "../../src/db/schema.ts";
+import { setupTestDb } from "../helpers.ts";
 
 const config = { ...DEFAULT_CONFIG };
 
@@ -30,8 +30,7 @@ function mockEmbed(texts: string[]): Promise<number[][]> {
 let conn: DbConnection;
 
 beforeEach(() => {
-  conn = getConnection(":memory:");
-  migrate(conn);
+  conn = setupTestDb();
 });
 
 describe("ingestContextItem", () => {

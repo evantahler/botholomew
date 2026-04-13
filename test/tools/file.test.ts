@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
-import { type DbConnection, getConnection } from "../../src/db/connection.ts";
-import { createContextItem } from "../../src/db/context.ts";
-import { migrate } from "../../src/db/schema.ts";
+import type { DbConnection } from "../../src/db/connection.ts";
 import { fileCopyTool } from "../../src/tools/file/copy.ts";
 import { fileCountLinesTool } from "../../src/tools/file/count-lines.ts";
 import { fileDeleteTool } from "../../src/tools/file/delete.ts";
@@ -13,40 +10,14 @@ import { fileMoveTool } from "../../src/tools/file/move.ts";
 import { fileReadTool } from "../../src/tools/file/read.ts";
 import { fileWriteTool } from "../../src/tools/file/write.ts";
 import type { ToolContext } from "../../src/tools/tool.ts";
+import { seedBinaryFile, seedFile, setupToolContext } from "../helpers.ts";
 
 let conn: DbConnection;
 let ctx: ToolContext;
 
 beforeEach(() => {
-  conn = getConnection(":memory:");
-  migrate(conn);
-  ctx = { conn, projectDir: "/tmp/test", config: { ...DEFAULT_CONFIG } };
+  ({ conn, ctx } = setupToolContext());
 });
-
-async function seedFile(
-  path: string,
-  content: string,
-  opts?: { title?: string; description?: string },
-) {
-  return createContextItem(conn, {
-    title: opts?.title ?? path.split("/").pop() ?? path,
-    description: opts?.description,
-    content,
-    contextPath: path,
-    mimeType: "text/plain",
-    isTextual: true,
-  });
-}
-
-async function seedBinaryFile(path: string) {
-  return createContextItem(conn, {
-    title: path.split("/").pop() ?? path,
-    content: undefined,
-    contextPath: path,
-    mimeType: "application/octet-stream",
-    isTextual: false,
-  });
-}
 
 // ── file_write ──────────────────────────────────────────────
 
@@ -64,7 +35,7 @@ describe("file_write", () => {
   });
 
   test("overwrites existing file", async () => {
-    await seedFile("/overwrite.txt", "original");
+    await seedFile(conn, "/overwrite.txt", "original");
     const result = await fileWriteTool.execute(
       { path: "/overwrite.txt", content: "updated" },
       ctx,
@@ -104,13 +75,13 @@ describe("file_write", () => {
 
 describe("file_read", () => {
   test("reads existing file", async () => {
-    await seedFile("/readme.md", "line1\nline2\nline3");
+    await seedFile(conn, "/readme.md", "line1\nline2\nline3");
     const result = await fileReadTool.execute({ path: "/readme.md" }, ctx);
     expect(result.content).toBe("line1\nline2\nline3");
   });
 
   test("reads with offset and limit", async () => {
-    await seedFile("/lines.txt", "a\nb\nc\nd\ne");
+    await seedFile(conn, "/lines.txt", "a\nb\nc\nd\ne");
     const result = await fileReadTool.execute(
       { path: "/lines.txt", offset: 2, limit: 2 },
       ctx,
@@ -125,7 +96,7 @@ describe("file_read", () => {
   });
 
   test("throws for file with no text content", async () => {
-    await seedBinaryFile("/image.png");
+    await seedBinaryFile(conn, "/image.png");
     expect(fileReadTool.execute({ path: "/image.png" }, ctx)).rejects.toThrow(
       "No text content",
     );
@@ -136,7 +107,7 @@ describe("file_read", () => {
 
 describe("file_edit", () => {
   test("replaces lines with a patch", async () => {
-    await seedFile("/edit.txt", "line1\nline2\nline3");
+    await seedFile(conn, "/edit.txt", "line1\nline2\nline3");
     const result = await fileEditTool.execute(
       {
         path: "/edit.txt",
@@ -150,7 +121,7 @@ describe("file_edit", () => {
   });
 
   test("inserts lines when end_line is 0", async () => {
-    await seedFile("/insert.txt", "line1\nline2");
+    await seedFile(conn, "/insert.txt", "line1\nline2");
     const result = await fileEditTool.execute(
       {
         path: "/insert.txt",
@@ -165,7 +136,7 @@ describe("file_edit", () => {
   });
 
   test("deletes lines with empty content", async () => {
-    await seedFile("/delete.txt", "line1\nline2\nline3");
+    await seedFile(conn, "/delete.txt", "line1\nline2\nline3");
     const result = await fileEditTool.execute(
       {
         path: "/delete.txt",
@@ -194,7 +165,7 @@ describe("file_edit", () => {
 
 describe("file_delete", () => {
   test("deletes an existing file", async () => {
-    await seedFile("/remove.txt", "bye");
+    await seedFile(conn, "/remove.txt", "bye");
     const result = await fileDeleteTool.execute({ path: "/remove.txt" }, ctx);
     expect(result.deleted).toBe(1);
 
@@ -217,8 +188,8 @@ describe("file_delete", () => {
   });
 
   test("recursive delete removes children", async () => {
-    await seedFile("/dir/a.txt", "a");
-    await seedFile("/dir/b.txt", "b");
+    await seedFile(conn, "/dir/a.txt", "a");
+    await seedFile(conn, "/dir/b.txt", "b");
     const result = await fileDeleteTool.execute(
       { path: "/dir", recursive: true },
       ctx,
@@ -231,7 +202,7 @@ describe("file_delete", () => {
 
 describe("file_copy", () => {
   test("copies a file", async () => {
-    await seedFile("/orig.txt", "content");
+    await seedFile(conn, "/orig.txt", "content");
     const result = await fileCopyTool.execute(
       { src: "/orig.txt", dst: "/copy.txt" },
       ctx,
@@ -243,16 +214,16 @@ describe("file_copy", () => {
   });
 
   test("throws when destination exists without overwrite", async () => {
-    await seedFile("/src.txt", "a");
-    await seedFile("/dst.txt", "b");
+    await seedFile(conn, "/src.txt", "a");
+    await seedFile(conn, "/dst.txt", "b");
     expect(
       fileCopyTool.execute({ src: "/src.txt", dst: "/dst.txt" }, ctx),
     ).rejects.toThrow("Destination already exists");
   });
 
   test("overwrites when overwrite is true", async () => {
-    await seedFile("/src.txt", "new");
-    await seedFile("/dst.txt", "old");
+    await seedFile(conn, "/src.txt", "new");
+    await seedFile(conn, "/dst.txt", "old");
     const result = await fileCopyTool.execute(
       { src: "/src.txt", dst: "/dst.txt", overwrite: true },
       ctx,
@@ -271,7 +242,7 @@ describe("file_copy", () => {
 
 describe("file_move", () => {
   test("moves a file", async () => {
-    await seedFile("/old.txt", "data");
+    await seedFile(conn, "/old.txt", "data");
     const result = await fileMoveTool.execute(
       { src: "/old.txt", dst: "/new.txt" },
       ctx,
@@ -286,16 +257,16 @@ describe("file_move", () => {
   });
 
   test("throws when destination exists without overwrite", async () => {
-    await seedFile("/a.txt", "a");
-    await seedFile("/b.txt", "b");
+    await seedFile(conn, "/a.txt", "a");
+    await seedFile(conn, "/b.txt", "b");
     expect(
       fileMoveTool.execute({ src: "/a.txt", dst: "/b.txt" }, ctx),
     ).rejects.toThrow("Destination already exists");
   });
 
   test("overwrites when overwrite is true", async () => {
-    await seedFile("/a.txt", "a");
-    await seedFile("/b.txt", "b");
+    await seedFile(conn, "/a.txt", "a");
+    await seedFile(conn, "/b.txt", "b");
     const result = await fileMoveTool.execute(
       { src: "/a.txt", dst: "/b.txt", overwrite: true },
       ctx,
@@ -314,7 +285,7 @@ describe("file_move", () => {
 
 describe("file_info", () => {
   test("returns metadata for existing file", async () => {
-    await seedFile("/meta.txt", "hello\nworld", {
+    await seedFile(conn, "/meta.txt", "hello\nworld", {
       title: "Meta",
       description: "A test file",
     });
@@ -341,7 +312,7 @@ describe("file_info", () => {
 
 describe("file_exists", () => {
   test("returns true for existing file", async () => {
-    await seedFile("/there.txt", "hi");
+    await seedFile(conn, "/there.txt", "hi");
     const result = await fileExistsTool.execute({ path: "/there.txt" }, ctx);
     expect(result.exists).toBe(true);
   });
@@ -356,7 +327,7 @@ describe("file_exists", () => {
 
 describe("file_count_lines", () => {
   test("counts lines in a file", async () => {
-    await seedFile("/lines.txt", "a\nb\nc");
+    await seedFile(conn, "/lines.txt", "a\nb\nc");
     const result = await fileCountLinesTool.execute(
       { path: "/lines.txt" },
       ctx,
@@ -365,7 +336,7 @@ describe("file_count_lines", () => {
   });
 
   test("single line file returns 1", async () => {
-    await seedFile("/single.txt", "only one line");
+    await seedFile(conn, "/single.txt", "only one line");
     const result = await fileCountLinesTool.execute(
       { path: "/single.txt" },
       ctx,
@@ -380,7 +351,7 @@ describe("file_count_lines", () => {
   });
 
   test("throws for non-textual file", async () => {
-    await seedBinaryFile("/bin.dat");
+    await seedBinaryFile(conn, "/bin.dat");
     expect(
       fileCountLinesTool.execute({ path: "/bin.dat" }, ctx),
     ).rejects.toThrow("No text content");

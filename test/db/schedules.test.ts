@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { type DbConnection, getConnection } from "../../src/db/connection.ts";
+import type { DbConnection } from "../../src/db/connection.ts";
 import {
   createSchedule,
   deleteSchedule,
@@ -8,13 +8,12 @@ import {
   markScheduleRun,
   updateSchedule,
 } from "../../src/db/schedules.ts";
-import { migrate } from "../../src/db/schema.ts";
+import { setupTestDb } from "../helpers.ts";
 
 let conn: DbConnection;
 
 beforeEach(() => {
-  conn = getConnection(":memory:");
-  migrate(conn);
+  conn = setupTestDb();
 });
 
 describe("schedule CRUD", () => {

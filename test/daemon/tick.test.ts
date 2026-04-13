@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { type DbConnection, getConnection } from "../../src/db/connection.ts";
-import { migrate } from "../../src/db/schema.ts";
+import type { DbConnection } from "../../src/db/connection.ts";
 import { createTask, getTask } from "../../src/db/tasks.ts";
 import { getThread, listThreads } from "../../src/db/threads.ts";
+import { setupTestDb } from "../helpers.ts";
 
 // Mock the Anthropic SDK before importing tick
 mock.module("@anthropic-ai/sdk", () => {
@@ -33,8 +33,7 @@ const { tick } = await import("../../src/daemon/tick.ts");
 let conn: DbConnection;
 
 beforeEach(() => {
-  conn = getConnection(":memory:");
-  migrate(conn);
+  conn = setupTestDb();
 });
 
 describe("daemon tick", () => {

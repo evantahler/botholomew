@@ -1,4 +1,5 @@
 import type { DbConnection } from "./connection.ts";
+import { buildSetClauses, buildWhereClause } from "./query.ts";
 import { uuidv7 } from "./uuid.ts";
 
 export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
@@ -109,20 +110,10 @@ export async function listTasks(
     limit?: number;
   },
 ): Promise<Task[]> {
-  const conditions: string[] = [];
-  const params: string[] = [];
-
-  if (filters?.status) {
-    params.push(filters.status);
-    conditions.push(`status = ?${params.length}`);
-  }
-  if (filters?.priority) {
-    params.push(filters.priority);
-    conditions.push(`priority = ?${params.length}`);
-  }
-
-  const where =
-    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const { where, params } = buildWhereClause([
+    ["status", filters?.status],
+    ["priority", filters?.priority],
+  ]);
   const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
 
   const rows = db
@@ -198,29 +189,18 @@ export async function updateTask(
     await validateBlockedBy(db, id, updates.blocked_by);
   }
 
-  const setClauses: string[] = [];
-  const params: (string | number | null)[] = [];
-
-  if (updates.name !== undefined) {
-    params.push(updates.name);
-    setClauses.push(`name = ?${params.length}`);
-  }
-  if (updates.description !== undefined) {
-    params.push(updates.description);
-    setClauses.push(`description = ?${params.length}`);
-  }
-  if (updates.priority !== undefined) {
-    params.push(updates.priority);
-    setClauses.push(`priority = ?${params.length}`);
-  }
-  if (updates.status !== undefined) {
-    params.push(updates.status);
-    setClauses.push(`status = ?${params.length}`);
-  }
-  if (updates.blocked_by !== undefined) {
-    params.push(JSON.stringify(updates.blocked_by));
-    setClauses.push(`blocked_by = ?${params.length}`);
-  }
+  const { setClauses, params } = buildSetClauses([
+    ["name", updates.name],
+    ["description", updates.description],
+    ["priority", updates.priority],
+    ["status", updates.status],
+    [
+      "blocked_by",
+      updates.blocked_by !== undefined
+        ? JSON.stringify(updates.blocked_by)
+        : undefined,
+    ],
+  ]);
 
   if (setClauses.length === 0) {
     return getTask(db, id);

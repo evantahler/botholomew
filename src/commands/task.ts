@@ -1,8 +1,5 @@
 import ansis from "ansis";
 import type { Command } from "commander";
-import { getDbPath } from "../constants.ts";
-import { getConnection } from "../db/connection.ts";
-import { migrate } from "../db/schema.ts";
 import type { Task } from "../db/tasks.ts";
 import {
   createTask,
@@ -13,6 +10,7 @@ import {
   updateTask,
 } from "../db/tasks.ts";
 import { logger } from "../utils/logger.ts";
+import { withDb } from "./with-db.ts";
 
 export function registerTaskCommand(program: Command) {
   const task = program.command("task").description("Manage tasks");
@@ -23,66 +21,54 @@ export function registerTaskCommand(program: Command) {
     .option("-s, --status <status>", "filter by status")
     .option("-p, --priority <priority>", "filter by priority")
     .option("-l, --limit <n>", "max number of tasks", parseInt)
-    .action(async (opts) => {
-      const dir = program.opts().dir;
-      const conn = getConnection(getDbPath(dir));
-      migrate(conn);
+    .action((opts) =>
+      withDb(program, async (conn) => {
+        const tasks = await listTasks(conn, {
+          status: opts.status,
+          priority: opts.priority,
+          limit: opts.limit,
+        });
 
-      const tasks = await listTasks(conn, {
-        status: opts.status,
-        priority: opts.priority,
-        limit: opts.limit,
-      });
+        if (tasks.length === 0) {
+          logger.dim("No tasks found.");
+          return;
+        }
 
-      if (tasks.length === 0) {
-        logger.dim("No tasks found.");
-        return;
-      }
-
-      for (const t of tasks) {
-        printTask(t);
-      }
-
-      conn.close();
-    });
+        for (const t of tasks) {
+          printTask(t);
+        }
+      }),
+    );
 
   task
     .command("add <name>")
     .description("Create a new task")
     .option("--description <text>", "task description", "")
     .option("-p, --priority <priority>", "low, medium, or high", "medium")
-    .action(async (name, opts) => {
-      const dir = program.opts().dir;
-      const conn = getConnection(getDbPath(dir));
-      migrate(conn);
-
-      const t = await createTask(conn, {
-        name,
-        description: opts.description,
-        priority: opts.priority,
-      });
-
-      logger.success(`Created task: ${t.name} (${t.id})`);
-      conn.close();
-    });
+    .action((name, opts) =>
+      withDb(program, async (conn) => {
+        const t = await createTask(conn, {
+          name,
+          description: opts.description,
+          priority: opts.priority,
+        });
+        logger.success(`Created task: ${t.name} (${t.id})`);
+      }),
+    );
 
   task
     .command("view <id>")
     .description("View task details")
-    .action(async (id) => {
-      const dir = program.opts().dir;
-      const conn = getConnection(getDbPath(dir));
-      migrate(conn);
-
-      const t = await getTask(conn, id);
-      if (!t) {
-        logger.error(`Task not found: ${id}`);
-        process.exit(1);
-      }
-
-      printTaskDetail(t);
-      conn.close();
-    });
+    .action((id) =>
+      withDb(program, async (conn) => {
+        const t = await getTask(conn, id);
+        if (!t) {
+          logger.error(`Task not found: ${id}`);
+          process.exit(1);
+        }
+        printTaskDetail(t);
+      }),
+    );
 
   task
     .command("update <id>")
@@ -91,67 +77,55 @@ export function registerTaskCommand(program: Command) {
     .option("--description <text>", "new description")
     .option("-p, --priority <priority>", "low, medium, or high")
     .option("-s, --status <status>", "new status")
-    .action(async (id, opts) => {
-      const dir = program.opts().dir;
-      const conn = getConnection(getDbPath(dir));
-      migrate(conn);
+    .action((id, opts) =>
+      withDb(program, async (conn) => {
+        const updates: Parameters<typeof updateTask>[2] = {};
+        if (opts.name) updates.name = opts.name;
+        if (opts.description) updates.description = opts.description;
+        if (opts.priority) updates.priority = opts.priority;
+        if (opts.status) updates.status = opts.status;
 
-      const updates: Parameters<typeof updateTask>[2] = {};
-      if (opts.name) updates.name = opts.name;
-      if (opts.description) updates.description = opts.description;
-      if (opts.priority) updates.priority = opts.priority;
-      if (opts.status) updates.status = opts.status;
-
-      try {
-        const t = await updateTask(conn, id, updates);
-        if (!t) {
-          logger.error(`Task not found: ${id}`);
+        try {
+          const t = await updateTask(conn, id, updates);
+          if (!t) {
+            logger.error(`Task not found: ${id}`);
+            process.exit(1);
+          }
+          printTaskDetail(t);
+        } catch (err) {
+          logger.error(String(err));
           process.exit(1);
         }
-        printTaskDetail(t);
-      } catch (err) {
-        logger.error(String(err));
-        process.exit(1);
-      }
-
-      conn.close();
-    });
+      }),
+    );
 
   task
     .command("delete <id>")
     .description("Delete a task")
-    .action(async (id) => {
-      const dir = program.opts().dir;
-      const conn = getConnection(getDbPath(dir));
-      migrate(conn);
-
-      const deleted = await deleteTask(conn, id);
-      if (!deleted) {
-        logger.error(`Task not found: ${id}`);
-        process.exit(1);
-      }
-
-      logger.success(`Deleted task: ${id}`);
-      conn.close();
-    });
+    .action((id) =>
+      withDb(program, async (conn) => {
+        const deleted = await deleteTask(conn, id);
+        if (!deleted) {
+          logger.error(`Task not found: ${id}`);
+          process.exit(1);
+        }
+        logger.success(`Deleted task: ${id}`);
+      }),
+    );
 
   task
     .command("reset <id>")
     .description("Reset a stuck task back to pending")
-    .action(async (id) => {
-      const dir = program.opts().dir;
-      const conn = getConnection(getDbPath(dir));
-      migrate(conn);
-
-      const t = await resetTask(conn, id);
-      if (!t) {
-        logger.error(`Task not found: ${id}`);
-        process.exit(1);
-      }
-
-      logger.success(`Reset task: ${t.name} (${t.id})`);
-      conn.close();
-    });
+    .action((id) =>
+      withDb(program, async (conn) => {
+        const t = await resetTask(conn, id);
+        if (!t) {
+          logger.error(`Task not found: ${id}`);
+          process.exit(1);
+        }
+        logger.success(`Reset task: ${t.name} (${t.id})`);
+      }),
+    );
 }
 
 function statusColor(status: Task["status"]): string {

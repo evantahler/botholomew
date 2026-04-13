@@ -1,4 +1,5 @@
 import type { DbConnection } from "./connection.ts";
+import { buildSetClauses, buildWhereClause } from "./query.ts";
 import { uuidv7 } from "./uuid.ts";
 
 export interface ContextItem {
@@ -115,20 +116,10 @@ export async function listContextItems(
     limit?: number;
   },
 ): Promise<ContextItem[]> {
-  const conditions: string[] = [];
-  const params: (string | null)[] = [];
-
-  if (filters?.contextPath) {
-    params.push(filters.contextPath);
-    conditions.push(`context_path = ?${params.length}`);
-  }
-  if (filters?.mimeType) {
-    params.push(filters.mimeType);
-    conditions.push(`mime_type = ?${params.length}`);
-  }
-
-  const where =
-    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const { where, params } = buildWhereClause([
+    ["context_path", filters?.contextPath],
+    ["mime_type", filters?.mimeType],
+  ]);
   const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
 
   const rows = db
@@ -224,27 +215,16 @@ export async function updateContextItem(
     Pick<ContextItem, "title" | "description" | "content" | "mime_type">
   >,
 ): Promise<ContextItem | null> {
-  const setClauses: string[] = ["updated_at = datetime('now')"];
-  const params: (string | null)[] = [];
+  const { setClauses, params } = buildSetClauses([
+    ["title", updates.title],
+    ["description", updates.description],
+    ["content", updates.content],
+    ["mime_type", updates.mime_type],
+  ]);
 
-  if (updates.title !== undefined) {
-    params.push(updates.title);
-    setClauses.push(`title = ?${params.length}`);
-  }
-  if (updates.description !== undefined) {
-    params.push(updates.description);
-    setClauses.push(`description = ?${params.length}`);
-  }
-  if (updates.content !== undefined) {
-    params.push(updates.content);
-    setClauses.push(`content = ?${params.length}`);
-  }
-  if (updates.mime_type !== undefined) {
-    params.push(updates.mime_type);
-    setClauses.push(`mime_type = ?${params.length}`);
-  }
-
+  setClauses.push("updated_at = datetime('now')");
   params.push(id);
+
   const row = db
     .query(
       `UPDATE context_items
