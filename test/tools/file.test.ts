@@ -375,7 +375,11 @@ describe("file edge cases", () => {
   });
 
   test("edit with multiple patches applied in order", async () => {
-    await seedFile("/multi-edit.txt", "line1\nline2\nline3\nline4\nline5");
+    await seedFile(
+      conn,
+      "/multi-edit.txt",
+      "line1\nline2\nline3\nline4\nline5",
+    );
     const result = await fileEditTool.execute(
       {
         path: "/multi-edit.txt",
@@ -394,7 +398,7 @@ describe("file edge cases", () => {
 
   test("copy preserves content exactly", async () => {
     const content = "Special chars: \t\n\r\nUnicode: \u00e9\u00e8\u00ea";
-    await seedFile("/special.txt", content);
+    await seedFile(conn, "/special.txt", content);
     await fileCopyTool.execute(
       { src: "/special.txt", dst: "/special-copy.txt" },
       ctx,
@@ -407,7 +411,7 @@ describe("file edge cases", () => {
   });
 
   test("move source no longer exists", async () => {
-    await seedFile("/src-move.txt", "moving data");
+    await seedFile(conn, "/src-move.txt", "moving data");
     await fileMoveTool.execute(
       { src: "/src-move.txt", dst: "/dst-move.txt" },
       ctx,
@@ -428,14 +432,14 @@ describe("file edge cases", () => {
 
   test("info returns correct size for multi-byte content", async () => {
     const content = "Hello";
-    await seedFile("/sized.txt", content);
+    await seedFile(conn, "/sized.txt", content);
     const info = await fileInfoTool.execute({ path: "/sized.txt" }, ctx);
     expect(info.size).toBe(5);
     expect(info.lines).toBe(1);
   });
 
   test("read with offset beyond file length returns empty", async () => {
-    await seedFile("/short.txt", "only\ntwo");
+    await seedFile(conn, "/short.txt", "only\ntwo");
     const result = await fileReadTool.execute(
       { path: "/short.txt", offset: 100 },
       ctx,
@@ -444,8 +448,8 @@ describe("file edge cases", () => {
   });
 
   test("delete with recursive on empty path does not affect other files", async () => {
-    await seedFile("/keep/a.txt", "keep me");
-    await seedFile("/remove-dir/b.txt", "remove me");
+    await seedFile(conn, "/keep/a.txt", "keep me");
+    await seedFile(conn, "/remove-dir/b.txt", "remove me");
 
     await fileDeleteTool.execute({ path: "/remove-dir", recursive: true }, ctx);
 
