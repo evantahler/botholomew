@@ -1,3 +1,7 @@
+// Context tools
+import { searchContextTool } from "./context/search.ts";
+import { updateBeliefsTool } from "./context/update-beliefs.ts";
+import { updateGoalsTool } from "./context/update-goals.ts";
 // Directory tools
 import { dirCreateTool } from "./dir/create.ts";
 import { dirListTool } from "./dir/list.ts";
@@ -28,7 +32,12 @@ import { searchSemanticTool } from "./search/semantic.ts";
 import { completeTaskTool } from "./task/complete.ts";
 import { createTaskTool } from "./task/create.ts";
 import { failTaskTool } from "./task/fail.ts";
+import { listTasksTool } from "./task/list.ts";
+import { viewTaskTool } from "./task/view.ts";
 import { waitTaskTool } from "./task/wait.ts";
+// Thread tools
+import { listThreadsTool } from "./thread/list.ts";
+import { viewThreadTool } from "./thread/view.ts";
 import { registerTool } from "./tool.ts";
 
 export function registerAllTools(): void {
@@ -37,6 +46,8 @@ export function registerAllTools(): void {
   registerTool(failTaskTool);
   registerTool(waitTaskTool);
   registerTool(createTaskTool);
+  registerTool(listTasksTool);
+  registerTool(viewTaskTool);
 
   // Directory
   registerTool(dirCreateTool);
@@ -62,6 +73,15 @@ export function registerAllTools(): void {
   // Search
   registerTool(searchGrepTool);
   registerTool(searchSemanticTool);
+
+  // Thread
+  registerTool(listThreadsTool);
+  registerTool(viewThreadTool);
+
+  // Context
+  registerTool(searchContextTool);
+  registerTool(updateBeliefsTool);
+  registerTool(updateGoalsTool);
 
   // MCP
   registerTool(mcpListToolsTool);
