@@ -20,7 +20,13 @@ export async function createMcpxClient(
     return null;
   }
 
-  return new McpxClient({ servers: parsed });
+  const mcpxDir = getMcpxDir(projectDir);
+  const authPath = join(mcpxDir, "auth.json");
+  const auth = existsSync(authPath)
+    ? JSON.parse(await Bun.file(authPath).text())
+    : {};
+
+  return new McpxClient({ servers: parsed, auth, configDir: mcpxDir });
 }
 
 /**
