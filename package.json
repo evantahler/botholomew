@@ -18,7 +18,7 @@
   "scripts": {
     "dev": "bun run src/cli.ts",
     "test": "bun test",
-    "build": "bun build --compile --minify --sourcemap ./src/cli.ts --outfile dist/botholomew",
+    "build": "bun build --compile --minify --sourcemap --external react-devtools-core ./src/cli.ts --outfile dist/botholomew",
     "lint": "tsc --noEmit && biome check ."
   },
   "dependencies": {
