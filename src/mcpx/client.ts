@@ -26,7 +26,17 @@ export async function createMcpxClient(
     ? JSON.parse(await Bun.file(authPath).text())
     : {};
 
-  return new McpxClient({ servers: parsed, auth, configDir: mcpxDir });
+  const searchPath = join(mcpxDir, "search.json");
+  const searchIndex = existsSync(searchPath)
+    ? JSON.parse(await Bun.file(searchPath).text())
+    : undefined;
+
+  return new McpxClient({
+    servers: parsed,
+    auth,
+    searchIndex,
+    configDir: mcpxDir,
+  });
 }
 
 /**
