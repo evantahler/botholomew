@@ -1,4 +1,4 @@
-import { Box, Text, useApp } from "ink";
+import { Box, Text, useApp, useInput } from "ink";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type ChatSession,
@@ -8,9 +8,12 @@ import {
 } from "../chat/session.ts";
 import type { Interaction } from "../db/threads.ts";
 import { getThread } from "../db/threads.ts";
+import { ContextPanel } from "./components/ContextPanel.tsx";
+import { HelpPanel } from "./components/HelpPanel.tsx";
 import { InputBar } from "./components/InputBar.tsx";
 import { type ChatMessage, MessageList } from "./components/MessageList.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
+import { TabBar, type TabId } from "./components/TabBar.tsx";
 import type { ToolCallData } from "./components/ToolCall.tsx";
 import { ToolPanel } from "./components/ToolPanel.tsx";
 
@@ -38,7 +41,6 @@ function restoreMessagesFromInteractions(
         running: false,
       });
     } else if (ix.kind === "tool_result") {
-      // Attach output to the matching pending tool call
       const tc = pendingTools.find((t) => t.name === ix.tool_name && !t.output);
       if (tc) {
         tc.output = ix.content;
@@ -62,7 +64,6 @@ function restoreMessagesFromInteractions(
     }
   }
 
-  // If there are leftover tool calls with no following assistant message
   if (pendingTools.length > 0) {
     result.push({
       id: msgId(),
@@ -87,7 +88,8 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<ChatSession | null>(null);
-  const [toolPanelOpen, setToolPanelOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabId>(1);
+  const [daemonRunning, setDaemonRunning] = useState(false);
   const queueRef = useRef<string[]>([]);
   const processingRef = useRef(false);
 
@@ -103,7 +105,6 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
         }
         sessionRef.current = session;
 
-        // If resuming, populate the message list from DB interactions
         if (session.messages.length > 0) {
           const threadData = await getThread(session.conn, session.threadId);
           if (threadData) {
@@ -113,13 +114,13 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
           }
         }
 
-        // Show startup hint
         setMessages((prev) => [
           ...prev,
           {
             id: msgId(),
             role: "system" as const,
-            content: "Type /help for keyboard shortcuts and commands.",
+            content:
+              "Press Tab to switch between panels. Type /help for commands.",
             timestamp: new Date(),
           },
         ]);
@@ -142,6 +143,35 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
     };
   }, [projectDir, resumeThreadId]);
 
+  // Tab switching via useInput at the App level
+  // On the Chat tab (1), only Tab key switches — number keys go to InputBar.
+  // On other tabs, both Tab and number keys switch tabs, Escape returns to Chat.
+  useInput(
+    (input, key) => {
+      if (activeTab !== 1) {
+        // Number keys jump to tab on non-chat tabs
+        const num = Number.parseInt(input, 10);
+        if (num >= 1 && num <= 4) {
+          setActiveTab(num as TabId);
+          return;
+        }
+        // Escape returns to chat
+        if (key.escape) {
+          setActiveTab(1);
+          return;
+        }
+      }
+    },
+    { isActive: activeTab !== 1 },
+  );
+
+  // Tab key cycles tabs — always active (InputBar ignores tab)
+  useInput((_input, key) => {
+    if (key.tab && !key.shift) {
+      setActiveTab((t) => ((t % 4) + 1) as TabId);
+    }
+  });
+
   const processQueue = useCallback(async () => {
     if (processingRef.current || !sessionRef.current) return;
     processingRef.current = true;
@@ -153,7 +183,6 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
       setStreamingText("");
       setActiveToolCalls([]);
 
-      // Add user message
       const userMsg: ChatMessage = {
         id: msgId(),
         role: "user",
@@ -162,7 +191,6 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
       };
       setMessages((prev) => [...prev, userMsg]);
 
-      // Collect tool calls for the current segment
       let pendingToolCalls: ToolCallData[] = [];
       let currentText = "";
 
@@ -236,20 +264,21 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
 
       setInputValue("");
 
-      // Handle /help
       if (trimmed === "/help") {
         const helpMsg: ChatMessage = {
           id: msgId(),
           role: "system",
           content: [
             "Keyboard shortcuts:",
+            "  Tab            Switch between panels",
+            "  1-4            Jump to panel (when not in Chat)",
+            "  Escape         Return to Chat",
             "  Enter          Send message",
             "  ⌥+Enter        Insert newline",
             "  ↑/↓            Browse input history",
             "",
             "Commands:",
             "  /help           Show this help",
-            "  /tools          Toggle tool call inspector",
             "  /quit, /exit    End the chat session",
           ].join("\n"),
           timestamp: new Date(),
@@ -258,31 +287,6 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
         return;
       }
 
-      // Handle /tools
-      if (trimmed === "/tools") {
-        setMessages((prev) => {
-          const hasTools = prev.some(
-            (m) => m.toolCalls && m.toolCalls.length > 0,
-          );
-          if (!hasTools) {
-            return [
-              ...prev,
-              {
-                id: msgId(),
-                role: "system" as const,
-                content: "No tool calls to inspect yet.",
-                timestamp: new Date(),
-              },
-            ];
-          }
-          // Use setTimeout to toggle panel after state update
-          setTimeout(() => setToolPanelOpen((p) => !p), 0);
-          return prev;
-        });
-        return;
-      }
-
-      // Handle /quit
       if (trimmed === "/quit" || trimmed === "/exit") {
         if (sessionRef.current) {
           const threadId = sessionRef.current.threadId;
@@ -303,7 +307,6 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
     [exit, processQueue],
   );
 
-  // Collect all tool calls from messages for the panel
   const allToolCalls = useMemo(
     () => messages.flatMap((m) => m.toolCalls ?? []),
     [messages],
@@ -325,31 +328,49 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
     );
   }
 
+  const conn = sessionRef.current.conn;
+  const threadId = sessionRef.current.threadId;
+
   return (
     <Box flexDirection="column" height="100%">
-      <MessageList
-        messages={messages}
-        streamingText={streamingText}
-        isLoading={isLoading}
-        activeToolCalls={activeToolCalls}
-      />
-      {toolPanelOpen && allToolCalls.length > 0 && (
-        <ToolPanel
-          toolCalls={allToolCalls}
-          onClose={() => setToolPanelOpen(false)}
+      <TabBar activeTab={activeTab} />
+
+      {/* Tab content area */}
+      {activeTab === 1 && (
+        <MessageList
+          messages={messages}
+          streamingText={streamingText}
+          isLoading={isLoading}
+          activeToolCalls={activeToolCalls}
         />
       )}
+      {activeTab === 2 && (
+        <ToolPanel toolCalls={allToolCalls} isActive={activeTab === 2} />
+      )}
+      {activeTab === 3 && (
+        <ContextPanel conn={conn} isActive={activeTab === 3} />
+      )}
+      {activeTab === 4 && (
+        <HelpPanel
+          projectDir={projectDir}
+          threadId={threadId}
+          daemonRunning={daemonRunning}
+        />
+      )}
+
+      {/* Bottom bar: StatusBar + InputBar (input only on Chat tab) */}
       <InputBar
         value={inputValue}
         onChange={setInputValue}
         onSubmit={handleSubmit}
-        disabled={toolPanelOpen}
+        disabled={activeTab !== 1}
         history={inputHistory}
         header={
           <StatusBar
             projectDir={projectDir}
-            conn={sessionRef.current.conn}
+            conn={conn}
             isLoading={isLoading}
+            onDaemonStatusChange={setDaemonRunning}
           />
         }
       />

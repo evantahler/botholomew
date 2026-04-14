@@ -5,7 +5,7 @@ import type { ToolCallData } from "./ToolCall.tsx";
 
 interface ToolPanelProps {
   toolCalls: ToolCallData[];
-  onClose: () => void;
+  isActive: boolean;
 }
 
 /** A flattened row in the JSON tree */
@@ -107,7 +107,7 @@ function safeParseJson(str: string): unknown {
 
 type PanelTab = "input" | "output";
 
-export function ToolPanel({ toolCalls, onClose }: ToolPanelProps) {
+export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
   const [selectedTool, setSelectedTool] = useState(0);
   const [tab, setTab] = useState<PanelTab>("input");
   const [cursor, setCursor] = useState(0);
@@ -141,100 +141,109 @@ export function ToolPanel({ toolCalls, onClose }: ToolPanelProps) {
     return flattenJson(data, "", 0, expanded);
   }, [data, expanded]);
 
-  useInput((input, key) => {
-    if (key.escape) {
-      onClose();
-      return;
-    }
-
-    if (key.tab) {
-      setTab((t) => (t === "input" ? "output" : "input"));
-      setCursor(0);
-      setExpanded(new Set());
-      return;
-    }
-
-    if (key.leftArrow) {
-      setSelectedTool((i) => Math.max(0, i - 1));
-      setCursor(0);
-      setExpanded(new Set());
-      return;
-    }
-    if (key.rightArrow) {
-      setSelectedTool((i) => Math.min(toolCalls.length - 1, i + 1));
-      setCursor(0);
-      setExpanded(new Set());
-      return;
-    }
-
-    if (key.upArrow) {
-      setCursor((c) => Math.max(0, c - 1));
-      return;
-    }
-    if (key.downArrow) {
-      setCursor((c) => Math.min(rows.length - 1, c + 1));
-      return;
-    }
-
-    if (key.return) {
-      const row = rows[cursor];
-      if (row?.hasChildren) {
-        setExpanded((prev) => {
-          const next = new Set(prev);
-          if (next.has(row.path)) {
-            for (const p of next) {
-              if (
-                p === row.path ||
-                p.startsWith(`${row.path}.`) ||
-                p.startsWith(`${row.path}[`)
-              ) {
-                next.delete(p);
-              }
-            }
-          } else {
-            next.add(row.path);
-          }
-          return next;
-        });
+  useInput(
+    (input, key) => {
+      // Tab key switches input/output within the panel
+      // (global tab switching is handled by App)
+      if (key.tab) {
+        setTab((t) => (t === "input" ? "output" : "input"));
+        setCursor(0);
+        setExpanded(new Set());
+        return;
       }
-      return;
-    }
 
-    if (input === "e") {
-      const allPaths = new Set<string>();
-      const expandAll = (obj: unknown, parentPath: string) => {
-        if (typeof obj === "object" && obj !== null) {
-          if (Array.isArray(obj)) {
-            for (let i = 0; i < obj.length; i++) {
-              const p = `${parentPath}[${i}]`;
-              if (typeof obj[i] === "object" && obj[i] !== null) {
-                allPaths.add(p);
-                expandAll(obj[i], p);
+      if (key.leftArrow) {
+        setSelectedTool((i) => Math.max(0, i - 1));
+        setCursor(0);
+        setExpanded(new Set());
+        return;
+      }
+      if (key.rightArrow) {
+        setSelectedTool((i) => Math.min(toolCalls.length - 1, i + 1));
+        setCursor(0);
+        setExpanded(new Set());
+        return;
+      }
+
+      if (key.upArrow) {
+        setCursor((c) => Math.max(0, c - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setCursor((c) => Math.min(rows.length - 1, c + 1));
+        return;
+      }
+
+      if (key.return) {
+        const row = rows[cursor];
+        if (row?.hasChildren) {
+          setExpanded((prev) => {
+            const next = new Set(prev);
+            if (next.has(row.path)) {
+              for (const p of next) {
+                if (
+                  p === row.path ||
+                  p.startsWith(`${row.path}.`) ||
+                  p.startsWith(`${row.path}[`)
+                ) {
+                  next.delete(p);
+                }
               }
+            } else {
+              next.add(row.path);
             }
-          } else {
-            for (const [k, v] of Object.entries(obj)) {
-              const p = parentPath ? `${parentPath}.${k}` : k;
-              if (typeof v === "object" && v !== null) {
-                allPaths.add(p);
-                expandAll(v, p);
+            return next;
+          });
+        }
+        return;
+      }
+
+      if (input === "e") {
+        const allPaths = new Set<string>();
+        const expandAll = (obj: unknown, parentPath: string) => {
+          if (typeof obj === "object" && obj !== null) {
+            if (Array.isArray(obj)) {
+              for (let i = 0; i < obj.length; i++) {
+                const p = `${parentPath}[${i}]`;
+                if (typeof obj[i] === "object" && obj[i] !== null) {
+                  allPaths.add(p);
+                  expandAll(obj[i], p);
+                }
+              }
+            } else {
+              for (const [k, v] of Object.entries(obj)) {
+                const p = parentPath ? `${parentPath}.${k}` : k;
+                if (typeof v === "object" && v !== null) {
+                  allPaths.add(p);
+                  expandAll(v, p);
+                }
               }
             }
           }
-        }
-      };
-      if (data && typeof data === "object") expandAll(data, "");
-      setExpanded(allPaths);
-      return;
-    }
+        };
+        if (data && typeof data === "object") expandAll(data, "");
+        setExpanded(allPaths);
+        return;
+      }
 
-    if (input === "c") {
-      setExpanded(new Set());
-      setCursor(0);
-    }
-  });
+      if (input === "c") {
+        setExpanded(new Set());
+        setCursor(0);
+      }
+    },
+    { isActive },
+  );
 
-  if (!tool) return null;
+  if (!tool) {
+    return (
+      <Box flexDirection="column" flexGrow={1} paddingX={1}>
+        <Text dimColor>
+          No tool calls to inspect yet. Tool calls will appear here as the agent
+          uses them.
+        </Text>
+      </Box>
+    );
+  }
 
   const hasOutput = Boolean(tool.output);
 
@@ -244,7 +253,7 @@ export function ToolPanel({ toolCalls, onClose }: ToolPanelProps) {
       borderStyle="round"
       borderColor="cyan"
       paddingX={1}
-      height={16}
+      flexGrow={1}
     >
       {/* Header */}
       <Box justifyContent="space-between">
@@ -258,8 +267,7 @@ export function ToolPanel({ toolCalls, onClose }: ToolPanelProps) {
           </Text>
         </Box>
         <Text dimColor>
-          esc close · ←→ tools · tab switch · ↑↓ navigate · enter expand · e/c
-          all
+          ←→ tools · tab input/output · ↑↓ navigate · enter expand · e/c all
         </Text>
       </Box>
 
