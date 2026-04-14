@@ -1,6 +1,29 @@
 import { Box, Text } from "ink";
 import { theme } from "../theme.ts";
 
+/**
+ * For mcp_exec calls, extract server/tool into a top-level display name
+ * and strip them from the displayed input. Other tools pass through unchanged.
+ */
+export function resolveToolDisplay(
+  name: string,
+  input: string,
+): { displayName: string; displayInput: string } {
+  if (name !== "mcp_exec") return { displayName: name, displayInput: input };
+  try {
+    const parsed = JSON.parse(input);
+    const server = parsed.server ?? "mcp";
+    const tool = parsed.tool ?? "unknown";
+    const { server: _s, tool: _t, ...rest } = parsed;
+    return {
+      displayName: `${server} / ${tool}`,
+      displayInput: Object.keys(rest).length > 0 ? JSON.stringify(rest) : "{}",
+    };
+  } catch {
+    return { displayName: name, displayInput: input };
+  }
+}
+
 export interface ToolCallData {
   name: string;
   input: string;
@@ -14,8 +37,12 @@ interface ToolCallProps {
 }
 
 export function ToolCall({ tool }: ToolCallProps) {
+  const { displayName, displayInput } = resolveToolDisplay(
+    tool.name,
+    tool.input,
+  );
   const truncatedInput =
-    tool.input.length > 60 ? `${tool.input.slice(0, 60)}…` : tool.input;
+    displayInput.length > 60 ? `${displayInput.slice(0, 60)}…` : displayInput;
   const truncatedOutput = tool.output ? tool.output.slice(0, 120) : "";
 
   return (
@@ -25,8 +52,9 @@ export function ToolCall({ tool }: ToolCallProps) {
           {tool.running ? "  ⟳ " : "  ✔ "}
         </Text>
         <Text color={tool.running ? theme.accent : theme.toolName} bold>
-          {tool.name}
+          {displayName}
         </Text>
+        {tool.name === "mcp_exec" && <Text dimColor> (exec)</Text>}
         <Text dimColor> ({truncatedInput})</Text>
       </Box>
       {truncatedOutput && !tool.running && (
