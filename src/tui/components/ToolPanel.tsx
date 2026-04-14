@@ -1,328 +1,281 @@
-import { Box, Text, useInput } from "ink";
-import { useMemo, useState } from "react";
+import { Box, Text, useInput, useStdout } from "ink";
+import { useEffect, useMemo, useState } from "react";
 import { theme } from "../theme.ts";
 import type { ToolCallData } from "./ToolCall.tsx";
 
 interface ToolPanelProps {
   toolCalls: ToolCallData[];
-  onClose: () => void;
+  isActive: boolean;
 }
 
-/** A flattened row in the JSON tree */
-interface TreeRow {
-  depth: number;
-  key: string;
-  value: string | null; // null = expandable parent
-  path: string;
-  hasChildren: boolean;
-}
+const SIDEBAR_WIDTH = 32;
 
-function flattenJson(
-  obj: unknown,
-  parentPath: string,
-  depth: number,
-  expanded: Set<string>,
-): TreeRow[] {
-  const rows: TreeRow[] = [];
-
-  if (obj === null || obj === undefined) {
-    return rows;
-  }
-
-  if (Array.isArray(obj)) {
-    for (let i = 0; i < obj.length; i++) {
-      const path = `${parentPath}[${i}]`;
-      const child = obj[i];
-      if (typeof child === "object" && child !== null) {
-        rows.push({
-          depth,
-          key: `[${i}]`,
-          value: expanded.has(path) ? null : `[…]`,
-          path,
-          hasChildren: true,
-        });
-        if (expanded.has(path)) {
-          rows.push(...flattenJson(child, path, depth + 1, expanded));
-        }
-      } else {
-        rows.push({
-          depth,
-          key: `[${i}]`,
-          value: formatValue(child),
-          path,
-          hasChildren: false,
-        });
-      }
-    }
-  } else if (typeof obj === "object") {
-    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-      const path = parentPath ? `${parentPath}.${k}` : k;
-      if (typeof v === "object" && v !== null) {
-        const childCount = Array.isArray(v) ? v.length : Object.keys(v).length;
-        const preview = Array.isArray(v)
-          ? `[${childCount} items]`
-          : `{${childCount} keys}`;
-        rows.push({
-          depth,
-          key: k,
-          value: expanded.has(path) ? null : preview,
-          path,
-          hasChildren: true,
-        });
-        if (expanded.has(path)) {
-          rows.push(...flattenJson(v, path, depth + 1, expanded));
-        }
-      } else {
-        rows.push({
-          depth,
-          key: k,
-          value: formatValue(v),
-          path,
-          hasChildren: false,
-        });
-      }
-    }
-  }
-
-  return rows;
-}
-
-function formatValue(v: unknown): string {
-  if (v === null) return "null";
-  if (v === undefined) return "undefined";
-  if (typeof v === "string") {
-    if (v.length > 80) return `"${v.slice(0, 77)}…"`;
-    return `"${v}"`;
-  }
-  return String(v);
-}
-
-function safeParseJson(str: string): unknown {
+// ANSI escape helpers
+const RESET = "\x1b[0m";
+const BOLD = "\x1b[1m";
+const DIM = "\x1b[2m";
+const CYAN = "\x1b[36m";
+const GREEN = "\x1b[32m";
+const YELLOW = "\x1b[33m";
+const MAGENTA = "\x1b[35m";
+const BLUE = "\x1b[34m";
+/** Colorize a JSON string with ANSI codes */
+function colorizeJson(str: string): string {
   try {
-    return JSON.parse(str);
+    const parsed = JSON.parse(str);
+    return colorizeValue(parsed, 0);
   } catch {
     return str;
   }
 }
 
-type PanelTab = "input" | "output";
+function colorizeValue(value: unknown, indent: number): string {
+  if (value === null) return `${MAGENTA}null${RESET}`;
+  if (typeof value === "boolean")
+    return `${MAGENTA}${value ? "true" : "false"}${RESET}`;
+  if (typeof value === "number") return `${YELLOW}${value}${RESET}`;
+  if (typeof value === "string") {
+    const escaped = JSON.stringify(value);
+    return `${GREEN}${escaped}${RESET}`;
+  }
 
-export function ToolPanel({ toolCalls, onClose }: ToolPanelProps) {
-  const [selectedTool, setSelectedTool] = useState(0);
-  const [tab, setTab] = useState<PanelTab>("input");
-  const [cursor, setCursor] = useState(0);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const pad = "  ".repeat(indent);
+  const innerPad = "  ".repeat(indent + 1);
 
-  const tool = toolCalls[selectedTool];
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    const items = value.map(
+      (v) => `${innerPad}${colorizeValue(v, indent + 1)}`,
+    );
+    return `[\n${items.join(",\n")}\n${pad}]`;
+  }
 
-  const data = useMemo(() => {
-    if (!tool) return null;
-    return tab === "input"
-      ? safeParseJson(tool.input)
-      : safeParseJson(tool.output ?? "");
-  }, [tool, tab]);
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) return "{}";
+    const lines = entries.map(
+      ([k, v]) =>
+        `${innerPad}${CYAN}${JSON.stringify(k)}${RESET}: ${colorizeValue(v, indent + 1)}`,
+    );
+    return `{\n${lines.join(",\n")}\n${pad}}`;
+  }
 
-  const rows = useMemo(() => {
-    if (data === null || data === undefined) return [];
-    if (typeof data === "string") {
-      return data
-        .split("\n")
-        .filter((l) => l.trim())
-        .map(
-          (line, i): TreeRow => ({
-            depth: 0,
-            key: "",
-            value: line,
-            path: `line-${i}`,
-            hasChildren: false,
-          }),
-        );
-    }
-    return flattenJson(data, "", 0, expanded);
-  }, [data, expanded]);
+  return String(value);
+}
 
-  useInput((input, key) => {
-    if (key.escape) {
-      onClose();
-      return;
-    }
+function buildDetailAnsi(tool: ToolCallData): string {
+  const lines: string[] = [];
 
-    if (key.tab) {
-      setTab((t) => (t === "input" ? "output" : "input"));
-      setCursor(0);
-      setExpanded(new Set());
-      return;
-    }
-
-    if (key.leftArrow) {
-      setSelectedTool((i) => Math.max(0, i - 1));
-      setCursor(0);
-      setExpanded(new Set());
-      return;
-    }
-    if (key.rightArrow) {
-      setSelectedTool((i) => Math.min(toolCalls.length - 1, i + 1));
-      setCursor(0);
-      setExpanded(new Set());
-      return;
-    }
-
-    if (key.upArrow) {
-      setCursor((c) => Math.max(0, c - 1));
-      return;
-    }
-    if (key.downArrow) {
-      setCursor((c) => Math.min(rows.length - 1, c + 1));
-      return;
-    }
-
-    if (key.return) {
-      const row = rows[cursor];
-      if (row?.hasChildren) {
-        setExpanded((prev) => {
-          const next = new Set(prev);
-          if (next.has(row.path)) {
-            for (const p of next) {
-              if (
-                p === row.path ||
-                p.startsWith(`${row.path}.`) ||
-                p.startsWith(`${row.path}[`)
-              ) {
-                next.delete(p);
-              }
-            }
-          } else {
-            next.add(row.path);
-          }
-          return next;
-        });
-      }
-      return;
-    }
-
-    if (input === "e") {
-      const allPaths = new Set<string>();
-      const expandAll = (obj: unknown, parentPath: string) => {
-        if (typeof obj === "object" && obj !== null) {
-          if (Array.isArray(obj)) {
-            for (let i = 0; i < obj.length; i++) {
-              const p = `${parentPath}[${i}]`;
-              if (typeof obj[i] === "object" && obj[i] !== null) {
-                allPaths.add(p);
-                expandAll(obj[i], p);
-              }
-            }
-          } else {
-            for (const [k, v] of Object.entries(obj)) {
-              const p = parentPath ? `${parentPath}.${k}` : k;
-              if (typeof v === "object" && v !== null) {
-                allPaths.add(p);
-                expandAll(v, p);
-              }
-            }
-          }
-        }
-      };
-      if (data && typeof data === "object") expandAll(data, "");
-      setExpanded(allPaths);
-      return;
-    }
-
-    if (input === "c") {
-      setExpanded(new Set());
-      setCursor(0);
-    }
+  const time = tool.timestamp.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   });
 
-  if (!tool) return null;
+  lines.push(`${BOLD}${CYAN}${tool.name}${RESET}`);
+  lines.push(`${DIM}Time: ${time}${RESET}`);
+  if (tool.running) {
+    lines.push(`${YELLOW}⟳ running${RESET}`);
+  }
+  lines.push("");
 
-  const hasOutput = Boolean(tool.output);
+  lines.push(`${BOLD}${BLUE}Input${RESET}`);
+  lines.push(colorizeJson(tool.input));
+  lines.push("");
+
+  if (tool.output) {
+    lines.push(`${BOLD}${BLUE}Output${RESET}`);
+    lines.push(colorizeJson(tool.output));
+  } else if (!tool.running) {
+    lines.push(`${BOLD}${BLUE}Output${RESET}`);
+    lines.push(`${DIM}(no output)${RESET}`);
+  }
+
+  return lines.join("\n");
+}
+
+export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
+  const { stdout } = useStdout();
+  const termRows = stdout?.rows ?? 24;
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [detailScroll, setDetailScroll] = useState(0);
+
+  // Reverse-chronological order (most recent first)
+  const reversedCalls = useMemo(() => [...toolCalls].reverse(), [toolCalls]);
+
+  // Keep selection in bounds when new calls arrive
+  useEffect(() => {
+    if (selectedIndex >= reversedCalls.length && reversedCalls.length > 0) {
+      setSelectedIndex(reversedCalls.length - 1);
+    }
+  }, [reversedCalls.length, selectedIndex]);
+
+  const selectedTool = reversedCalls[selectedIndex];
+
+  const renderedDetail = useMemo(() => {
+    if (!selectedTool) return "";
+    return buildDetailAnsi(selectedTool);
+  }, [selectedTool]);
+
+  const detailLines = useMemo(
+    () => renderedDetail.split("\n"),
+    [renderedDetail],
+  );
+
+  // Visible area for sidebar and detail
+  const visibleRows = Math.max(1, termRows - 6); // chrome: tab bar, divider, status, input, borders
+  const sidebarScrollOffset = Math.max(
+    0,
+    Math.min(
+      selectedIndex - Math.floor(visibleRows / 2),
+      reversedCalls.length - visibleRows,
+    ),
+  );
+
+  // Reset detail scroll when selection changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedIndex is the intentional trigger
+  useEffect(() => {
+    setDetailScroll(0);
+  }, [selectedIndex]);
+
+  useInput(
+    (input, key) => {
+      if (key.upArrow) {
+        if (key.shift) {
+          // Shift+up scrolls detail
+          setDetailScroll((s) => Math.max(0, s - 1));
+        } else {
+          setSelectedIndex((i) => Math.max(0, i - 1));
+        }
+        return;
+      }
+      if (key.downArrow) {
+        if (key.shift) {
+          const maxScroll = Math.max(0, detailLines.length - visibleRows);
+          setDetailScroll((s) => Math.min(maxScroll, s + 1));
+        } else {
+          setSelectedIndex((i) => Math.min(reversedCalls.length - 1, i + 1));
+        }
+        return;
+      }
+
+      // j/k vim-style for detail scrolling
+      if (input === "j") {
+        const maxScroll = Math.max(0, detailLines.length - visibleRows);
+        setDetailScroll((s) => Math.min(maxScroll, s + 1));
+        return;
+      }
+      if (input === "k") {
+        setDetailScroll((s) => Math.max(0, s - 1));
+        return;
+      }
+    },
+    { isActive },
+  );
+
+  if (reversedCalls.length === 0) {
+    return (
+      <Box flexDirection="column" flexGrow={1} paddingX={1}>
+        <Text dimColor>
+          No tool calls to inspect yet. Tool calls will appear here as the agent
+          uses them.
+        </Text>
+      </Box>
+    );
+  }
+
+  // Sidebar visible window
+  const sidebarVisible = reversedCalls.slice(
+    sidebarScrollOffset,
+    sidebarScrollOffset + visibleRows,
+  );
+
+  // Detail visible window
+  const detailVisible = detailLines.slice(
+    detailScroll,
+    detailScroll + visibleRows,
+  );
 
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="round"
-      borderColor="cyan"
-      paddingX={1}
-      height={16}
-    >
-      {/* Header */}
-      <Box justifyContent="space-between">
-        <Box>
-          <Text bold color="cyan">
-            🔍 Tool Inspector
-          </Text>
-          <Text dimColor>
-            {" "}
-            ({selectedTool + 1}/{toolCalls.length})
+    <Box flexGrow={1} overflow="hidden">
+      {/* Left sidebar: tool call list */}
+      <Box
+        flexDirection="column"
+        width={SIDEBAR_WIDTH}
+        borderStyle="single"
+        borderColor={theme.muted}
+        borderRight
+        borderTop={false}
+        borderBottom={false}
+        borderLeft={false}
+        overflow="hidden"
+      >
+        <Box paddingX={1}>
+          <Text bold dimColor>
+            Tool Calls ({reversedCalls.length})
           </Text>
         </Box>
-        <Text dimColor>
-          esc close · ←→ tools · tab switch · ↑↓ navigate · enter expand · e/c
-          all
-        </Text>
-      </Box>
-
-      {/* Tool name */}
-      <Box>
-        <Text bold color="magenta">
-          {tool.name}
-        </Text>
-        {tool.running && <Text color={theme.accent}> ⟳ running</Text>}
-      </Box>
-
-      {/* Tabs */}
-      <Box gap={2}>
-        <Text
-          bold={tab === "input"}
-          color={tab === "input" ? "green" : undefined}
-          dimColor={tab !== "input"}
-        >
-          {tab === "input" ? "▸ " : "  "}Input
-        </Text>
-        <Text
-          bold={tab === "output"}
-          color={tab === "output" ? "green" : undefined}
-          dimColor={tab !== "output" && !hasOutput}
-        >
-          {tab === "output" ? "▸ " : "  "}Output{!hasOutput ? " (none)" : ""}
-        </Text>
-      </Box>
-
-      {/* Tree content */}
-      <Box flexDirection="column" flexGrow={1} overflow="hidden">
-        {rows.length === 0 && <Text dimColor> (empty)</Text>}
-        {rows.map((row, i) => {
-          const isSelected = i === cursor;
-          const indent = "  ".repeat(row.depth);
-          const arrow = row.hasChildren
-            ? expanded.has(row.path)
-              ? "▾ "
-              : "▸ "
-            : "  ";
-
+        {sidebarVisible.map((tc, vi) => {
+          const i = vi + sidebarScrollOffset;
+          const isSelected = i === selectedIndex;
+          const icon = tc.running ? "⟳" : "✔";
+          const time = tc.timestamp.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          const maxName = SIDEBAR_WIDTH - 12; // icon + time + padding
+          const nameDisplay =
+            tc.name.length > maxName
+              ? `${tc.name.slice(0, maxName - 1)}…`
+              : tc.name;
           return (
-            <Box key={row.path}>
+            <Box key={`${i}-${tc.name}`} paddingX={1}>
               <Text
                 backgroundColor={isSelected ? theme.selectionBg : undefined}
-                color={isSelected ? "cyan" : undefined}
+                bold={isSelected}
+                color={
+                  isSelected
+                    ? theme.info
+                    : tc.running
+                      ? theme.accent
+                      : undefined
+                }
+                wrap="truncate-end"
               >
-                {indent}
-                {arrow}
-                {row.key ? (
-                  <>
-                    <Text color="blue" bold={isSelected}>
-                      {row.key}
-                    </Text>
-                    {row.value !== null ? `: ${row.value}` : ""}
-                  </>
-                ) : (
-                  (row.value ?? "")
-                )}
+                {isSelected ? "▸" : " "}{" "}
+                <Text
+                  color={tc.running ? theme.accent : theme.muted}
+                  bold={false}
+                >
+                  {icon}
+                </Text>{" "}
+                {nameDisplay}
+                <Text dimColor> {time}</Text>
               </Text>
             </Box>
           );
         })}
+      </Box>
+
+      {/* Right detail pane */}
+      <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
+        {detailVisible.map((line, i) => {
+          const lineNum = detailScroll + i;
+          return <Text key={lineNum}>{line || " "}</Text>;
+        })}
+        {detailLines.length > visibleRows && (
+          <Box>
+            <Text dimColor>
+              ↑↓ select · shift+↑↓ or j/k scroll detail · [{detailScroll + 1}–
+              {Math.min(detailScroll + visibleRows, detailLines.length)} of{" "}
+              {detailLines.length}]
+            </Text>
+          </Box>
+        )}
+        {detailLines.length <= visibleRows && <Box flexGrow={1} />}
+        {detailLines.length <= visibleRows && (
+          <Text dimColor>↑↓ select tool calls</Text>
+        )}
       </Box>
     </Box>
   );

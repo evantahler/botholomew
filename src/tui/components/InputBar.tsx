@@ -20,6 +20,7 @@ export function InputBar({
   header,
 }: InputBarProps) {
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [cursorPos, setCursorPos] = useState(0);
   const savedInput = useRef("");
 
   useInput(
@@ -29,10 +30,14 @@ export function InputBar({
       // Enter: submit (shift+enter or opt+enter inserts newline)
       if (key.return) {
         if (key.shift || key.meta) {
-          onChange(`${value}\n`);
+          const before = value.slice(0, cursorPos);
+          const after = value.slice(cursorPos);
+          onChange(`${before}\n${after}`);
+          setCursorPos(cursorPos + 1);
         } else {
           setHistoryIndex(-1);
           savedInput.current = "";
+          setCursorPos(0);
           onSubmit(value);
         }
         return;
@@ -40,9 +45,22 @@ export function InputBar({
 
       // Backspace
       if (key.backspace || key.delete) {
-        if (value.length > 0) {
-          onChange(value.slice(0, -1));
+        if (cursorPos > 0) {
+          const before = value.slice(0, cursorPos - 1);
+          const after = value.slice(cursorPos);
+          onChange(before + after);
+          setCursorPos(cursorPos - 1);
         }
+        return;
+      }
+
+      // Left/right arrow for cursor movement
+      if (key.leftArrow) {
+        setCursorPos((c) => Math.max(0, c - 1));
+        return;
+      }
+      if (key.rightArrow) {
+        setCursorPos((c) => Math.min(value.length, c + 1));
         return;
       }
 
@@ -55,7 +73,10 @@ export function InputBar({
           }
           setHistoryIndex(nextIndex);
           const entry = history[history.length - 1 - nextIndex];
-          if (entry !== undefined) onChange(entry);
+          if (entry !== undefined) {
+            onChange(entry);
+            setCursorPos(entry.length);
+          }
         }
         return;
       }
@@ -65,22 +86,20 @@ export function InputBar({
           const nextIndex = historyIndex - 1;
           setHistoryIndex(nextIndex);
           const entry = history[history.length - 1 - nextIndex];
-          if (entry !== undefined) onChange(entry);
+          if (entry !== undefined) {
+            onChange(entry);
+            setCursorPos(entry.length);
+          }
         } else if (historyIndex === 0) {
           setHistoryIndex(-1);
           onChange(savedInput.current);
+          setCursorPos(savedInput.current.length);
         }
         return;
       }
 
       // Ignore other control keys
-      if (
-        key.ctrl ||
-        key.escape ||
-        key.leftArrow ||
-        key.rightArrow ||
-        key.tab
-      ) {
+      if (key.ctrl || key.escape || key.tab) {
         return;
       }
 
@@ -89,7 +108,10 @@ export function InputBar({
         if (historyIndex !== -1) {
           setHistoryIndex(-1);
         }
-        onChange(`${value}${input}`);
+        const before = value.slice(0, cursorPos);
+        const after = value.slice(cursorPos);
+        onChange(before + input + after);
+        setCursorPos(cursorPos + input.length);
       }
     },
     { isActive: !disabled },
@@ -112,7 +134,11 @@ export function InputBar({
           {placeholder ? (
             <Text dimColor>Type a message...</Text>
           ) : (
-            <Text>{value}</Text>
+            <Text>
+              {value.slice(0, cursorPos)}
+              <Text inverse>{value[cursorPos] ?? " "}</Text>
+              {value.slice(cursorPos + 1)}
+            </Text>
           )}
         </Box>
         {isMultiline && (

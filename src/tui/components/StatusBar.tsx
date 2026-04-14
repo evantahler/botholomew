@@ -9,6 +9,7 @@ interface StatusBarProps {
   projectDir: string;
   conn: DbConnection;
   isLoading: boolean;
+  onDaemonStatusChange?: (running: boolean) => void;
 }
 
 interface Status {
@@ -17,7 +18,12 @@ interface Status {
   inProgressCount: number;
 }
 
-export function StatusBar({ projectDir, conn, isLoading }: StatusBarProps) {
+export function StatusBar({
+  projectDir,
+  conn,
+  isLoading,
+  onDaemonStatusChange,
+}: StatusBarProps) {
   const [status, setStatus] = useState<Status>({
     daemonRunning: false,
     pendingCount: 0,
@@ -32,11 +38,13 @@ export function StatusBar({ projectDir, conn, isLoading }: StatusBarProps) {
       const pending = await listTasks(conn, { status: "pending" });
       const inProgress = await listTasks(conn, { status: "in_progress" });
       if (mounted) {
+        const daemonRunning = daemon !== null;
         setStatus({
-          daemonRunning: daemon !== null,
+          daemonRunning,
           pendingCount: pending.length,
           inProgressCount: inProgress.length,
         });
+        onDaemonStatusChange?.(daemonRunning);
       }
     };
 
@@ -46,7 +54,7 @@ export function StatusBar({ projectDir, conn, isLoading }: StatusBarProps) {
       mounted = false;
       clearInterval(interval);
     };
-  }, [projectDir, conn]);
+  }, [projectDir, conn, onDaemonStatusChange]);
 
   return (
     <Box paddingX={0}>
