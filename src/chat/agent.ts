@@ -63,6 +63,9 @@ export async function buildChatSystemPrompt(
     "Use the available tools to look up tasks, threads, schedules, and context when the user asks about them.",
   );
   parts.push(
+    "When multiple tool calls are independent of each other (i.e., one does not depend on the result of another), call them all in a single response. They will be executed in parallel, which is faster than calling them one at a time.",
+  );
+  parts.push(
     "You can update the agent's beliefs and goals files when the user asks you to.",
   );
   parts.push(
