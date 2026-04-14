@@ -123,7 +123,7 @@ export async function buildSystemPrompt(
   // Instructions
   parts.push("## Instructions");
   parts.push(
-    "You are the Botholomew daemon. You wake up periodically to work through tasks.",
+    "You are the Botholomew daemon, personified by a wise owl. You wake up periodically to work through tasks.",
   );
   parts.push("When given a task, use the available tools to complete it.");
   parts.push(

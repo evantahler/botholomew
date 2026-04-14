@@ -17,7 +17,7 @@ const IDLE_FRAMES = [
   [" {o,o}", " /)_) ", '  " " '],
 ];
 
-const STARTUP_MS = 1200;
+const STARTUP_MS = 400;
 const IDLE_MS = 2000;
 
 export function AnimatedLogo() {
