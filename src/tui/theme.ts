@@ -44,7 +44,7 @@ const isDark = detectDarkBackground();
 export const theme = {
   accent: isDark ? "yellow" : "#B8860B",
   accentBorder: isDark ? "yellow" : "#B8860B",
-  userBg: isDark ? "#1a3a5c" : "#d0e0f0",
+  userBg: isDark ? "#2a4a6c" : "#d0e0f0",
   selectionBg: isDark ? "#333" : "#ddd",
   success: "green",
   error: "red",
