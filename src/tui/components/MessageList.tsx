@@ -1,6 +1,6 @@
-import { Box, Text, useStdout } from "ink";
+import { Box, Text, useInput, useStdout } from "ink";
 import Spinner from "ink-spinner";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { theme } from "../theme.ts";
 import { ToolCall, type ToolCallData } from "./ToolCall.tsx";
 
@@ -17,6 +17,7 @@ interface MessageListProps {
   streamingText: string;
   isLoading: boolean;
   activeToolCalls: ToolCallData[];
+  isActive: boolean;
 }
 
 function formatTime(date: Date): string {
@@ -106,20 +107,70 @@ const MessageBubble = memo(function MessageBubble({
   );
 });
 
+/** Maximum messages to render at once (performance guard) */
+const MAX_RENDER = 200;
+
 export function MessageList({
   messages,
   streamingText,
   isLoading,
   activeToolCalls,
+  isActive,
 }: MessageListProps) {
+  // scrollBack: number of messages hidden below the viewport.
+  // 0 means "pinned to bottom" (newest messages visible).
+  const [scrollBack, setScrollBack] = useState(0);
+  const prevLen = useRef(messages.length);
+
+  // When new messages arrive and we're pinned to bottom, stay there.
+  // When new messages arrive and we're scrolled up, hold position by
+  // increasing scrollBack so the same messages stay in view.
+  useEffect(() => {
+    const added = messages.length - prevLen.current;
+    if (added > 0 && scrollBack > 0) {
+      setScrollBack((sb) => sb + added);
+    }
+    prevLen.current = messages.length;
+  }, [messages.length, scrollBack]);
+
+  // Scroll input — Shift+↑/↓
+  useInput((_input, key) => {
+    if (!isActive) return;
+
+    if (key.shift && key.upArrow) {
+      setScrollBack((sb) => Math.min(sb + 3, Math.max(0, messages.length - 1)));
+    }
+    if (key.shift && key.downArrow) {
+      setScrollBack((sb) => Math.max(sb - 3, 0));
+    }
+  });
+
+  // Compute the slice of messages to render
+  const visibleMessages = useMemo(() => {
+    if (scrollBack === 0) {
+      // Pinned to bottom — show last MAX_RENDER messages
+      return messages.slice(-MAX_RENDER);
+    }
+    const end = messages.length - scrollBack;
+    const start = Math.max(0, end - MAX_RENDER);
+    return messages.slice(start, Math.max(0, end));
+  }, [messages, scrollBack]);
+
+  const isAtBottom = scrollBack === 0;
+
   return (
-    <Box flexDirection="column" flexGrow={1} overflow="hidden">
-      {messages.map((msg) => (
+    <Box
+      flexDirection="column"
+      flexGrow={1}
+      overflow="hidden"
+      justifyContent="flex-end"
+    >
+      {visibleMessages.map((msg) => (
         <MessageBubble key={msg.id} message={msg} />
       ))}
 
-      {/* Active streaming / tool calls */}
-      {(streamingText || activeToolCalls.length > 0) && (
+      {/* Active streaming / tool calls — only shown when pinned to bottom */}
+      {isAtBottom && (streamingText || activeToolCalls.length > 0) && (
         <Box flexDirection="column" marginTop={1}>
           <Box>
             <Text bold color="green">
@@ -148,12 +199,22 @@ export function MessageList({
         </Box>
       )}
 
-      {isLoading && !streamingText && activeToolCalls.length === 0 && (
-        <Box marginTop={1}>
-          <Text color={theme.accent}>
-            <Spinner type="dots" />
-          </Text>
-          <Text dimColor> Thinking...</Text>
+      {isAtBottom &&
+        isLoading &&
+        !streamingText &&
+        activeToolCalls.length === 0 && (
+          <Box marginTop={1}>
+            <Text color={theme.accent}>
+              <Spinner type="dots" />
+            </Text>
+            <Text dimColor> Thinking...</Text>
+          </Box>
+        )}
+
+      {/* Scroll indicator */}
+      {!isAtBottom && (
+        <Box justifyContent="center">
+          <Text dimColor>↓ {scrollBack} more — Shift+↓ to scroll down</Text>
         </Box>
       )}
     </Box>

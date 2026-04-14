@@ -351,6 +351,7 @@ export function App({
             "  Enter          Send message",
             "  ⌥+Enter        Insert newline",
             "  ↑/↓            Browse input history",
+            "  Shift+↑/↓      Scroll chat history",
             "",
             "Tools (Tab 2):",
             "  ↑/↓            Select tool call",
@@ -429,6 +430,7 @@ export function App({
           streamingText={streamingText}
           isLoading={isLoading}
           activeToolCalls={activeToolCalls}
+          isActive={activeTab === 1}
         />
       )}
       {activeTab === 2 && (
