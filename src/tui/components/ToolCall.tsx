@@ -1,4 +1,5 @@
 import { Box, Text } from "ink";
+import { theme } from "../theme.ts";
 
 export interface ToolCallData {
   name: string;
@@ -19,10 +20,10 @@ export function ToolCall({ tool }: ToolCallProps) {
   return (
     <Box flexDirection="column">
       <Box>
-        <Text color={tool.running ? "yellow" : "gray"}>
+        <Text color={tool.running ? theme.accent : theme.muted}>
           {tool.running ? "  ⟳ " : "  ✔ "}
         </Text>
-        <Text color={tool.running ? "yellow" : "magenta"} bold>
+        <Text color={tool.running ? theme.accent : theme.toolName} bold>
           {tool.name}
         </Text>
         <Text dimColor> ({truncatedInput})</Text>

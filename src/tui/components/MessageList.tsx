@@ -1,6 +1,7 @@
 import { Box, Text, useStdout } from "ink";
 import Spinner from "ink-spinner";
 import { memo, useMemo } from "react";
+import { theme } from "../theme.ts";
 import { ToolCall, type ToolCallData } from "./ToolCall.tsx";
 
 export interface ChatMessage {
@@ -54,13 +55,13 @@ const MessageBubble = memo(function MessageBubble({
       .join("\n");
     return (
       <Box flexDirection="column" marginTop={1}>
-        <Text backgroundColor="#1a3a5c">
+        <Text backgroundColor={theme.userBg}>
           <Text bold color="cyan">
             {" You "}
           </Text>
           <Text dimColor>{padLine(time, cols - 5)}</Text>
         </Text>
-        <Text backgroundColor="#1a3a5c">{paddedContent}</Text>
+        <Text backgroundColor={theme.userBg}>{paddedContent}</Text>
       </Box>
     );
   }
@@ -68,7 +69,7 @@ const MessageBubble = memo(function MessageBubble({
   if (message.role === "system") {
     return (
       <Box marginTop={1}>
-        <Text color="yellow" dimColor>
+        <Text color={theme.accent} dimColor>
           ⚠ {message.content}
         </Text>
         <Text dimColor> {time}</Text>
@@ -131,7 +132,7 @@ export function MessageList({
               flexDirection="column"
               marginLeft={1}
               borderStyle="round"
-              borderColor="yellow"
+              borderColor={theme.accentBorder}
               paddingX={1}
             >
               {activeToolCalls.map((tc) => (
@@ -149,7 +150,7 @@ export function MessageList({
 
       {isLoading && !streamingText && activeToolCalls.length === 0 && (
         <Box marginTop={1}>
-          <Text color="yellow">
+          <Text color={theme.accent}>
             <Spinner type="dots" />
           </Text>
           <Text dimColor> Thinking...</Text>
