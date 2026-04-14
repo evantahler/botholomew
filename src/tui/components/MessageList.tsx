@@ -1,5 +1,6 @@
 import { Box, Text, useStdout } from "ink";
 import Spinner from "ink-spinner";
+import { memo, useMemo } from "react";
 import { ToolCall, type ToolCallData } from "./ToolCall.tsx";
 
 export interface ChatMessage {
@@ -26,12 +27,31 @@ function padLine(text: string, width: number): string {
   return text + " ".repeat(pad);
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function renderMarkdown(text: string): string {
+  if (!text) return "";
+  return Bun.markdown.ansi(text).trimEnd();
+}
+
+const MessageBubble = memo(function MessageBubble({
+  message,
+}: {
+  message: ChatMessage;
+}) {
   const { stdout } = useStdout();
   const cols = stdout?.columns ?? 80;
   const time = formatTime(message.timestamp);
 
+  const renderedContent = useMemo(
+    () =>
+      message.role === "assistant" ? renderMarkdown(message.content) : null,
+    [message.role, message.content],
+  );
+
   if (message.role === "user") {
+    const paddedContent = message.content
+      .split("\n")
+      .map((line) => padLine(` ${line}`, cols))
+      .join("\n");
     return (
       <Box flexDirection="column" marginTop={1}>
         <Text backgroundColor="#1a3a5c">
@@ -40,9 +60,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           </Text>
           <Text dimColor>{padLine(time, cols - 5)}</Text>
         </Text>
-        <Text backgroundColor="#1a3a5c">
-          {padLine(` ${message.content}`, cols)}
-        </Text>
+        <Text backgroundColor="#1a3a5c">{paddedContent}</Text>
       </Box>
     );
   }
@@ -81,11 +99,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             ))}
           </Box>
         )}
-        <Text>{message.content}</Text>
+        <Text>{renderedContent}</Text>
       </Box>
     </Box>
   );
-}
+});
 
 export function MessageList({
   messages,
@@ -123,7 +141,7 @@ export function MessageList({
           )}
           {streamingText && (
             <Box marginLeft={1}>
-              <Text>{streamingText}</Text>
+              <Text>{renderMarkdown(streamingText)}</Text>
             </Box>
           )}
         </Box>

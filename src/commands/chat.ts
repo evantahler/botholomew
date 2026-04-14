@@ -15,6 +15,12 @@ export function registerChatCommand(program: Command) {
           projectDir: dir,
           threadId: opts.threadId,
         }),
+        {
+          kittyKeyboard: {
+            mode: "enabled",
+            flags: ["disambiguateEscapeCodes", "reportEventTypes"],
+          },
+        },
       );
       await instance.waitUntilExit();
     });

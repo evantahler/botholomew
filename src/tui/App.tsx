@@ -86,6 +86,8 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<ChatSession | null>(null);
+  const queueRef = useRef<string[]>([]);
+  const processingRef = useRef(false);
 
   // Initialize session
   useEffect(() => {
@@ -127,27 +129,13 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
     };
   }, [projectDir, resumeThreadId]);
 
-  const handleSubmit = useCallback(
-    async (text: string) => {
-      const trimmed = text.trim();
-      if (!trimmed || !sessionRef.current) return;
+  const processQueue = useCallback(async () => {
+    if (processingRef.current || !sessionRef.current) return;
+    processingRef.current = true;
 
-      // Handle /quit
-      if (trimmed === "/quit" || trimmed === "/exit") {
-        if (sessionRef.current) {
-          const threadId = sessionRef.current.threadId;
-          await endChatSession(sessionRef.current);
-          sessionRef.current = null;
-          process.stderr.write(
-            `\nThread: ${threadId}\nResume with: \x1b[32mbotholomew chat --thread-id ${threadId}\x1b[0m\n`,
-          );
-        }
-        exit();
-        return;
-      }
-
-      setInputValue("");
-      setInputHistory((prev) => [...prev, trimmed]);
+    while (queueRef.current.length > 0) {
+      const trimmed = queueRef.current.shift();
+      if (!trimmed) break;
       setIsLoading(true);
       setStreamingText("");
       setActiveToolCalls([]);
@@ -161,7 +149,7 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
       };
       setMessages((prev) => [...prev, userMsg]);
 
-      // Collect tool calls for the current segment (reset after each finalization)
+      // Collect tool calls for the current segment
       let pendingToolCalls: ToolCallData[] = [];
       let currentText = "";
 
@@ -190,7 +178,6 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
             setStreamingText(currentText);
           },
           onToolStart: (name, input) => {
-            // If we had streamed text before this tool call, finalize it
             if (currentText) {
               finalizeSegment();
             }
@@ -210,7 +197,6 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
           },
         });
 
-        // Finalize any remaining text or tool calls
         finalizeSegment();
       } catch (err) {
         const errorMsg: ChatMessage = {
@@ -221,12 +207,40 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
         };
         setMessages((prev) => [...prev, errorMsg]);
       } finally {
-        setIsLoading(false);
         setStreamingText("");
         setActiveToolCalls([]);
       }
+    }
+
+    setIsLoading(false);
+    processingRef.current = false;
+  }, []);
+
+  const handleSubmit = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || !sessionRef.current) return;
+
+      // Handle /quit
+      if (trimmed === "/quit" || trimmed === "/exit") {
+        if (sessionRef.current) {
+          const threadId = sessionRef.current.threadId;
+          await endChatSession(sessionRef.current);
+          sessionRef.current = null;
+          process.stderr.write(
+            `\nThread: ${threadId}\nResume with: \x1b[32mbotholomew chat --thread-id ${threadId}\x1b[0m\n`,
+          );
+        }
+        exit();
+        return;
+      }
+
+      setInputValue("");
+      setInputHistory((prev) => [...prev, trimmed]);
+      queueRef.current.push(trimmed);
+      processQueue();
     },
-    [exit],
+    [exit, processQueue],
   );
 
   if (error) {
@@ -257,7 +271,7 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
         value={inputValue}
         onChange={setInputValue}
         onSubmit={handleSubmit}
-        disabled={isLoading}
+        disabled={false}
         history={inputHistory}
         header={
           <StatusBar

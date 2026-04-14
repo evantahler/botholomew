@@ -1,7 +1,6 @@
 import { Box, Text, useInput } from "ink";
-import TextInput from "ink-text-input";
 import type { ReactNode } from "react";
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 interface InputBarProps {
   value: string;
@@ -20,36 +19,35 @@ export function InputBar({
   history,
   header,
 }: InputBarProps) {
-  // historyIndex: -1 means "not browsing history" (current input shown)
-  // 0 = most recent, 1 = second most recent, etc.
   const [historyIndex, setHistoryIndex] = useState(-1);
   const savedInput = useRef("");
 
-  const handleChange = useCallback(
-    (newValue: string) => {
-      // If user types while browsing history, exit history mode
-      if (historyIndex !== -1) {
-        setHistoryIndex(-1);
-      }
-      onChange(newValue);
-    },
-    [historyIndex, onChange],
-  );
-
-  const handleSubmit = useCallback(
-    (text: string) => {
-      setHistoryIndex(-1);
-      savedInput.current = "";
-      onSubmit(text);
-    },
-    [onSubmit],
-  );
-
   useInput(
-    (_input, key) => {
-      if (disabled || history.length === 0) return;
+    (input, key) => {
+      if (disabled) return;
 
-      if (key.upArrow) {
+      // Enter: submit (shift+enter or opt+enter inserts newline)
+      if (key.return) {
+        if (key.shift || key.meta) {
+          onChange(`${value}\n`);
+        } else {
+          setHistoryIndex(-1);
+          savedInput.current = "";
+          onSubmit(value);
+        }
+        return;
+      }
+
+      // Backspace
+      if (key.backspace || key.delete) {
+        if (value.length > 0) {
+          onChange(value.slice(0, -1));
+        }
+        return;
+      }
+
+      // History navigation
+      if (key.upArrow && history.length > 0) {
         const nextIndex = historyIndex + 1;
         if (nextIndex < history.length) {
           if (historyIndex === -1) {
@@ -59,7 +57,10 @@ export function InputBar({
           const entry = history[history.length - 1 - nextIndex];
           if (entry !== undefined) onChange(entry);
         }
-      } else if (key.downArrow) {
+        return;
+      }
+
+      if (key.downArrow && history.length > 0) {
         if (historyIndex > 0) {
           const nextIndex = historyIndex - 1;
           setHistoryIndex(nextIndex);
@@ -69,10 +70,33 @@ export function InputBar({
           setHistoryIndex(-1);
           onChange(savedInput.current);
         }
+        return;
+      }
+
+      // Ignore other control keys
+      if (
+        key.ctrl ||
+        key.escape ||
+        key.leftArrow ||
+        key.rightArrow ||
+        key.tab
+      ) {
+        return;
+      }
+
+      // Regular character input
+      if (input) {
+        if (historyIndex !== -1) {
+          setHistoryIndex(-1);
+        }
+        onChange(`${value}${input}`);
       }
     },
     { isActive: !disabled },
   );
+
+  const isMultiline = value.includes("\n");
+  const placeholder = !value && !disabled;
 
   return (
     <Box
@@ -86,17 +110,19 @@ export function InputBar({
           {header}
         </Box>
       )}
-      <Box>
-        <Text color={disabled ? "gray" : "green"}>{"❯ "}</Text>
-        {disabled ? (
-          <Text dimColor>{value || "..."}</Text>
-        ) : (
-          <TextInput
-            value={value}
-            onChange={handleChange}
-            onSubmit={handleSubmit}
-            placeholder="Type a message..."
-          />
+      <Box flexDirection="column">
+        <Box>
+          <Text color={disabled ? "gray" : "green"}>{"❯ "}</Text>
+          {placeholder ? (
+            <Text dimColor>Type a message...</Text>
+          ) : (
+            <Text>{value}</Text>
+          )}
+        </Box>
+        {isMultiline && (
+          <Box>
+            <Text dimColor> ⌥+return for newline · return to send</Text>
+          </Box>
         )}
       </Box>
     </Box>

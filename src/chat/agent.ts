@@ -65,6 +65,9 @@ export async function buildChatSystemPrompt(
   parts.push(
     "You can update the agent's beliefs and goals files when the user asks you to.",
   );
+  parts.push(
+    "Format your responses using Markdown. Use headings, bold, italic, lists, and code blocks to make your responses clear and well-structured.",
+  );
   parts.push("");
 
   return parts.join("\n");
