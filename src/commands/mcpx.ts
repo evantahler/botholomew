@@ -98,6 +98,18 @@ export function registerMcpxCommand(program: Command) {
           if (info.capabilities) {
             console.log(`  Capabilities: ${JSON.stringify(info.capabilities)}`);
           }
+
+          const tools = await client.listTools(server);
+          if (tools.length > 0) {
+            console.log(ansis.dim(`\n  Tools (${tools.length}):`));
+            for (const t of tools) {
+              console.log(`    ${ansis.bold(t.tool.name)}`);
+              if (t.tool.description) {
+                const desc = t.tool.description.split("\n")[0] ?? "";
+                console.log(`      ${ansis.dim(desc)}`);
+              }
+            }
+          }
         }
       } finally {
         await client.close();
