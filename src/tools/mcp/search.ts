@@ -28,7 +28,7 @@ const outputSchema = z.object({
 export const mcpSearchTool = {
   name: "mcp_search",
   description:
-    "Search for MCP tools by keyword, semantic similarity, or both. Requires a pre-built search index (run `botholomew mcpx index`).",
+    "Search for MCP tools by keyword, semantic similarity, or both. By default uses hybrid search (keyword + semantic). Set keyword_only=true for exact term matching or semantic_only=true for meaning-based similarity. Requires a pre-built search index (run `botholomew mcpx index`).",
   group: "mcp",
   inputSchema,
   outputSchema,
