@@ -11,6 +11,7 @@ import type { DbConnection } from "../db/connection.ts";
 import {
   type ContextItem,
   createContextItem,
+  deleteContextItemByPath,
   getContextItemByPath,
   listContextItems,
   listContextItemsByPrefix,
@@ -169,6 +170,19 @@ export function registerContextCommand(program: Command) {
           }
           console.log("");
         }
+      }),
+    );
+  ctx
+    .command("delete <path>")
+    .description("Delete a context item by path")
+    .action((path: string) =>
+      withDb(program, async (conn) => {
+        const deleted = await deleteContextItemByPath(conn, path);
+        if (!deleted) {
+          logger.error(`Context item not found: ${path}`);
+          process.exit(1);
+        }
+        logger.success(`Deleted context item: ${path}`);
       }),
     );
 }
