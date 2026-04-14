@@ -3,7 +3,17 @@ import type { Command } from "commander";
 export function registerChatCommand(program: Command) {
   program
     .command("chat")
-    .description("Open the interactive chat TUI")
+    .description(
+      "Open the interactive chat TUI\n\n" +
+        "  Keyboard shortcuts:\n" +
+        "    Enter          Send message\n" +
+        "    ⌥+Enter        Insert newline (multiline input)\n" +
+        "    ↑/↓            Browse input history\n\n" +
+        "  Commands:\n" +
+        "    /help           Show keyboard shortcuts\n" +
+        "    /tools          Open tool call inspector\n" +
+        "    /quit, /exit    End the chat session",
+    )
     .option("--thread-id <id>", "Resume an existing chat thread")
     .action(async (opts: { threadId?: string }) => {
       const { render } = await import("ink");

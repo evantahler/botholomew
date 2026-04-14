@@ -1,5 +1,5 @@
 import { Box, Text, useApp } from "ink";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type ChatSession,
   endChatSession,
@@ -12,6 +12,7 @@ import { InputBar } from "./components/InputBar.tsx";
 import { type ChatMessage, MessageList } from "./components/MessageList.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import type { ToolCallData } from "./components/ToolCall.tsx";
+import { ToolPanel } from "./components/ToolPanel.tsx";
 
 interface AppProps {
   projectDir: string;
@@ -86,6 +87,7 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<ChatSession | null>(null);
+  const [toolPanelOpen, setToolPanelOpen] = useState(false);
   const queueRef = useRef<string[]>([]);
   const processingRef = useRef(false);
 
@@ -110,6 +112,17 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
             );
           }
         }
+
+        // Show startup hint
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: msgId(),
+            role: "system" as const,
+            content: "Type /help for keyboard shortcuts and commands.",
+            timestamp: new Date(),
+          },
+        ]);
 
         setReady(true);
       })
@@ -221,6 +234,54 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
       const trimmed = text.trim();
       if (!trimmed || !sessionRef.current) return;
 
+      setInputValue("");
+
+      // Handle /help
+      if (trimmed === "/help") {
+        const helpMsg: ChatMessage = {
+          id: msgId(),
+          role: "system",
+          content: [
+            "Keyboard shortcuts:",
+            "  Enter          Send message",
+            "  ⌥+Enter        Insert newline",
+            "  ↑/↓            Browse input history",
+            "",
+            "Commands:",
+            "  /help           Show this help",
+            "  /tools          Toggle tool call inspector",
+            "  /quit, /exit    End the chat session",
+          ].join("\n"),
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, helpMsg]);
+        return;
+      }
+
+      // Handle /tools
+      if (trimmed === "/tools") {
+        setMessages((prev) => {
+          const hasTools = prev.some(
+            (m) => m.toolCalls && m.toolCalls.length > 0,
+          );
+          if (!hasTools) {
+            return [
+              ...prev,
+              {
+                id: msgId(),
+                role: "system" as const,
+                content: "No tool calls to inspect yet.",
+                timestamp: new Date(),
+              },
+            ];
+          }
+          // Use setTimeout to toggle panel after state update
+          setTimeout(() => setToolPanelOpen((p) => !p), 0);
+          return prev;
+        });
+        return;
+      }
+
       // Handle /quit
       if (trimmed === "/quit" || trimmed === "/exit") {
         if (sessionRef.current) {
@@ -235,12 +296,17 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
         return;
       }
 
-      setInputValue("");
       setInputHistory((prev) => [...prev, trimmed]);
       queueRef.current.push(trimmed);
       processQueue();
     },
     [exit, processQueue],
+  );
+
+  // Collect all tool calls from messages for the panel
+  const allToolCalls = useMemo(
+    () => messages.flatMap((m) => m.toolCalls ?? []),
+    [messages],
   );
 
   if (error) {
@@ -267,11 +333,17 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
         isLoading={isLoading}
         activeToolCalls={activeToolCalls}
       />
+      {toolPanelOpen && allToolCalls.length > 0 && (
+        <ToolPanel
+          toolCalls={allToolCalls}
+          onClose={() => setToolPanelOpen(false)}
+        />
+      )}
       <InputBar
         value={inputValue}
         onChange={setInputValue}
         onSubmit={handleSubmit}
-        disabled={false}
+        disabled={toolPanelOpen}
         history={inputHistory}
         header={
           <StatusBar

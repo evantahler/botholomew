@@ -50,23 +50,23 @@ export function StatusBar({ projectDir, conn, isLoading }: StatusBarProps) {
   return (
     <Box paddingX={0}>
       <Text bold color="blue">
-        🤖 Botholomew
+        Botholomew
       </Text>
-      <Text dimColor> │ </Text>
+      <Text dimColor> | </Text>
       {isLoading ? (
-        <Text color="yellow">⏳ Working...</Text>
+        <Text color="yellow">Working...</Text>
       ) : (
-        <Text color="green">💬 Ready</Text>
+        <Text color="green">Ready</Text>
       )}
-      <Text dimColor> │ </Text>
+      <Text dimColor> | </Text>
       {status.daemonRunning ? (
-        <Text color="green">✅ Daemon</Text>
+        <Text color="green">Daemon</Text>
       ) : (
-        <Text color="red">🛑 Daemon</Text>
+        <Text color="red">Daemon (off)</Text>
       )}
-      <Text dimColor> │ </Text>
+      <Text dimColor> | </Text>
       <Text>
-        📋 {status.pendingCount} pending, {status.inProgressCount} active
+        {status.pendingCount} pending, {status.inProgressCount} active
       </Text>
     </Box>
   );

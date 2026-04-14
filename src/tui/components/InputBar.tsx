@@ -105,14 +105,10 @@ export function InputBar({
       borderColor={disabled ? "gray" : "green"}
       paddingX={1}
     >
-      {header && (
-        <Box borderBottom borderColor="gray" paddingBottom={0} marginBottom={0}>
-          {header}
-        </Box>
-      )}
+      {header}
       <Box flexDirection="column">
         <Box>
-          <Text color={disabled ? "gray" : "green"}>{"❯ "}</Text>
+          <Text color={disabled ? "gray" : "green"}>{"› "}</Text>
           {placeholder ? (
             <Text dimColor>Type a message...</Text>
           ) : (
@@ -121,7 +117,7 @@ export function InputBar({
         </Box>
         {isMultiline && (
           <Box>
-            <Text dimColor> ⌥+return for newline · return to send</Text>
+            <Text dimColor> alt+return for newline, return to send</Text>
           </Box>
         )}
       </Box>
