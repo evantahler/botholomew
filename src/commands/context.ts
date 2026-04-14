@@ -16,6 +16,11 @@ import { hybridSearch, initVectorSearch } from "../db/embeddings.ts";
 import { logger } from "../utils/logger.ts";
 import { withDb } from "./with-db.ts";
 
+function fmtDate(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function registerContextCommand(program: Command) {
   const ctx = program.command("context").description("Manage context items");
 
@@ -38,7 +43,7 @@ export function registerContextCommand(program: Command) {
           return;
         }
 
-        const header = `${ansis.bold("Path".padEnd(40))} ${"Title".padEnd(25)} ${"Type".padEnd(20)} Indexed`;
+        const header = `${ansis.bold("Path".padEnd(40))} ${"Title".padEnd(25)} ${"Type".padEnd(20)} ${"Updated".padEnd(18)} Indexed`;
         console.log(header);
         console.log("-".repeat(header.length));
 
@@ -46,8 +51,9 @@ export function registerContextCommand(program: Command) {
           const indexed = item.indexed_at
             ? ansis.green("yes")
             : ansis.dim("no");
+          const updated = ansis.dim(fmtDate(item.updated_at).padEnd(18));
           console.log(
-            `${item.context_path.padEnd(40)} ${item.title.slice(0, 24).padEnd(25)} ${item.mime_type.slice(0, 19).padEnd(20)} ${indexed}`,
+            `${item.context_path.padEnd(40)} ${item.title.slice(0, 24).padEnd(25)} ${item.mime_type.slice(0, 19).padEnd(20)} ${updated} ${indexed}`,
           );
         }
 
@@ -115,7 +121,9 @@ export function registerContextCommand(program: Command) {
           console.log(
             `${ansis.bold(`${i + 1}.`)} ${ansis.cyan(r.title)} ${ansis.dim(`(${score}%)`)}`,
           );
-          console.log(`   ${ansis.dim(r.source_path || r.context_item_id)}`);
+          console.log(
+            `   ${ansis.dim(r.source_path || r.context_item_id)}  ${ansis.dim(fmtDate(r.created_at))}`,
+          );
           if (r.chunk_content) {
             const snippet = r.chunk_content.slice(0, 120).replace(/\n/g, " ");
             console.log(`   ${snippet}...`);
