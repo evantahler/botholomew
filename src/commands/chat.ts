@@ -28,9 +28,10 @@ export function registerChatCommand(program: Command) {
           initialPrompt: opts.prompt,
         }),
         {
+          exitOnCtrlC: false,
           kittyKeyboard: {
             mode: "enabled",
-            flags: ["disambiguateEscapeCodes", "reportEventTypes"],
+            flags: ["disambiguateEscapeCodes"],
           },
         },
       );
