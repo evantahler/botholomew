@@ -152,9 +152,7 @@ export async function runChatTurn(input: {
     // Add assistant response to conversation
     messages.push({ role: "assistant", content: response.content });
 
-    // Execute tool calls
-    const toolResults: ToolResultBlockParam[] = [];
-
+    // Log all tool_use entries and notify UI
     for (const toolUse of toolUseBlocks) {
       const toolInput = JSON.stringify(toolUse.input);
       callbacks.onToolStart(toolUse.name, toolInput);
@@ -166,20 +164,29 @@ export async function runChatTurn(input: {
         toolName: toolUse.name,
         toolInput,
       });
+    }
 
-      const toolStart = Date.now();
-      const result = await executeChatToolCall(toolUse, toolCtx);
-      const toolDuration = Date.now() - toolStart;
+    // Execute all tools in parallel
+    const execResults = await Promise.all(
+      toolUseBlocks.map(async (toolUse) => {
+        const start = Date.now();
+        const result = await executeChatToolCall(toolUse, toolCtx);
+        const durationMs = Date.now() - start;
+        callbacks.onToolEnd(toolUse.name, result);
+        return { toolUse, result, durationMs };
+      }),
+    );
 
+    // Log results and collect tool_result messages
+    const toolResults: ToolResultBlockParam[] = [];
+    for (const { toolUse, result, durationMs } of execResults) {
       await logInteraction(conn, threadId, {
         role: "tool",
         kind: "tool_result",
         content: result,
         toolName: toolUse.name,
-        durationMs: toolDuration,
+        durationMs,
       });
-
-      callbacks.onToolEnd(toolUse.name, result);
 
       toolResults.push({
         type: "tool_result",

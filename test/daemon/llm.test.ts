@@ -262,6 +262,78 @@ describe("runAgentLoop", () => {
     expect(result.status).toBe("complete");
   });
 
+  test("executes multiple tool calls in parallel", async () => {
+    const task = await createTask(conn, {
+      name: "Parallel task",
+      description: "Uses multiple tools at once",
+    });
+    const threadId = await createThread(conn, "daemon_tick", task.id);
+
+    let callCount = 0;
+    mockCreate.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        // Return two non-terminal tool calls in one response
+        return {
+          content: [
+            {
+              type: "tool_use",
+              id: "tool_a",
+              name: "file_exists",
+              input: { path: "/a.txt" },
+            },
+            {
+              type: "tool_use",
+              id: "tool_b",
+              name: "file_exists",
+              input: { path: "/b.txt" },
+            },
+          ],
+          stop_reason: "tool_use",
+          usage: { input_tokens: 100, output_tokens: 50 },
+        };
+      }
+      // Second call: complete
+      return {
+        content: [
+          {
+            type: "tool_use",
+            id: "tool_done",
+            name: "complete_task",
+            input: { summary: "Both checked" },
+          },
+        ],
+        stop_reason: "tool_use",
+        usage: { input_tokens: 50, output_tokens: 30 },
+      };
+    });
+
+    const result = await runAgentLoop({
+      systemPrompt: "You are a test agent.",
+      task,
+      config: testConfig,
+      conn,
+      threadId,
+      projectDir: "/tmp/test",
+    });
+
+    expect(result.status).toBe("complete");
+    expect(result.reason).toBe("Both checked");
+
+    // Verify both tool results were logged
+    const threadData = await getThread(conn, threadId);
+    const toolResults = threadData?.interactions.filter(
+      (i) => i.kind === "tool_result" && i.tool_name === "file_exists",
+    );
+    expect(toolResults?.length).toBe(2);
+
+    // Verify both tool_use entries were logged
+    const toolUses = threadData?.interactions.filter(
+      (i) => i.kind === "tool_use" && i.tool_name === "file_exists",
+    );
+    expect(toolUses?.length).toBe(2);
+  });
+
   test("logs all interactions to thread", async () => {
     const task = await createTask(conn, {
       name: "Logged task",
