@@ -71,7 +71,7 @@ export const fileWriteTool = {
           description: input.description,
         });
       }
-      await ingestByPath(ctx.conn, input.path, ctx.config);
+      await ingestByPath(ctx.conn, input.path, ctx.config, ctx.embedFn);
       return { id: existing.id, path: input.path };
     }
 
@@ -87,7 +87,7 @@ export const fileWriteTool = {
       isTextual,
     });
 
-    await ingestByPath(ctx.conn, input.path, ctx.config);
+    await ingestByPath(ctx.conn, input.path, ctx.config, ctx.embedFn);
     return { id: item.id, path: item.context_path };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

@@ -2,6 +2,7 @@ import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages
 import type { McpxClient } from "@evantahler/mcpx";
 import { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import type { EmbedFn } from "../context/embedder.ts";
 import type { DbConnection } from "../db/connection.ts";
 
 export interface ToolContext {
@@ -9,6 +10,7 @@ export interface ToolContext {
   projectDir: string;
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;
+  embedFn?: EmbedFn;
 }
 
 export interface ToolDefinition<
