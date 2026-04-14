@@ -1,3 +1,4 @@
+import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
 import {
@@ -15,6 +16,7 @@ export async function tick(
   projectDir: string,
   conn: DbConnection,
   config: Required<BotholomewConfig>,
+  mcpxClient?: McpxClient | null,
 ): Promise<void> {
   logger.debug("Tick starting...");
 
@@ -54,7 +56,9 @@ export async function tick(
   );
 
   // Build system prompt (includes task-relevant context from embeddings)
-  const systemPrompt = await buildSystemPrompt(projectDir, task, conn, config);
+  const systemPrompt = await buildSystemPrompt(projectDir, task, conn, config, {
+    hasMcpTools: mcpxClient != null,
+  });
 
   try {
     const result = await runAgentLoop({
@@ -64,6 +68,7 @@ export async function tick(
       conn,
       threadId,
       projectDir,
+      mcpxClient,
     });
 
     // Update task status

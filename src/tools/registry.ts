@@ -13,6 +13,11 @@ import { fileMoveTool } from "./file/move.ts";
 // File tools
 import { fileReadTool } from "./file/read.ts";
 import { fileWriteTool } from "./file/write.ts";
+// MCP tools
+import { mcpExecTool } from "./mcp/exec.ts";
+import { mcpInfoTool } from "./mcp/info.ts";
+import { mcpListToolsTool } from "./mcp/list-tools.ts";
+import { mcpSearchTool } from "./mcp/search.ts";
 // Schedule tools
 import { createScheduleTool } from "./schedule/create.ts";
 import { listSchedulesTool } from "./schedule/list.ts";
@@ -57,4 +62,10 @@ export function registerAllTools(): void {
   // Search
   registerTool(searchGrepTool);
   registerTool(searchSemanticTool);
+
+  // MCP
+  registerTool(mcpListToolsTool);
+  registerTool(mcpSearchTool);
+  registerTool(mcpInfoTool);
+  registerTool(mcpExecTool);
 }

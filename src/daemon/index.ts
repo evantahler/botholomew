@@ -3,6 +3,7 @@ import { getDbPath } from "../constants.ts";
 import { warmupEmbedder } from "../context/embedder.ts";
 import { getConnection } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
+import { createMcpxClient } from "../mcpx/client.ts";
 import { logger } from "../utils/logger.ts";
 import { removePidFile, writePidFile } from "../utils/pid.ts";
 import { tick } from "./tick.ts";
@@ -16,10 +17,17 @@ export async function startDaemon(projectDir: string): Promise<void> {
   // Ensure embedding model is downloaded and loaded before accepting work
   await warmupEmbedder();
 
+  // Initialize MCPX client for external tool access
+  const mcpxClient = await createMcpxClient(projectDir);
+  if (mcpxClient) {
+    logger.info("MCPX client initialized with external tools");
+  }
+
   writePidFile(projectDir, process.pid);
 
   const shutdown = async () => {
     logger.info("Daemon shutting down...");
+    await mcpxClient?.close();
     await removePidFile(projectDir);
     conn.close();
     process.exit(0);
@@ -33,7 +41,7 @@ export async function startDaemon(projectDir: string): Promise<void> {
 
   while (true) {
     try {
-      await tick(projectDir, conn, config);
+      await tick(projectDir, conn, config, mcpxClient);
     } catch (err) {
       logger.error(`Tick failed: ${err}`);
     }

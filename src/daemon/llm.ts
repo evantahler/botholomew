@@ -4,6 +4,7 @@ import type {
   ToolResultBlockParam,
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
+import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
 import type { Task } from "../db/tasks.ts";
@@ -31,6 +32,7 @@ export async function runAgentLoop(input: {
   conn: DbConnection;
   threadId: string;
   projectDir: string;
+  mcpxClient?: McpxClient | null;
 }): Promise<AgentLoopResult> {
   const { systemPrompt, task, config, conn, threadId, projectDir } = input;
 
@@ -38,7 +40,12 @@ export async function runAgentLoop(input: {
     apiKey: config.anthropic_api_key || undefined,
   });
 
-  const toolCtx: ToolContext = { conn, projectDir, config };
+  const toolCtx: ToolContext = {
+    conn,
+    projectDir,
+    config,
+    mcpxClient: input.mcpxClient ?? null,
+  };
 
   const userMessage = `Please work on this task:\n\nName: ${task.name}\nDescription: ${task.description}\nPriority: ${task.priority}\n\nUse the available tools to complete this task, then call complete_task, fail_task, or wait_task to indicate the outcome.`;
 
