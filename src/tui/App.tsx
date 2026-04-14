@@ -13,6 +13,7 @@ import { Divider } from "./components/Divider.tsx";
 import { HelpPanel } from "./components/HelpPanel.tsx";
 import { InputBar } from "./components/InputBar.tsx";
 import { type ChatMessage, MessageList } from "./components/MessageList.tsx";
+import { QueuePanel } from "./components/QueuePanel.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import { TabBar, type TabId } from "./components/TabBar.tsx";
 import type { ToolCallData } from "./components/ToolCall.tsx";
@@ -99,6 +100,16 @@ export function App({
   const [daemonRunning, setDaemonRunning] = useState(false);
   const queueRef = useRef<string[]>([]);
   const processingRef = useRef(false);
+  const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
+  const [selectedQueueIndex, setSelectedQueueIndex] = useState(0);
+
+  const syncQueue = useCallback(() => {
+    const snapshot = [...queueRef.current];
+    setQueuedMessages(snapshot);
+    setSelectedQueueIndex((prev) =>
+      snapshot.length === 0 ? 0 : Math.min(prev, snapshot.length - 1),
+    );
+  }, []);
 
   // Initialize session
   useEffect(() => {
@@ -166,6 +177,33 @@ export function App({
       return;
     }
 
+    // Queue manipulation keybindings (only when queue has items on Chat tab)
+    if (activeTab === 1 && queuedMessages.length > 0 && key.ctrl) {
+      if (input === "j") {
+        setSelectedQueueIndex((i) =>
+          Math.min(i + 1, queuedMessages.length - 1),
+        );
+        return;
+      }
+      if (input === "k") {
+        setSelectedQueueIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (input === "x") {
+        queueRef.current.splice(selectedQueueIndex, 1);
+        syncQueue();
+        return;
+      }
+      if (input === "e") {
+        const [msg] = queueRef.current.splice(selectedQueueIndex, 1);
+        syncQueue();
+        if (msg) {
+          setInputValue(msg);
+        }
+        return;
+      }
+    }
+
     if (activeTab !== 1) {
       // Number keys jump to tab on non-chat tabs
       const num = Number.parseInt(input, 10);
@@ -187,6 +225,7 @@ export function App({
 
     while (queueRef.current.length > 0) {
       const trimmed = queueRef.current.shift();
+      syncQueue();
       if (!trimmed) break;
       setIsLoading(true);
       setStreamingText("");
@@ -269,7 +308,7 @@ export function App({
 
     setIsLoading(false);
     processingRef.current = false;
-  }, []);
+  }, [syncQueue]);
 
   // Auto-submit initial prompt once session is ready
   const initialPromptSent = useRef(false);
@@ -277,10 +316,11 @@ export function App({
     if (ready && initialPrompt && !initialPromptSent.current) {
       initialPromptSent.current = true;
       queueRef.current.push(initialPrompt);
+      syncQueue();
       setInputHistory((prev) => [...prev, initialPrompt]);
       processQueue();
     }
-  }, [ready, initialPrompt, processQueue]);
+  }, [ready, initialPrompt, processQueue, syncQueue]);
 
   const handleSubmit = useCallback(
     async (text: string) => {
@@ -341,9 +381,10 @@ export function App({
 
       setInputHistory((prev) => [...prev, trimmed]);
       queueRef.current.push(trimmed);
+      syncQueue();
       processQueue();
     },
-    [exit, processQueue],
+    [exit, processQueue, syncQueue],
   );
 
   const allToolCalls = useMemo(
@@ -395,6 +436,14 @@ export function App({
           projectDir={projectDir}
           threadId={threadId}
           daemonRunning={daemonRunning}
+        />
+      )}
+
+      {/* Queued messages (only on Chat tab) */}
+      {activeTab === 1 && queuedMessages.length > 0 && (
+        <QueuePanel
+          messages={queuedMessages}
+          selectedIndex={selectedQueueIndex}
         />
       )}
 
