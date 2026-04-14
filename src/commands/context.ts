@@ -3,6 +3,7 @@ import { basename, join, resolve } from "node:path";
 import ansis from "ansis";
 import type { Command } from "commander";
 import { isText } from "istextorbinary";
+import { createSpinner } from "nanospinner";
 import { loadConfig } from "../config/loader.ts";
 import { embedSingle, warmupEmbedder } from "../context/embedder.ts";
 import { ingestContextItem } from "../context/ingest.ts";
@@ -67,43 +68,71 @@ export function registerContextCommand(program: Command) {
     .option("--prefix <prefix>", "virtual path prefix", "/")
     .action((paths: string[], opts) =>
       withDb(program, async (conn, dir) => {
-        const config = await loadConfig(dir);
-        await warmupEmbedder();
-
-        let added = 0;
-        let chunks = 0;
+        // Phase 1: Scan all paths and validate they exist
+        const filesToAdd: { filePath: string; contextPath: string }[] = [];
+        const spinner = createSpinner("Scanning files...").start();
 
         for (const path of paths) {
           const resolvedPath = resolve(path);
-          const info = await stat(resolvedPath);
+          let info: Awaited<ReturnType<typeof stat>>;
+          try {
+            info = await stat(resolvedPath);
+          } catch {
+            spinner.error({ text: `Path not found: ${resolvedPath}` });
+            process.exit(1);
+          }
 
           if (info.isDirectory()) {
             const entries = await walkDirectory(resolvedPath);
             for (const filePath of entries) {
               const relativePath = filePath.slice(resolvedPath.length);
-              const contextPath = join(opts.prefix, relativePath);
-              const count = await addFile(conn, config, filePath, contextPath);
-              if (count >= 0) {
-                added++;
-                chunks += count;
-              }
+              filesToAdd.push({
+                filePath,
+                contextPath: join(opts.prefix, relativePath),
+              });
             }
           } else {
-            const contextPath = join(opts.prefix, basename(resolvedPath));
-            const count = await addFile(
-              conn,
-              config,
-              resolvedPath,
-              contextPath,
-            );
-            if (count >= 0) {
-              added++;
-              chunks += count;
-            }
+            filesToAdd.push({
+              filePath: resolvedPath,
+              contextPath: join(opts.prefix, basename(resolvedPath)),
+            });
+          }
+        }
+
+        spinner.success({
+          text: `Found ${filesToAdd.length} file(s) to add.`,
+        });
+
+        // Phase 2: Warmup embedder
+        const embedSpinner = createSpinner(
+          "Loading embedding model...",
+        ).start();
+        const config = await loadConfig(dir);
+        await warmupEmbedder();
+        embedSpinner.success({ text: "Embedding model loaded." });
+
+        // Phase 3: Process files one-by-one
+        let added = 0;
+        let chunks = 0;
+
+        for (const [i, { filePath, contextPath }] of filesToAdd.entries()) {
+          const fileSpinner = createSpinner(
+            `Processing ${basename(filePath)} (${i + 1}/${filesToAdd.length})...`,
+          ).start();
+          const count = await addFile(conn, config, filePath, contextPath);
+          if (count >= 0) {
+            added++;
+            chunks += count;
+            fileSpinner.success({
+              text: `${contextPath} (${count} chunks)`,
+            });
+          } else {
+            fileSpinner.warn({ text: `${contextPath}: skipped` });
           }
         }
 
         logger.success(`Added ${added} file(s), ${chunks} chunk(s) indexed.`);
+        process.exit(0);
       }),
     );
 
@@ -165,12 +194,9 @@ async function addFile(
     });
 
     if (textual && content) {
-      const count = await ingestContextItem(conn, item.id, config);
-      console.log(`  + ${contextPath} (${count} chunks)`);
-      return count;
+      return await ingestContextItem(conn, item.id, config);
     }
 
-    console.log(`  + ${contextPath} (binary, not indexed)`);
     return 0;
   } catch (err) {
     logger.warn(`  ! ${contextPath}: ${err}`);

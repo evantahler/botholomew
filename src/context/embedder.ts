@@ -3,7 +3,6 @@ import {
   EMBEDDING_DTYPE,
   EMBEDDING_MODEL_ID,
 } from "../constants.ts";
-import { logger } from "../utils/logger.ts";
 
 type EmbedFn = (texts: string[]) => Promise<number[][]>;
 
@@ -11,12 +10,10 @@ let pipelineInstance: ReturnType<typeof createPipelinePromise> | null = null;
 
 function createPipelinePromise() {
   return (async () => {
-    logger.info(`Loading embedding model ${EMBEDDING_MODEL_ID}...`);
     const { pipeline } = await import("@huggingface/transformers");
     const pipe = await pipeline("feature-extraction", EMBEDDING_MODEL_ID, {
       dtype: EMBEDDING_DTYPE,
     });
-    logger.info("Embedding model loaded.");
     return pipe;
   })();
 }
