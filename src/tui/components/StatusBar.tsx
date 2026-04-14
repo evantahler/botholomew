@@ -4,6 +4,7 @@ import type { DbConnection } from "../../db/connection.ts";
 import { listTasks } from "../../db/tasks.ts";
 import { getDaemonStatus } from "../../utils/pid.ts";
 import { theme } from "../theme.ts";
+import { LogoChar } from "./Logo.tsx";
 
 interface StatusBarProps {
   projectDir: string;
@@ -58,6 +59,7 @@ export function StatusBar({
 
   return (
     <Box paddingX={0}>
+      <LogoChar />
       <Text bold color="blue">
         Botholomew
       </Text>

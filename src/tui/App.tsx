@@ -12,6 +12,7 @@ import { ContextPanel } from "./components/ContextPanel.tsx";
 import { Divider } from "./components/Divider.tsx";
 import { HelpPanel } from "./components/HelpPanel.tsx";
 import { InputBar } from "./components/InputBar.tsx";
+import { AnimatedLogo } from "./components/Logo.tsx";
 import { type ChatMessage, MessageList } from "./components/MessageList.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import { TabBar, type TabId } from "./components/TabBar.tsx";
@@ -361,8 +362,14 @@ export function App({
 
   if (!ready || !sessionRef.current) {
     return (
-      <Box flexDirection="column" padding={1}>
-        <Text dimColor>Starting chat session...</Text>
+      <Box
+        flexDirection="column"
+        padding={1}
+        alignItems="center"
+        justifyContent="center"
+        height="100%"
+      >
+        <AnimatedLogo />
       </Box>
     );
   }
