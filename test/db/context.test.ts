@@ -44,6 +44,56 @@ describe("context CRUD", () => {
     expect(fetched?.title).toBe("Test");
   });
 
+  test("duplicate context_path is rejected by unique index", async () => {
+    await createContextItem(conn, {
+      title: "First",
+      content: "v1",
+      contextPath: "/docs/test.md",
+    });
+
+    expect(() =>
+      createContextItem(conn, {
+        title: "Second",
+        content: "v2",
+        contextPath: "/docs/test.md",
+      }),
+    ).toThrow();
+
+    const items = await listContextItems(conn);
+    expect(items.length).toBe(1);
+    expect(items[0]?.content).toBe("v1");
+  });
+
+  test("upsert: adding same path twice updates instead of duplicating", async () => {
+    const path = "/docs/test.md";
+
+    // First add
+    await createContextItem(conn, {
+      title: "Original",
+      content: "v1",
+      contextPath: path,
+    });
+
+    // Simulate the upsert pattern from addFile()
+    const existing = await getContextItemByPath(conn, path);
+    expect(existing).not.toBeNull();
+
+    const updated = await updateContextItem(conn, existing!.id, {
+      title: "Updated",
+      content: "v2",
+      mime_type: "text/markdown",
+    });
+
+    expect(updated).not.toBeNull();
+    expect(updated?.content).toBe("v2");
+    expect(updated?.title).toBe("Updated");
+    expect(updated?.mime_type).toBe("text/markdown");
+    expect(updated?.id).toBe(existing!.id);
+
+    const items = await listContextItems(conn);
+    expect(items.length).toBe(1);
+  });
+
   test("get by path", async () => {
     await createContextItem(conn, {
       title: "Notes",

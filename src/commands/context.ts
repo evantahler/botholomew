@@ -9,9 +9,12 @@ import { embedSingle, warmupEmbedder } from "../context/embedder.ts";
 import { ingestContextItem } from "../context/ingest.ts";
 import type { DbConnection } from "../db/connection.ts";
 import {
+  type ContextItem,
   createContextItem,
+  getContextItemByPath,
   listContextItems,
   listContextItemsByPrefix,
+  updateContextItem,
 } from "../db/context.ts";
 import { hybridSearch, initVectorSearch } from "../db/embeddings.ts";
 import { logger } from "../utils/logger.ts";
@@ -184,14 +187,27 @@ async function addFile(
 
     const content = textual ? await bunFile.text() : null;
 
-    const item = await createContextItem(conn, {
-      title: filename,
-      content: content ?? undefined,
-      mimeType,
-      sourcePath: filePath,
-      contextPath,
-      isTextual: textual,
-    });
+    const existing = await getContextItemByPath(conn, contextPath);
+    let item: ContextItem;
+
+    if (existing) {
+      const updated = await updateContextItem(conn, existing.id, {
+        title: filename,
+        content: content ?? undefined,
+        mime_type: mimeType,
+      });
+      if (!updated) throw new Error(`Failed to update: ${contextPath}`);
+      item = updated;
+    } else {
+      item = await createContextItem(conn, {
+        title: filename,
+        content: content ?? undefined,
+        mimeType,
+        sourcePath: filePath,
+        contextPath,
+        isTextual: textual,
+      });
+    }
 
     if (textual && content) {
       return await ingestContextItem(conn, item.id, config);

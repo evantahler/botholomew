@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { contextPathExists, moveContextItem } from "../../db/context.ts";
+import {
+  contextPathExists,
+  deleteContextItemByPath,
+  moveContextItem,
+} from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
@@ -19,8 +23,12 @@ export const fileMoveTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    if (!input.overwrite && (await contextPathExists(ctx.conn, input.dst))) {
+    const dstExists = await contextPathExists(ctx.conn, input.dst);
+    if (dstExists && !input.overwrite) {
       throw new Error(`Destination already exists: ${input.dst}`);
+    }
+    if (dstExists) {
+      await deleteContextItemByPath(ctx.conn, input.dst);
     }
 
     await moveContextItem(ctx.conn, input.src, input.dst);
