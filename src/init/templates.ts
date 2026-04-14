@@ -38,7 +38,8 @@ agent-modification: true
 `;
 
 export const DEFAULT_CONFIG = {
-  model: "claude-sonnet-4-20250514",
+  anthropic_api_key: "your-api-key-here",
+  model: "claude-opus-4-20250514",
   tick_interval_seconds: 300,
   max_tick_duration_seconds: 120,
 };

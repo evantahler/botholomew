@@ -36,7 +36,7 @@ export async function initProject(
   await Bun.write(join(dotDir, "beliefs.md"), BELIEFS_MD);
   await Bun.write(join(dotDir, "goals.md"), GOALS_MD);
 
-  // Write config (without API key)
+  // Write config (with placeholder API key)
   await Bun.write(
     join(dotDir, "config.json"),
     `${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`,
