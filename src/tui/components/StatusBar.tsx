@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { DbConnection } from "../../db/connection.ts";
 import { listTasks } from "../../db/tasks.ts";
 import { getDaemonStatus } from "../../utils/pid.ts";
+import { theme } from "../theme.ts";
 
 interface StatusBarProps {
   projectDir: string;
@@ -54,7 +55,7 @@ export function StatusBar({ projectDir, conn, isLoading }: StatusBarProps) {
       </Text>
       <Text dimColor> | </Text>
       {isLoading ? (
-        <Text color="yellow">Working...</Text>
+        <Text color={theme.accent}>Working...</Text>
       ) : (
         <Text color="green">Ready</Text>
       )}

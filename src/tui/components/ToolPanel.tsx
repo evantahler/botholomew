@@ -1,5 +1,6 @@
 import { Box, Text, useInput } from "ink";
 import { useMemo, useState } from "react";
+import { theme } from "../theme.ts";
 import type { ToolCallData } from "./ToolCall.tsx";
 
 interface ToolPanelProps {
@@ -267,7 +268,7 @@ export function ToolPanel({ toolCalls, onClose }: ToolPanelProps) {
         <Text bold color="magenta">
           {tool.name}
         </Text>
-        {tool.running && <Text color="yellow"> ⟳ running</Text>}
+        {tool.running && <Text color={theme.accent}> ⟳ running</Text>}
       </Box>
 
       {/* Tabs */}
@@ -303,7 +304,7 @@ export function ToolPanel({ toolCalls, onClose }: ToolPanelProps) {
           return (
             <Box key={row.path}>
               <Text
-                backgroundColor={isSelected ? "#333" : undefined}
+                backgroundColor={isSelected ? theme.selectionBg : undefined}
                 color={isSelected ? "cyan" : undefined}
               >
                 {indent}
