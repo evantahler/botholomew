@@ -18,6 +18,7 @@ export function setupToolContext(): { conn: DbConnection; ctx: ToolContext } {
     conn,
     projectDir: "/tmp/test",
     config: { ...DEFAULT_CONFIG },
+    mcpxClient: null,
   };
   return { conn, ctx };
 }

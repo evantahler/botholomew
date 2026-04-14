@@ -1,4 +1,5 @@
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
+import type { McpxClient } from "@evantahler/mcpx";
 import { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
@@ -7,6 +8,7 @@ export interface ToolContext {
   conn: DbConnection;
   projectDir: string;
   config: Required<BotholomewConfig>;
+  mcpxClient: McpxClient | null;
 }
 
 export interface ToolDefinition<

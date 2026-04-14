@@ -18,6 +18,7 @@ export async function buildSystemPrompt(
   task?: Task,
   conn?: DbConnection,
   _config?: Required<BotholomewConfig>,
+  options?: { hasMcpTools?: boolean },
 ): Promise<string> {
   const dotDir = getBotholomewDir(projectDir);
   const parts: string[] = [];
@@ -105,6 +106,13 @@ export async function buildSystemPrompt(
     "Always call complete_task, fail_task, or wait_task when you are done.",
   );
   parts.push("If you need to create subtasks, use create_task.");
+  if (options?.hasMcpTools) {
+    parts.push("");
+    parts.push("## External Tools (MCP)");
+    parts.push(
+      "You have access to external tools via MCP servers. Use `mcp_list_tools` or `mcp_search` to discover available tools, `mcp_info` to get a tool's input schema, then `mcp_exec` to call them.",
+    );
+  }
   parts.push("");
 
   return parts.join("\n");

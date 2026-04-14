@@ -101,6 +101,7 @@ function registerToolAsCLI(
           conn,
           projectDir: dir,
           config: DEFAULT_CONFIG as Required<BotholomewConfig>,
+          mcpxClient: null,
         };
 
         const result = await tool.execute(input, ctx);
