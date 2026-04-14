@@ -165,7 +165,7 @@ export function ContextPanel({ conn, isActive }: ContextPanelProps) {
 
       // Delete confirmation mode
       if (confirmDelete) {
-        if (input === "y") {
+        if (input === "y" || input === "d") {
           const entry = entries[cursor];
           if (entry) {
             if (entry.type === "directory") {

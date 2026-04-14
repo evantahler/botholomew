@@ -153,29 +153,31 @@ export function App({
   // Tab switching via useInput at the App level
   // On the Chat tab (1), only Tab key switches — number keys go to InputBar.
   // On other tabs, both Tab and number keys switch tabs, Escape returns to Chat.
-  useInput(
-    (input, key) => {
-      if (activeTab !== 1) {
-        // Number keys jump to tab on non-chat tabs
-        const num = Number.parseInt(input, 10);
-        if (num >= 1 && num <= 4) {
-          setActiveTab(num as TabId);
-          return;
-        }
-        // Escape returns to chat
-        if (key.escape) {
-          setActiveTab(1);
-          return;
-        }
-      }
-    },
-    { isActive: activeTab !== 1 },
-  );
+  useInput((input, key) => {
+    // Ctrl+C exits
+    if (input === "c" && key.ctrl) {
+      exit();
+      return;
+    }
 
-  // Tab key cycles tabs — always active (InputBar ignores tab)
-  useInput((_input, key) => {
+    // Tab key cycles tabs — always active (InputBar ignores tab)
     if (key.tab && !key.shift) {
       setActiveTab((t) => ((t % 4) + 1) as TabId);
+      return;
+    }
+
+    if (activeTab !== 1) {
+      // Number keys jump to tab on non-chat tabs
+      const num = Number.parseInt(input, 10);
+      if (num >= 1 && num <= 4) {
+        setActiveTab(num as TabId);
+        return;
+      }
+      // Escape returns to chat
+      if (key.escape) {
+        setActiveTab(1);
+        return;
+      }
     }
   });
 
