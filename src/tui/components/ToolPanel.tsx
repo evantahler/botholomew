@@ -1,14 +1,14 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { useEffect, useMemo, useState } from "react";
 import { theme } from "../theme.ts";
-import type { ToolCallData } from "./ToolCall.tsx";
+import { resolveToolDisplay, type ToolCallData } from "./ToolCall.tsx";
 
 interface ToolPanelProps {
   toolCalls: ToolCallData[];
   isActive: boolean;
 }
 
-const SIDEBAR_WIDTH = 32;
+const SIDEBAR_WIDTH = 42;
 
 // ANSI escape helpers
 const RESET = "\x1b[0m";
@@ -84,7 +84,14 @@ function buildDetailAnsi(tool: ToolCallData): string {
     second: "2-digit",
   });
 
-  lines.push(`${BOLD}${CYAN}${tool.name}${RESET}`);
+  const { displayName, displayInput } = resolveToolDisplay(
+    tool.name,
+    tool.input,
+  );
+  lines.push(`${BOLD}${CYAN}${displayName}${RESET}`);
+  if (tool.name === "mcp_exec") {
+    lines.push(`${DIM}via mcp_exec${RESET}`);
+  }
   lines.push(`${DIM}Time: ${time}${RESET}`);
   if (tool.running) {
     lines.push(`${YELLOW}⟳ running${RESET}`);
@@ -92,7 +99,7 @@ function buildDetailAnsi(tool: ToolCallData): string {
   lines.push("");
 
   lines.push(`${BOLD}${BLUE}Input${RESET}`);
-  lines.push(colorizeJson(tool.input));
+  lines.push(colorizeJson(displayInput));
   lines.push("");
 
   if (tool.output) {
@@ -259,11 +266,12 @@ export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
             hour: "2-digit",
             minute: "2-digit",
           });
+          const { displayName } = resolveToolDisplay(tc.name, tc.input);
           const maxName = SIDEBAR_WIDTH - 12; // icon + time + padding
           const nameDisplay =
-            tc.name.length > maxName
-              ? `${tc.name.slice(0, maxName - 1)}…`
-              : tc.name;
+            displayName.length > maxName
+              ? `${displayName.slice(0, maxName - 1)}…`
+              : displayName;
           return (
             <Box key={`${i}-${tc.name}`} paddingX={1}>
               <Text
