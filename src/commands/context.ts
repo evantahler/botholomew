@@ -62,37 +62,44 @@ export function registerContextCommand(program: Command) {
     );
 
   ctx
-    .command("add <path>")
-    .description("Add a file or directory to context")
+    .command("add <paths...>")
+    .description("Add files or directories to context")
     .option("--prefix <prefix>", "virtual path prefix", "/")
-    .action((path, opts) =>
+    .action((paths: string[], opts) =>
       withDb(program, async (conn, dir) => {
         const config = await loadConfig(dir);
         await warmupEmbedder();
 
-        const resolvedPath = resolve(path);
-        const info = await stat(resolvedPath);
-
         let added = 0;
         let chunks = 0;
 
-        if (info.isDirectory()) {
-          const entries = await walkDirectory(resolvedPath);
-          for (const filePath of entries) {
-            const relativePath = filePath.slice(resolvedPath.length);
-            const contextPath = join(opts.prefix, relativePath);
-            const count = await addFile(conn, config, filePath, contextPath);
+        for (const path of paths) {
+          const resolvedPath = resolve(path);
+          const info = await stat(resolvedPath);
+
+          if (info.isDirectory()) {
+            const entries = await walkDirectory(resolvedPath);
+            for (const filePath of entries) {
+              const relativePath = filePath.slice(resolvedPath.length);
+              const contextPath = join(opts.prefix, relativePath);
+              const count = await addFile(conn, config, filePath, contextPath);
+              if (count >= 0) {
+                added++;
+                chunks += count;
+              }
+            }
+          } else {
+            const contextPath = join(opts.prefix, basename(resolvedPath));
+            const count = await addFile(
+              conn,
+              config,
+              resolvedPath,
+              contextPath,
+            );
             if (count >= 0) {
               added++;
               chunks += count;
             }
-          }
-        } else {
-          const contextPath = join(opts.prefix, basename(resolvedPath));
-          const count = await addFile(conn, config, resolvedPath, contextPath);
-          if (count >= 0) {
-            added++;
-            chunks += count;
           }
         }
 
