@@ -90,7 +90,7 @@ describe("theme", () => {
     process.env.COLORFGBG = "15;0"; // force dark
     const { theme } = loadTheme();
     expect(theme.accent).toBe("yellow");
-    expect(theme.userBg).toBe("#1a3a5c");
+    expect(theme.userBg).toBe("#2a4a6c");
     expect(theme.selectionBg).toBe("#333");
   });
 
