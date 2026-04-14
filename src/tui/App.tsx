@@ -367,14 +367,6 @@ export function App({
       }
 
       if (trimmed === "/quit" || trimmed === "/exit") {
-        if (sessionRef.current) {
-          const threadId = sessionRef.current.threadId;
-          await endChatSession(sessionRef.current);
-          sessionRef.current = null;
-          process.stderr.write(
-            `\nThread: ${threadId}\nResume with: \x1b[32mbotholomew chat --thread-id ${threadId}\x1b[0m\n`,
-          );
-        }
         exit();
         return;
       }
