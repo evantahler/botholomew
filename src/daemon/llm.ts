@@ -102,32 +102,35 @@ export async function runAgentLoop(input: {
     // Add assistant response to conversation
     messages.push({ role: "assistant", content: response.content });
 
-    // Process each tool call
-    const toolResults: ToolResultBlockParam[] = [];
-
+    // Log all tool_use entries
     for (const toolUse of toolUseBlocks) {
-      const toolInput = JSON.stringify(toolUse.input);
-
-      // Log tool use
       await logInteraction(conn, threadId, {
         role: "assistant",
         kind: "tool_use",
         content: `Calling ${toolUse.name}`,
         toolName: toolUse.name,
-        toolInput,
+        toolInput: JSON.stringify(toolUse.input),
       });
+    }
 
-      const toolStart = Date.now();
-      const result = await executeToolCall(toolUse, toolCtx);
-      const toolDuration = Date.now() - toolStart;
+    // Execute all tools in parallel
+    const execResults = await Promise.all(
+      toolUseBlocks.map(async (toolUse) => {
+        const start = Date.now();
+        const result = await executeToolCall(toolUse, toolCtx);
+        return { toolUse, result, durationMs: Date.now() - start };
+      }),
+    );
 
-      // Log tool result
+    // Log results and collect tool_result messages
+    const toolResults: ToolResultBlockParam[] = [];
+    for (const { toolUse, result, durationMs } of execResults) {
       await logInteraction(conn, threadId, {
         role: "tool",
         kind: "tool_result",
         content: result.output,
         toolName: toolUse.name,
-        durationMs: toolDuration,
+        durationMs,
       });
 
       if (result.terminal && result.agentResult) {
