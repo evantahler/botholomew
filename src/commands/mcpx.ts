@@ -1,72 +1,54 @@
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { McpxClient } from "@evantahler/mcpx";
-import ansis from "ansis";
+import { fileURLToPath } from "node:url";
 import type { Command } from "commander";
-import { getMcpxDir, MCPX_SERVERS_FILENAME } from "../constants.ts";
-import { createMcpxClient, formatCallToolResult } from "../mcpx/client.ts";
+import { getMcpxDir } from "../constants.ts";
 import { logger } from "../utils/logger.ts";
 
-function getServersPath(program: Command): string {
-  const dir = program.opts().dir;
-  return join(getMcpxDir(dir), MCPX_SERVERS_FILENAME);
+const require = createRequire(import.meta.url);
+const ourPkg = require("../../package.json");
+const mcpxPkg = require("@evantahler/mcpx/package.json");
+
+if (mcpxPkg.version !== ourPkg.dependencies["@evantahler/mcpx"]) {
+  throw new Error(
+    `@evantahler/mcpx version mismatch: installed ${mcpxPkg.version}, expected ${ourPkg.dependencies["@evantahler/mcpx"]}`,
+  );
 }
 
-async function readServersFile(
-  path: string,
-): Promise<{ mcpServers: Record<string, unknown> }> {
-  if (!existsSync(path)) {
-    return { mcpServers: {} };
-  }
-  return JSON.parse(await Bun.file(path).text());
-}
+const MCPX_CLI = fileURLToPath(import.meta.resolve("@evantahler/mcpx/cli"));
 
-async function writeServersFile(
-  path: string,
-  data: { mcpServers: Record<string, unknown> },
-): Promise<void> {
-  const dir = join(path, "..");
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-  await Bun.write(path, `${JSON.stringify(data, null, 2)}\n`);
-}
-
-async function getClient(program: Command): Promise<McpxClient> {
-  const dir = program.opts().dir;
-  const client = await createMcpxClient(dir);
-  if (!client) {
-    logger.error(
-      "No MCP servers configured. Add one with: botholomew mcpx add <name>",
-    );
-    process.exit(1);
-  }
-  return client;
-}
-
-/**
- * Given a tool name, find which server provides it.
- * Errors if the tool is not found or is ambiguous (multiple servers).
- */
-async function resolveServer(
-  client: McpxClient,
-  toolName: string,
+export async function runMcpx(
+  projectDir: string,
+  args: (string | undefined)[],
+  opts?: { inherit?: boolean },
 ): Promise<string> {
-  const allTools = await client.listTools();
-  const matches = allTools.filter((t) => t.tool.name === toolName);
-  if (matches.length === 0) {
-    logger.error(`Tool not found: ${toolName}`);
-    process.exit(1);
+  const mcpxDir = getMcpxDir(projectDir);
+  const filteredArgs = args.filter((a): a is string => a !== undefined);
+  const proc = Bun.spawn(["bun", MCPX_CLI, ...filteredArgs, "-c", mcpxDir], {
+    stdout: opts?.inherit ? "inherit" : "pipe",
+    stderr: opts?.inherit ? "inherit" : "pipe",
+    stdin: opts?.inherit ? "inherit" : undefined,
+  });
+  const exitCode = await proc.exited;
+
+  if (opts?.inherit) {
+    if (exitCode !== 0) process.exit(exitCode);
+    return "";
   }
-  if (matches.length > 1) {
-    const servers = matches.map((m) => m.server).join(", ");
-    logger.error(
-      `Tool "${toolName}" exists on multiple servers: ${servers}. Specify the server explicitly.`,
-    );
-    process.exit(1);
+
+  const stdout = await new Response(proc.stdout).text();
+  const stderr = await new Response(proc.stderr).text();
+  if (exitCode !== 0) {
+    logger.error(stderr.trim() || stdout.trim());
+    process.exit(exitCode);
   }
-  return matches[0]?.server as string;
+  return stdout;
+}
+
+function getDir(program: Command): string {
+  return program.opts().dir;
 }
 
 export function registerMcpxCommand(program: Command) {
@@ -79,16 +61,8 @@ export function registerMcpxCommand(program: Command) {
     .command("servers")
     .description("List configured MCP server names")
     .action(async () => {
-      const serversPath = getServersPath(program);
-      const data = await readServersFile(serversPath);
-      const names = Object.keys(data.mcpServers);
-      if (names.length === 0) {
-        logger.dim("No MCP servers configured.");
-        return;
-      }
-      for (const name of names) {
-        console.log(`  ${ansis.bold(name)}`);
-      }
+      const out = await runMcpx(getDir(program), ["servers"]);
+      process.stdout.write(out);
     });
 
   // --- info ---
@@ -98,67 +72,8 @@ export function registerMcpxCommand(program: Command) {
       "Show server overview, or schema for a specific tool (server is optional if tool name is unambiguous)",
     )
     .action(async (first: string, second?: string) => {
-      const client = await getClient(program);
-      try {
-        let server: string;
-        let tool: string | undefined;
-
-        if (second) {
-          // info <server> <tool>
-          server = first;
-          tool = second;
-        } else {
-          // Could be a server name or a tool name
-          const serverNames = await client.getServerNames();
-          if (serverNames.includes(first)) {
-            server = first;
-          } else {
-            // Treat as tool name, resolve server
-            server = await resolveServer(client, first);
-            tool = first;
-          }
-        }
-
-        if (tool) {
-          const schema = await client.info(server, tool);
-          if (!schema) {
-            logger.error(`Tool not found: ${tool} on server ${server}`);
-            process.exit(1);
-          }
-          console.log(ansis.bold(`${server} / ${schema.name}`));
-          if (schema.description) console.log(`  ${schema.description}`);
-          if (schema.inputSchema) {
-            console.log(ansis.dim("\n  Input Schema:"));
-            console.log(JSON.stringify(schema.inputSchema, null, 2));
-          }
-        } else {
-          const info = await client.getServerInfo(server);
-          console.log(ansis.bold(server));
-          if (info.version?.name)
-            console.log(`  Name:    ${info.version.name}`);
-          if (info.version?.version)
-            console.log(`  Version: ${info.version.version}`);
-          if (info.instructions)
-            console.log(`  Instructions: ${info.instructions}`);
-          if (info.capabilities) {
-            console.log(`  Capabilities: ${JSON.stringify(info.capabilities)}`);
-          }
-
-          const tools = await client.listTools(server);
-          if (tools.length > 0) {
-            console.log(ansis.dim(`\n  Tools (${tools.length}):`));
-            for (const t of tools) {
-              console.log(`    ${ansis.bold(t.tool.name)}`);
-              if (t.tool.description) {
-                const desc = t.tool.description.split("\n")[0] ?? "";
-                console.log(`      ${ansis.dim(desc)}`);
-              }
-            }
-          }
-        }
-      } finally {
-        await client.close();
-      }
+      const out = await runMcpx(getDir(program), ["info", first, second]);
+      process.stdout.write(out);
     });
 
   // --- search ---
@@ -166,26 +81,8 @@ export function registerMcpxCommand(program: Command) {
     .command("search <terms...>")
     .description("Search tools by keyword and/or semantic similarity")
     .action(async (terms: string[]) => {
-      const client = await getClient(program);
-      try {
-        const results = await client.search(terms.join(" "));
-        if (results.length === 0) {
-          logger.dim("No matching tools found.");
-          return;
-        }
-        for (const r of results) {
-          const score = ansis.dim(`(${r.score.toFixed(2)})`);
-          console.log(`  ${ansis.bold(r.server)}/${r.tool}  ${score}`);
-          if (r.description) console.log(`    ${r.description}`);
-        }
-      } catch (err) {
-        logger.error(
-          `Search failed: ${err}. You may need to run: botholomew mcpx index`,
-        );
-        process.exit(1);
-      } finally {
-        await client.close();
-      }
+      const out = await runMcpx(getDir(program), ["search", ...terms]);
+      process.stdout.write(out);
     });
 
   // --- exec ---
@@ -195,52 +92,13 @@ export function registerMcpxCommand(program: Command) {
       "Execute a tool call (server is optional if tool name is unambiguous)",
     )
     .action(async (first: string, second?: string, third?: string) => {
-      const client = await getClient(program);
-      try {
-        let server: string;
-        let tool: string;
-        let argsJson: string | undefined;
-
-        if (second && third) {
-          // exec <server> <tool> <args-json>
-          server = first;
-          tool = second;
-          argsJson = third;
-        } else if (second) {
-          // Could be: exec <server> <tool> OR exec <tool> <args-json>
-          // Try to parse second as JSON — if it parses, first is tool
-          let parsedAsArgs = false;
-          try {
-            JSON.parse(second);
-            parsedAsArgs = true;
-          } catch {
-            // not JSON, treat as exec <server> <tool>
-          }
-
-          if (parsedAsArgs) {
-            const resolved = await resolveServer(client, first);
-            server = resolved;
-            tool = first;
-            argsJson = second;
-          } else {
-            server = first;
-            tool = second;
-          }
-        } else {
-          // exec <tool> — resolve server automatically
-          server = await resolveServer(client, first);
-          tool = first;
-        }
-
-        const args = argsJson ? JSON.parse(argsJson) : {};
-        const result = await client.exec(server, tool, args);
-        console.log(formatCallToolResult(result));
-      } catch (err) {
-        logger.error(`Exec failed: ${err}`);
-        process.exit(1);
-      } finally {
-        await client.close();
-      }
+      const out = await runMcpx(getDir(program), [
+        "exec",
+        first,
+        second,
+        third,
+      ]);
+      process.stdout.write(out);
     });
 
   // --- add ---
@@ -263,37 +121,18 @@ export function registerMcpxCommand(program: Command) {
           env?: string[];
         },
       ) => {
-        const serversPath = getServersPath(program);
-        const data = await readServersFile(serversPath);
-
-        let entry: Record<string, unknown>;
-        if (opts.url) {
-          entry = { url: opts.url };
-          if (opts.transport) entry.transport = opts.transport;
-        } else if (opts.command) {
-          entry = { command: opts.command };
-          if (opts.args) entry.args = opts.args;
-        } else {
-          logger.error("Must specify --command or --url");
-          process.exit(1);
+        const cliArgs: string[] = ["add", name];
+        if (opts.command) cliArgs.push("--command", opts.command);
+        if (opts.args) {
+          for (const a of opts.args) cliArgs.push("--args", a);
         }
-
+        if (opts.url) cliArgs.push("--url", opts.url);
+        if (opts.transport) cliArgs.push("--transport", opts.transport);
         if (opts.env) {
-          const env: Record<string, string> = {};
-          for (const pair of opts.env) {
-            const eqIdx = pair.indexOf("=");
-            if (eqIdx === -1) {
-              logger.error(`Invalid env pair: ${pair} (expected KEY=VALUE)`);
-              process.exit(1);
-            }
-            env[pair.slice(0, eqIdx)] = pair.slice(eqIdx + 1);
-          }
-          entry.env = env;
+          for (const e of opts.env) cliArgs.push("--env", e);
         }
-
-        data.mcpServers[name] = entry;
-        await writeServersFile(serversPath, data);
-        logger.success(`Added server: ${name}`);
+        const out = await runMcpx(getDir(program), cliArgs);
+        process.stdout.write(out);
       },
     );
 
@@ -302,15 +141,8 @@ export function registerMcpxCommand(program: Command) {
     .command("remove <name>")
     .description("Remove an MCP server")
     .action(async (name: string) => {
-      const serversPath = getServersPath(program);
-      const data = await readServersFile(serversPath);
-      if (!(name in data.mcpServers)) {
-        logger.error(`Server not found: ${name}`);
-        process.exit(1);
-      }
-      delete data.mcpServers[name];
-      await writeServersFile(serversPath, data);
-      logger.success(`Removed server: ${name}`);
+      const out = await runMcpx(getDir(program), ["remove", name]);
+      process.stdout.write(out);
     });
 
   // --- ping ---
@@ -318,24 +150,8 @@ export function registerMcpxCommand(program: Command) {
     .command("ping [servers...]")
     .description("Check connectivity to MCP servers")
     .action(async (servers: string[]) => {
-      const client = await getClient(program);
-      try {
-        const names =
-          servers.length > 0 ? servers : await client.getServerNames();
-        for (const name of names) {
-          try {
-            const info = await client.getServerInfo(name);
-            const version = info.version?.version ?? "unknown";
-            console.log(
-              `  ${ansis.green("✓")} ${ansis.bold(name)}  v${version}`,
-            );
-          } catch (err) {
-            console.log(`  ${ansis.red("✗")} ${ansis.bold(name)}  ${err}`);
-          }
-        }
-      } finally {
-        await client.close();
-      }
+      const out = await runMcpx(getDir(program), ["ping", ...servers]);
+      process.stdout.write(out);
     });
 
   // --- auth ---
@@ -343,9 +159,7 @@ export function registerMcpxCommand(program: Command) {
     .command("auth <server>")
     .description("Authenticate with an HTTP MCP server")
     .action(async (server: string) => {
-      logger.info(
-        `To authenticate, run: mcpx auth ${server} -c ${getMcpxDir(program.opts().dir)}`,
-      );
+      await runMcpx(getDir(program), ["auth", server], { inherit: true });
     });
 
   // --- resource ---
@@ -353,26 +167,8 @@ export function registerMcpxCommand(program: Command) {
     .command("resource [server] [uri]")
     .description("List resources for a server, or read a specific resource")
     .action(async (server?: string, uri?: string) => {
-      const client = await getClient(program);
-      try {
-        if (server && uri) {
-          const result = await client.readResource(server, uri);
-          console.log(JSON.stringify(result, null, 2));
-        } else {
-          const resources = await client.listResources(server);
-          if (resources.length === 0) {
-            logger.dim("No resources found.");
-            return;
-          }
-          for (const r of resources) {
-            console.log(
-              `  ${ansis.bold(r.server)}  ${r.resource.uri}  ${r.resource.name ?? ""}`,
-            );
-          }
-        }
-      } finally {
-        await client.close();
-      }
+      const out = await runMcpx(getDir(program), ["resource", server, uri]);
+      process.stdout.write(out);
     });
 
   // --- prompt ---
@@ -380,27 +176,13 @@ export function registerMcpxCommand(program: Command) {
     .command("prompt [server] [name] [args]")
     .description("List prompts for a server, or get a specific prompt")
     .action(async (server?: string, name?: string, argsJson?: string) => {
-      const client = await getClient(program);
-      try {
-        if (server && name) {
-          const args = argsJson ? JSON.parse(argsJson) : undefined;
-          const result = await client.getPrompt(server, name, args);
-          console.log(JSON.stringify(result, null, 2));
-        } else {
-          const prompts = await client.listPrompts(server);
-          if (prompts.length === 0) {
-            logger.dim("No prompts found.");
-            return;
-          }
-          for (const p of prompts) {
-            console.log(
-              `  ${ansis.bold(p.server)}  ${p.prompt.name}  ${p.prompt.description ?? ""}`,
-            );
-          }
-        }
-      } finally {
-        await client.close();
-      }
+      const out = await runMcpx(getDir(program), [
+        "prompt",
+        server,
+        name,
+        argsJson,
+      ]);
+      process.stdout.write(out);
     });
 
   // --- task ---
@@ -408,50 +190,13 @@ export function registerMcpxCommand(program: Command) {
     .command("task <action> <server> [taskId]")
     .description("Manage async tasks (actions: list, get, result, cancel)")
     .action(async (action: string, server: string, taskId?: string) => {
-      const client = await getClient(program);
-      try {
-        switch (action) {
-          case "list": {
-            const result = await client.listTasks(server);
-            console.log(JSON.stringify(result, null, 2));
-            break;
-          }
-          case "get": {
-            if (!taskId) {
-              logger.error("Task ID required for get");
-              process.exit(1);
-            }
-            const result = await client.getTask(server, taskId);
-            console.log(JSON.stringify(result, null, 2));
-            break;
-          }
-          case "result": {
-            if (!taskId) {
-              logger.error("Task ID required for result");
-              process.exit(1);
-            }
-            const result = await client.getTaskResult(server, taskId);
-            console.log(formatCallToolResult(result));
-            break;
-          }
-          case "cancel": {
-            if (!taskId) {
-              logger.error("Task ID required for cancel");
-              process.exit(1);
-            }
-            const result = await client.cancelTask(server, taskId);
-            console.log(JSON.stringify(result, null, 2));
-            break;
-          }
-          default:
-            logger.error(
-              `Unknown action: ${action}. Use list, get, result, or cancel.`,
-            );
-            process.exit(1);
-        }
-      } finally {
-        await client.close();
-      }
+      const out = await runMcpx(getDir(program), [
+        "task",
+        action,
+        server,
+        taskId,
+      ]);
+      process.stdout.write(out);
     });
 
   // --- import-global ---
@@ -465,7 +210,7 @@ export function registerMcpxCommand(program: Command) {
         process.exit(1);
       }
 
-      const projectMcpxDir = getMcpxDir(program.opts().dir);
+      const projectMcpxDir = getMcpxDir(getDir(program));
       if (!existsSync(projectMcpxDir)) {
         mkdirSync(projectMcpxDir, { recursive: true });
       }
@@ -495,14 +240,6 @@ export function registerMcpxCommand(program: Command) {
     .command("index")
     .description("Build the search index from all configured servers")
     .action(async () => {
-      const mcpxDir = getMcpxDir(program.opts().dir);
-      const proc = Bun.spawn(["mcpx", "index", "-c", mcpxDir], {
-        stdout: "inherit",
-        stderr: "inherit",
-      });
-      const exitCode = await proc.exited;
-      if (exitCode !== 0) {
-        process.exit(exitCode);
-      }
+      await runMcpx(getDir(program), ["index"], { inherit: true });
     });
 }
