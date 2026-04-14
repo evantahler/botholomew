@@ -13,35 +13,18 @@ const pkg = await Bun.file(
   new URL("../../package.json", import.meta.url),
 ).json();
 
-export async function buildSystemPrompt(
+/**
+ * Load persistent context files from .botholomew/ directory.
+ * Returns an array of formatted string sections for "always" loaded files.
+ * If taskKeywords are provided, also includes "contextual" files that match.
+ */
+export async function loadPersistentContext(
   projectDir: string,
-  task?: Task,
-  conn?: DbConnection,
-  _config?: Required<BotholomewConfig>,
-  options?: { hasMcpTools?: boolean },
-): Promise<string> {
+  taskKeywords?: Set<string> | null,
+): Promise<string[]> {
   const dotDir = getBotholomewDir(projectDir);
   const parts: string[] = [];
 
-  // Meta information
-  parts.push(`# Botholomew v${pkg.version}`);
-  parts.push(`Current time: ${new Date().toISOString()}`);
-  parts.push(`Project directory: ${projectDir}`);
-  parts.push(`OS: ${process.platform} ${process.arch}`);
-  parts.push(`User: ${process.env.USER || process.env.USERNAME || "unknown"}`);
-  parts.push("");
-
-  // Build keyword set from task for contextual loading
-  const taskKeywords = task
-    ? new Set(
-        `${task.name} ${task.description}`
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((w) => w.length > 3),
-      )
-    : null;
-
-  // Load context files from .botholomew/
   try {
     const files = await readdir(dotDir);
     const mdFiles = files.filter((f) => f.endsWith(".md"));
@@ -56,7 +39,6 @@ export async function buildSystemPrompt(
         parts.push(content);
         parts.push("");
       } else if (meta.loading === "contextual" && taskKeywords) {
-        // Include contextual files if keywords overlap with task
         const contentLower = content.toLowerCase();
         const hasOverlap = [...taskKeywords].some((kw) =>
           contentLower.includes(kw),
@@ -71,6 +53,48 @@ export async function buildSystemPrompt(
   } catch {
     // .botholomew dir might not have md files yet
   }
+
+  return parts;
+}
+
+/**
+ * Build common meta header (version, time, OS, user).
+ */
+export function buildMetaHeader(projectDir: string): string[] {
+  return [
+    `# Botholomew v${pkg.version}`,
+    `Current time: ${new Date().toISOString()}`,
+    `Project directory: ${projectDir}`,
+    `OS: ${process.platform} ${process.arch}`,
+    `User: ${process.env.USER || process.env.USERNAME || "unknown"}`,
+    "",
+  ];
+}
+
+export async function buildSystemPrompt(
+  projectDir: string,
+  task?: Task,
+  conn?: DbConnection,
+  _config?: Required<BotholomewConfig>,
+  options?: { hasMcpTools?: boolean },
+): Promise<string> {
+  const parts: string[] = [];
+
+  // Meta information
+  parts.push(...buildMetaHeader(projectDir));
+
+  // Build keyword set from task for contextual loading
+  const taskKeywords = task
+    ? new Set(
+        `${task.name} ${task.description}`
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((w) => w.length > 3),
+      )
+    : null;
+
+  // Load context files from .botholomew/
+  parts.push(...(await loadPersistentContext(projectDir, taskKeywords)));
 
   // Relevant context from embeddings search
   if (task && conn) {

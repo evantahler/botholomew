@@ -6,7 +6,7 @@
 | 2 | [Context & Embeddings](milestone-2-context-and-embeddings.md) | **Done** | Ingest, chunk, embed, and search content with hybrid vector search |
 | 3 | [Schedules & Task Hardening](milestone-3-schedules-and-task-hardening.md) | **Done** | Recurring schedules, cycle detection, timeouts, full task/schedule CLI |
 | 4 | [MCPX Integration](milestone-4-mcpx-integration.md) | **Done** | External tools via MCP servers (Gmail, Slack, web, etc.) |
-| 5 | [Chat TUI](milestone-5-chat-tui.md) | Planned | Interactive Ink/React terminal UI for conversational interaction |
+| 5 | [Chat TUI](milestone-5-chat-tui.md) | **Done** | Interactive Ink/React terminal UI for conversational interaction |
 | 6 | [Daemon Watchdog & Distribution](milestone-6-daemon-watchdog-and-distribution.md) | Planned | OS-level watchdog, binary compilation, agent self-modification |
 
 ## Stub/TODO Coverage

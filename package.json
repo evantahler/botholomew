@@ -1,6 +1,6 @@
 {
   "name": "botholomew",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "An AI agent for knowledge work",
   "type": "module",
   "bin": {
@@ -18,7 +18,7 @@
   "scripts": {
     "dev": "bun run src/cli.ts",
     "test": "bun test",
-    "build": "bun build --compile --minify --sourcemap ./src/cli.ts --outfile dist/botholomew",
+    "build": "bun build --compile --minify --sourcemap --external react-devtools-core ./src/cli.ts --outfile dist/botholomew",
     "lint": "tsc --noEmit && biome check ."
   },
   "dependencies": {
@@ -30,6 +30,8 @@
     "commander": "^14.0.0",
     "gray-matter": "^4.0.3",
     "ink": "^6.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
     "istextorbinary": "^9.5.0",
     "react": "^19.1.0",
     "uuid": "^13.0.0",

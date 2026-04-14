@@ -1,0 +1,216 @@
+import Anthropic from "@anthropic-ai/sdk";
+import type {
+  MessageParam,
+  ToolResultBlockParam,
+  ToolUseBlock,
+} from "@anthropic-ai/sdk/resources/messages";
+import type { BotholomewConfig } from "../config/schemas.ts";
+import { buildMetaHeader, loadPersistentContext } from "../daemon/prompt.ts";
+import type { DbConnection } from "../db/connection.ts";
+import { logInteraction } from "../db/threads.ts";
+import { registerAllTools } from "../tools/registry.ts";
+import {
+  getAllTools,
+  getTool,
+  type ToolContext,
+  toAnthropicTool,
+} from "../tools/tool.ts";
+
+registerAllTools();
+
+/** Tools available in chat mode — no daemon terminal tools, no destructive file tools */
+const CHAT_TOOL_NAMES = new Set([
+  "create_task",
+  "list_tasks",
+  "view_task",
+  "search_context",
+  "search_grep",
+  "search_semantic",
+  "list_threads",
+  "view_thread",
+  "create_schedule",
+  "list_schedules",
+  "update_beliefs",
+  "update_goals",
+  "mcp_list_tools",
+  "mcp_search",
+  "mcp_info",
+  "mcp_exec",
+]);
+
+export function getChatTools() {
+  return getAllTools()
+    .filter((t) => CHAT_TOOL_NAMES.has(t.name))
+    .map(toAnthropicTool);
+}
+
+export async function buildChatSystemPrompt(
+  projectDir: string,
+): Promise<string> {
+  const parts: string[] = [];
+
+  parts.push(...buildMetaHeader(projectDir));
+  parts.push(...(await loadPersistentContext(projectDir)));
+
+  parts.push("## Instructions");
+  parts.push(
+    "You are Botholomew's interactive chat interface. Help the user manage tasks, review results from daemon activity, search context, and answer questions.",
+  );
+  parts.push(
+    "You do NOT execute long-running work directly — enqueue tasks for the daemon instead using create_task.",
+  );
+  parts.push(
+    "Use the available tools to look up tasks, threads, schedules, and context when the user asks about them.",
+  );
+  parts.push(
+    "You can update the agent's beliefs and goals files when the user asks you to.",
+  );
+  parts.push(
+    "Format your responses using Markdown. Use headings, bold, italic, lists, and code blocks to make your responses clear and well-structured.",
+  );
+  parts.push("");
+
+  return parts.join("\n");
+}
+
+export interface ChatTurnCallbacks {
+  onToken: (text: string) => void;
+  onToolStart: (name: string, input: string) => void;
+  onToolEnd: (name: string, output: string) => void;
+}
+
+/**
+ * Run a single chat turn: stream the assistant response, execute any tool calls,
+ * and loop until the model produces end_turn with no tool calls.
+ * Mutates `messages` in-place by appending assistant/tool messages.
+ */
+export async function runChatTurn(input: {
+  messages: MessageParam[];
+  systemPrompt: string;
+  config: Required<BotholomewConfig>;
+  conn: DbConnection;
+  threadId: string;
+  toolCtx: ToolContext;
+  callbacks: ChatTurnCallbacks;
+}): Promise<void> {
+  const { messages, systemPrompt, config, conn, threadId, toolCtx, callbacks } =
+    input;
+
+  const client = new Anthropic({
+    apiKey: config.anthropic_api_key || undefined,
+  });
+
+  const chatTools = getChatTools();
+  const maxTurns = 10;
+
+  for (let turn = 0; turn < maxTurns; turn++) {
+    const startTime = Date.now();
+
+    const stream = client.messages.stream({
+      model: config.model,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages,
+      tools: chatTools,
+    });
+
+    // Collect the full response
+    let assistantText = "";
+
+    stream.on("text", (text) => {
+      assistantText += text;
+      callbacks.onToken(text);
+    });
+
+    const response = await stream.finalMessage();
+    const durationMs = Date.now() - startTime;
+    const tokenCount =
+      response.usage.input_tokens + response.usage.output_tokens;
+
+    // Log assistant text
+    if (assistantText) {
+      await logInteraction(conn, threadId, {
+        role: "assistant",
+        kind: "message",
+        content: assistantText,
+        durationMs,
+        tokenCount,
+      });
+    }
+
+    // Check for tool calls
+    const toolUseBlocks = response.content.filter(
+      (block): block is ToolUseBlock => block.type === "tool_use",
+    );
+
+    if (toolUseBlocks.length === 0) {
+      // No tool calls — turn is complete
+      messages.push({ role: "assistant", content: response.content });
+      return;
+    }
+
+    // Add assistant response to conversation
+    messages.push({ role: "assistant", content: response.content });
+
+    // Execute tool calls
+    const toolResults: ToolResultBlockParam[] = [];
+
+    for (const toolUse of toolUseBlocks) {
+      const toolInput = JSON.stringify(toolUse.input);
+      callbacks.onToolStart(toolUse.name, toolInput);
+
+      await logInteraction(conn, threadId, {
+        role: "assistant",
+        kind: "tool_use",
+        content: `Calling ${toolUse.name}`,
+        toolName: toolUse.name,
+        toolInput,
+      });
+
+      const toolStart = Date.now();
+      const result = await executeChatToolCall(toolUse, toolCtx);
+      const toolDuration = Date.now() - toolStart;
+
+      await logInteraction(conn, threadId, {
+        role: "tool",
+        kind: "tool_result",
+        content: result,
+        toolName: toolUse.name,
+        durationMs: toolDuration,
+      });
+
+      callbacks.onToolEnd(toolUse.name, result);
+
+      toolResults.push({
+        type: "tool_result",
+        tool_use_id: toolUse.id,
+        content: result,
+      });
+    }
+
+    messages.push({ role: "user", content: toolResults });
+    // Loop to get the model's next response after tool results
+  }
+}
+
+async function executeChatToolCall(
+  toolUse: ToolUseBlock,
+  ctx: ToolContext,
+): Promise<string> {
+  const tool = getTool(toolUse.name);
+  if (!tool) return `Unknown tool: ${toolUse.name}`;
+  if (!CHAT_TOOL_NAMES.has(tool.name))
+    return `Tool not available in chat mode: ${tool.name}`;
+
+  const parsed = tool.inputSchema.safeParse(toolUse.input);
+  if (!parsed.success) {
+    return `Invalid input: ${JSON.stringify(parsed.error)}`;
+  }
+
+  try {
+    const result = await tool.execute(parsed.data, ctx);
+    return typeof result === "string" ? result : JSON.stringify(result);
+  } catch (err) {
+    return `Tool error: ${err}`;
+  }
+}
