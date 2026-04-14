@@ -1,6 +1,6 @@
 import { Box, Text, useInput } from "ink";
 import type { ReactNode } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface InputBarProps {
   value: string;
@@ -21,11 +21,29 @@ export function InputBar({
 }: InputBarProps) {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [cursorPos, setCursorPos] = useState(0);
+  const [cursorVisible, setCursorVisible] = useState(true);
   const savedInput = useRef("");
+  const lastActivity = useRef(Date.now());
+
+  // Blink cursor when input is active
+  useEffect(() => {
+    if (disabled) {
+      setCursorVisible(true);
+      return;
+    }
+    const id = setInterval(() => {
+      const elapsed = Date.now() - lastActivity.current;
+      const phase = Math.floor(elapsed / 530) % 2 === 0;
+      setCursorVisible(phase);
+    }, 530);
+    return () => clearInterval(id);
+  }, [disabled]);
 
   useInput(
     (input, key) => {
       if (disabled) return;
+      lastActivity.current = Date.now();
+      setCursorVisible(true);
 
       // Enter: submit (shift+enter or opt+enter inserts newline)
       if (key.return) {
@@ -136,7 +154,7 @@ export function InputBar({
           ) : (
             <Text>
               {value.slice(0, cursorPos)}
-              <Text inverse>{value[cursorPos] ?? " "}</Text>
+              <Text inverse={cursorVisible}>{value[cursorPos] ?? " "}</Text>
               {value.slice(cursorPos + 1)}
             </Text>
           )}
