@@ -9,6 +9,7 @@ import {
 import type { Interaction } from "../db/threads.ts";
 import { getThread } from "../db/threads.ts";
 import { ContextPanel } from "./components/ContextPanel.tsx";
+import { Divider } from "./components/Divider.tsx";
 import { HelpPanel } from "./components/HelpPanel.tsx";
 import { InputBar } from "./components/InputBar.tsx";
 import { type ChatMessage, MessageList } from "./components/MessageList.tsx";
@@ -20,6 +21,7 @@ import { ToolPanel } from "./components/ToolPanel.tsx";
 interface AppProps {
   projectDir: string;
   threadId?: string;
+  initialPrompt?: string;
 }
 
 let nextMsgId = 0;
@@ -39,6 +41,7 @@ function restoreMessagesFromInteractions(
         name: ix.tool_name ?? "unknown",
         input: ix.tool_input ?? "{}",
         running: false,
+        timestamp: ix.created_at,
       });
     } else if (ix.kind === "tool_result") {
       const tc = pendingTools.find((t) => t.name === ix.tool_name && !t.output);
@@ -77,7 +80,11 @@ function restoreMessagesFromInteractions(
   return result;
 }
 
-export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
+export function App({
+  projectDir,
+  threadId: resumeThreadId,
+  initialPrompt,
+}: AppProps) {
   const { exit } = useApp();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -222,7 +229,12 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
             if (currentText) {
               finalizeSegment();
             }
-            const tc: ToolCallData = { name, input, running: true };
+            const tc: ToolCallData = {
+              name,
+              input,
+              running: true,
+              timestamp: new Date(),
+            };
             pendingToolCalls.push(tc);
             setActiveToolCalls([...pendingToolCalls]);
           },
@@ -257,6 +269,17 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
     processingRef.current = false;
   }, []);
 
+  // Auto-submit initial prompt once session is ready
+  const initialPromptSent = useRef(false);
+  useEffect(() => {
+    if (ready && initialPrompt && !initialPromptSent.current) {
+      initialPromptSent.current = true;
+      queueRef.current.push(initialPrompt);
+      setInputHistory((prev) => [...prev, initialPrompt]);
+      processQueue();
+    }
+  }, [ready, initialPrompt, processQueue]);
+
   const handleSubmit = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
@@ -269,13 +292,27 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
           id: msgId(),
           role: "system",
           content: [
-            "Keyboard shortcuts:",
-            "  Tab            Switch between panels",
+            "Navigation:",
+            "  Tab            Cycle between panels",
             "  1-4            Jump to panel (when not in Chat)",
             "  Escape         Return to Chat",
+            "",
+            "Chat (Tab 1):",
             "  Enter          Send message",
             "  ⌥+Enter        Insert newline",
             "  ↑/↓            Browse input history",
+            "",
+            "Tools (Tab 2):",
+            "  ↑/↓            Select tool call",
+            "  Shift+↑/↓      Scroll detail pane",
+            "  j/k            Scroll detail pane",
+            "",
+            "Context (Tab 3):",
+            "  ↑/↓            Navigate items",
+            "  Enter          Expand directory / preview file",
+            "  Backspace      Go up one directory",
+            "  /              Search context",
+            "  d              Delete selected item",
             "",
             "Commands:",
             "  /help           Show this help",
@@ -334,6 +371,7 @@ export function App({ projectDir, threadId: resumeThreadId }: AppProps) {
   return (
     <Box flexDirection="column" height="100%">
       <TabBar activeTab={activeTab} />
+      <Divider isLoading={isLoading} />
 
       {/* Tab content area */}
       {activeTab === 1 && (

@@ -6,6 +6,7 @@ export interface ToolCallData {
   input: string;
   output?: string;
   running: boolean;
+  timestamp: Date;
 }
 
 interface ToolCallProps {

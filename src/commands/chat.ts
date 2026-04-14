@@ -15,7 +15,8 @@ export function registerChatCommand(program: Command) {
         "    /quit, /exit    End the chat session",
     )
     .option("--thread-id <id>", "Resume an existing chat thread")
-    .action(async (opts: { threadId?: string }) => {
+    .option("-p, --prompt <text>", "Start chat with an initial prompt")
+    .action(async (opts: { threadId?: string; prompt?: string }) => {
       const { render } = await import("ink");
       const React = await import("react");
       const { App } = await import("../tui/App.tsx");
@@ -24,6 +25,7 @@ export function registerChatCommand(program: Command) {
         React.createElement(App, {
           projectDir: dir,
           threadId: opts.threadId,
+          initialPrompt: opts.prompt,
         }),
         {
           kittyKeyboard: {

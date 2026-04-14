@@ -48,19 +48,13 @@ export function HelpPanel({
           Tools (Tab 2)
         </Text>
         <Text>
-          {"  "}←/→{"            "}Switch between tool calls
+          {"  "}↑/↓{"            "}Select tool call
         </Text>
         <Text>
-          {"  "}↑/↓{"            "}Navigate JSON tree
+          {"  "}Shift+↑/↓{"      "}Scroll detail pane
         </Text>
         <Text>
-          {"  "}Enter{"          "}Expand/collapse node
-        </Text>
-        <Text>
-          {"  "}Tab{"            "}Switch Input/Output
-        </Text>
-        <Text>
-          {"  "}e / c{"          "}Expand / collapse all
+          {"  "}j / k{"          "}Scroll detail pane
         </Text>
       </Box>
 
@@ -79,6 +73,9 @@ export function HelpPanel({
         </Text>
         <Text>
           {"  "}/{"              "}Search context
+        </Text>
+        <Text>
+          {"  "}d{"              "}Delete selected item (with confirmation)
         </Text>
       </Box>
 
