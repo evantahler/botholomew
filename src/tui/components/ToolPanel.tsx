@@ -19,14 +19,21 @@ const GREEN = "\x1b[32m";
 const YELLOW = "\x1b[33m";
 const MAGENTA = "\x1b[35m";
 const BLUE = "\x1b[34m";
+
+/** Try to parse a string as JSON; returns the parsed value or undefined on failure */
+function tryParseJson(str: string): unknown | undefined {
+  try {
+    return JSON.parse(str);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Colorize a JSON string with ANSI codes */
 function colorizeJson(str: string): string {
-  try {
-    const parsed = JSON.parse(str);
-    return colorizeValue(parsed, 0);
-  } catch {
-    return str;
-  }
+  const parsed = tryParseJson(str);
+  if (parsed === undefined) return str;
+  return colorizeValue(parsed, 0);
 }
 
 function colorizeValue(value: unknown, indent: number): string {
@@ -35,6 +42,11 @@ function colorizeValue(value: unknown, indent: number): string {
     return `${MAGENTA}${value ? "true" : "false"}${RESET}`;
   if (typeof value === "number") return `${YELLOW}${value}${RESET}`;
   if (typeof value === "string") {
+    // Try to unwrap stringified JSON (common in tool results)
+    const inner = tryParseJson(value);
+    if (inner !== undefined && typeof inner === "object" && inner !== null) {
+      return colorizeValue(inner, indent);
+    }
     const escaped = JSON.stringify(value);
     return `${GREEN}${escaped}${RESET}`;
   }
@@ -101,6 +113,8 @@ function buildDetailAnsi(tool: ToolCallData): string {
   return lines.join("\n");
 }
 
+const PAGE_SCROLL_LINES = 10;
+
 export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
   const { stdout } = useStdout();
   const termRows = stdout?.rows ?? 24;
@@ -131,6 +145,7 @@ export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
 
   // Visible area for sidebar and detail
   const visibleRows = Math.max(1, termRows - 6); // chrome: tab bar, divider, status, input, borders
+  const maxDetailScroll = Math.max(0, detailLines.length - visibleRows);
   const sidebarScrollOffset = Math.max(
     0,
     Math.min(
@@ -158,22 +173,42 @@ export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
       }
       if (key.downArrow) {
         if (key.shift) {
-          const maxScroll = Math.max(0, detailLines.length - visibleRows);
-          setDetailScroll((s) => Math.min(maxScroll, s + 1));
+          setDetailScroll((s) => Math.min(maxDetailScroll, s + 1));
         } else {
           setSelectedIndex((i) => Math.min(reversedCalls.length - 1, i + 1));
         }
         return;
       }
 
-      // j/k vim-style for detail scrolling
+      // j/k vim-style for detail scrolling (single line)
       if (input === "j") {
-        const maxScroll = Math.max(0, detailLines.length - visibleRows);
-        setDetailScroll((s) => Math.min(maxScroll, s + 1));
+        setDetailScroll((s) => Math.min(maxDetailScroll, s + 1));
         return;
       }
       if (input === "k") {
         setDetailScroll((s) => Math.max(0, s - 1));
+        return;
+      }
+
+      // J/K for page scrolling (hold shift or caps)
+      if (input === "J") {
+        setDetailScroll((s) =>
+          Math.min(maxDetailScroll, s + PAGE_SCROLL_LINES),
+        );
+        return;
+      }
+      if (input === "K") {
+        setDetailScroll((s) => Math.max(0, s - PAGE_SCROLL_LINES));
+        return;
+      }
+
+      // g/G for top/bottom
+      if (input === "g") {
+        setDetailScroll(0);
+        return;
+      }
+      if (input === "G") {
+        setDetailScroll(maxDetailScroll);
         return;
       }
     },
@@ -204,11 +239,12 @@ export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
   );
 
   return (
-    <Box flexGrow={1} overflow="hidden">
+    <Box flexGrow={1} height={visibleRows + 1} overflow="hidden">
       {/* Left sidebar: tool call list */}
       <Box
         flexDirection="column"
         width={SIDEBAR_WIDTH}
+        height={visibleRows + 1}
         borderStyle="single"
         borderColor={theme.muted}
         borderRight
@@ -266,7 +302,13 @@ export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
       </Box>
 
       {/* Right detail pane */}
-      <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
+      <Box
+        flexDirection="column"
+        flexGrow={1}
+        height={visibleRows + 1}
+        paddingX={1}
+        overflow="hidden"
+      >
         {detailVisible.map((line, i) => {
           const lineNum = detailScroll + i;
           return <Text key={lineNum}>{line || " "}</Text>;
@@ -274,7 +316,8 @@ export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
         {detailLines.length > visibleRows && (
           <Box>
             <Text dimColor>
-              ↑↓ select · shift+↑↓ or j/k scroll detail · [{detailScroll + 1}–
+              ↑↓ select · j/k scroll · J/K page · g/G top/bottom · [
+              {detailScroll + 1}–
               {Math.min(detailScroll + visibleRows, detailLines.length)} of{" "}
               {detailLines.length}]
             </Text>
