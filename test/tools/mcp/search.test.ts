@@ -9,6 +9,7 @@ function mockClient(
     tool: string;
     description: string;
     score: number;
+    matchType?: string;
   }>,
 ): McpxClient {
   return {
@@ -31,6 +32,7 @@ describe("mcp_search", () => {
         tool: "send_email",
         description: "Send email",
         score: 0.95,
+        matchType: "both",
       },
     ]);
 
@@ -41,6 +43,7 @@ describe("mcp_search", () => {
       tool: "send_email",
       description: "Send email",
       score: 0.95,
+      match_type: "both",
     });
   });
 

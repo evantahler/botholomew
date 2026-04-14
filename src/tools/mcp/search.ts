@@ -3,6 +3,14 @@ import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
   query: z.string().describe("Search query for finding MCP tools"),
+  keyword_only: z
+    .boolean()
+    .optional()
+    .describe("Only use keyword matching (skip semantic search)"),
+  semantic_only: z
+    .boolean()
+    .optional()
+    .describe("Only use semantic matching (skip keyword search)"),
 });
 
 const SearchResultSchema = z.object({
@@ -10,6 +18,7 @@ const SearchResultSchema = z.object({
   tool: z.string(),
   description: z.string(),
   score: z.number(),
+  match_type: z.string(),
 });
 
 const outputSchema = z.object({
@@ -19,7 +28,7 @@ const outputSchema = z.object({
 export const mcpSearchTool = {
   name: "mcp_search",
   description:
-    "Search for MCP tools by keyword and/or semantic similarity. Requires a pre-built search index (run `botholomew mcpx index`).",
+    "Search for MCP tools by keyword, semantic similarity, or both. Requires a pre-built search index (run `botholomew mcpx index`).",
   group: "mcp",
   inputSchema,
   outputSchema,
@@ -29,13 +38,17 @@ export const mcpSearchTool = {
     }
 
     try {
-      const results = await ctx.mcpxClient.search(input.query);
+      const results = await ctx.mcpxClient.search(input.query, {
+        keywordOnly: input.keyword_only,
+        semanticOnly: input.semantic_only,
+      });
       return {
         results: results.map((r) => ({
           server: r.server,
           tool: r.tool,
           description: r.description ?? "",
           score: r.score,
+          match_type: r.matchType ?? "keyword",
         })),
       };
     } catch {
