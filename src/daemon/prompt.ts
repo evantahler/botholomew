@@ -130,6 +130,9 @@ export async function buildSystemPrompt(
     "Always call complete_task, fail_task, or wait_task when you are done.",
   );
   parts.push("If you need to create subtasks, use create_task.");
+  parts.push(
+    "When multiple tool calls are independent of each other (i.e., one does not depend on the result of another), call them all in a single response. They will be executed in parallel, which is faster than calling them one at a time. Only sequence tool calls when a later call depends on an earlier result.",
+  );
   if (options?.hasMcpTools) {
     parts.push("");
     parts.push("## External Tools (MCP)");
