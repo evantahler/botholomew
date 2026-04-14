@@ -12,6 +12,7 @@ import { ContextPanel } from "./components/ContextPanel.tsx";
 import { Divider } from "./components/Divider.tsx";
 import { HelpPanel } from "./components/HelpPanel.tsx";
 import { InputBar } from "./components/InputBar.tsx";
+import { AnimatedLogo } from "./components/Logo.tsx";
 import { type ChatMessage, MessageList } from "./components/MessageList.tsx";
 import { QueuePanel } from "./components/QueuePanel.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
@@ -94,6 +95,7 @@ export function App({
   const [streamingText, setStreamingText] = useState("");
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCallData[]>([]);
   const [ready, setReady] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<ChatSession | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>(1);
@@ -160,6 +162,12 @@ export function App({
       }
     };
   }, [projectDir, resumeThreadId]);
+
+  // Minimum splash screen duration
+  useEffect(() => {
+    const timer = setTimeout(() => setSplashDone(true), 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Tab switching via useInput at the App level
   // On the Chat tab (1), only Tab key switches — number keys go to InputBar.
@@ -392,10 +400,16 @@ export function App({
     );
   }
 
-  if (!ready || !sessionRef.current) {
+  if (!ready || !splashDone || !sessionRef.current) {
     return (
-      <Box flexDirection="column" padding={1}>
-        <Text dimColor>Starting chat session...</Text>
+      <Box
+        flexDirection="column"
+        padding={1}
+        alignItems="center"
+        justifyContent="center"
+        height="100%"
+      >
+        <AnimatedLogo />
       </Box>
     );
   }

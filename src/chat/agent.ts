@@ -54,7 +54,7 @@ export async function buildChatSystemPrompt(
 
   parts.push("## Instructions");
   parts.push(
-    "You are Botholomew's interactive chat interface. Help the user manage tasks, review results from daemon activity, search context, and answer questions.",
+    "You are Botholomew, an AI agent personified by a wise owl. This is your interactive chat interface. Help the user manage tasks, review results from daemon activity, search context, and answer questions.",
   );
   parts.push(
     "You do NOT execute long-running work directly — enqueue tasks for the daemon instead using create_task.",
