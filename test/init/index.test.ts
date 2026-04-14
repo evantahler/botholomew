@@ -55,16 +55,16 @@ describe("initProject", () => {
     expect(meta["agent-modification"]).toBe(true);
   });
 
-  test("config.json has defaults without API key", async () => {
+  test("config.json has defaults with placeholder API key", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
     const config = JSON.parse(
       await Bun.file(join(tempDir, ".botholomew", "config.json")).text(),
     );
-    expect(config.model).toBe("claude-sonnet-4-20250514");
+    expect(config.model).toBe("claude-opus-4-20250514");
     expect(config.tick_interval_seconds).toBe(300);
-    expect(config.anthropic_api_key).toBeUndefined();
+    expect(config.anthropic_api_key).toBe("your-api-key-here");
   });
 
   test("throws if already initialized without --force", async () => {
