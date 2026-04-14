@@ -45,6 +45,30 @@ async function getClient(program: Command): Promise<McpxClient> {
   return client;
 }
 
+/**
+ * Given a tool name, find which server provides it.
+ * Errors if the tool is not found or is ambiguous (multiple servers).
+ */
+async function resolveServer(
+  client: McpxClient,
+  toolName: string,
+): Promise<string> {
+  const allTools = await client.listTools();
+  const matches = allTools.filter((t) => t.tool.name === toolName);
+  if (matches.length === 0) {
+    logger.error(`Tool not found: ${toolName}`);
+    process.exit(1);
+  }
+  if (matches.length > 1) {
+    const servers = matches.map((m) => m.server).join(", ");
+    logger.error(
+      `Tool "${toolName}" exists on multiple servers: ${servers}. Specify the server explicitly.`,
+    );
+    process.exit(1);
+  }
+  return matches[0]?.server as string;
+}
+
 export function registerMcpxCommand(program: Command) {
   const mcpx = program
     .command("mcpx")
@@ -69,11 +93,32 @@ export function registerMcpxCommand(program: Command) {
 
   // --- info ---
   mcpx
-    .command("info <server> [tool]")
-    .description("Show server overview, or schema for a specific tool")
-    .action(async (server: string, tool?: string) => {
+    .command("info <first> [second]")
+    .description(
+      "Show server overview, or schema for a specific tool (server is optional if tool name is unambiguous)",
+    )
+    .action(async (first: string, second?: string) => {
       const client = await getClient(program);
       try {
+        let server: string;
+        let tool: string | undefined;
+
+        if (second) {
+          // info <server> <tool>
+          server = first;
+          tool = second;
+        } else {
+          // Could be a server name or a tool name
+          const serverNames = await client.getServerNames();
+          if (serverNames.includes(first)) {
+            server = first;
+          } else {
+            // Treat as tool name, resolve server
+            server = await resolveServer(client, first);
+            tool = first;
+          }
+        }
+
         if (tool) {
           const schema = await client.info(server, tool);
           if (!schema) {
@@ -145,11 +190,48 @@ export function registerMcpxCommand(program: Command) {
 
   // --- exec ---
   mcpx
-    .command("exec <server> <tool> [args-json]")
-    .description("Execute a tool call")
-    .action(async (server: string, tool: string, argsJson?: string) => {
+    .command("exec <first> [second] [third]")
+    .description(
+      "Execute a tool call (server is optional if tool name is unambiguous)",
+    )
+    .action(async (first: string, second?: string, third?: string) => {
       const client = await getClient(program);
       try {
+        let server: string;
+        let tool: string;
+        let argsJson: string | undefined;
+
+        if (second && third) {
+          // exec <server> <tool> <args-json>
+          server = first;
+          tool = second;
+          argsJson = third;
+        } else if (second) {
+          // Could be: exec <server> <tool> OR exec <tool> <args-json>
+          // Try to parse second as JSON — if it parses, first is tool
+          let parsedAsArgs = false;
+          try {
+            JSON.parse(second);
+            parsedAsArgs = true;
+          } catch {
+            // not JSON, treat as exec <server> <tool>
+          }
+
+          if (parsedAsArgs) {
+            const resolved = await resolveServer(client, first);
+            server = resolved;
+            tool = first;
+            argsJson = second;
+          } else {
+            server = first;
+            tool = second;
+          }
+        } else {
+          // exec <tool> — resolve server automatically
+          server = await resolveServer(client, first);
+          tool = first;
+        }
+
         const args = argsJson ? JSON.parse(argsJson) : {};
         const result = await client.exec(server, tool, args);
         console.log(formatCallToolResult(result));
