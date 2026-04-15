@@ -116,11 +116,9 @@ const MessageBubble = memo(function MessageBubble({
             paddingX={1}
             marginBottom={0}
           >
-            {message.toolCalls.map((tc) => (
-              <ToolCall
-                key={`${tc.name}-${tc.timestamp.getTime()}`}
-                tool={tc}
-              />
+            {message.toolCalls.map((tc, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: tool calls are append-only
+              <ToolCall key={`${i}-${tc.name}`} tool={tc} />
             ))}
           </Box>
         )}
