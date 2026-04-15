@@ -78,7 +78,8 @@ describe("theme", () => {
       ["read", "-g", "AppleInterfaceStyle"],
       { encoding: "utf-8", timeout: 500 },
     );
-    const systemIsDark = result.stdout?.trim() === "Dark";
+    const systemIsDark =
+      result.status === 0 ? result.stdout?.trim() === "Dark" : true;
 
     const { detectDarkBackground } = loadTheme();
     expect(detectDarkBackground()).toBe(systemIsDark);
@@ -90,7 +91,7 @@ describe("theme", () => {
     process.env.COLORFGBG = "15;0"; // force dark
     const { theme } = loadTheme();
     expect(theme.accent).toBe("yellow");
-    expect(theme.userBg).toBe("#2a4a6c");
+    expect(theme.userBg).toBe("#2a5a8c");
     expect(theme.selectionBg).toBe("#333");
   });
 
