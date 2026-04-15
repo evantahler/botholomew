@@ -19,6 +19,7 @@ const inputSchema = z.object({
 const outputSchema = z.object({
   message: z.string(),
   path: z.string(),
+  is_error: z.boolean(),
 });
 
 export const updateGoalsTool = {
@@ -49,6 +50,7 @@ export const updateGoalsTool = {
     return {
       message: "Updated goals.md",
       path: filePath,
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

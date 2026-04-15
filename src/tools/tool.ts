@@ -13,9 +13,11 @@ export interface ToolContext {
   embedFn?: EmbedFn;
 }
 
+type ToolOutputBase = { is_error: z.ZodBoolean };
+
 export interface ToolDefinition<
   TInput extends z.ZodObject<z.ZodRawShape>,
-  TOutput extends z.ZodType,
+  TOutput extends z.ZodObject<z.ZodRawShape & ToolOutputBase>,
 > {
   name: string;
   description: string;
@@ -33,14 +35,14 @@ export interface ToolDefinition<
 
 export type AnyToolDefinition = ToolDefinition<
   z.ZodObject<z.ZodRawShape>,
-  z.ZodType
+  z.ZodObject<z.ZodRawShape & ToolOutputBase>
 >;
 
 const tools = new Map<string, AnyToolDefinition>();
 
 export function registerTool<
   TInput extends z.ZodObject<z.ZodRawShape>,
-  TOutput extends z.ZodType,
+  TOutput extends z.ZodObject<z.ZodRawShape & ToolOutputBase>,
 >(tool: ToolDefinition<TInput, TOutput>): void {
   tools.set(tool.name, tool as unknown as AnyToolDefinition);
 }

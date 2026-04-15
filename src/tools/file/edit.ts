@@ -21,6 +21,7 @@ const inputSchema = z.object({
 const outputSchema = z.object({
   applied: z.number(),
   content: z.string(),
+  is_error: z.boolean(),
 });
 
 export const fileEditTool = {
@@ -38,6 +39,6 @@ export const fileEditTool = {
     );
 
     await ingestByPath(ctx.conn, input.path, ctx.config, ctx.embedFn);
-    return { applied, content: item.content ?? "" };
+    return { applied, content: item.content ?? "", is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

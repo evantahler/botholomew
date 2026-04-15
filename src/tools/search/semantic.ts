@@ -25,6 +25,7 @@ const outputSchema = z.object({
       snippet: z.string(),
     }),
   ),
+  is_error: z.boolean(),
 });
 
 export const searchSemanticTool = {
@@ -55,6 +56,7 @@ export const searchSemanticTool = {
           snippet: (r.chunk_content || "").slice(0, 300),
         }))
         .sort((a, b) => b.score - a.score),
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

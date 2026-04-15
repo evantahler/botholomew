@@ -13,6 +13,7 @@ const inputSchema = z.object({
 const outputSchema = z.object({
   created: z.boolean(),
   path: z.string(),
+  is_error: z.boolean(),
 });
 
 export const dirCreateTool = {
@@ -24,7 +25,7 @@ export const dirCreateTool = {
   execute: async (input, ctx) => {
     const exists = await contextPathExists(ctx.conn, input.path);
     if (exists) {
-      return { created: false, path: input.path };
+      return { created: false, path: input.path, is_error: false };
     }
 
     await createContextItem(ctx.conn, {
@@ -34,6 +35,6 @@ export const dirCreateTool = {
       isTextual: false,
     });
 
-    return { created: true, path: input.path };
+    return { created: true, path: input.path, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

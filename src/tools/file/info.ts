@@ -19,6 +19,7 @@ const outputSchema = z.object({
   indexed_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
+  is_error: z.boolean(),
 });
 
 export const fileInfoTool = {
@@ -45,6 +46,7 @@ export const fileInfoTool = {
       indexed_at: item.indexed_at?.toISOString() ?? null,
       created_at: item.created_at.toISOString(),
       updated_at: item.updated_at.toISOString(),
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

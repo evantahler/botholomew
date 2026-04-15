@@ -20,6 +20,7 @@ const inputSchema = z.object({
 
 const outputSchema = z.object({
   tree: z.string(),
+  is_error: z.boolean(),
 });
 
 export const dirTreeTool = {
@@ -38,7 +39,7 @@ export const dirTreeTool = {
     });
 
     if (items.length === 0) {
-      return { tree: `${path}\n  (empty)` };
+      return { tree: `${path}\n  (empty)`, is_error: false };
     }
 
     const normalizedPath = path.endsWith("/") ? path : `${path}/`;
@@ -86,6 +87,6 @@ export const dirTreeTool = {
       lines.push(`... (truncated at ${maxItems} items)`);
     }
 
-    return { tree: lines.join("\n") };
+    return { tree: lines.join("\n"), is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

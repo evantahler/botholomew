@@ -14,6 +14,7 @@ const inputSchema = z.object({
 
 const outputSchema = z.object({
   path: z.string(),
+  is_error: z.boolean(),
 });
 
 export const fileMoveTool = {
@@ -38,6 +39,6 @@ export const fileMoveTool = {
       .query("UPDATE embeddings SET source_path = ?1 WHERE source_path = ?2")
       .run(input.dst, input.src);
 
-    return { path: input.dst };
+    return { path: input.dst, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

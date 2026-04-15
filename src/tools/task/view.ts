@@ -22,6 +22,7 @@ const outputSchema = z.object({
       updated_at: z.string(),
     })
     .nullable(),
+  is_error: z.boolean(),
 });
 
 export const viewTaskTool = {
@@ -32,7 +33,7 @@ export const viewTaskTool = {
   outputSchema,
   execute: async (input, ctx) => {
     const task = await getTask(ctx.conn, input.id);
-    if (!task) return { task: null };
+    if (!task) return { task: null, is_error: true };
     return {
       task: {
         id: task.id,
@@ -47,6 +48,7 @@ export const viewTaskTool = {
         created_at: task.created_at.toISOString(),
         updated_at: task.updated_at.toISOString(),
       },
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

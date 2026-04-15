@@ -31,8 +31,9 @@ function makeTool(overrides: Partial<Parameters<typeof registerTool>[0]> = {}) {
     }),
     outputSchema: z.object({
       content: z.string(),
+      is_error: z.boolean(),
     }),
-    execute: async () => ({ content: "ok" }),
+    execute: async () => ({ content: "ok", is_error: false }),
     ...overrides,
   };
 }
@@ -109,10 +110,12 @@ describe("Tool execution", () => {
       outputSchema: z.object({
         content: z.string(),
         lines: z.number(),
+        is_error: z.boolean(),
       }),
       execute: async (input) => ({
         content: `read: ${input.path}`,
         lines: input.offset ?? 0,
+        is_error: false,
       }),
     });
 

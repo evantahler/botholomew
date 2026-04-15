@@ -16,6 +16,7 @@ const ToolEntrySchema = z.object({
 
 const outputSchema = z.object({
   tools: z.array(ToolEntrySchema),
+  is_error: z.boolean(),
 });
 
 export const mcpListToolsTool = {
@@ -27,7 +28,7 @@ export const mcpListToolsTool = {
   outputSchema,
   execute: async (input, ctx) => {
     if (!ctx.mcpxClient) {
-      return { tools: [] };
+      return { tools: [], is_error: false };
     }
 
     const toolsWithServer = await ctx.mcpxClient.listTools(input.server);
@@ -37,6 +38,7 @@ export const mcpListToolsTool = {
         name: t.tool.name,
         description: t.tool.description ?? "",
       })),
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;
