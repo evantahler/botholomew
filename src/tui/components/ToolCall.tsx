@@ -24,12 +24,19 @@ export function resolveToolDisplay(
   }
 }
 
+export interface LargeResultMeta {
+  id: string;
+  chars: number;
+  pages: number;
+}
+
 export interface ToolCallData {
   name: string;
   input: string;
   output?: string;
   running: boolean;
   timestamp: Date;
+  largeResult?: LargeResultMeta;
   isError?: boolean;
 }
 
@@ -79,6 +86,13 @@ export function ToolCall({ tool }: ToolCallProps) {
         <Text dimColor wrap="truncate-end">
           {"    → "}
           {truncatedOutput}
+        </Text>
+      )}
+      {tool.largeResult && !tool.running && (
+        <Text color="yellow" wrap="truncate-end">
+          {"    ⚡ "}
+          Paginated for LLM [{Math.round(tool.largeResult.chars / 1000)}K,{" "}
+          {tool.largeResult.pages}pg]
         </Text>
       )}
     </Box>

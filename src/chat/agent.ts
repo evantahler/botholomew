@@ -79,10 +79,19 @@ export async function buildChatSystemPrompt(
   return parts.join("\n");
 }
 
+export interface ToolEndMeta {
+  largeResult?: { id: string; chars: number; pages: number };
+}
+
 export interface ChatTurnCallbacks {
   onToken: (text: string) => void;
   onToolStart: (name: string, input: string) => void;
-  onToolEnd: (name: string, output: string, isError: boolean) => void;
+  onToolEnd: (
+    name: string,
+    output: string,
+    isError: boolean,
+    meta?: ToolEndMeta,
+  ) => void;
 }
 
 /**
@@ -183,14 +192,18 @@ export async function runChatTurn(input: {
         const start = Date.now();
         const result = await executeChatToolCall(toolUse, toolCtx);
         const durationMs = Date.now() - start;
-        callbacks.onToolEnd(toolUse.name, result.output, result.isError);
-        return { toolUse, result, durationMs };
+        const stored = maybeStoreResult(toolUse.name, result.output);
+        const meta: ToolEndMeta | undefined = stored.stored
+          ? { largeResult: stored.stored }
+          : undefined;
+        callbacks.onToolEnd(toolUse.name, result.output, result.isError, meta);
+        return { toolUse, result, durationMs, stored };
       }),
     );
 
     // Log results and collect tool_result messages
     const toolResults: ToolResultBlockParam[] = [];
-    for (const { toolUse, result, durationMs } of execResults) {
+    for (const { toolUse, result, durationMs, stored } of execResults) {
       await logInteraction(conn, threadId, {
         role: "tool",
         kind: "tool_result",
@@ -202,7 +215,7 @@ export async function runChatTurn(input: {
       toolResults.push({
         type: "tool_result",
         tool_use_id: toolUse.id,
-        content: maybeStoreResult(toolUse.name, result.output),
+        content: stored.text,
         is_error: result.isError || undefined,
       });
     }
