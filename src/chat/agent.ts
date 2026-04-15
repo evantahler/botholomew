@@ -85,8 +85,9 @@ export interface ToolEndMeta {
 
 export interface ChatTurnCallbacks {
   onToken: (text: string) => void;
-  onToolStart: (name: string, input: string) => void;
+  onToolStart: (id: string, name: string, input: string) => void;
   onToolEnd: (
+    id: string,
     name: string,
     output: string,
     isError: boolean,
@@ -175,7 +176,7 @@ export async function runChatTurn(input: {
     // Log all tool_use entries and notify UI
     for (const toolUse of toolUseBlocks) {
       const toolInput = JSON.stringify(toolUse.input);
-      callbacks.onToolStart(toolUse.name, toolInput);
+      callbacks.onToolStart(toolUse.id, toolUse.name, toolInput);
 
       await logInteraction(conn, threadId, {
         role: "assistant",
@@ -196,7 +197,13 @@ export async function runChatTurn(input: {
         const meta: ToolEndMeta | undefined = stored.stored
           ? { largeResult: stored.stored }
           : undefined;
-        callbacks.onToolEnd(toolUse.name, result.output, result.isError, meta);
+        callbacks.onToolEnd(
+          toolUse.id,
+          toolUse.name,
+          result.output,
+          result.isError,
+          meta,
+        );
         return { toolUse, result, durationMs, stored };
       }),
     );

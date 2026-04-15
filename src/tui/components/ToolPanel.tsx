@@ -273,7 +273,7 @@ export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
               ? `${displayName.slice(0, maxName - 1)}…`
               : displayName;
           return (
-            <Box key={`${i}-${tc.name}`} paddingX={1}>
+            <Box key={tc.id} paddingX={1}>
               <Text
                 backgroundColor={isSelected ? theme.selectionBg : undefined}
                 bold={isSelected}
