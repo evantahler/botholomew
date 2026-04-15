@@ -1,4 +1,4 @@
-import type { BotholomewConfig } from "../config/schemas.ts";
+import type { ResolvedConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
 import { getContextItem, getContextItemByPath } from "../db/context.ts";
 import {
@@ -21,7 +21,7 @@ import { embed as defaultEmbed } from "./embedder.ts";
 export async function ingestContextItem(
   conn: DbConnection,
   itemId: string,
-  config: Required<BotholomewConfig>,
+  config: ResolvedConfig,
   embedFn: EmbedFn = defaultEmbed,
 ): Promise<number> {
   const item = await getContextItem(conn, itemId);
@@ -90,7 +90,7 @@ export async function ingestContextItem(
 export async function ingestByPath(
   conn: DbConnection,
   contextPath: string,
-  config: Required<BotholomewConfig>,
+  config: ResolvedConfig,
   embedFn: EmbedFn = defaultEmbed,
 ): Promise<number> {
   const item = await getContextItemByPath(conn, contextPath);

@@ -29,6 +29,27 @@ function padLine(text: string, width: number): string {
   return text + " ".repeat(pad);
 }
 
+function wrapAndPad(text: string, width: number): string {
+  const lines: string[] = [];
+  for (const line of text.split("\n")) {
+    if (line.length <= width) {
+      lines.push(padLine(line, width));
+    } else {
+      let remaining = line;
+      while (remaining.length > width) {
+        let breakAt = remaining.lastIndexOf(" ", width);
+        if (breakAt <= 0) breakAt = width;
+        lines.push(padLine(remaining.slice(0, breakAt), width));
+        remaining = remaining.slice(breakAt).trimStart();
+      }
+      if (remaining.length > 0) {
+        lines.push(padLine(remaining, width));
+      }
+    }
+  }
+  return lines.join("\n");
+}
+
 function renderMarkdown(text: string): string {
   if (!text) return "";
   return Bun.markdown.ansi(text).trimEnd();
@@ -52,7 +73,7 @@ const MessageBubble = memo(function MessageBubble({
   if (message.role === "user") {
     const paddedContent = message.content
       .split("\n")
-      .map((line) => padLine(` ${line}`, cols))
+      .map((line) => wrapAndPad(` ${line}`, cols))
       .join("\n");
     return (
       <Box flexDirection="column" marginTop={1}>

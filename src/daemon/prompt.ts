@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { BotholomewConfig } from "../config/schemas.ts";
+import type { ResolvedConfig } from "../config/schemas.ts";
 import { getBotholomewDir } from "../constants.ts";
 import { embedSingle } from "../context/embedder.ts";
 import type { DbConnection } from "../db/connection.ts";
@@ -75,7 +75,7 @@ export async function buildSystemPrompt(
   projectDir: string,
   task?: Task,
   conn?: DbConnection,
-  _config?: Required<BotholomewConfig>,
+  _config?: ResolvedConfig,
   options?: { hasMcpTools?: boolean },
 ): Promise<string> {
   const parts: string[] = [];

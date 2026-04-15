@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { z } from "zod";
-import type { BotholomewConfig } from "../config/schemas.ts";
+import type { ResolvedConfig } from "../config/schemas.ts";
 import { DEFAULT_CONFIG } from "../config/schemas.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
@@ -100,7 +100,7 @@ function registerToolAsCLI(
         const ctx: ToolContext = {
           conn,
           projectDir: dir,
-          config: DEFAULT_CONFIG as Required<BotholomewConfig>,
+          config: DEFAULT_CONFIG as ResolvedConfig,
           mcpxClient: null,
         };
 

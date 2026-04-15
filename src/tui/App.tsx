@@ -17,6 +17,7 @@ import { type ChatMessage, MessageList } from "./components/MessageList.tsx";
 import { QueuePanel } from "./components/QueuePanel.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import { TabBar, type TabId } from "./components/TabBar.tsx";
+import { TaskPanel } from "./components/TaskPanel.tsx";
 import type { ToolCallData } from "./components/ToolCall.tsx";
 import { ToolPanel } from "./components/ToolPanel.tsx";
 
@@ -181,7 +182,7 @@ export function App({
 
     // Tab key cycles tabs — always active (InputBar ignores tab)
     if (key.tab && !key.shift) {
-      setActiveTab((t) => ((t % 4) + 1) as TabId);
+      setActiveTab((t) => ((t % 5) + 1) as TabId);
       return;
     }
 
@@ -215,7 +216,7 @@ export function App({
     if (activeTab !== 1) {
       // Number keys jump to tab on non-chat tabs
       const num = Number.parseInt(input, 10);
-      if (num >= 1 && num <= 4) {
+      if (num >= 1 && num <= 5) {
         setActiveTab(num as TabId);
         return;
       }
@@ -344,7 +345,7 @@ export function App({
           content: [
             "Navigation:",
             "  Tab            Cycle between panels",
-            "  1-4            Jump to panel (when not in Chat)",
+            "  1-5            Jump to panel (when not in Chat)",
             "  Escape         Return to Chat",
             "",
             "Chat (Tab 1):",
@@ -364,6 +365,14 @@ export function App({
             "  Backspace      Go up one directory",
             "  /              Search context",
             "  d              Delete selected item",
+            "",
+            "Tasks (Tab 4):",
+            "  ↑/↓            Navigate task list",
+            "  Shift+↑/↓      Scroll detail pane",
+            "  j/k            Scroll detail pane",
+            "  f              Cycle status filter",
+            "  p              Cycle priority filter",
+            "  r              Refresh tasks",
             "",
             "Commands:",
             "  /help           Show this help",
@@ -439,7 +448,8 @@ export function App({
       {activeTab === 3 && (
         <ContextPanel conn={conn} isActive={activeTab === 3} />
       )}
-      {activeTab === 4 && (
+      {activeTab === 4 && <TaskPanel conn={conn} isActive={activeTab === 4} />}
+      {activeTab === 5 && (
         <HelpPanel
           projectDir={projectDir}
           threadId={threadId}

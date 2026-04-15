@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { BotholomewConfig } from "../config/schemas.ts";
+import type { ResolvedConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
 import {
   listSchedules,
@@ -23,7 +23,7 @@ export interface ScheduleEvaluation {
 }
 
 export async function evaluateSchedule(
-  config: Required<BotholomewConfig>,
+  config: ResolvedConfig,
   schedule: Schedule,
 ): Promise<ScheduleEvaluation> {
   const client = new Anthropic({
@@ -100,7 +100,7 @@ Is this schedule due to run? If yes, what tasks should be created?`;
 
 export async function processSchedules(
   conn: DbConnection,
-  config: Required<BotholomewConfig>,
+  config: ResolvedConfig,
 ): Promise<void> {
   const schedules = await listSchedules(conn, { enabled: true });
   if (schedules.length === 0) return;

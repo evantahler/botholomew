@@ -1,5 +1,5 @@
 import type { McpxClient } from "@evantahler/mcpx";
-import type { BotholomewConfig } from "../config/schemas.ts";
+import type { ResolvedConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
 import {
   claimNextTask,
@@ -15,7 +15,7 @@ import { processSchedules } from "./schedules.ts";
 export async function tick(
   projectDir: string,
   conn: DbConnection,
-  config: Required<BotholomewConfig>,
+  config: ResolvedConfig,
   mcpxClient?: McpxClient | null,
 ): Promise<void> {
   logger.debug("Tick starting...");

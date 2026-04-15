@@ -4,7 +4,7 @@ import type {
   ToolResultBlockParam,
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
-import type { BotholomewConfig } from "../config/schemas.ts";
+import type { ResolvedConfig } from "../config/schemas.ts";
 import { fitToContextWindow, getMaxInputTokens } from "../daemon/context.ts";
 import { maybeStoreResult } from "../daemon/large-results.ts";
 import { buildMetaHeader, loadPersistentContext } from "../daemon/prompt.ts";
@@ -93,7 +93,7 @@ export interface ChatTurnCallbacks {
 export async function runChatTurn(input: {
   messages: MessageParam[];
   systemPrompt: string;
-  config: Required<BotholomewConfig>;
+  config: ResolvedConfig;
   conn: DbConnection;
   threadId: string;
   toolCtx: ToolContext;
@@ -111,9 +111,9 @@ export async function runChatTurn(input: {
     config.anthropic_api_key,
     config.model,
   );
-  const maxTurns = 10;
+  const maxTurns = config.max_turns;
 
-  for (let turn = 0; turn < maxTurns; turn++) {
+  for (let turn = 0; !maxTurns || turn < maxTurns; turn++) {
     const startTime = Date.now();
 
     fitToContextWindow(messages, systemPrompt, maxInputTokens);
