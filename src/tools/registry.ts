@@ -1,4 +1,5 @@
 // Context tools
+import { readLargeResultTool } from "./context/read-large-result.ts";
 import { searchContextTool } from "./context/search.ts";
 import { updateBeliefsTool } from "./context/update-beliefs.ts";
 import { updateGoalsTool } from "./context/update-goals.ts";
@@ -82,6 +83,7 @@ export function registerAllTools(): void {
   registerTool(searchContextTool);
   registerTool(updateBeliefsTool);
   registerTool(updateGoalsTool);
+  registerTool(readLargeResultTool);
 
   // MCP
   registerTool(mcpListToolsTool);
