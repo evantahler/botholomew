@@ -1,4 +1,4 @@
-import { Box, Static, Text, useStdout } from "ink";
+import { Box, Text, useStdout } from "ink";
 import Spinner from "ink-spinner";
 import { memo, useMemo } from "react";
 import { theme } from "../theme.ts";
@@ -13,7 +13,6 @@ export interface ChatMessage {
 }
 
 interface MessageListProps {
-  messages: ChatMessage[];
   streamingText: string;
   isLoading: boolean;
   activeToolCalls: ToolCallData[];
@@ -54,7 +53,7 @@ function renderMarkdown(text: string): string {
   return Bun.markdown.ansi(text).trimEnd();
 }
 
-const MessageBubble = memo(function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   message,
 }: {
   message: ChatMessage;
@@ -129,18 +128,12 @@ const MessageBubble = memo(function MessageBubble({
 });
 
 export function MessageList({
-  messages,
   streamingText,
   isLoading,
   activeToolCalls,
 }: MessageListProps) {
   return (
     <>
-      {/* Completed messages — rendered once to terminal scrollback */}
-      <Static items={messages}>
-        {(msg) => <MessageBubble key={msg.id} message={msg} />}
-      </Static>
-
       {/* Dynamic area — streaming content, managed by Ink */}
       {(streamingText || activeToolCalls.length > 0) && (
         <Box flexDirection="column" marginTop={1}>
