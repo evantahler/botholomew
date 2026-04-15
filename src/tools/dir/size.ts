@@ -21,6 +21,7 @@ const inputSchema = z.object({
 const outputSchema = z.object({
   bytes: z.number(),
   formatted: z.string(),
+  is_error: z.boolean(),
 });
 
 export const dirSizeTool = {
@@ -40,6 +41,6 @@ export const dirSizeTool = {
       if (item.content != null) bytes += item.content.length;
     }
 
-    return { bytes, formatted: formatBytes(bytes) };
+    return { bytes, formatted: formatBytes(bytes), is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

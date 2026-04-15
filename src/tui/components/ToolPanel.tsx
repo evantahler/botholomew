@@ -19,6 +19,7 @@ const GREEN = "\x1b[32m";
 const YELLOW = "\x1b[33m";
 const MAGENTA = "\x1b[35m";
 const BLUE = "\x1b[34m";
+const RED = "\x1b[31m";
 
 /** Try to parse a string as JSON; returns the parsed value or undefined on failure */
 function tryParseJson(str: string): unknown | undefined {
@@ -103,8 +104,13 @@ function buildDetailAnsi(tool: ToolCallData): string {
   lines.push("");
 
   if (tool.output) {
-    lines.push(`${BOLD}${BLUE}Output${RESET}`);
-    lines.push(colorizeJson(tool.output));
+    if (tool.isError) {
+      lines.push(`${BOLD}${RED}Error${RESET}`);
+      lines.push(`${RED}${colorizeJson(tool.output)}${RESET}`);
+    } else {
+      lines.push(`${BOLD}${BLUE}Output${RESET}`);
+      lines.push(colorizeJson(tool.output));
+    }
   } else if (!tool.running) {
     lines.push(`${BOLD}${BLUE}Output${RESET}`);
     lines.push(`${DIM}(no output)${RESET}`);
@@ -261,7 +267,7 @@ export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
         {sidebarVisible.map((tc, vi) => {
           const i = vi + sidebarScrollOffset;
           const isSelected = i === selectedIndex;
-          const icon = tc.running ? "⟳" : "✔";
+          const icon = tc.running ? "⟳" : tc.isError ? "✘" : "✔";
           const time = tc.timestamp.toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -288,7 +294,13 @@ export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
               >
                 {isSelected ? "▸" : " "}{" "}
                 <Text
-                  color={tc.running ? theme.accent : theme.muted}
+                  color={
+                    tc.running
+                      ? theme.accent
+                      : tc.isError
+                        ? theme.error
+                        : theme.muted
+                  }
                   bold={false}
                 >
                   {icon}

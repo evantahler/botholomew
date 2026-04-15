@@ -20,6 +20,7 @@ const outputSchema = z.object({
     }),
   ),
   count: z.number(),
+  is_error: z.boolean(),
 });
 
 export const listTasksTool = {
@@ -44,6 +45,7 @@ export const listTasksTool = {
         created_at: t.created_at.toISOString(),
       })),
       count: tasks.length,
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

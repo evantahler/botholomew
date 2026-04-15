@@ -30,6 +30,7 @@ export interface ToolCallData {
   output?: string;
   running: boolean;
   timestamp: Date;
+  isError?: boolean;
 }
 
 interface ToolCallProps {
@@ -48,10 +49,27 @@ export function ToolCall({ tool }: ToolCallProps) {
   return (
     <Box flexDirection="column">
       <Box>
-        <Text color={tool.running ? theme.accent : theme.muted}>
-          {tool.running ? "  ⟳ " : "  ✔ "}
+        <Text
+          color={
+            tool.running
+              ? theme.accent
+              : tool.isError
+                ? theme.error
+                : theme.muted
+          }
+        >
+          {tool.running ? "  ⟳ " : tool.isError ? "  ✘ " : "  ✔ "}
         </Text>
-        <Text color={tool.running ? theme.accent : theme.toolName} bold>
+        <Text
+          color={
+            tool.running
+              ? theme.accent
+              : tool.isError
+                ? theme.error
+                : theme.toolName
+          }
+          bold
+        >
           {displayName}
         </Text>
         {tool.name === "mcp_exec" && <Text dimColor> (exec)</Text>}

@@ -8,6 +8,7 @@ const inputSchema = z.object({
 
 const outputSchema = z.object({
   exists: z.boolean(),
+  is_error: z.boolean(),
 });
 
 export const fileExistsTool = {
@@ -18,6 +19,6 @@ export const fileExistsTool = {
   outputSchema,
   execute: async (input, ctx) => {
     const exists = await contextPathExists(ctx.conn, input.path);
-    return { exists };
+    return { exists, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

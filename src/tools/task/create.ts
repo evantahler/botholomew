@@ -17,6 +17,7 @@ const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
   message: z.string(),
+  is_error: z.boolean(),
 });
 
 export const createTaskTool = {
@@ -37,6 +38,7 @@ export const createTaskTool = {
       id: newTask.id,
       name: newTask.name,
       message: `Created task "${newTask.name}" with ID ${newTask.id}`,
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

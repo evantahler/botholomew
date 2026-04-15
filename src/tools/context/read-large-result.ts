@@ -11,6 +11,7 @@ const outputSchema = z.object({
   content: z.string(),
   page: z.number(),
   totalPages: z.number(),
+  is_error: z.boolean(),
 });
 
 export const readLargeResultTool = {
@@ -27,6 +28,6 @@ export const readLargeResultTool = {
         `No result found for id="${input.id}" page=${input.page}. The id may be invalid or the page may be out of range.`,
       );
     }
-    return result;
+    return { ...result, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

@@ -22,6 +22,7 @@ const outputSchema = z.object({
     }),
   ),
   count: z.number(),
+  is_error: z.boolean(),
 });
 
 export const listThreadsTool = {
@@ -45,6 +46,7 @@ export const listThreadsTool = {
         ended_at: t.ended_at?.toISOString() ?? null,
       })),
       count: threads.length,
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

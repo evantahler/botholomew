@@ -28,6 +28,7 @@ const outputSchema = z.object({
       created_at: z.string(),
     }),
   ),
+  is_error: z.boolean(),
 });
 
 export const viewThreadTool = {
@@ -39,7 +40,7 @@ export const viewThreadTool = {
   outputSchema,
   execute: async (input, ctx) => {
     const result = await getThread(ctx.conn, input.id);
-    if (!result) return { thread: null, interactions: [] };
+    if (!result) return { thread: null, interactions: [], is_error: false };
     return {
       thread: {
         id: result.thread.id,
@@ -58,6 +59,7 @@ export const viewThreadTool = {
         tool_name: i.tool_name,
         created_at: i.created_at.toISOString(),
       })),
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

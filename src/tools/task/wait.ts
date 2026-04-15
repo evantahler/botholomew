@@ -7,6 +7,7 @@ const inputSchema = z.object({
 
 const outputSchema = z.object({
   message: z.string(),
+  is_error: z.boolean(),
 });
 
 export const waitTaskTool = {
@@ -19,5 +20,6 @@ export const waitTaskTool = {
   outputSchema,
   execute: async (input) => ({
     message: `Task waiting: ${input.reason}`,
+    is_error: false,
   }),
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

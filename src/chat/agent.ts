@@ -82,7 +82,7 @@ export async function buildChatSystemPrompt(
 export interface ChatTurnCallbacks {
   onToken: (text: string) => void;
   onToolStart: (name: string, input: string) => void;
-  onToolEnd: (name: string, output: string) => void;
+  onToolEnd: (name: string, output: string, isError: boolean) => void;
 }
 
 /**
@@ -183,7 +183,7 @@ export async function runChatTurn(input: {
         const start = Date.now();
         const result = await executeChatToolCall(toolUse, toolCtx);
         const durationMs = Date.now() - start;
-        callbacks.onToolEnd(toolUse.name, result);
+        callbacks.onToolEnd(toolUse.name, result.output, result.isError);
         return { toolUse, result, durationMs };
       }),
     );
@@ -194,7 +194,7 @@ export async function runChatTurn(input: {
       await logInteraction(conn, threadId, {
         role: "tool",
         kind: "tool_result",
-        content: result,
+        content: result.output,
         toolName: toolUse.name,
         durationMs,
       });
@@ -202,7 +202,8 @@ export async function runChatTurn(input: {
       toolResults.push({
         type: "tool_result",
         tool_use_id: toolUse.id,
-        content: maybeStoreResult(toolUse.name, result),
+        content: maybeStoreResult(toolUse.name, result.output),
+        is_error: result.isError || undefined,
       });
     }
 
@@ -214,21 +215,32 @@ export async function runChatTurn(input: {
 async function executeChatToolCall(
   toolUse: ToolUseBlock,
   ctx: ToolContext,
-): Promise<string> {
+): Promise<{ output: string; isError: boolean }> {
   const tool = getTool(toolUse.name);
-  if (!tool) return `Unknown tool: ${toolUse.name}`;
+  if (!tool) return { output: `Unknown tool: ${toolUse.name}`, isError: true };
   if (!CHAT_TOOL_NAMES.has(tool.name))
-    return `Tool not available in chat mode: ${tool.name}`;
+    return {
+      output: `Tool not available in chat mode: ${tool.name}`,
+      isError: true,
+    };
 
   const parsed = tool.inputSchema.safeParse(toolUse.input);
   if (!parsed.success) {
-    return `Invalid input: ${JSON.stringify(parsed.error)}`;
+    return {
+      output: `Invalid input: ${JSON.stringify(parsed.error)}`,
+      isError: true,
+    };
   }
 
   try {
     const result = await tool.execute(parsed.data, ctx);
-    return typeof result === "string" ? result : JSON.stringify(result);
+    const isError =
+      typeof result === "object" && result !== null && "is_error" in result
+        ? (result as { is_error: boolean }).is_error
+        : false;
+    const output = typeof result === "string" ? result : JSON.stringify(result);
+    return { output, isError };
   } catch (err) {
-    return `Tool error: ${err}`;
+    return { output: `Tool error: ${err}`, isError: true };
   }
 }
