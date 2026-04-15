@@ -80,7 +80,7 @@ function buildThreadDetailAnsi(
   const lines: string[] = [];
 
   lines.push(
-    `${ansi.bold}${ansi.info}${thread.title || "(untitled)"}${ansi.reset}`,
+    `${ansi.bold}${ansi.italic}${ansi.info}${thread.title || "(untitled)"}${ansi.reset}`,
   );
   lines.push("");
 

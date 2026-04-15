@@ -65,7 +65,7 @@ export function StatusBar({
       {chatTitle && (
         <>
           <Text dimColor> | </Text>
-          <Text color="cyan" bold>
+          <Text color="cyan" bold italic>
             {chatTitle.length > 30 ? `${chatTitle.slice(0, 29)}…` : chatTitle}
           </Text>
         </>
