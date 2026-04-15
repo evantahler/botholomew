@@ -49,7 +49,7 @@ export async function runAgentLoop(input: {
     mcpxClient: input.mcpxClient ?? null,
   };
 
-  const userMessage = `Please work on this task:\n\nName: ${task.name}\nDescription: ${task.description}\nPriority: ${task.priority}\n\nUse the available tools to complete this task, then call complete_task, fail_task, or wait_task to indicate the outcome.`;
+  const userMessage = `Task:\nName: ${task.name}\nDescription: ${task.description}\nPriority: ${task.priority}`;
 
   const messages: MessageParam[] = [{ role: "user", content: userMessage }];
 

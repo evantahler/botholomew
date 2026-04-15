@@ -47,7 +47,7 @@ describe("buildSystemPrompt", () => {
   test("includes instructions section", async () => {
     const prompt = await buildSystemPrompt(projectDir);
     expect(prompt).toContain("## Instructions");
-    expect(prompt).toContain("Botholomew daemon");
+    expect(prompt).toContain("Botholomew");
     expect(prompt).toContain("complete_task");
     expect(prompt).toContain("fail_task");
     expect(prompt).toContain("wait_task");
