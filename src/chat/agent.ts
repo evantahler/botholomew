@@ -137,10 +137,22 @@ export async function runChatTurn(input: {
 
     // Collect the full response
     let assistantText = "";
+    const earlyReportedToolIds = new Set<string>();
 
     stream.on("text", (text) => {
       assistantText += text;
       callbacks.onToken(text);
+    });
+
+    stream.on("contentBlock", (block) => {
+      if (block.type === "tool_use") {
+        earlyReportedToolIds.add(block.id);
+        callbacks.onToolStart(
+          block.id,
+          block.name,
+          JSON.stringify(block.input),
+        );
+      }
     });
 
     const response = await stream.finalMessage();
@@ -176,7 +188,9 @@ export async function runChatTurn(input: {
     // Log all tool_use entries and notify UI
     for (const toolUse of toolUseBlocks) {
       const toolInput = JSON.stringify(toolUse.input);
-      callbacks.onToolStart(toolUse.id, toolUse.name, toolInput);
+      if (!earlyReportedToolIds.has(toolUse.id)) {
+        callbacks.onToolStart(toolUse.id, toolUse.name, toolInput);
+      }
 
       await logInteraction(conn, threadId, {
         role: "assistant",

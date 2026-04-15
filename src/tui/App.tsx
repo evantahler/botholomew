@@ -194,63 +194,78 @@ export function App({
     return () => clearTimeout(timer);
   }, []);
 
-  // Tab switching via useInput at the App level
-  // On the Chat tab (1), only Tab key switches — number keys go to InputBar.
-  // On other tabs, both Tab and number keys switch tabs, Escape returns to Chat.
-  useInput((input, key) => {
-    // Ctrl+C exits
-    if (input === "c" && key.ctrl) {
-      exit();
-      return;
-    }
+  // Stable ref for App-level input handler — same pattern as InputBar to
+  // prevent Ink's useInput from re-registering stdin listeners on every render.
+  const activeTabRef = useRef(activeTab);
+  const queuedMessagesRef = useRef(queuedMessages);
+  const selectedQueueIndexRef = useRef(selectedQueueIndex);
+  activeTabRef.current = activeTab;
+  queuedMessagesRef.current = queuedMessages;
+  selectedQueueIndexRef.current = selectedQueueIndex;
 
-    // Tab key cycles tabs — always active (InputBar ignores tab)
-    if (key.tab && !key.shift) {
-      setActiveTab((t) => ((t % 6) + 1) as TabId);
-      return;
-    }
+  const stableAppHandler = useCallback(
+    // biome-ignore lint/suspicious/noExplicitAny: Ink's Key type is not exported
+    (input: string, key: any) => {
+      // Ctrl+C exits
+      if (input === "c" && key.ctrl) {
+        exit();
+        return;
+      }
 
-    // Queue manipulation keybindings (only when queue has items on Chat tab)
-    if (activeTab === 1 && queuedMessages.length > 0 && key.ctrl) {
-      if (input === "j") {
-        setSelectedQueueIndex((i) =>
-          Math.min(i + 1, queuedMessages.length - 1),
-        );
+      // Tab key cycles tabs — always active (InputBar ignores tab)
+      if (key.tab && !key.shift) {
+        setActiveTab((t) => ((t % 6) + 1) as TabId);
         return;
       }
-      if (input === "k") {
-        setSelectedQueueIndex((i) => Math.max(i - 1, 0));
-        return;
-      }
-      if (input === "x") {
-        queueRef.current.splice(selectedQueueIndex, 1);
-        syncQueue();
-        return;
-      }
-      if (input === "e") {
-        const [msg] = queueRef.current.splice(selectedQueueIndex, 1);
-        syncQueue();
-        if (msg) {
-          setInputValue(msg);
+
+      // Queue manipulation keybindings (only when queue has items on Chat tab)
+      const tab = activeTabRef.current;
+      const queue = queuedMessagesRef.current;
+      if (tab === 1 && queue.length > 0 && key.ctrl) {
+        if (input === "j") {
+          setSelectedQueueIndex((i) => Math.min(i + 1, queue.length - 1));
+          return;
         }
-        return;
+        if (input === "k") {
+          setSelectedQueueIndex((i) => Math.max(i - 1, 0));
+          return;
+        }
+        if (input === "x") {
+          queueRef.current.splice(selectedQueueIndexRef.current, 1);
+          syncQueue();
+          return;
+        }
+        if (input === "e") {
+          const [msg] = queueRef.current.splice(
+            selectedQueueIndexRef.current,
+            1,
+          );
+          syncQueue();
+          if (msg) {
+            setInputValue(msg);
+          }
+          return;
+        }
       }
-    }
 
-    if (activeTab !== 1) {
-      // Number keys jump to tab on non-chat tabs
-      const num = Number.parseInt(input, 10);
-      if (num >= 1 && num <= 6) {
-        setActiveTab(num as TabId);
-        return;
+      if (tab !== 1) {
+        // Number keys jump to tab on non-chat tabs
+        const num = Number.parseInt(input, 10);
+        if (num >= 1 && num <= 6) {
+          setActiveTab(num as TabId);
+          return;
+        }
+        // Escape returns to chat
+        if (key.escape) {
+          setActiveTab(1);
+          return;
+        }
       }
-      // Escape returns to chat
-      if (key.escape) {
-        setActiveTab(1);
-        return;
-      }
-    }
-  });
+    },
+    [exit, syncQueue],
+  );
+
+  useInput(stableAppHandler);
 
   const processQueue = useCallback(async () => {
     if (processingRef.current || !sessionRef.current) return;
@@ -436,6 +451,19 @@ export function App({
     [exit, processQueue, syncQueue],
   );
 
+  const sessionConn = sessionRef.current?.conn;
+  const inputBarHeader = useMemo(
+    () =>
+      sessionConn ? (
+        <StatusBar
+          projectDir={projectDir}
+          conn={sessionConn}
+          onDaemonStatusChange={setDaemonRunning}
+        />
+      ) : null,
+    [projectDir, sessionConn],
+  );
+
   const allToolCalls = useMemo(
     () => messages.flatMap((m) => m.toolCalls ?? []),
     [messages],
@@ -468,36 +496,65 @@ export function App({
 
   return (
     <Box flexDirection="column" height="100%">
-      {/* Tab content area */}
-      {activeTab === 1 && (
+      {/* Tab content area — all panels stay mounted to avoid expensive
+          remount cycles (especially <Static> in MessageList re-rendering
+          the entire history). display="none" hides inactive panels from
+          layout without destroying them. */}
+      <Box
+        display={activeTab === 1 ? "flex" : "none"}
+        flexDirection="column"
+        flexGrow={1}
+      >
         <MessageList
           messages={messages}
           streamingText={streamingText}
           isLoading={isLoading}
           activeToolCalls={activeToolCalls}
         />
-      )}
-      {activeTab === 2 && (
+      </Box>
+      <Box
+        display={activeTab === 2 ? "flex" : "none"}
+        flexDirection="column"
+        flexGrow={1}
+      >
         <ToolPanel toolCalls={allToolCalls} isActive={activeTab === 2} />
-      )}
-      {activeTab === 3 && (
+      </Box>
+      <Box
+        display={activeTab === 3 ? "flex" : "none"}
+        flexDirection="column"
+        flexGrow={1}
+      >
         <ContextPanel conn={conn} isActive={activeTab === 3} />
-      )}
-      {activeTab === 4 && <TaskPanel conn={conn} isActive={activeTab === 4} />}
-      {activeTab === 5 && (
+      </Box>
+      <Box
+        display={activeTab === 4 ? "flex" : "none"}
+        flexDirection="column"
+        flexGrow={1}
+      >
+        <TaskPanel conn={conn} isActive={activeTab === 4} />
+      </Box>
+      <Box
+        display={activeTab === 5 ? "flex" : "none"}
+        flexDirection="column"
+        flexGrow={1}
+      >
         <ThreadPanel
           conn={conn}
           activeThreadId={threadId}
           isActive={activeTab === 5}
         />
-      )}
-      {activeTab === 6 && (
+      </Box>
+      <Box
+        display={activeTab === 6 ? "flex" : "none"}
+        flexDirection="column"
+        flexGrow={1}
+      >
         <HelpPanel
           projectDir={projectDir}
           threadId={threadId}
           daemonRunning={daemonRunning}
         />
-      )}
+      </Box>
 
       {/* Queued messages (only on Chat tab) */}
       {activeTab === 1 && queuedMessages.length > 0 && (
@@ -514,13 +571,7 @@ export function App({
         onSubmit={handleSubmit}
         disabled={activeTab !== 1}
         history={inputHistory}
-        header={
-          <StatusBar
-            projectDir={projectDir}
-            conn={conn}
-            onDaemonStatusChange={setDaemonRunning}
-          />
-        }
+        header={inputBarHeader}
       />
       <TabBar activeTab={activeTab} />
     </Box>

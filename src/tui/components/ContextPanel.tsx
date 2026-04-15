@@ -1,5 +1,5 @@
 import { Box, Text, useInput, useStdout } from "ink";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { DbConnection } from "../../db/connection.ts";
 import {
   type ContextItem,
@@ -31,7 +31,10 @@ type Entry = DirEntry | FileEntry;
 // Reserve lines for header, search bar, padding, tab bar, status/input bar
 const CHROME_LINES = 8;
 
-export function ContextPanel({ conn, isActive }: ContextPanelProps) {
+export const ContextPanel = memo(function ContextPanel({
+  conn,
+  isActive,
+}: ContextPanelProps) {
   const { stdout } = useStdout();
   const termRows = stdout?.rows ?? 24;
 
@@ -409,4 +412,4 @@ export function ContextPanel({ conn, isActive }: ContextPanelProps) {
       )}
     </Box>
   );
-}
+});
