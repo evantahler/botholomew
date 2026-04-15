@@ -23,6 +23,7 @@ const SearchResultSchema = z.object({
 
 const outputSchema = z.object({
   results: z.array(SearchResultSchema),
+  is_error: z.boolean(),
 });
 
 export const mcpSearchTool = {
@@ -34,7 +35,7 @@ export const mcpSearchTool = {
   outputSchema,
   execute: async (input, ctx) => {
     if (!ctx.mcpxClient) {
-      return { results: [] };
+      return { results: [], is_error: false };
     }
 
     try {
@@ -50,9 +51,10 @@ export const mcpSearchTool = {
           score: r.score,
           match_type: r.matchType ?? "keyword",
         })),
+        is_error: false,
       };
     } catch {
-      return { results: [] };
+      return { results: [], is_error: true };
     }
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

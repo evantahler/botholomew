@@ -15,6 +15,7 @@ const inputSchema = z.object({
 const outputSchema = z.object({
   id: z.string(),
   path: z.string(),
+  is_error: z.boolean(),
 });
 
 export const fileCopyTool = {
@@ -33,6 +34,6 @@ export const fileCopyTool = {
     }
 
     const item = await copyContextItem(ctx.conn, input.src, input.dst);
-    return { id: item.id, path: item.context_path };
+    return { id: item.id, path: item.context_path, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

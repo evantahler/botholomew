@@ -17,6 +17,7 @@ const outputSchema = z.object({
   id: z.string(),
   name: z.string(),
   message: z.string(),
+  is_error: z.boolean(),
 });
 
 export const createScheduleTool = {
@@ -37,6 +38,7 @@ export const createScheduleTool = {
       id: schedule.id,
       name: schedule.name,
       message: `Created schedule "${schedule.name}" with frequency "${schedule.frequency}"`,
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

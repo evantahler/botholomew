@@ -49,7 +49,7 @@ export async function runAgentLoop(input: {
     mcpxClient: input.mcpxClient ?? null,
   };
 
-  const userMessage = `Please work on this task:\n\nName: ${task.name}\nDescription: ${task.description}\nPriority: ${task.priority}\n\nUse the available tools to complete this task, then call complete_task, fail_task, or wait_task to indicate the outcome.`;
+  const userMessage = `Task:\nName: ${task.name}\nDescription: ${task.description}\nPriority: ${task.priority}`;
 
   const messages: MessageParam[] = [{ role: "user", content: userMessage }];
 
@@ -149,6 +149,7 @@ export async function runAgentLoop(input: {
         type: "tool_result",
         tool_use_id: toolUse.id,
         content: maybeStoreResult(toolUse.name, result.output).text,
+        is_error: result.isError || undefined,
       });
     }
 
@@ -161,6 +162,7 @@ export async function runAgentLoop(input: {
 interface ToolCallResult {
   output: string;
   terminal: boolean;
+  isError: boolean;
   agentResult?: AgentLoopResult;
 }
 
@@ -170,7 +172,11 @@ async function executeToolCall(
 ): Promise<ToolCallResult> {
   const tool = getTool(toolUse.name);
   if (!tool) {
-    return { output: `Unknown tool: ${toolUse.name}`, terminal: false };
+    return {
+      output: `Unknown tool: ${toolUse.name}`,
+      terminal: false,
+      isError: true,
+    };
   }
 
   const parsed = tool.inputSchema.safeParse(toolUse.input);
@@ -178,10 +184,15 @@ async function executeToolCall(
     return {
       output: `Invalid input: ${JSON.stringify(parsed.error)}`,
       terminal: false,
+      isError: true,
     };
   }
 
   const result = await tool.execute(parsed.data, ctx);
+  const isError =
+    typeof result === "object" && result !== null && "is_error" in result
+      ? (result as { is_error: boolean }).is_error
+      : false;
   const output = typeof result === "string" ? result : JSON.stringify(result);
 
   // Check if this is a terminal tool (complete/fail/wait)
@@ -195,10 +206,11 @@ async function executeToolCall(
       return {
         output,
         terminal: true,
+        isError,
         agentResult: { status, reason: String(reason) },
       };
     }
   }
 
-  return { output, terminal: false };
+  return { output, terminal: false, isError };
 }

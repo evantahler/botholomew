@@ -7,6 +7,7 @@ const inputSchema = z.object({
 
 const outputSchema = z.object({
   message: z.string(),
+  is_error: z.boolean(),
 });
 
 export const failTaskTool = {
@@ -18,5 +19,6 @@ export const failTaskTool = {
   outputSchema,
   execute: async (input) => ({
     message: `Task failed: ${input.reason}`,
+    is_error: false,
   }),
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

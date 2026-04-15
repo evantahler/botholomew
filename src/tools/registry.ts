@@ -34,6 +34,7 @@ import { completeTaskTool } from "./task/complete.ts";
 import { createTaskTool } from "./task/create.ts";
 import { failTaskTool } from "./task/fail.ts";
 import { listTasksTool } from "./task/list.ts";
+import { updateTaskTool } from "./task/update.ts";
 import { viewTaskTool } from "./task/view.ts";
 import { waitTaskTool } from "./task/wait.ts";
 // Thread tools
@@ -47,6 +48,7 @@ export function registerAllTools(): void {
   registerTool(failTaskTool);
   registerTool(waitTaskTool);
   registerTool(createTaskTool);
+  registerTool(updateTaskTool);
   registerTool(listTasksTool);
   registerTool(viewTaskTool);
 

@@ -32,6 +32,17 @@ function msgId(): string {
   return `msg-${++nextMsgId}`;
 }
 
+function detectToolError(output: string | undefined): boolean {
+  if (!output) return false;
+  try {
+    const parsed = JSON.parse(output);
+    if (typeof parsed === "object" && parsed?.is_error === true) return true;
+  } catch {
+    /* not JSON */
+  }
+  return false;
+}
+
 function restoreMessagesFromInteractions(
   interactions: Interaction[],
 ): ChatMessage[] {
@@ -50,6 +61,7 @@ function restoreMessagesFromInteractions(
       const tc = pendingTools.find((t) => t.name === ix.tool_name && !t.output);
       if (tc) {
         tc.output = ix.content;
+        tc.isError = detectToolError(ix.content);
         if (ix.content.length > MAX_INLINE_CHARS) {
           tc.largeResult = {
             id: "(restored)",
@@ -295,13 +307,14 @@ export function App({
             pendingToolCalls.push(tc);
             setActiveToolCalls([...pendingToolCalls]);
           },
-          onToolEnd: (name, output, meta) => {
+          onToolEnd: (name, output, isError, meta) => {
             const tc = pendingToolCalls.find(
               (t) => t.name === name && t.running,
             );
             if (tc) {
               tc.running = false;
               tc.output = output;
+              tc.isError = isError;
               if (meta?.largeResult) {
                 tc.largeResult = meta.largeResult;
               }

@@ -40,6 +40,7 @@ const inputSchema = z.object({
 const outputSchema = z.object({
   id: z.string(),
   path: z.string(),
+  is_error: z.boolean(),
 });
 
 export const fileWriteTool = {
@@ -72,7 +73,7 @@ export const fileWriteTool = {
         });
       }
       await ingestByPath(ctx.conn, input.path, ctx.config, ctx.embedFn);
-      return { id: existing.id, path: input.path };
+      return { id: existing.id, path: input.path, is_error: false };
     }
 
     const title =
@@ -88,6 +89,6 @@ export const fileWriteTool = {
     });
 
     await ingestByPath(ctx.conn, input.path, ctx.config, ctx.embedFn);
-    return { id: item.id, path: item.context_path };
+    return { id: item.id, path: item.context_path, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

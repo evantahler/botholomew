@@ -8,6 +8,7 @@ const inputSchema = z.object({
 
 const outputSchema = z.object({
   lines: z.number(),
+  is_error: z.boolean(),
 });
 
 export const fileCountLinesTool = {
@@ -21,6 +22,6 @@ export const fileCountLinesTool = {
     if (!item) throw new Error(`Not found: ${input.path}`);
     if (item.content == null) throw new Error(`No text content: ${input.path}`);
 
-    return { lines: item.content.split("\n").length };
+    return { lines: item.content.split("\n").length, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

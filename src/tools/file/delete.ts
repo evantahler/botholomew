@@ -19,6 +19,7 @@ const inputSchema = z.object({
 
 const outputSchema = z.object({
   deleted: z.number(),
+  is_error: z.boolean(),
 });
 
 export const fileDeleteTool = {
@@ -31,13 +32,13 @@ export const fileDeleteTool = {
     if (input.recursive) {
       const count = await deleteContextItemsByPrefix(ctx.conn, input.path);
       const exact = await deleteContextItemByPath(ctx.conn, input.path);
-      return { deleted: count + (exact ? 1 : 0) };
+      return { deleted: count + (exact ? 1 : 0), is_error: false };
     }
 
     const deleted = await deleteContextItemByPath(ctx.conn, input.path);
     if (!deleted && !input.force) {
       throw new Error(`Not found: ${input.path}`);
     }
-    return { deleted: deleted ? 1 : 0 };
+    return { deleted: deleted ? 1 : 0, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

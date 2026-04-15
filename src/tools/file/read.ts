@@ -13,6 +13,7 @@ const inputSchema = z.object({
 
 const outputSchema = z.object({
   content: z.string(),
+  is_error: z.boolean(),
 });
 
 export const fileReadTool = {
@@ -35,6 +36,6 @@ export const fileReadTool = {
       content = lines.slice(start, end).join("\n");
     }
 
-    return { content };
+    return { content, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

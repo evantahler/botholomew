@@ -17,6 +17,7 @@ const outputSchema = z.object({
     }),
   ),
   count: z.number(),
+  is_error: z.boolean(),
 });
 
 export const listSchedulesTool = {
@@ -38,6 +39,7 @@ export const listSchedulesTool = {
         last_run_at: s.last_run_at?.toISOString() ?? null,
       })),
       count: schedules.length,
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

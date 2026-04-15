@@ -33,6 +33,7 @@ const inputSchema = z.object({
 const outputSchema = z.object({
   entries: z.array(DirEntrySchema),
   total: z.number(),
+  is_error: z.boolean(),
 });
 
 export const dirListTool = {
@@ -82,6 +83,6 @@ export const dirListTool = {
     const total = entries.length;
     const paginated = entries.slice(offset, offset + limit);
 
-    return { entries: paginated, total };
+    return { entries: paginated, total, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

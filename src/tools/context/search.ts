@@ -19,6 +19,7 @@ const outputSchema = z.object({
     }),
   ),
   count: z.number(),
+  is_error: z.boolean(),
 });
 
 export const searchContextTool = {
@@ -41,6 +42,7 @@ export const searchContextTool = {
         content_preview: (item.content ?? "").slice(0, 500),
       })),
       count: items.length,
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

@@ -32,6 +32,7 @@ const inputSchema = z.object({
 
 const outputSchema = z.object({
   matches: z.array(GrepMatchSchema),
+  is_error: z.boolean(),
 });
 
 export const searchGrepTool = {
@@ -76,12 +77,12 @@ export const searchGrepTool = {
             content: line,
             context_lines: lines.slice(start, end),
           });
-          if (matches.length >= maxResults) return { matches };
+          if (matches.length >= maxResults) return { matches, is_error: false };
         }
       }
     }
 
-    return { matches };
+    return { matches, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;
 

@@ -11,6 +11,7 @@ const outputSchema = z.object({
   name: z.string(),
   description: z.string(),
   input_schema: z.string(),
+  is_error: z.boolean(),
 });
 
 export const mcpInfoTool = {
@@ -27,6 +28,7 @@ export const mcpInfoTool = {
         name: input.tool,
         description: "No MCP servers configured.",
         input_schema: "{}",
+        is_error: true,
       };
     }
 
@@ -37,6 +39,7 @@ export const mcpInfoTool = {
         name: input.tool,
         description: `Tool "${input.tool}" not found on server "${input.server}".`,
         input_schema: "{}",
+        is_error: true,
       };
     }
 
@@ -45,6 +48,7 @@ export const mcpInfoTool = {
       name: tool.name,
       description: tool.description ?? "",
       input_schema: JSON.stringify(tool.inputSchema ?? {}, null, 2),
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;
