@@ -5,6 +5,8 @@ import type {
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import { fitToContextWindow, getMaxInputTokens } from "../daemon/context.ts";
+import { maybeStoreResult } from "../daemon/large-results.ts";
 import { buildMetaHeader, loadPersistentContext } from "../daemon/prompt.ts";
 import type { DbConnection } from "../db/connection.ts";
 import { logInteraction } from "../db/threads.ts";
@@ -36,6 +38,7 @@ const CHAT_TOOL_NAMES = new Set([
   "mcp_search",
   "mcp_info",
   "mcp_exec",
+  "read_large_result",
 ]);
 
 export function getChatTools() {
@@ -104,11 +107,16 @@ export async function runChatTurn(input: {
   });
 
   const chatTools = getChatTools();
+  const maxInputTokens = await getMaxInputTokens(
+    config.anthropic_api_key,
+    config.model,
+  );
   const maxTurns = 10;
 
   for (let turn = 0; turn < maxTurns; turn++) {
     const startTime = Date.now();
 
+    fitToContextWindow(messages, systemPrompt, maxInputTokens);
     const stream = client.messages.stream({
       model: config.model,
       max_tokens: 4096,
@@ -194,7 +202,7 @@ export async function runChatTurn(input: {
       toolResults.push({
         type: "tool_result",
         tool_use_id: toolUse.id,
-        content: result,
+        content: maybeStoreResult(toolUse.name, result),
       });
     }
 

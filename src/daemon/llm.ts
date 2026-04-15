@@ -11,6 +11,8 @@ import type { Task } from "../db/tasks.ts";
 import { logInteraction } from "../db/threads.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import { getTool, type ToolContext, toAnthropicTools } from "../tools/tool.ts";
+import { fitToContextWindow, getMaxInputTokens } from "./context.ts";
+import { clearLargeResults, maybeStoreResult } from "./large-results.ts";
 
 registerAllTools();
 
@@ -58,11 +60,17 @@ export async function runAgentLoop(input: {
     content: userMessage,
   });
 
+  clearLargeResults();
   const daemonTools = toAnthropicTools();
+  const maxInputTokens = await getMaxInputTokens(
+    config.anthropic_api_key,
+    config.model,
+  );
 
   const maxTurns = 10;
   for (let turn = 0; turn < maxTurns; turn++) {
     const startTime = Date.now();
+    fitToContextWindow(messages, systemPrompt, maxInputTokens);
     const response = await client.messages.create({
       model: config.model,
       max_tokens: 4096,
@@ -140,7 +148,7 @@ export async function runAgentLoop(input: {
       toolResults.push({
         type: "tool_result",
         tool_use_id: toolUse.id,
-        content: result.output,
+        content: maybeStoreResult(toolUse.name, result.output),
       });
     }
 
