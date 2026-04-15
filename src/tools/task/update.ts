@@ -27,6 +27,7 @@ const outputSchema = z.object({
     })
     .nullable(),
   message: z.string(),
+  is_error: z.boolean(),
 });
 
 export const updateTaskTool = {
@@ -39,12 +40,17 @@ export const updateTaskTool = {
   execute: async (input, ctx) => {
     const existing = await getTask(ctx.conn, input.id);
     if (!existing) {
-      return { task: null, message: `Task ${input.id} not found` };
+      return {
+        task: null,
+        message: `Task ${input.id} not found`,
+        is_error: true,
+      };
     }
     if (existing.status !== "pending") {
       return {
         task: null,
         message: `Cannot update task ${input.id}: only pending tasks can be updated (current status: ${existing.status})`,
+        is_error: true,
       };
     }
 
@@ -56,7 +62,11 @@ export const updateTaskTool = {
     });
 
     if (!updated) {
-      return { task: null, message: `Failed to update task ${input.id}` };
+      return {
+        task: null,
+        message: `Failed to update task ${input.id}`,
+        is_error: true,
+      };
     }
 
     logger.info(`Updated task: ${updated.name} (${updated.id})`);
@@ -71,6 +81,7 @@ export const updateTaskTool = {
         updated_at: updated.updated_at.toISOString(),
       },
       message: `Updated task "${updated.name}"`,
+      is_error: false,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;
