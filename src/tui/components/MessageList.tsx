@@ -117,7 +117,10 @@ const MessageBubble = memo(function MessageBubble({
             marginBottom={0}
           >
             {message.toolCalls.map((tc) => (
-              <ToolCall key={`${tc.name}-${tc.input.slice(0, 20)}`} tool={tc} />
+              <ToolCall
+                key={`${tc.name}-${tc.timestamp.getTime()}`}
+                tool={tc}
+              />
             ))}
           </Box>
         )}
