@@ -5,6 +5,7 @@ export interface BotholomewConfig {
   tick_interval_seconds?: number;
   max_tick_duration_seconds?: number;
   system_prompt_override?: string;
+  max_turns?: number;
 }
 
 export const DEFAULT_CONFIG: Required<BotholomewConfig> = {
@@ -14,4 +15,5 @@ export const DEFAULT_CONFIG: Required<BotholomewConfig> = {
   tick_interval_seconds: 300,
   max_tick_duration_seconds: 120,
   system_prompt_override: "",
+  max_turns: 0,
 };

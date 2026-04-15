@@ -120,9 +120,9 @@ export async function runChatTurn(input: {
     config.anthropic_api_key,
     config.model,
   );
-  const maxTurns = 10;
+  const maxTurns = config.max_turns;
 
-  for (let turn = 0; turn < maxTurns; turn++) {
+  for (let turn = 0; !maxTurns || turn < maxTurns; turn++) {
     const startTime = Date.now();
 
     fitToContextWindow(messages, systemPrompt, maxInputTokens);

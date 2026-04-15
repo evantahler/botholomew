@@ -21,7 +21,7 @@ export function HelpPanel({
           {"  "}Tab{"            "}Cycle between tabs
         </Text>
         <Text>
-          {"  "}1-4{"            "}Jump to tab (non-chat tabs)
+          {"  "}1-5{"            "}Jump to tab (non-chat tabs)
         </Text>
         <Text>
           {"  "}Escape{"         "}Return to Chat tab
@@ -76,6 +76,30 @@ export function HelpPanel({
         </Text>
         <Text>
           {"  "}d{"              "}Delete selected item (with confirmation)
+        </Text>
+      </Box>
+
+      <Box marginTop={1} flexDirection="column">
+        <Text bold color="cyan">
+          Tasks (Tab 4)
+        </Text>
+        <Text>
+          {"  "}↑/↓{"            "}Navigate task list
+        </Text>
+        <Text>
+          {"  "}Shift+↑/↓{"      "}Scroll detail pane
+        </Text>
+        <Text>
+          {"  "}j / k{"          "}Scroll detail pane
+        </Text>
+        <Text>
+          {"  "}f{"              "}Cycle status filter
+        </Text>
+        <Text>
+          {"  "}p{"              "}Cycle priority filter
+        </Text>
+        <Text>
+          {"  "}r{"              "}Refresh tasks
         </Text>
       </Box>
 

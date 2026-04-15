@@ -67,8 +67,8 @@ export async function runAgentLoop(input: {
     config.model,
   );
 
-  const maxTurns = 10;
-  for (let turn = 0; turn < maxTurns; turn++) {
+  const maxTurns = config.max_turns;
+  for (let turn = 0; !maxTurns || turn < maxTurns; turn++) {
     const startTime = Date.now();
     fitToContextWindow(messages, systemPrompt, maxInputTokens);
     const response = await client.messages.create({

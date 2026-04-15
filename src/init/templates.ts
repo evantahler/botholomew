@@ -42,6 +42,7 @@ export const DEFAULT_CONFIG = {
   model: "claude-opus-4-20250514",
   tick_interval_seconds: 300,
   max_tick_duration_seconds: 120,
+  max_turns: 0,
 };
 
 export const DEFAULT_MCPX_SERVERS = {
