@@ -191,6 +191,8 @@ export function ThreadPanel({
   const [typeFilter, setTypeFilter] = useState<Thread["type"] | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedDetail, setSelectedDetail] = useState<{
     thread: Thread;
     interactions: Interaction[];
@@ -221,8 +223,15 @@ export function ThreadPanel({
     };
   }, [conn, typeFilter, refreshTick]);
 
+  // Filter threads by search query
+  const filteredThreads = useMemo(() => {
+    if (!searchQuery) return threads;
+    const q = searchQuery.toLowerCase();
+    return threads.filter((t) => t.title.toLowerCase().includes(q));
+  }, [threads, searchQuery]);
+
   // Fetch detail for selected thread
-  const selectedThread = threads[selectedIndex];
+  const selectedThread = filteredThreads[selectedIndex];
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedThread?.id is the intentional trigger
   useEffect(() => {
     let mounted = true;
@@ -264,7 +273,7 @@ export function ThreadPanel({
     0,
     Math.min(
       selectedIndex - Math.floor(visibleRows / 2),
-      threads.length - visibleRows,
+      filteredThreads.length - visibleRows,
     ),
   );
 
@@ -280,6 +289,30 @@ export function ThreadPanel({
 
   useInput(
     (input, key) => {
+      // Search mode: capture typed characters
+      if (searching) {
+        if (key.escape) {
+          setSearching(false);
+          setSearchQuery("");
+          return;
+        }
+        if (key.return) {
+          setSearching(false);
+          return;
+        }
+        if (key.backspace || key.delete) {
+          setSearchQuery((q) => q.slice(0, -1));
+          setSelectedIndex(0);
+          return;
+        }
+        if (input && !key.ctrl && !key.meta) {
+          setSearchQuery((q) => q + input);
+          setSelectedIndex(0);
+          return;
+        }
+        return;
+      }
+
       // Delete confirmation mode
       if (confirmDelete) {
         if (input === "y" || input === "d") {
@@ -307,7 +340,7 @@ export function ThreadPanel({
         if (key.shift) {
           setDetailScroll((s) => Math.min(maxDetailScroll, s + 1));
         } else {
-          setSelectedIndex((i) => Math.min(threads.length - 1, i + 1));
+          setSelectedIndex((i) => Math.min(filteredThreads.length - 1, i + 1));
         }
         return;
       }
@@ -352,17 +385,24 @@ export function ThreadPanel({
         forceRefresh();
         return;
       }
+      if (input === "s" || input === "/") {
+        setSearching(true);
+        setSearchQuery("");
+        return;
+      }
     },
     { isActive },
   );
 
-  if (threads.length === 0) {
+  if (filteredThreads.length === 0) {
     return (
       <Box flexDirection="column" flexGrow={1} paddingX={1}>
         <Text dimColor>
-          {typeFilter
-            ? "No threads match the current filter. Press f to change filter."
-            : "No threads found. Threads will appear as chat sessions and daemon ticks occur."}
+          {searchQuery
+            ? `No threads match "${searchQuery}". Press Escape to clear search.`
+            : typeFilter
+              ? "No threads match the current filter. Press f to change filter."
+              : "No threads found. Threads will appear as chat sessions and daemon ticks occur."}
         </Text>
         {typeFilter && (
           <Box marginTop={1}>
@@ -375,7 +415,7 @@ export function ThreadPanel({
     );
   }
 
-  const sidebarVisible = threads.slice(
+  const sidebarVisible = filteredThreads.slice(
     sidebarScrollOffset,
     sidebarScrollOffset + visibleRows,
   );
@@ -402,14 +442,22 @@ export function ThreadPanel({
       >
         <Box paddingX={1} gap={1}>
           <Text bold dimColor>
-            Threads ({threads.length})
+            Threads ({filteredThreads.length})
           </Text>
           {typeFilter && (
             <Text color={TYPE_COLORS[typeFilter]}>
               [{TYPE_ICONS[typeFilter]} {TYPE_LABELS[typeFilter]}]
             </Text>
           )}
+          {!searching && searchQuery && <Text dimColor>🔍 {searchQuery}</Text>}
         </Box>
+        {searching && (
+          <Box paddingX={1}>
+            <Text color={theme.info}>🔍 </Text>
+            <Text color={theme.info}>{searchQuery}</Text>
+            <Text color={theme.info}>▌</Text>
+          </Box>
+        )}
         {confirmDelete && selectedThread && (
           <Box paddingX={1}>
             <Text color="red" bold>
@@ -474,8 +522,8 @@ export function ThreadPanel({
         {detailLines.length > visibleRows && (
           <Box>
             <Text dimColor>
-              f filter · ↑↓ select · j/k scroll · d delete · r refresh · [
-              {detailScroll + 1}–
+              s search · f filter · ↑↓ select · j/k scroll · d delete · r
+              refresh · [{detailScroll + 1}–
               {Math.min(detailScroll + visibleRows, detailLines.length)} of{" "}
               {detailLines.length}]
             </Text>
@@ -483,7 +531,9 @@ export function ThreadPanel({
         )}
         {detailLines.length <= visibleRows && <Box flexGrow={1} />}
         {detailLines.length <= visibleRows && (
-          <Text dimColor>f filter · ↑↓ select · d delete · r refresh</Text>
+          <Text dimColor>
+            s search · f filter · ↑↓ select · d delete · r refresh
+          </Text>
         )}
       </Box>
     </Box>

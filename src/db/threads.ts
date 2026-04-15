@@ -154,6 +154,14 @@ export async function reopenThread(
   db.query("UPDATE threads SET ended_at = NULL WHERE id = ?1").run(threadId);
 }
 
+export async function updateThreadTitle(
+  db: DbConnection,
+  threadId: string,
+  title: string,
+): Promise<void> {
+  db.query("UPDATE threads SET title = ?2 WHERE id = ?1").run(threadId, title);
+}
+
 export async function getThread(
   db: DbConnection,
   threadId: string,
