@@ -29,8 +29,11 @@ function detectDarkBackground(): boolean {
         ["read", "-g", "AppleInterfaceStyle"],
         { encoding: "utf-8", timeout: 500 },
       );
-      // Returns "Dark" in dark mode; exits non-zero in light mode
-      return result.stdout?.trim() === "Dark";
+      // Returns "Dark" in dark mode, "Light" or exit 1 in light mode
+      // Only trust the result if the command succeeded (status 0)
+      if (result.status === 0) {
+        return result.stdout?.trim() === "Dark";
+      }
     } catch {
       // fall through to default
     }
@@ -44,7 +47,7 @@ const isDark = detectDarkBackground();
 export const theme = {
   accent: isDark ? "yellow" : "#B8860B",
   accentBorder: isDark ? "yellow" : "#B8860B",
-  userBg: isDark ? "#2a4a6c" : "#d0e0f0",
+  userBg: isDark ? "#2a5a8c" : "#d0e0f0",
   selectionBg: isDark ? "#333" : "#ddd",
   success: "green",
   error: "red",
