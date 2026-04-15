@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import type { DbConnection } from "../../src/db/connection.ts";
+import { updateTaskStatus } from "../../src/db/tasks.ts";
 import { completeTaskTool } from "../../src/tools/task/complete.ts";
 import { createTaskTool } from "../../src/tools/task/create.ts";
 import { failTaskTool } from "../../src/tools/task/fail.ts";
+import { updateTaskTool } from "../../src/tools/task/update.ts";
 import { waitTaskTool } from "../../src/tools/task/wait.ts";
 import type { ToolContext } from "../../src/tools/tool.ts";
 import { setupToolContext } from "../helpers.ts";
 
 let ctx: ToolContext;
+let conn: DbConnection;
 
 beforeEach(() => {
-  ({ ctx } = setupToolContext());
+  ({ ctx, conn } = setupToolContext());
 });
 
 // ── create_task ─────────────────────────────────────────────
@@ -53,6 +57,74 @@ describe("create_task", () => {
   test("validates input schema rejects invalid priority", () => {
     const result = createTaskTool.inputSchema.safeParse({
       name: "test",
+      priority: "urgent",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ── update_task ────────────────────────────────────────────
+
+describe("update_task", () => {
+  test("updates name of a pending task", async () => {
+    const created = await createTaskTool.execute({ name: "Original" }, ctx);
+    const result = await updateTaskTool.execute(
+      { id: created.id, name: "Renamed" },
+      ctx,
+    );
+    expect(result.task).not.toBeNull();
+    expect(result.task?.name).toBe("Renamed");
+    expect(result.message).toContain("Renamed");
+  });
+
+  test("updates description and priority together", async () => {
+    const created = await createTaskTool.execute({ name: "Task" }, ctx);
+    const result = await updateTaskTool.execute(
+      { id: created.id, description: "New desc", priority: "high" },
+      ctx,
+    );
+    expect(result.task?.description).toBe("New desc");
+    expect(result.task?.priority).toBe("high");
+  });
+
+  test("updates blocked_by", async () => {
+    const a = await createTaskTool.execute({ name: "A" }, ctx);
+    const b = await createTaskTool.execute({ name: "B" }, ctx);
+    const result = await updateTaskTool.execute(
+      { id: b.id, blocked_by: [a.id] },
+      ctx,
+    );
+    expect(result.task?.blocked_by).toEqual([a.id]);
+  });
+
+  test("rejects update of non-pending task", async () => {
+    const created = await createTaskTool.execute({ name: "Task" }, ctx);
+    await updateTaskStatus(conn, created.id, "in_progress");
+    const result = await updateTaskTool.execute(
+      { id: created.id, name: "Nope" },
+      ctx,
+    );
+    expect(result.task).toBeNull();
+    expect(result.message).toContain("only pending");
+  });
+
+  test("returns error for non-existent task", async () => {
+    const result = await updateTaskTool.execute(
+      { id: "nonexistent", name: "Nope" },
+      ctx,
+    );
+    expect(result.task).toBeNull();
+    expect(result.message).toContain("not found");
+  });
+
+  test("validates input schema rejects missing id", () => {
+    const result = updateTaskTool.inputSchema.safeParse({ name: "test" });
+    expect(result.success).toBe(false);
+  });
+
+  test("validates input schema rejects invalid priority", () => {
+    const result = updateTaskTool.inputSchema.safeParse({
+      id: "abc",
       priority: "urgent",
     });
     expect(result.success).toBe(false);
