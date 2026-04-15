@@ -57,5 +57,19 @@ export const theme = {
   muted: "gray",
 } as const;
 
+/** ANSI escape codes for raw string building (detail panes, etc.) */
+export const ansi = {
+  reset: "\x1b[0m",
+  bold: "\x1b[1m",
+  dim: "\x1b[2m",
+  success: "\x1b[32m",
+  error: "\x1b[31m",
+  info: "\x1b[36m",
+  primary: "\x1b[34m",
+  accent: "\x1b[33m",
+  toolName: "\x1b[35m",
+  muted: "\x1b[2m",
+} as const;
+
 // Exported for testing
 export { detectDarkBackground };

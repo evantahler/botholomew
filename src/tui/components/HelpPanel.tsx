@@ -21,7 +21,7 @@ export function HelpPanel({
           {"  "}Tab{"            "}Cycle between tabs
         </Text>
         <Text>
-          {"  "}1-5{"            "}Jump to tab (non-chat tabs)
+          {"  "}1-6{"            "}Jump to tab (non-chat tabs)
         </Text>
         <Text>
           {"  "}Escape{"         "}Return to Chat tab
@@ -100,6 +100,30 @@ export function HelpPanel({
         </Text>
         <Text>
           {"  "}r{"              "}Refresh tasks
+        </Text>
+      </Box>
+
+      <Box marginTop={1} flexDirection="column">
+        <Text bold color="cyan">
+          Threads (Tab 5)
+        </Text>
+        <Text>
+          {"  "}↑/↓{"            "}Navigate thread list
+        </Text>
+        <Text>
+          {"  "}Shift+↑/↓{"      "}Scroll detail pane
+        </Text>
+        <Text>
+          {"  "}j / k{"          "}Scroll detail pane
+        </Text>
+        <Text>
+          {"  "}f{"              "}Cycle type filter
+        </Text>
+        <Text>
+          {"  "}d{"              "}Delete thread (with confirmation)
+        </Text>
+        <Text>
+          {"  "}r{"              "}Refresh threads
         </Text>
       </Box>
 

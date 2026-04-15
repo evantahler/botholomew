@@ -8,7 +8,7 @@ import {
   TASK_STATUSES,
   type Task,
 } from "../../db/tasks.ts";
-import { theme } from "../theme.ts";
+import { ansi, theme } from "../theme.ts";
 
 interface TaskPanelProps {
   conn: DbConnection;
@@ -17,16 +17,6 @@ interface TaskPanelProps {
 
 const SIDEBAR_WIDTH = 42;
 const PAGE_SCROLL_LINES = 10;
-
-// ANSI escape helpers (same as ToolPanel)
-const RESET = "\x1b[0m";
-const BOLD = "\x1b[1m";
-const DIM = "\x1b[2m";
-const CYAN = "\x1b[36m";
-const GREEN = "\x1b[32m";
-const YELLOW = "\x1b[33m";
-const RED = "\x1b[31m";
-const BLUE = "\x1b[34m";
 
 const STATUS_ICONS: Record<Task["status"], string> = {
   pending: "○",
@@ -45,11 +35,11 @@ const STATUS_COLORS: Record<Task["status"], string> = {
 };
 
 const STATUS_ANSI: Record<Task["status"], string> = {
-  pending: DIM,
-  in_progress: YELLOW,
-  waiting: CYAN,
-  failed: RED,
-  complete: GREEN,
+  pending: ansi.muted,
+  in_progress: ansi.accent,
+  waiting: ansi.info,
+  failed: ansi.error,
+  complete: ansi.success,
 };
 
 const PRIORITY_LABELS: Record<Task["priority"], string> = {
@@ -65,29 +55,29 @@ const PRIORITY_COLORS: Record<Task["priority"], string> = {
 };
 
 const PRIORITY_ANSI: Record<Task["priority"], string> = {
-  high: RED,
-  medium: YELLOW,
-  low: DIM,
+  high: ansi.error,
+  medium: ansi.accent,
+  low: ansi.muted,
 };
 
 function buildTaskDetailAnsi(task: Task): string {
   const lines: string[] = [];
 
-  lines.push(`${BOLD}${CYAN}${task.name}${RESET}`);
+  lines.push(`${ansi.bold}${ansi.info}${task.name}${ansi.reset}`);
   lines.push("");
 
   const statusAnsi = STATUS_ANSI[task.status];
   lines.push(
-    `${BOLD}${BLUE}Status${RESET}    ${statusAnsi}${STATUS_ICONS[task.status]} ${task.status}${RESET}`,
+    `${ansi.bold}${ansi.primary}Status${ansi.reset}    ${statusAnsi}${STATUS_ICONS[task.status]} ${task.status}${ansi.reset}`,
   );
 
   const priorityAnsi = PRIORITY_ANSI[task.priority];
   lines.push(
-    `${BOLD}${BLUE}Priority${RESET}  ${priorityAnsi}${task.priority}${RESET}`,
+    `${ansi.bold}${ansi.primary}Priority${ansi.reset}  ${priorityAnsi}${task.priority}${ansi.reset}`,
   );
 
   lines.push(
-    `${BOLD}${BLUE}Claimed${RESET}   ${task.claimed_by ? task.claimed_by : `${DIM}(unclaimed)${RESET}`}`,
+    `${ansi.bold}${ansi.primary}Claimed${ansi.reset}   ${task.claimed_by ? task.claimed_by : `${ansi.dim}(unclaimed)${ansi.reset}`}`,
   );
 
   const created = task.created_at.toLocaleString([], {
@@ -102,34 +92,38 @@ function buildTaskDetailAnsi(task: Task): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-  lines.push(`${BOLD}${BLUE}Created${RESET}   ${DIM}${created}${RESET}`);
-  lines.push(`${BOLD}${BLUE}Updated${RESET}   ${DIM}${updated}${RESET}`);
+  lines.push(
+    `${ansi.bold}${ansi.primary}Created${ansi.reset}   ${ansi.dim}${created}${ansi.reset}`,
+  );
+  lines.push(
+    `${ansi.bold}${ansi.primary}Updated${ansi.reset}   ${ansi.dim}${updated}${ansi.reset}`,
+  );
   lines.push("");
 
   if (task.description) {
-    lines.push(`${BOLD}${BLUE}Description${RESET}`);
+    lines.push(`${ansi.bold}${ansi.primary}Description${ansi.reset}`);
     lines.push(task.description);
     lines.push("");
   }
 
   if (task.status === "waiting" && task.waiting_reason) {
-    lines.push(`${BOLD}${BLUE}Waiting Reason${RESET}`);
-    lines.push(`${YELLOW}${task.waiting_reason}${RESET}`);
+    lines.push(`${ansi.bold}${ansi.primary}Waiting Reason${ansi.reset}`);
+    lines.push(`${ansi.accent}${task.waiting_reason}${ansi.reset}`);
     lines.push("");
   }
 
   if (task.blocked_by.length > 0) {
-    lines.push(`${BOLD}${BLUE}Blocked By${RESET}`);
+    lines.push(`${ansi.bold}${ansi.primary}Blocked By${ansi.reset}`);
     for (const id of task.blocked_by) {
-      lines.push(`  ${DIM}• ${id}${RESET}`);
+      lines.push(`  ${ansi.dim}• ${id}${ansi.reset}`);
     }
     lines.push("");
   }
 
   if (task.context_ids.length > 0) {
-    lines.push(`${BOLD}${BLUE}Context IDs${RESET}`);
+    lines.push(`${ansi.bold}${ansi.primary}Context IDs${ansi.reset}`);
     for (const id of task.context_ids) {
-      lines.push(`  ${DIM}• ${id}${RESET}`);
+      lines.push(`  ${ansi.dim}• ${id}${ansi.reset}`);
     }
   }
 
