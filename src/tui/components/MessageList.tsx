@@ -107,7 +107,7 @@ const MessageBubble = memo(function MessageBubble({
         </Text>
         <Text dimColor> {time}</Text>
       </Box>
-      <Box marginLeft={1} flexDirection="column">
+      <Box marginLeft={1} flexDirection="column" width={cols - 1}>
         {message.toolCalls && message.toolCalls.length > 0 && (
           <Box
             flexDirection="column"
@@ -115,6 +115,7 @@ const MessageBubble = memo(function MessageBubble({
             borderColor="gray"
             paddingX={1}
             marginBottom={0}
+            width="100%"
           >
             {message.toolCalls.map((tc, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: tool calls are append-only
