@@ -223,7 +223,8 @@ export function MessageList({
       {isAtBottom &&
         isLoading &&
         !streamingText &&
-        activeToolCalls.length === 0 && (
+        (activeToolCalls.length === 0 ||
+          activeToolCalls.every((tc) => !tc.running)) && (
           <Box marginTop={1}>
             <Text color={theme.accent}>
               <Spinner type="dots" />
