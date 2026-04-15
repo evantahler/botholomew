@@ -58,6 +58,32 @@ function renderMarkdown(text: string): string {
   return Bun.markdown.ansi(text).trimEnd();
 }
 
+/** Estimate how many terminal rows a message will occupy. */
+function estimateMessageRows(msg: ChatMessage, cols: number): number {
+  // marginTop(1) + header line(1)
+  let rows = 2;
+
+  // Content lines — use conservative column width for wrapping estimate
+  const wrapWidth = Math.max(1, cols - 4);
+  if (msg.content) {
+    for (const line of msg.content.split("\n")) {
+      rows += Math.max(1, Math.ceil(Math.max(1, line.length) / wrapWidth));
+    }
+  }
+
+  // Tool calls: border(2) + each tool(1-3 rows)
+  if (msg.toolCalls && msg.toolCalls.length > 0) {
+    rows += 2; // round border top + bottom
+    for (const tc of msg.toolCalls) {
+      rows += 1; // tool name + input
+      if (tc.output && !tc.running) rows += 1;
+      if (tc.largeResult && !tc.running) rows += 1;
+    }
+  }
+
+  return rows;
+}
+
 const MessageBubble = memo(function MessageBubble({
   message,
 }: {
@@ -131,8 +157,8 @@ const MessageBubble = memo(function MessageBubble({
   );
 });
 
-/** Maximum messages to render at once (performance guard) */
-const MAX_RENDER = 200;
+/** Rows used by fixed chrome (tab bar, divider, input bar + status bar). */
+const CHROME_ROWS = 6;
 
 export function MessageList({
   messages,
@@ -143,6 +169,10 @@ export function MessageList({
   viewEndIndex,
   setViewEndIndex,
 }: MessageListProps) {
+  const { stdout } = useStdout();
+  const cols = stdout?.columns ?? 80;
+  const termRows = stdout?.rows ?? 24;
+
   // Scroll input — Shift+↑/↓
   useInput((_input, key) => {
     if (!isActive) return;
@@ -162,22 +192,53 @@ export function MessageList({
     }
   });
 
-  // Compute the slice of messages to render
-  const visibleMessages = useMemo(() => {
-    const end = Math.min(viewEndIndex ?? messages.length, messages.length);
-    const start = Math.max(0, end - MAX_RENDER);
-    return messages.slice(start, end);
-  }, [messages, viewEndIndex]);
-
   const isAtBottom = viewEndIndex === null;
+  const hasActiveContent =
+    streamingText.length > 0 || activeToolCalls.length > 0;
+
+  // Build visible messages that fit within the available terminal rows.
+  // This replaces overflow="hidden" + justifyContent="flex-end" which caused
+  // Ink to recalculate clipping on every re-render, producing visual jumps.
+  const visibleMessages = useMemo(() => {
+    const endIdx = Math.min(viewEndIndex ?? messages.length, messages.length);
+
+    let budget = Math.max(5, termRows - CHROME_ROWS);
+
+    // Reserve rows for the bottom section (streaming, spinner, or indicator)
+    if (!isAtBottom) {
+      budget -= 1; // scroll indicator
+    } else if (hasActiveContent) {
+      budget -= 6; // streaming header + tool calls + text
+    } else if (isLoading) {
+      budget -= 2; // spinner
+    }
+
+    let startIdx = endIdx;
+    while (startIdx > 0 && budget > 0) {
+      startIdx--;
+      const msg = messages[startIdx];
+      if (msg) budget -= estimateMessageRows(msg, cols);
+    }
+
+    // If the last message pushed us over budget, drop it (keep at least one)
+    if (budget < 0 && startIdx < endIdx - 1) startIdx++;
+
+    return messages.slice(startIdx, endIdx);
+  }, [
+    messages,
+    viewEndIndex,
+    termRows,
+    cols,
+    isAtBottom,
+    hasActiveContent,
+    isLoading,
+  ]);
 
   return (
-    <Box
-      flexDirection="column"
-      flexGrow={1}
-      overflow="hidden"
-      justifyContent="flex-end"
-    >
+    <Box flexDirection="column" flexGrow={1}>
+      {/* Spacer pushes content to the bottom without relying on flex-end */}
+      <Box flexGrow={1} />
+
       {visibleMessages.map((msg) => (
         <MessageBubble key={msg.id} message={msg} />
       ))}
