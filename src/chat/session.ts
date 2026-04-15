@@ -77,12 +77,7 @@ export async function startChatSession(
       void generateThreadTitle(config, conn, threadId, firstUserMessage);
     }
   } else {
-    threadId = await createThread(
-      conn,
-      "chat_session",
-      undefined,
-      "New chat",
-    );
+    threadId = await createThread(conn, "chat_session", undefined, "New chat");
   }
 
   const systemPrompt = await buildChatSystemPrompt(projectDir);
