@@ -1,5 +1,5 @@
 import { Box, Text, useInput, useStdout } from "ink";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { DbConnection } from "../../db/connection.ts";
 import {
   deleteTask,
@@ -138,7 +138,10 @@ function cycleFilter<T>(current: T | null, values: readonly T[]): T | null {
   return values[idx + 1] ?? null;
 }
 
-export function TaskPanel({ conn, isActive }: TaskPanelProps) {
+export const TaskPanel = memo(function TaskPanel({
+  conn,
+  isActive,
+}: TaskPanelProps) {
   const { stdout } = useStdout();
   const termRows = stdout?.rows ?? 24;
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -403,4 +406,4 @@ export function TaskPanel({ conn, isActive }: TaskPanelProps) {
       </Box>
     </Box>
   );
-}
+});

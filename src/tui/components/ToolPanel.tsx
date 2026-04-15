@@ -1,5 +1,5 @@
 import { Box, Text, useInput, useStdout } from "ink";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { ansi, theme } from "../theme.ts";
 import { resolveToolDisplay, type ToolCallData } from "./ToolCall.tsx";
 
@@ -115,7 +115,10 @@ function buildDetailAnsi(tool: ToolCallData): string {
 
 const PAGE_SCROLL_LINES = 10;
 
-export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
+export const ToolPanel = memo(function ToolPanel({
+  toolCalls,
+  isActive,
+}: ToolPanelProps) {
   const { stdout } = useStdout();
   const termRows = stdout?.rows ?? 24;
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -336,4 +339,4 @@ export function ToolPanel({ toolCalls, isActive }: ToolPanelProps) {
       </Box>
     </Box>
   );
-}
+});

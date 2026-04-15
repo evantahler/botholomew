@@ -1,4 +1,5 @@
 import { Box, Text } from "ink";
+import { memo } from "react";
 
 interface HelpPanelProps {
   projectDir: string;
@@ -6,7 +7,7 @@ interface HelpPanelProps {
   daemonRunning: boolean;
 }
 
-export function HelpPanel({
+export const HelpPanel = memo(function HelpPanel({
   projectDir,
   threadId,
   daemonRunning,
@@ -162,4 +163,4 @@ export function HelpPanel({
       </Box>
     </Box>
   );
-}
+});

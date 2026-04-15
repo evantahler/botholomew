@@ -1,6 +1,12 @@
 import { Box, Text, useInput } from "ink";
-import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import {
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 interface InputBarProps {
   value: string;
@@ -11,7 +17,7 @@ interface InputBarProps {
   header?: ReactNode;
 }
 
-export function InputBar({
+export const InputBar = memo(function InputBar({
   value,
   onChange,
   onSubmit,
@@ -25,7 +31,24 @@ export function InputBar({
   const savedInput = useRef("");
   const lastActivity = useRef(Date.now());
 
-  // Blink cursor when input is active
+  // Refs for values read inside the input handler — eagerly updated so rapid
+  // keystrokes that arrive before React re-renders always see fresh state.
+  const valueRef = useRef(value);
+  const cursorPosRef = useRef(cursorPos);
+  const historyIndexRef = useRef(historyIndex);
+  const onChangeRef = useRef(onChange);
+  const onSubmitRef = useRef(onSubmit);
+  const historyRef = useRef(history);
+
+  valueRef.current = value;
+  cursorPosRef.current = cursorPos;
+  historyIndexRef.current = historyIndex;
+  onChangeRef.current = onChange;
+  onSubmitRef.current = onSubmit;
+  historyRef.current = history;
+
+  // Blink cursor when input is active — skip ticks while typing so the
+  // cursor stays solid and we avoid unnecessary renders during rapid input.
   useEffect(() => {
     if (disabled) {
       setCursorVisible(true);
@@ -33,85 +56,119 @@ export function InputBar({
     }
     const id = setInterval(() => {
       const elapsed = Date.now() - lastActivity.current;
+      if (elapsed < 530) return; // still typing — keep cursor solid
       const phase = Math.floor(elapsed / 530) % 2 === 0;
-      setCursorVisible(phase);
+      setCursorVisible((prev) => (prev === phase ? prev : phase));
     }, 530);
     return () => clearInterval(id);
   }, [disabled]);
 
-  useInput(
-    (input, key) => {
+  // Stable input handler — the callback reference never changes, which
+  // prevents Ink's useInput from removing/re-adding the stdin listener on
+  // every render. Without this, rapid typing causes listener churn that
+  // overwhelms the event loop and pegs the CPU at 100%.
+  const stableHandler = useCallback(
+    // biome-ignore lint/suspicious/noExplicitAny: Ink's Key type is not exported
+    (input: string, key: any) => {
       if (disabled) return;
       lastActivity.current = Date.now();
-      setCursorVisible(true);
+
+      const val = valueRef.current;
+      const pos = cursorPosRef.current;
+      const hIdx = historyIndexRef.current;
+      const hist = historyRef.current;
 
       // Enter: submit (shift+enter or opt+enter inserts newline)
       if (key.return) {
         if (key.shift || key.meta) {
-          const before = value.slice(0, cursorPos);
-          const after = value.slice(cursorPos);
-          onChange(`${before}\n${after}`);
-          setCursorPos(cursorPos + 1);
+          const before = val.slice(0, pos);
+          const after = val.slice(pos);
+          const newVal = `${before}\n${after}`;
+          const newPos = pos + 1;
+          valueRef.current = newVal;
+          cursorPosRef.current = newPos;
+          onChangeRef.current(newVal);
+          setCursorPos(newPos);
         } else {
+          historyIndexRef.current = -1;
           setHistoryIndex(-1);
           savedInput.current = "";
+          cursorPosRef.current = 0;
           setCursorPos(0);
-          onSubmit(value);
+          onSubmitRef.current(val);
         }
         return;
       }
 
       // Backspace
       if (key.backspace || key.delete) {
-        if (cursorPos > 0) {
-          const before = value.slice(0, cursorPos - 1);
-          const after = value.slice(cursorPos);
-          onChange(before + after);
-          setCursorPos(cursorPos - 1);
+        if (pos > 0) {
+          const before = val.slice(0, pos - 1);
+          const after = val.slice(pos);
+          const newVal = before + after;
+          const newPos = pos - 1;
+          valueRef.current = newVal;
+          cursorPosRef.current = newPos;
+          onChangeRef.current(newVal);
+          setCursorPos(newPos);
         }
         return;
       }
 
       // Left/right arrow for cursor movement
       if (key.leftArrow) {
-        setCursorPos((c) => Math.max(0, c - 1));
+        const newPos = Math.max(0, pos - 1);
+        cursorPosRef.current = newPos;
+        setCursorPos(newPos);
         return;
       }
       if (key.rightArrow) {
-        setCursorPos((c) => Math.min(value.length, c + 1));
+        const newPos = Math.min(val.length, pos + 1);
+        cursorPosRef.current = newPos;
+        setCursorPos(newPos);
         return;
       }
 
       // History navigation
-      if (key.upArrow && history.length > 0) {
-        const nextIndex = historyIndex + 1;
-        if (nextIndex < history.length) {
-          if (historyIndex === -1) {
-            savedInput.current = value;
+      if (key.upArrow && hist.length > 0) {
+        const nextIndex = hIdx + 1;
+        if (nextIndex < hist.length) {
+          if (hIdx === -1) {
+            savedInput.current = val;
           }
+          historyIndexRef.current = nextIndex;
           setHistoryIndex(nextIndex);
-          const entry = history[history.length - 1 - nextIndex];
+          const entry = hist[hist.length - 1 - nextIndex];
           if (entry !== undefined) {
-            onChange(entry);
+            valueRef.current = entry;
+            cursorPosRef.current = entry.length;
+            onChangeRef.current(entry);
             setCursorPos(entry.length);
           }
         }
         return;
       }
 
-      if (key.downArrow && history.length > 0) {
-        if (historyIndex > 0) {
-          const nextIndex = historyIndex - 1;
+      if (key.downArrow && hist.length > 0) {
+        if (hIdx > 0) {
+          const nextIndex = hIdx - 1;
+          historyIndexRef.current = nextIndex;
           setHistoryIndex(nextIndex);
-          const entry = history[history.length - 1 - nextIndex];
+          const entry = hist[hist.length - 1 - nextIndex];
           if (entry !== undefined) {
-            onChange(entry);
+            valueRef.current = entry;
+            cursorPosRef.current = entry.length;
+            onChangeRef.current(entry);
             setCursorPos(entry.length);
           }
-        } else if (historyIndex === 0) {
+        } else if (hIdx === 0) {
+          historyIndexRef.current = -1;
           setHistoryIndex(-1);
-          onChange(savedInput.current);
-          setCursorPos(savedInput.current.length);
+          const saved = savedInput.current;
+          valueRef.current = saved;
+          cursorPosRef.current = saved.length;
+          onChangeRef.current(saved);
+          setCursorPos(saved.length);
         }
         return;
       }
@@ -123,17 +180,24 @@ export function InputBar({
 
       // Regular character input
       if (input) {
-        if (historyIndex !== -1) {
+        if (hIdx !== -1) {
+          historyIndexRef.current = -1;
           setHistoryIndex(-1);
         }
-        const before = value.slice(0, cursorPos);
-        const after = value.slice(cursorPos);
-        onChange(before + input + after);
-        setCursorPos(cursorPos + input.length);
+        const before = val.slice(0, pos);
+        const after = val.slice(pos);
+        const newVal = before + input + after;
+        const newPos = pos + input.length;
+        valueRef.current = newVal;
+        cursorPosRef.current = newPos;
+        onChangeRef.current(newVal);
+        setCursorPos(newPos);
       }
     },
-    { isActive: !disabled },
+    [disabled],
   );
+
+  useInput(stableHandler, { isActive: !disabled });
 
   const isMultiline = value.includes("\n");
   const placeholder = !value && !disabled;
@@ -169,4 +233,4 @@ export function InputBar({
       )}
     </Box>
   );
-}
+});

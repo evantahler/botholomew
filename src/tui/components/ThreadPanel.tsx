@@ -1,5 +1,5 @@
 import { Box, Text, useInput, useStdout } from "ink";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { DbConnection } from "../../db/connection.ts";
 import {
   deleteThread,
@@ -178,7 +178,7 @@ function cycleFilter<T>(current: T | null, values: readonly T[]): T | null {
   return values[idx + 1] ?? null;
 }
 
-export function ThreadPanel({
+export const ThreadPanel = memo(function ThreadPanel({
   conn,
   activeThreadId,
   isActive,
@@ -538,4 +538,4 @@ export function ThreadPanel({
       </Box>
     </Box>
   );
-}
+});
