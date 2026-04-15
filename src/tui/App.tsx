@@ -121,8 +121,6 @@ export function App({
   const sessionRef = useRef<ChatSession | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>(1);
   const [daemonRunning, setDaemonRunning] = useState(false);
-  // Scroll state lives here so it survives MessageList unmount/remount on tab switch
-  const [viewEndIndex, setViewEndIndex] = useState<number | null>(null);
   const queueRef = useRef<string[]>([]);
   const processingRef = useRef(false);
   const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
@@ -383,7 +381,6 @@ export function App({
             "  Enter          Send message",
             "  ⌥+Enter        Insert newline",
             "  ↑/↓            Browse input history",
-            "  Shift+↑/↓      Scroll chat history",
             "",
             "Tools (Tab 2):",
             "  ↑/↓            Select tool call",
@@ -470,9 +467,6 @@ export function App({
           streamingText={streamingText}
           isLoading={isLoading}
           activeToolCalls={activeToolCalls}
-          isActive={activeTab === 1}
-          viewEndIndex={viewEndIndex}
-          setViewEndIndex={setViewEndIndex}
         />
       )}
       {activeTab === 2 && (

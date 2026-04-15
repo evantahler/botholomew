@@ -1,6 +1,5 @@
-import { Box, Text, useInput, useStdout } from "ink";
+import { Box, Static, Text, useStdout } from "ink";
 import Spinner from "ink-spinner";
-import type { Dispatch, SetStateAction } from "react";
 import { memo, useMemo } from "react";
 import { theme } from "../theme.ts";
 import { ToolCall, type ToolCallData } from "./ToolCall.tsx";
@@ -18,9 +17,6 @@ interface MessageListProps {
   streamingText: string;
   isLoading: boolean;
   activeToolCalls: ToolCallData[];
-  isActive: boolean;
-  viewEndIndex: number | null;
-  setViewEndIndex: Dispatch<SetStateAction<number | null>>;
 }
 
 function formatTime(date: Date): string {
@@ -56,32 +52,6 @@ function wrapAndPad(text: string, width: number): string {
 function renderMarkdown(text: string): string {
   if (!text) return "";
   return Bun.markdown.ansi(text).trimEnd();
-}
-
-/** Estimate how many terminal rows a message will occupy. */
-function estimateMessageRows(msg: ChatMessage, cols: number): number {
-  // marginTop(1) + header line(1)
-  let rows = 2;
-
-  // Content lines — use conservative column width for wrapping estimate
-  const wrapWidth = Math.max(1, cols - 4);
-  if (msg.content) {
-    for (const line of msg.content.split("\n")) {
-      rows += Math.max(1, Math.ceil(Math.max(1, line.length) / wrapWidth));
-    }
-  }
-
-  // Tool calls: border(2) + each tool(1-3 rows)
-  if (msg.toolCalls && msg.toolCalls.length > 0) {
-    rows += 2; // round border top + bottom
-    for (const tc of msg.toolCalls) {
-      rows += 1; // tool name + input
-      if (tc.output && !tc.running) rows += 1;
-      if (tc.largeResult && !tc.running) rows += 1;
-    }
-  }
-
-  return rows;
 }
 
 const MessageBubble = memo(function MessageBubble({
@@ -157,94 +127,21 @@ const MessageBubble = memo(function MessageBubble({
   );
 });
 
-/** Rows used by fixed chrome (tab bar, divider, input bar + status bar). */
-const CHROME_ROWS = 6;
-
 export function MessageList({
   messages,
   streamingText,
   isLoading,
   activeToolCalls,
-  isActive,
-  viewEndIndex,
-  setViewEndIndex,
 }: MessageListProps) {
-  const { stdout } = useStdout();
-  const cols = stdout?.columns ?? 80;
-  const termRows = stdout?.rows ?? 24;
-
-  // Scroll input — Shift+↑/↓
-  useInput((_input, key) => {
-    if (!isActive) return;
-
-    if (key.shift && key.upArrow) {
-      setViewEndIndex((current) => {
-        const end = current ?? messages.length;
-        return Math.max(1, end - 3);
-      });
-    }
-    if (key.shift && key.downArrow) {
-      setViewEndIndex((current) => {
-        if (current === null) return null;
-        const newEnd = current + 3;
-        return newEnd >= messages.length ? null : newEnd;
-      });
-    }
-  });
-
-  const isAtBottom = viewEndIndex === null;
-  const hasActiveContent =
-    streamingText.length > 0 || activeToolCalls.length > 0;
-
-  // Build visible messages that fit within the available terminal rows.
-  // This replaces overflow="hidden" + justifyContent="flex-end" which caused
-  // Ink to recalculate clipping on every re-render, producing visual jumps.
-  const visibleMessages = useMemo(() => {
-    const endIdx = Math.min(viewEndIndex ?? messages.length, messages.length);
-
-    let budget = Math.max(5, termRows - CHROME_ROWS);
-
-    // Reserve rows for the bottom section (streaming, spinner, or indicator)
-    if (!isAtBottom) {
-      budget -= 1; // scroll indicator
-    } else if (hasActiveContent) {
-      budget -= 6; // streaming header + tool calls + text
-    } else if (isLoading) {
-      budget -= 2; // spinner
-    }
-
-    let startIdx = endIdx;
-    while (startIdx > 0 && budget > 0) {
-      startIdx--;
-      const msg = messages[startIdx];
-      if (msg) budget -= estimateMessageRows(msg, cols);
-    }
-
-    // If the last message pushed us over budget, drop it (keep at least one)
-    if (budget < 0 && startIdx < endIdx - 1) startIdx++;
-
-    return messages.slice(startIdx, endIdx);
-  }, [
-    messages,
-    viewEndIndex,
-    termRows,
-    cols,
-    isAtBottom,
-    hasActiveContent,
-    isLoading,
-  ]);
-
   return (
-    <Box flexDirection="column" flexGrow={1}>
-      {/* Spacer pushes content to the bottom without relying on flex-end */}
-      <Box flexGrow={1} />
+    <>
+      {/* Completed messages — rendered once to terminal scrollback */}
+      <Static items={messages}>
+        {(msg) => <MessageBubble key={msg.id} message={msg} />}
+      </Static>
 
-      {visibleMessages.map((msg) => (
-        <MessageBubble key={msg.id} message={msg} />
-      ))}
-
-      {/* Active streaming / tool calls — only shown when pinned to bottom */}
-      {isAtBottom && (streamingText || activeToolCalls.length > 0) && (
+      {/* Dynamic area — streaming content, managed by Ink */}
+      {(streamingText || activeToolCalls.length > 0) && (
         <Box flexDirection="column" marginTop={1}>
           <Box>
             <Text bold color="green">
@@ -273,8 +170,7 @@ export function MessageList({
         </Box>
       )}
 
-      {isAtBottom &&
-        isLoading &&
+      {isLoading &&
         !streamingText &&
         (activeToolCalls.length === 0 ||
           activeToolCalls.every((tc) => !tc.running)) && (
@@ -285,16 +181,6 @@ export function MessageList({
             <Text dimColor> Thinking...</Text>
           </Box>
         )}
-
-      {/* Scroll indicator */}
-      {!isAtBottom && (
-        <Box justifyContent="center">
-          <Text dimColor>
-            ↓ {messages.length - (viewEndIndex ?? messages.length)} more —
-            Shift+↓ to scroll down
-          </Text>
-        </Box>
-      )}
-    </Box>
+    </>
   );
 }
