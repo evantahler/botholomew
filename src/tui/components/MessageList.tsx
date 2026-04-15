@@ -1,6 +1,6 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import Spinner from "ink-spinner";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { theme } from "../theme.ts";
 import { ToolCall, type ToolCallData } from "./ToolCall.tsx";
 
@@ -138,46 +138,37 @@ export function MessageList({
   activeToolCalls,
   isActive,
 }: MessageListProps) {
-  // scrollBack: number of messages hidden below the viewport.
-  // 0 means "pinned to bottom" (newest messages visible).
-  const [scrollBack, setScrollBack] = useState(0);
-  const prevLen = useRef(messages.length);
-
-  // When new messages arrive and we're pinned to bottom, stay there.
-  // When new messages arrive and we're scrolled up, hold position by
-  // increasing scrollBack so the same messages stay in view.
-  useEffect(() => {
-    const added = messages.length - prevLen.current;
-    if (added > 0 && scrollBack > 0) {
-      setScrollBack((sb) => sb + added);
-    }
-    prevLen.current = messages.length;
-  }, [messages.length, scrollBack]);
+  // null = pinned to bottom (newest messages visible)
+  // number = index of the last visible message (absolute anchor)
+  const [viewEndIndex, setViewEndIndex] = useState<number | null>(null);
 
   // Scroll input — Shift+↑/↓
   useInput((_input, key) => {
     if (!isActive) return;
 
     if (key.shift && key.upArrow) {
-      setScrollBack((sb) => Math.min(sb + 3, Math.max(0, messages.length - 1)));
+      setViewEndIndex((current) => {
+        const end = current ?? messages.length;
+        return Math.max(1, end - 3);
+      });
     }
     if (key.shift && key.downArrow) {
-      setScrollBack((sb) => Math.max(sb - 3, 0));
+      setViewEndIndex((current) => {
+        if (current === null) return null;
+        const newEnd = current + 3;
+        return newEnd >= messages.length ? null : newEnd;
+      });
     }
   });
 
   // Compute the slice of messages to render
   const visibleMessages = useMemo(() => {
-    if (scrollBack === 0) {
-      // Pinned to bottom — show last MAX_RENDER messages
-      return messages.slice(-MAX_RENDER);
-    }
-    const end = messages.length - scrollBack;
+    const end = Math.min(viewEndIndex ?? messages.length, messages.length);
     const start = Math.max(0, end - MAX_RENDER);
-    return messages.slice(start, Math.max(0, end));
-  }, [messages, scrollBack]);
+    return messages.slice(start, end);
+  }, [messages, viewEndIndex]);
 
-  const isAtBottom = scrollBack === 0;
+  const isAtBottom = viewEndIndex === null;
 
   return (
     <Box
@@ -236,7 +227,10 @@ export function MessageList({
       {/* Scroll indicator */}
       {!isAtBottom && (
         <Box justifyContent="center">
-          <Text dimColor>↓ {scrollBack} more — Shift+↓ to scroll down</Text>
+          <Text dimColor>
+            ↓ {messages.length - (viewEndIndex ?? messages.length)} more —
+            Shift+↓ to scroll down
+          </Text>
         </Box>
       )}
     </Box>
