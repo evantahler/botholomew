@@ -113,6 +113,7 @@ jobs:
       - name: Build binary
         run: |
           bun build --compile --minify --sourcemap \
+            --external react-devtools-core \
             --target=${{ matrix.target }} \
             ./src/cli.ts --outfile dist/${{ matrix.artifact }}
       - name: Upload to release
