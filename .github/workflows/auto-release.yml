@@ -85,38 +85,3 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  build-binaries:
-    needs: [check-version, ci]
-    if: needs.check-version.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - target: bun-darwin-arm64
-            artifact: botholomew-darwin-arm64
-          - target: bun-darwin-x64
-            artifact: botholomew-darwin-x64
-          - target: bun-linux-arm64
-            artifact: botholomew-linux-arm64
-          - target: bun-linux-x64
-            artifact: botholomew-linux-x64
-          - target: bun-windows-x64
-            artifact: botholomew-windows-x64.exe
-          - target: bun-windows-arm64
-            artifact: botholomew-windows-arm64.exe
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile
-      - name: Build binary
-        run: |
-          bun build --compile --minify --sourcemap \
-            --external react-devtools-core \
-            --target=${{ matrix.target }} \
-            ./src/cli.ts --outfile dist/${{ matrix.artifact }}
-      - name: Upload to release
-        run: gh release upload "${{ needs.check-version.outputs.tag }}" dist/${{ matrix.artifact }} --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
