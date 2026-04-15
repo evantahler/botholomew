@@ -10,7 +10,6 @@ import { MAX_INLINE_CHARS, PAGE_SIZE_CHARS } from "../daemon/large-results.ts";
 import type { Interaction } from "../db/threads.ts";
 import { getThread } from "../db/threads.ts";
 import { ContextPanel } from "./components/ContextPanel.tsx";
-import { Divider } from "./components/Divider.tsx";
 import { HelpPanel } from "./components/HelpPanel.tsx";
 import { InputBar } from "./components/InputBar.tsx";
 import { AnimatedLogo } from "./components/Logo.tsx";
@@ -116,7 +115,8 @@ export function App({
   const [streamingText, setStreamingText] = useState("");
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCallData[]>([]);
   const [ready, setReady] = useState(false);
-  const [splashDone, setSplashDone] = useState(false);
+  const skipSplash = !!(resumeThreadId || initialPrompt);
+  const [splashDone, setSplashDone] = useState(skipSplash);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<ChatSession | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>(1);
@@ -289,11 +289,16 @@ export function App({
         }
       };
 
+      let lastStreamFlush = 0;
       try {
         await sendMessage(sessionRef.current, trimmed, {
           onToken: (token) => {
             currentText += token;
-            setStreamingText(currentText);
+            const now = Date.now();
+            if (now - lastStreamFlush >= 50) {
+              setStreamingText(currentText);
+              lastStreamFlush = now;
+            }
           },
           onToolStart: (name, input) => {
             if (currentText) {
@@ -376,7 +381,6 @@ export function App({
             "  Enter          Send message",
             "  ⌥+Enter        Insert newline",
             "  ↑/↓            Browse input history",
-            "  Shift+↑/↓      Scroll chat history",
             "",
             "Tools (Tab 2):",
             "  ↑/↓            Select tool call",
@@ -453,9 +457,6 @@ export function App({
 
   return (
     <Box flexDirection="column" height="100%">
-      <TabBar activeTab={activeTab} />
-      <Divider isLoading={isLoading} />
-
       {/* Tab content area */}
       {activeTab === 1 && (
         <MessageList
@@ -463,7 +464,6 @@ export function App({
           streamingText={streamingText}
           isLoading={isLoading}
           activeToolCalls={activeToolCalls}
-          isActive={activeTab === 1}
         />
       )}
       {activeTab === 2 && (
@@ -489,7 +489,7 @@ export function App({
         />
       )}
 
-      {/* Bottom bar: StatusBar + InputBar (input only on Chat tab) */}
+      {/* Bottom bar: StatusBar + InputBar (input only on Chat tab) + TabBar */}
       <InputBar
         value={inputValue}
         onChange={setInputValue}
@@ -500,11 +500,11 @@ export function App({
           <StatusBar
             projectDir={projectDir}
             conn={conn}
-            isLoading={isLoading}
             onDaemonStatusChange={setDaemonRunning}
           />
         }
       />
+      <TabBar activeTab={activeTab} />
     </Box>
   );
 }

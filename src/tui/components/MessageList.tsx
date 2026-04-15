@@ -1,6 +1,6 @@
-import { Box, Text, useInput, useStdout } from "ink";
+import { Box, Static, Text, useStdout } from "ink";
 import Spinner from "ink-spinner";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo } from "react";
 import { theme } from "../theme.ts";
 import { ToolCall, type ToolCallData } from "./ToolCall.tsx";
 
@@ -17,7 +17,6 @@ interface MessageListProps {
   streamingText: string;
   isLoading: boolean;
   activeToolCalls: ToolCallData[];
-  isActive: boolean;
 }
 
 function formatTime(date: Date): string {
@@ -108,7 +107,7 @@ const MessageBubble = memo(function MessageBubble({
         </Text>
         <Text dimColor> {time}</Text>
       </Box>
-      <Box marginLeft={1} flexDirection="column">
+      <Box marginLeft={1} flexDirection="column" width={cols - 1}>
         {message.toolCalls && message.toolCalls.length > 0 && (
           <Box
             flexDirection="column"
@@ -116,9 +115,11 @@ const MessageBubble = memo(function MessageBubble({
             borderColor="gray"
             paddingX={1}
             marginBottom={0}
+            width="100%"
           >
-            {message.toolCalls.map((tc) => (
-              <ToolCall key={`${tc.name}-${tc.input.slice(0, 20)}`} tool={tc} />
+            {message.toolCalls.map((tc, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: tool calls are append-only
+              <ToolCall key={`${i}-${tc.name}`} tool={tc} />
             ))}
           </Box>
         )}
@@ -128,70 +129,21 @@ const MessageBubble = memo(function MessageBubble({
   );
 });
 
-/** Maximum messages to render at once (performance guard) */
-const MAX_RENDER = 200;
-
 export function MessageList({
   messages,
   streamingText,
   isLoading,
   activeToolCalls,
-  isActive,
 }: MessageListProps) {
-  // scrollBack: number of messages hidden below the viewport.
-  // 0 means "pinned to bottom" (newest messages visible).
-  const [scrollBack, setScrollBack] = useState(0);
-  const prevLen = useRef(messages.length);
-
-  // When new messages arrive and we're pinned to bottom, stay there.
-  // When new messages arrive and we're scrolled up, hold position by
-  // increasing scrollBack so the same messages stay in view.
-  useEffect(() => {
-    const added = messages.length - prevLen.current;
-    if (added > 0 && scrollBack > 0) {
-      setScrollBack((sb) => sb + added);
-    }
-    prevLen.current = messages.length;
-  }, [messages.length, scrollBack]);
-
-  // Scroll input — Shift+↑/↓
-  useInput((_input, key) => {
-    if (!isActive) return;
-
-    if (key.shift && key.upArrow) {
-      setScrollBack((sb) => Math.min(sb + 3, Math.max(0, messages.length - 1)));
-    }
-    if (key.shift && key.downArrow) {
-      setScrollBack((sb) => Math.max(sb - 3, 0));
-    }
-  });
-
-  // Compute the slice of messages to render
-  const visibleMessages = useMemo(() => {
-    if (scrollBack === 0) {
-      // Pinned to bottom — show last MAX_RENDER messages
-      return messages.slice(-MAX_RENDER);
-    }
-    const end = messages.length - scrollBack;
-    const start = Math.max(0, end - MAX_RENDER);
-    return messages.slice(start, Math.max(0, end));
-  }, [messages, scrollBack]);
-
-  const isAtBottom = scrollBack === 0;
-
   return (
-    <Box
-      flexDirection="column"
-      flexGrow={1}
-      overflow="hidden"
-      justifyContent="flex-end"
-    >
-      {visibleMessages.map((msg) => (
-        <MessageBubble key={msg.id} message={msg} />
-      ))}
+    <>
+      {/* Completed messages — rendered once to terminal scrollback */}
+      <Static items={messages}>
+        {(msg) => <MessageBubble key={msg.id} message={msg} />}
+      </Static>
 
-      {/* Active streaming / tool calls — only shown when pinned to bottom */}
-      {isAtBottom && (streamingText || activeToolCalls.length > 0) && (
+      {/* Dynamic area — streaming content, managed by Ink */}
+      {(streamingText || activeToolCalls.length > 0) && (
         <Box flexDirection="column" marginTop={1}>
           <Box>
             <Text bold color="green">
@@ -220,8 +172,7 @@ export function MessageList({
         </Box>
       )}
 
-      {isAtBottom &&
-        isLoading &&
+      {isLoading &&
         !streamingText &&
         (activeToolCalls.length === 0 ||
           activeToolCalls.every((tc) => !tc.running)) && (
@@ -232,13 +183,6 @@ export function MessageList({
             <Text dimColor> Thinking...</Text>
           </Box>
         )}
-
-      {/* Scroll indicator */}
-      {!isAtBottom && (
-        <Box justifyContent="center">
-          <Text dimColor>↓ {scrollBack} more — Shift+↓ to scroll down</Text>
-        </Box>
-      )}
-    </Box>
+    </>
   );
 }
