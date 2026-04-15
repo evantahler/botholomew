@@ -2,6 +2,7 @@ import { Box, Text, useInput, useStdout } from "ink";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DbConnection } from "../../db/connection.ts";
 import {
+  deleteTask,
   listTasks,
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -270,6 +271,12 @@ export function TaskPanel({ conn, isActive }: TaskPanelProps) {
         setPriorityFilter((f) => cycleFilter(f, TASK_PRIORITIES));
         return;
       }
+      if (input === "d" && selectedTask) {
+        deleteTask(conn, selectedTask.id).then(() => {
+          forceRefresh();
+        });
+        return;
+      }
       if (input === "r") {
         forceRefresh();
         return;
@@ -386,8 +393,8 @@ export function TaskPanel({ conn, isActive }: TaskPanelProps) {
         {detailLines.length > visibleRows && (
           <Box>
             <Text dimColor>
-              f filter · p priority · ↑↓ select · j/k scroll · r refresh · [
-              {detailScroll + 1}–
+              f filter · p priority · ↑↓ select · j/k scroll · d delete · r
+              refresh · [{detailScroll + 1}–
               {Math.min(detailScroll + visibleRows, detailLines.length)} of{" "}
               {detailLines.length}]
             </Text>
@@ -395,7 +402,9 @@ export function TaskPanel({ conn, isActive }: TaskPanelProps) {
         )}
         {detailLines.length <= visibleRows && <Box flexGrow={1} />}
         {detailLines.length <= visibleRows && (
-          <Text dimColor>f filter · p priority · ↑↓ select · r refresh</Text>
+          <Text dimColor>
+            f filter · p priority · ↑↓ select · d delete · r refresh
+          </Text>
         )}
       </Box>
     </Box>
