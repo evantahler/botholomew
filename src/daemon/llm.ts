@@ -181,8 +181,11 @@ async function executeToolCall(
 
   const parsed = tool.inputSchema.safeParse(toolUse.input);
   if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((i) => `${i.path.join(".")}: ${i.message}`)
+      .join("; ");
     return {
-      output: `Invalid input: ${JSON.stringify(parsed.error)}`,
+      output: `Invalid input for ${toolUse.name}: ${issues}. Check the tool's expected parameters.`,
       terminal: false,
       isError: true,
     };

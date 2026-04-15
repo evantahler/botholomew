@@ -24,6 +24,8 @@ describe("mcp_exec", () => {
     );
     expect(result.is_error).toBe(true);
     expect(result.result).toContain("No MCP servers configured");
+    expect(result.error_kind).toBe("permanent");
+    expect(result.hint).toBeDefined();
   });
 
   test("executes tool and returns formatted result", async () => {
@@ -38,9 +40,11 @@ describe("mcp_exec", () => {
     );
     expect(result.is_error).toBe(false);
     expect(result.result).toBe("Email sent successfully");
+    expect(result.error_kind).toBeUndefined();
+    expect(result.hint).toBeUndefined();
   });
 
-  test("propagates isError from tool result", async () => {
+  test("propagates isError from tool result with hint", async () => {
     const { ctx } = setupToolContext();
     ctx.mcpxClient = mockClient(
       {
@@ -55,13 +59,14 @@ describe("mcp_exec", () => {
     );
     expect(result.is_error).toBe(true);
     expect(result.result).toBe("Auth failed");
+    expect(result.hint).toContain("mcp_info");
   });
 
-  test("handles exec throwing", async () => {
+  test("classifies network errors as retryable", async () => {
     const { ctx } = setupToolContext();
     ctx.mcpxClient = {
       exec: mock(async () => {
-        throw new Error("Connection refused");
+        throw new Error("ECONNREFUSED: connection refused");
       }),
     } as unknown as McpxClient;
 
@@ -70,7 +75,59 @@ describe("mcp_exec", () => {
       ctx,
     );
     expect(result.is_error).toBe(true);
-    expect(result.result).toContain("Connection refused");
+    expect(result.error_kind).toBe("retryable");
+    expect(result.hint).toContain("Retry");
+  });
+
+  test("classifies auth errors", async () => {
+    const { ctx } = setupToolContext();
+    ctx.mcpxClient = {
+      exec: mock(async () => {
+        throw new Error("401 Unauthorized");
+      }),
+    } as unknown as McpxClient;
+
+    const result = await mcpExecTool.execute(
+      { server: "gmail", tool: "send_email" },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_kind).toBe("auth_error");
+    expect(result.hint).toContain("Not retryable");
+  });
+
+  test("classifies input validation errors", async () => {
+    const { ctx } = setupToolContext();
+    ctx.mcpxClient = {
+      exec: mock(async () => {
+        throw new Error("Validation failed: required field missing");
+      }),
+    } as unknown as McpxClient;
+
+    const result = await mcpExecTool.execute(
+      { server: "gmail", tool: "send_email" },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_kind).toBe("input_error");
+    expect(result.hint).toContain("mcp_info");
+  });
+
+  test("classifies unknown errors as permanent", async () => {
+    const { ctx } = setupToolContext();
+    ctx.mcpxClient = {
+      exec: mock(async () => {
+        throw new Error("Something completely unexpected");
+      }),
+    } as unknown as McpxClient;
+
+    const result = await mcpExecTool.execute(
+      { server: "gmail", tool: "send_email" },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_kind).toBe("permanent");
+    expect(result.hint).toContain("alternative tool");
   });
 
   test("passes args through to exec", async () => {

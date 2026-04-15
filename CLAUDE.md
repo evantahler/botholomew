@@ -40,6 +40,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - All database access goes through `src/db/` modules
 - All agent interactions are logged to the threads/interactions tables
 - No filesystem tools for the agent — FS access is abstracted through CRUD modules scoped to `.botholomew/`
+- When designing or modifying agent tools, follow PATs (Patterns for Agentic Tools): https://arcade.dev/patterns/llm.txt — key principles: error-guided recovery, next-action hints, token-efficient outputs, error classification
 
 ## Database Patterns
 

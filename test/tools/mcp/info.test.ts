@@ -4,7 +4,7 @@ import { mcpInfoTool } from "../../../src/tools/mcp/info.ts";
 import { setupToolContext } from "../../helpers.ts";
 
 describe("mcp_info", () => {
-  test("returns not found when mcpxClient is null", async () => {
+  test("returns not found with hint when mcpxClient is null", async () => {
     const { ctx } = setupToolContext();
     const result = await mcpInfoTool.execute(
       { server: "gmail", tool: "send_email" },
@@ -12,9 +12,10 @@ describe("mcp_info", () => {
     );
     expect(result.found).toBe(false);
     expect(result.description).toContain("No MCP servers configured");
+    expect(result.hint).toContain("botholomew mcpx add");
   });
 
-  test("returns not found for unknown tool", async () => {
+  test("returns not found with discovery hint for unknown tool", async () => {
     const { ctx } = setupToolContext();
     ctx.mcpxClient = {
       info: mock(async () => undefined),
@@ -26,9 +27,10 @@ describe("mcp_info", () => {
     );
     expect(result.found).toBe(false);
     expect(result.description).toContain("not found");
+    expect(result.hint).toContain("mcp_search");
   });
 
-  test("returns tool schema when found", async () => {
+  test("returns tool schema with exec hint when found", async () => {
     const { ctx } = setupToolContext();
     ctx.mcpxClient = {
       info: mock(async () => ({
@@ -56,6 +58,8 @@ describe("mcp_info", () => {
     const schema = JSON.parse(result.input_schema);
     expect(schema.properties.to.type).toBe("string");
     expect(schema.required).toContain("to");
+    expect(result.hint).toContain("mcp_exec");
+    expect(result.hint).toContain("gmail");
   });
 
   test("handles tool with no inputSchema", async () => {
@@ -73,5 +77,6 @@ describe("mcp_info", () => {
     );
     expect(result.found).toBe(true);
     expect(result.input_schema).toBe("{}");
+    expect(result.hint).toContain("mcp_exec");
   });
 });
