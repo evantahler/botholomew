@@ -1,4 +1,4 @@
-import { Box, Text, useApp, useInput } from "ink";
+import { Box, Static, Text, useApp, useInput } from "ink";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type ChatSession,
@@ -13,7 +13,11 @@ import { ContextPanel } from "./components/ContextPanel.tsx";
 import { HelpPanel } from "./components/HelpPanel.tsx";
 import { InputBar } from "./components/InputBar.tsx";
 import { AnimatedLogo } from "./components/Logo.tsx";
-import { type ChatMessage, MessageList } from "./components/MessageList.tsx";
+import {
+  type ChatMessage,
+  MessageBubble,
+  MessageList,
+} from "./components/MessageList.tsx";
 import { QueuePanel } from "./components/QueuePanel.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import { TabBar, type TabId } from "./components/TabBar.tsx";
@@ -520,9 +524,17 @@ export function App({
 
   return (
     <Box flexDirection="column" height="100%">
+      {/* Completed messages — rendered once to terminal scrollback.
+          Must live outside the display="none" tab wrappers so the <Static>
+          node always has proper terminal width in its Yoga layout.
+          Otherwise Ink's border renderer crashes with a negative
+          contentWidth when tool-call boxes are rendered at width 0. */}
+      <Static items={messages}>
+        {(msg) => <MessageBubble key={msg.id} message={msg} />}
+      </Static>
+
       {/* Tab content area — all panels stay mounted to avoid expensive
-          remount cycles (especially <Static> in MessageList re-rendering
-          the entire history). display="none" hides inactive panels from
+          remount cycles. display="none" hides inactive panels from
           layout without destroying them. */}
       <Box
         display={activeTab === 1 ? "flex" : "none"}
@@ -530,7 +542,6 @@ export function App({
         flexGrow={1}
       >
         <MessageList
-          messages={messages}
           streamingText={streamingText}
           isLoading={isLoading}
           activeToolCalls={activeToolCalls}
