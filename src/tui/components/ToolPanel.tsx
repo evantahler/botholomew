@@ -1,6 +1,6 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { useEffect, useMemo, useState } from "react";
-import { theme } from "../theme.ts";
+import { ansi, theme } from "../theme.ts";
 import { resolveToolDisplay, type ToolCallData } from "./ToolCall.tsx";
 
 interface ToolPanelProps {
@@ -9,17 +9,6 @@ interface ToolPanelProps {
 }
 
 const SIDEBAR_WIDTH = 42;
-
-// ANSI escape helpers
-const RESET = "\x1b[0m";
-const BOLD = "\x1b[1m";
-const DIM = "\x1b[2m";
-const CYAN = "\x1b[36m";
-const GREEN = "\x1b[32m";
-const YELLOW = "\x1b[33m";
-const MAGENTA = "\x1b[35m";
-const BLUE = "\x1b[34m";
-const RED = "\x1b[31m";
 
 /** Try to parse a string as JSON; returns the parsed value or undefined on failure */
 function tryParseJson(str: string): unknown | undefined {
@@ -38,10 +27,10 @@ function colorizeJson(str: string): string {
 }
 
 function colorizeValue(value: unknown, indent: number): string {
-  if (value === null) return `${MAGENTA}null${RESET}`;
+  if (value === null) return `${ansi.toolName}null${ansi.reset}`;
   if (typeof value === "boolean")
-    return `${MAGENTA}${value ? "true" : "false"}${RESET}`;
-  if (typeof value === "number") return `${YELLOW}${value}${RESET}`;
+    return `${ansi.toolName}${value ? "true" : "false"}${ansi.reset}`;
+  if (typeof value === "number") return `${ansi.accent}${value}${ansi.reset}`;
   if (typeof value === "string") {
     // Try to unwrap stringified JSON (common in tool results)
     const inner = tryParseJson(value);
@@ -49,7 +38,7 @@ function colorizeValue(value: unknown, indent: number): string {
       return colorizeValue(inner, indent);
     }
     const escaped = JSON.stringify(value);
-    return `${GREEN}${escaped}${RESET}`;
+    return `${ansi.success}${escaped}${ansi.reset}`;
   }
 
   const pad = "  ".repeat(indent);
@@ -68,7 +57,7 @@ function colorizeValue(value: unknown, indent: number): string {
     if (entries.length === 0) return "{}";
     const lines = entries.map(
       ([k, v]) =>
-        `${innerPad}${CYAN}${JSON.stringify(k)}${RESET}: ${colorizeValue(v, indent + 1)}`,
+        `${innerPad}${ansi.info}${JSON.stringify(k)}${ansi.reset}: ${colorizeValue(v, indent + 1)}`,
     );
     return `{\n${lines.join(",\n")}\n${pad}}`;
   }
@@ -89,36 +78,36 @@ function buildDetailAnsi(tool: ToolCallData): string {
     tool.name,
     tool.input,
   );
-  lines.push(`${BOLD}${CYAN}${displayName}${RESET}`);
+  lines.push(`${ansi.bold}${ansi.info}${displayName}${ansi.reset}`);
   if (tool.name === "mcp_exec") {
-    lines.push(`${DIM}via mcp_exec${RESET}`);
+    lines.push(`${ansi.dim}via mcp_exec${ansi.reset}`);
   }
-  lines.push(`${DIM}Time: ${time}${RESET}`);
+  lines.push(`${ansi.dim}Time: ${time}${ansi.reset}`);
   if (tool.running) {
-    lines.push(`${YELLOW}⟳ running${RESET}`);
+    lines.push(`${ansi.accent}⟳ running${ansi.reset}`);
   }
   lines.push("");
 
-  lines.push(`${BOLD}${BLUE}Input${RESET}`);
+  lines.push(`${ansi.bold}${ansi.primary}Input${ansi.reset}`);
   lines.push(colorizeJson(displayInput));
   lines.push("");
 
   if (tool.output) {
     if (tool.isError) {
-      lines.push(`${BOLD}${RED}Error${RESET}`);
-      lines.push(`${RED}${colorizeJson(tool.output)}${RESET}`);
+      lines.push(`${ansi.bold}${ansi.error}Error${ansi.reset}`);
+      lines.push(`${ansi.error}${colorizeJson(tool.output)}${ansi.reset}`);
     } else {
-      lines.push(`${BOLD}${BLUE}Output${RESET}`);
+      lines.push(`${ansi.bold}${ansi.primary}Output${ansi.reset}`);
       if (tool.largeResult) {
         lines.push(
-          `${YELLOW}Paginated for LLM: ${tool.largeResult.chars.toLocaleString()} chars, ${tool.largeResult.pages} page(s) — stored as ${tool.largeResult.id}${RESET}`,
+          `${ansi.accent}Paginated for LLM: ${tool.largeResult.chars.toLocaleString()} chars, ${tool.largeResult.pages} page(s) — stored as ${tool.largeResult.id}${ansi.reset}`,
         );
       }
       lines.push(colorizeJson(tool.output));
     }
   } else if (!tool.running) {
-    lines.push(`${BOLD}${BLUE}Output${RESET}`);
-    lines.push(`${DIM}(no output)${RESET}`);
+    lines.push(`${ansi.bold}${ansi.primary}Output${ansi.reset}`);
+    lines.push(`${ansi.dim}(no output)${ansi.reset}`);
   }
 
   return lines.join("\n");

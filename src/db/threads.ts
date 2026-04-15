@@ -175,6 +175,15 @@ export async function getThread(
   };
 }
 
+export async function deleteThread(
+  db: DbConnection,
+  threadId: string,
+): Promise<boolean> {
+  db.query("DELETE FROM interactions WHERE thread_id = ?1").run(threadId);
+  const result = db.query("DELETE FROM threads WHERE id = ?1").run(threadId);
+  return result.changes > 0;
+}
+
 export async function listThreads(
   db: DbConnection,
   filters?: {

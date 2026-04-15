@@ -18,8 +18,10 @@ import { QueuePanel } from "./components/QueuePanel.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import { TabBar, type TabId } from "./components/TabBar.tsx";
 import { TaskPanel } from "./components/TaskPanel.tsx";
+import { ThreadPanel } from "./components/ThreadPanel.tsx";
 import type { ToolCallData } from "./components/ToolCall.tsx";
 import { ToolPanel } from "./components/ToolPanel.tsx";
+import { ansi } from "./theme.ts";
 
 interface AppProps {
   projectDir: string;
@@ -178,7 +180,7 @@ export function App({
         const threadId = sessionRef.current.threadId;
         endChatSession(sessionRef.current);
         process.stderr.write(
-          `\nThread: ${threadId}\nResume with: \x1b[32mbotholomew chat --thread-id ${threadId}\x1b[0m\n`,
+          `\nThread: ${threadId}\nResume with: ${ansi.success}botholomew chat --thread-id ${threadId}${ansi.reset}\n`,
         );
       }
     };
@@ -202,7 +204,7 @@ export function App({
 
     // Tab key cycles tabs — always active (InputBar ignores tab)
     if (key.tab && !key.shift) {
-      setActiveTab((t) => ((t % 5) + 1) as TabId);
+      setActiveTab((t) => ((t % 6) + 1) as TabId);
       return;
     }
 
@@ -236,7 +238,7 @@ export function App({
     if (activeTab !== 1) {
       // Number keys jump to tab on non-chat tabs
       const num = Number.parseInt(input, 10);
-      if (num >= 1 && num <= 5) {
+      if (num >= 1 && num <= 6) {
         setActiveTab(num as TabId);
         return;
       }
@@ -374,7 +376,7 @@ export function App({
           content: [
             "Navigation:",
             "  Tab            Cycle between panels",
-            "  1-5            Jump to panel (when not in Chat)",
+            "  1-6            Jump to panel (when not in Chat)",
             "  Escape         Return to Chat",
             "",
             "Chat (Tab 1):",
@@ -401,6 +403,14 @@ export function App({
             "  f              Cycle status filter",
             "  p              Cycle priority filter",
             "  r              Refresh tasks",
+            "",
+            "Threads (Tab 5):",
+            "  ↑/↓            Navigate thread list",
+            "  Shift+↑/↓      Scroll detail pane",
+            "  j/k            Scroll detail pane",
+            "  f              Cycle type filter",
+            "  d              Delete thread (with confirmation)",
+            "  r              Refresh threads",
             "",
             "Commands:",
             "  /help           Show this help",
@@ -474,6 +484,13 @@ export function App({
       )}
       {activeTab === 4 && <TaskPanel conn={conn} isActive={activeTab === 4} />}
       {activeTab === 5 && (
+        <ThreadPanel
+          conn={conn}
+          activeThreadId={threadId}
+          isActive={activeTab === 5}
+        />
+      )}
+      {activeTab === 6 && (
         <HelpPanel
           projectDir={projectDir}
           threadId={threadId}

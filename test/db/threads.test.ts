@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import type { DbConnection } from "../../src/db/connection.ts";
 import {
   createThread,
+  deleteThread,
   endThread,
   getThread,
   listThreads,
@@ -128,6 +129,52 @@ describe("interaction logging", () => {
     expect(result?.interactions[0]?.content).toBe(
       "What's the user's name? It's O'Brien.",
     );
+  });
+});
+
+describe("deleteThread", () => {
+  test("deletes thread and its interactions", async () => {
+    const threadId = await createThread(
+      conn,
+      "chat_session",
+      undefined,
+      "To delete",
+    );
+    await logInteraction(conn, threadId, {
+      role: "user",
+      kind: "message",
+      content: "Hello",
+    });
+    await logInteraction(conn, threadId, {
+      role: "assistant",
+      kind: "message",
+      content: "Hi there",
+    });
+
+    const deleted = await deleteThread(conn, threadId);
+    expect(deleted).toBe(true);
+
+    const result = await getThread(conn, threadId);
+    expect(result).toBeNull();
+  });
+
+  test("returns false for nonexistent thread", async () => {
+    const deleted = await deleteThread(conn, "nonexistent-id");
+    expect(deleted).toBe(false);
+  });
+
+  test("deletes thread with no interactions", async () => {
+    const threadId = await createThread(
+      conn,
+      "daemon_tick",
+      undefined,
+      "Empty",
+    );
+    const deleted = await deleteThread(conn, threadId);
+    expect(deleted).toBe(true);
+
+    const result = await getThread(conn, threadId);
+    expect(result).toBeNull();
   });
 });
 
