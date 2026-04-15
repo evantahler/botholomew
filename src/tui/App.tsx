@@ -51,9 +51,11 @@ function restoreMessagesFromInteractions(
   const result: ChatMessage[] = [];
   let pendingTools: ToolCallData[] = [];
 
+  let restoredIdx = 0;
   for (const ix of interactions) {
     if (ix.kind === "tool_use") {
       pendingTools.push({
+        id: `restored-${restoredIdx++}`,
         name: ix.tool_name ?? "unknown",
         input: ix.tool_input ?? "{}",
         running: false,
@@ -302,11 +304,12 @@ export function App({
               lastStreamFlush = now;
             }
           },
-          onToolStart: (name, input) => {
+          onToolStart: (id, name, input) => {
             if (currentText) {
               finalizeSegment();
             }
             const tc: ToolCallData = {
+              id,
               name,
               input,
               running: true,
@@ -315,10 +318,8 @@ export function App({
             pendingToolCalls.push(tc);
             setActiveToolCalls([...pendingToolCalls]);
           },
-          onToolEnd: (name, output, isError, meta) => {
-            const tc = pendingToolCalls.find(
-              (t) => t.name === name && t.running,
-            );
+          onToolEnd: (id, _name, output, isError, meta) => {
+            const tc = pendingToolCalls.find((t) => t.id === id);
             if (tc) {
               tc.running = false;
               tc.output = output;

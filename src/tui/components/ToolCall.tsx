@@ -31,6 +31,7 @@ export interface LargeResultMeta {
 }
 
 export interface ToolCallData {
+  id: string;
   name: string;
   input: string;
   output?: string;

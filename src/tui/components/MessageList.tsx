@@ -117,9 +117,8 @@ const MessageBubble = memo(function MessageBubble({
             marginBottom={0}
             width="100%"
           >
-            {message.toolCalls.map((tc, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: tool calls are append-only
-              <ToolCall key={`${i}-${tc.name}`} tool={tc} />
+            {message.toolCalls.map((tc) => (
+              <ToolCall key={tc.id} tool={tc} />
             ))}
           </Box>
         )}
@@ -160,7 +159,7 @@ export function MessageList({
               paddingX={1}
             >
               {activeToolCalls.map((tc) => (
-                <ToolCall key={`active-${tc.name}`} tool={tc} />
+                <ToolCall key={tc.id} tool={tc} />
               ))}
             </Box>
           )}
