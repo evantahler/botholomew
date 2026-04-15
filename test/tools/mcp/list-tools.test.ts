@@ -20,13 +20,14 @@ function mockClient(
 }
 
 describe("mcp_list_tools", () => {
-  test("returns empty array when mcpxClient is null", async () => {
+  test("returns empty array with hint when mcpxClient is null", async () => {
     const { ctx } = setupToolContext();
     const result = await mcpListToolsTool.execute({}, ctx);
     expect(result.tools).toEqual([]);
+    expect(result.hint).toContain("No MCP servers configured");
   });
 
-  test("lists all tools from all servers", async () => {
+  test("lists all tools with next-action hint", async () => {
     const { ctx } = setupToolContext();
     ctx.mcpxClient = mockClient([
       { server: "gmail", name: "send_email", description: "Send email" },
@@ -40,6 +41,7 @@ describe("mcp_list_tools", () => {
       name: "send_email",
       description: "Send email",
     });
+    expect(result.hint).toContain("mcp_search");
   });
 
   test("filters by server name", async () => {
@@ -52,5 +54,14 @@ describe("mcp_list_tools", () => {
     const result = await mcpListToolsTool.execute({ server: "gmail" }, ctx);
     expect(result.tools).toHaveLength(1);
     expect(result.tools[0]?.server).toBe("gmail");
+  });
+
+  test("returns appropriate hint when no tools available", async () => {
+    const { ctx } = setupToolContext();
+    ctx.mcpxClient = mockClient([]);
+
+    const result = await mcpListToolsTool.execute({}, ctx);
+    expect(result.tools).toEqual([]);
+    expect(result.hint).toContain("No tools available");
   });
 });

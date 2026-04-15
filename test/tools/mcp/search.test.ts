@@ -18,13 +18,14 @@ function mockClient(
 }
 
 describe("mcp_search", () => {
-  test("returns empty results when mcpxClient is null", async () => {
+  test("returns empty results with hint when mcpxClient is null", async () => {
     const { ctx } = setupToolContext();
     const result = await mcpSearchTool.execute({ query: "email" }, ctx);
     expect(result.results).toEqual([]);
+    expect(result.hint).toContain("No MCP servers configured");
   });
 
-  test("returns search results", async () => {
+  test("returns search results with next-action hint", async () => {
     const { ctx } = setupToolContext();
     ctx.mcpxClient = mockClient([
       {
@@ -45,17 +46,46 @@ describe("mcp_search", () => {
       score: 0.95,
       match_type: "both",
     });
+    expect(result.hint).toContain("mcp_info");
   });
 
-  test("returns empty results when search throws", async () => {
+  test("returns hint for empty results", async () => {
+    const { ctx } = setupToolContext();
+    ctx.mcpxClient = mockClient([]);
+
+    const result = await mcpSearchTool.execute({ query: "nonexistent" }, ctx);
+    expect(result.results).toEqual([]);
+    expect(result.is_error).toBe(false);
+    expect(result.hint).toContain("mcp_list_tools");
+  });
+
+  test("returns error_message when search index is missing", async () => {
     const { ctx } = setupToolContext();
     ctx.mcpxClient = {
       search: mock(async () => {
-        throw new Error("No search index");
+        throw new Error("Search index not found");
       }),
     } as unknown as McpxClient;
 
     const result = await mcpSearchTool.execute({ query: "email" }, ctx);
     expect(result.results).toEqual([]);
+    expect(result.is_error).toBe(true);
+    expect(result.error_message).toContain("Search index not built");
+    expect(result.hint).toContain("mcp_list_tools");
+  });
+
+  test("returns error_message for generic search failure", async () => {
+    const { ctx } = setupToolContext();
+    ctx.mcpxClient = {
+      search: mock(async () => {
+        throw new Error("Something broke");
+      }),
+    } as unknown as McpxClient;
+
+    const result = await mcpSearchTool.execute({ query: "email" }, ctx);
+    expect(result.results).toEqual([]);
+    expect(result.is_error).toBe(true);
+    expect(result.error_message).toContain("Search failed");
+    expect(result.hint).toContain("fallback");
   });
 });

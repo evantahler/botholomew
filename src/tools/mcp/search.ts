@@ -24,6 +24,8 @@ const SearchResultSchema = z.object({
 const outputSchema = z.object({
   results: z.array(SearchResultSchema),
   is_error: z.boolean(),
+  error_message: z.string().optional(),
+  hint: z.string().optional(),
 });
 
 export const mcpSearchTool = {
@@ -35,7 +37,11 @@ export const mcpSearchTool = {
   outputSchema,
   execute: async (input, ctx) => {
     if (!ctx.mcpxClient) {
-      return { results: [], is_error: false };
+      return {
+        results: [],
+        is_error: false,
+        hint: "No MCP servers configured. Add servers with `botholomew mcpx add`.",
+      };
     }
 
     try {
@@ -43,18 +49,38 @@ export const mcpSearchTool = {
         keywordOnly: input.keyword_only,
         semanticOnly: input.semantic_only,
       });
+      const mapped = results.map((r) => ({
+        server: r.server,
+        tool: r.tool,
+        description: r.description ?? "",
+        score: r.score,
+        match_type: r.matchType ?? "keyword",
+      }));
       return {
-        results: results.map((r) => ({
-          server: r.server,
-          tool: r.tool,
-          description: r.description ?? "",
-          score: r.score,
-          match_type: r.matchType ?? "keyword",
-        })),
+        results: mapped,
         is_error: false,
+        hint:
+          mapped.length > 0
+            ? "Use mcp_info with server and tool name to see the full input schema before calling mcp_exec."
+            : "No matches. Try broader search terms, or use mcp_list_tools to browse all available tools.",
       };
-    } catch {
-      return { results: [], is_error: true };
+    } catch (err) {
+      const msg = String(err).toLowerCase();
+      const isIndexMissing =
+        msg.includes("index") ||
+        msg.includes("not found") ||
+        msg.includes("no such file");
+
+      return {
+        results: [],
+        is_error: true,
+        error_message: isIndexMissing
+          ? "Search index not built. Run 'botholomew mcpx index' to build it."
+          : `Search failed: ${err}`,
+        hint: isIndexMissing
+          ? "Use mcp_list_tools to browse available tools instead."
+          : "Search temporarily unavailable. Use mcp_list_tools as a fallback.",
+      };
     }
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;
