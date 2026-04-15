@@ -1,6 +1,6 @@
 {
   "name": "botholomew",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "An AI agent for knowledge work",
   "type": "module",
   "bin": {
@@ -19,7 +19,6 @@
     "dev": "bun run src/cli.ts",
     "dev:demo": "bun run src/cli.ts chat -p 'learn everything you can about me from the connected MCP services and then save what you'\\''ve learned about me to context'",
     "test": "bun test",
-    "build": "bun build --compile --minify --sourcemap --external react-devtools-core ./src/cli.ts --outfile dist/botholomew",
     "lint": "tsc --noEmit && biome check ."
   },
   "dependencies": {
