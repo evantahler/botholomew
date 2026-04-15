@@ -146,25 +146,27 @@ export function InputBar({
       paddingX={1}
     >
       {header}
-      <Box flexDirection="column">
-        <Box>
-          <Text color={disabled ? "gray" : "green"}>{"› "}</Text>
-          {placeholder ? (
-            <Text dimColor>Type a message...</Text>
-          ) : (
-            <Text>
-              {value.slice(0, cursorPos)}
-              <Text inverse={cursorVisible}>{value[cursorPos] ?? " "}</Text>
-              {value.slice(cursorPos + 1)}
-            </Text>
+      {!disabled && (
+        <Box flexDirection="column">
+          <Box>
+            <Text color="green">{"› "}</Text>
+            {placeholder ? (
+              <Text dimColor>Type a message...</Text>
+            ) : (
+              <Text>
+                {value.slice(0, cursorPos)}
+                <Text inverse={cursorVisible}>{value[cursorPos] ?? " "}</Text>
+                {value.slice(cursorPos + 1)}
+              </Text>
+            )}
+          </Box>
+          {isMultiline && (
+            <Box>
+              <Text dimColor> alt+return for newline, return to send</Text>
+            </Box>
           )}
         </Box>
-        {isMultiline && (
-          <Box>
-            <Text dimColor> alt+return for newline, return to send</Text>
-          </Box>
-        )}
-      </Box>
+      )}
     </Box>
   );
 }

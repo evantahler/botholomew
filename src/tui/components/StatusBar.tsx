@@ -3,13 +3,11 @@ import { useEffect, useState } from "react";
 import type { DbConnection } from "../../db/connection.ts";
 import { listTasks } from "../../db/tasks.ts";
 import { getDaemonStatus } from "../../utils/pid.ts";
-import { theme } from "../theme.ts";
 import { LogoChar } from "./Logo.tsx";
 
 interface StatusBarProps {
   projectDir: string;
   conn: DbConnection;
-  isLoading: boolean;
   onDaemonStatusChange?: (running: boolean) => void;
 }
 
@@ -22,7 +20,6 @@ interface Status {
 export function StatusBar({
   projectDir,
   conn,
-  isLoading,
   onDaemonStatusChange,
 }: StatusBarProps) {
   const [status, setStatus] = useState<Status>({
@@ -63,12 +60,6 @@ export function StatusBar({
       <Text bold color="blue">
         Botholomew
       </Text>
-      <Text dimColor> | </Text>
-      {isLoading ? (
-        <Text color={theme.accent}>Working...</Text>
-      ) : (
-        <Text color="green">Ready</Text>
-      )}
       <Text dimColor> | </Text>
       {status.daemonRunning ? (
         <Text color="green">Daemon</Text>

@@ -10,7 +10,6 @@ import { MAX_INLINE_CHARS, PAGE_SIZE_CHARS } from "../daemon/large-results.ts";
 import type { Interaction } from "../db/threads.ts";
 import { getThread } from "../db/threads.ts";
 import { ContextPanel } from "./components/ContextPanel.tsx";
-import { Divider } from "./components/Divider.tsx";
 import { HelpPanel } from "./components/HelpPanel.tsx";
 import { InputBar } from "./components/InputBar.tsx";
 import { AnimatedLogo } from "./components/Logo.tsx";
@@ -458,9 +457,6 @@ export function App({
 
   return (
     <Box flexDirection="column" height="100%">
-      <TabBar activeTab={activeTab} />
-      <Divider isLoading={isLoading} />
-
       {/* Tab content area */}
       {activeTab === 1 && (
         <MessageList
@@ -493,7 +489,7 @@ export function App({
         />
       )}
 
-      {/* Bottom bar: StatusBar + InputBar (input only on Chat tab) */}
+      {/* Bottom bar: StatusBar + InputBar (input only on Chat tab) + TabBar */}
       <InputBar
         value={inputValue}
         onChange={setInputValue}
@@ -504,11 +500,11 @@ export function App({
           <StatusBar
             projectDir={projectDir}
             conn={conn}
-            isLoading={isLoading}
             onDaemonStatusChange={setDaemonRunning}
           />
         }
       />
+      <TabBar activeTab={activeTab} />
     </Box>
   );
 }
