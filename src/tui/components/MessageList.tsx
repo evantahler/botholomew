@@ -1,6 +1,7 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import Spinner from "ink-spinner";
-import { memo, useMemo, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import { memo, useMemo } from "react";
 import { theme } from "../theme.ts";
 import { ToolCall, type ToolCallData } from "./ToolCall.tsx";
 
@@ -18,6 +19,8 @@ interface MessageListProps {
   isLoading: boolean;
   activeToolCalls: ToolCallData[];
   isActive: boolean;
+  viewEndIndex: number | null;
+  setViewEndIndex: Dispatch<SetStateAction<number | null>>;
 }
 
 function formatTime(date: Date): string {
@@ -137,11 +140,9 @@ export function MessageList({
   isLoading,
   activeToolCalls,
   isActive,
+  viewEndIndex,
+  setViewEndIndex,
 }: MessageListProps) {
-  // null = pinned to bottom (newest messages visible)
-  // number = index of the last visible message (absolute anchor)
-  const [viewEndIndex, setViewEndIndex] = useState<number | null>(null);
-
   // Scroll input — Shift+↑/↓
   useInput((_input, key) => {
     if (!isActive) return;
