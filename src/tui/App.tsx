@@ -116,7 +116,8 @@ export function App({
   const [streamingText, setStreamingText] = useState("");
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCallData[]>([]);
   const [ready, setReady] = useState(false);
-  const [splashDone, setSplashDone] = useState(false);
+  const skipSplash = !!(resumeThreadId || initialPrompt);
+  const [splashDone, setSplashDone] = useState(skipSplash);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<ChatSession | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>(1);
