@@ -8,6 +8,7 @@ import {
 } from "../db/tasks.ts";
 import { createThread, endThread, logInteraction } from "../db/threads.ts";
 import { logger } from "../utils/logger.ts";
+import { generateThreadTitle } from "../utils/title.ts";
 import { runAgentLoop } from "./llm.ts";
 import { buildSystemPrompt } from "./prompt.ts";
 import { processSchedules } from "./schedules.ts";
@@ -82,6 +83,14 @@ export async function tick(
     });
 
     logger.info(`Task ${task.id} -> ${result.status}`);
+
+    // Generate a descriptive title for the thread
+    void generateThreadTitle(
+      config,
+      conn,
+      threadId,
+      `Task: ${task.name}\nDescription: ${task.description}\nOutcome: ${result.status}${result.reason ? ` — ${result.reason}` : ""}`,
+    );
   } catch (err) {
     await updateTaskStatus(conn, task.id, "failed", String(err));
 

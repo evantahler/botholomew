@@ -8,6 +8,7 @@ import { LogoChar } from "./Logo.tsx";
 interface StatusBarProps {
   projectDir: string;
   conn: DbConnection;
+  chatTitle?: string;
   onDaemonStatusChange?: (running: boolean) => void;
 }
 
@@ -20,6 +21,7 @@ interface Status {
 export function StatusBar({
   projectDir,
   conn,
+  chatTitle,
   onDaemonStatusChange,
 }: StatusBarProps) {
   const [status, setStatus] = useState<Status>({
@@ -60,6 +62,14 @@ export function StatusBar({
       <Text bold color="blue">
         Botholomew
       </Text>
+      {chatTitle && (
+        <>
+          <Text dimColor> | </Text>
+          <Text color="cyan" bold>
+            {chatTitle.length > 30 ? `${chatTitle.slice(0, 29)}…` : chatTitle}
+          </Text>
+        </>
+      )}
       <Text dimColor> | </Text>
       {status.daemonRunning ? (
         <Text color="green">Daemon</Text>

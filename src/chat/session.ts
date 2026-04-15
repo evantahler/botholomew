@@ -14,6 +14,7 @@ import {
 } from "../db/threads.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
 import type { ToolContext } from "../tools/tool.ts";
+import { generateThreadTitle } from "../utils/title.ts";
 import {
   buildChatSystemPrompt,
   type ChatTurnCallbacks,
@@ -60,21 +61,23 @@ export async function startChatSession(
     await reopenThread(conn, threadId);
 
     // Rebuild message history from interactions
+    let firstUserMessage: string | undefined;
     for (const interaction of result.interactions) {
       if (interaction.kind !== "message") continue;
       if (interaction.role === "user") {
+        if (!firstUserMessage) firstUserMessage = interaction.content;
         messages.push({ role: "user", content: interaction.content });
       } else if (interaction.role === "assistant") {
         messages.push({ role: "assistant", content: interaction.content });
       }
     }
+
+    // Backfill title for threads that still have the default
+    if (result.thread.title === "New chat" && firstUserMessage) {
+      void generateThreadTitle(config, conn, threadId, firstUserMessage);
+    }
   } else {
-    threadId = await createThread(
-      conn,
-      "chat_session",
-      undefined,
-      "Interactive chat",
-    );
+    threadId = await createThread(conn, "chat_session", undefined, "New chat");
   }
 
   const systemPrompt = await buildChatSystemPrompt(projectDir);
@@ -117,6 +120,16 @@ export async function sendMessage(
   });
 
   session.messages.push({ role: "user", content: userMessage });
+
+  // Auto-generate title after first user message in a new thread
+  if (session.messages.length === 1) {
+    void generateThreadTitle(
+      session.config,
+      session.conn,
+      session.threadId,
+      userMessage,
+    );
+  }
 
   await runChatTurn({
     messages: session.messages,
