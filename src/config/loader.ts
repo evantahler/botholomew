@@ -1,11 +1,9 @@
 import { getConfigPath } from "../constants.ts";
-import {
-  type BotholomewConfig,
-  DEFAULT_CONFIG,
-  type ResolvedConfig,
-} from "./schemas.ts";
+import { type BotholomewConfig, DEFAULT_CONFIG } from "./schemas.ts";
 
-export async function loadConfig(projectDir: string): Promise<ResolvedConfig> {
+export async function loadConfig(
+  projectDir: string,
+): Promise<Required<BotholomewConfig>> {
   const configPath = getConfigPath(projectDir);
   const file = Bun.file(configPath);
 

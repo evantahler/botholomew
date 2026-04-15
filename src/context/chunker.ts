@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ResolvedConfig } from "../config/schemas.ts";
+import type { BotholomewConfig } from "../config/schemas.ts";
 import { logger } from "../utils/logger.ts";
 
 export interface Chunk {
@@ -89,7 +89,7 @@ export function chunkWithSlidingWindow(
 export async function chunkWithLLM(
   content: string,
   mimeType: string,
-  config: ResolvedConfig,
+  config: Required<BotholomewConfig>,
 ): Promise<Chunk[]> {
   const client = new Anthropic({ apiKey: config.anthropic_api_key });
   const lines = content.split("\n");
@@ -145,7 +145,7 @@ ${content}`,
 export async function chunk(
   content: string,
   mimeType: string,
-  config: ResolvedConfig,
+  config: Required<BotholomewConfig>,
 ): Promise<Chunk[]> {
   if (content.length < SHORT_CONTENT_THRESHOLD) {
     return [{ index: 0, content }];

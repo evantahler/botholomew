@@ -8,14 +8,12 @@ export interface BotholomewConfig {
   max_turns?: number;
 }
 
-export type ResolvedConfig = Required<Omit<BotholomewConfig, "max_turns">> &
-  Pick<BotholomewConfig, "max_turns">;
-
-export const DEFAULT_CONFIG: ResolvedConfig = {
+export const DEFAULT_CONFIG: Required<BotholomewConfig> = {
   anthropic_api_key: "",
   model: "claude-opus-4-20250514",
   chunker_model: "claude-haiku-4-20250514",
   tick_interval_seconds: 300,
   max_tick_duration_seconds: 120,
   system_prompt_override: "",
+  max_turns: 0,
 };

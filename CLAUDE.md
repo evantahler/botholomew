@@ -33,6 +33,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 
 ## Conventions
 
+- **Always use `bun`** — never use `npm`, `npx`, `yarn`, or `node`. This is a Bun project: `bun install`, `bun test`, `bun run <script>`, `bunx` for one-off binaries.
 - Bump `version` in `package.json` for every change merged to `main` — the auto-release workflow uses this to determine when to publish
 - Run `bun run lint` and `bun test` before committing
 - `bun run lint` runs both `tsc --noEmit` and `biome check`

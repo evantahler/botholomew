@@ -1,6 +1,6 @@
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { loadConfig } from "../config/loader.ts";
-import type { ResolvedConfig } from "../config/schemas.ts";
+import type { BotholomewConfig } from "../config/schemas.ts";
 import { getDbPath } from "../constants.ts";
 import type { DbConnection } from "../db/connection.ts";
 import { getConnection } from "../db/connection.ts";
@@ -24,7 +24,7 @@ export interface ChatSession {
   conn: DbConnection;
   threadId: string;
   projectDir: string;
-  config: ResolvedConfig;
+  config: Required<BotholomewConfig>;
   messages: MessageParam[];
   systemPrompt: string;
   toolCtx: ToolContext;

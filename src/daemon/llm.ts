@@ -5,7 +5,7 @@ import type {
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
 import type { McpxClient } from "@evantahler/mcpx";
-import type { ResolvedConfig } from "../config/schemas.ts";
+import type { BotholomewConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
 import type { Task } from "../db/tasks.ts";
 import { logInteraction } from "../db/threads.ts";
@@ -30,7 +30,7 @@ const STATUS_MAP: Record<string, AgentLoopResult["status"]> = {
 export async function runAgentLoop(input: {
   systemPrompt: string;
   task: Task;
-  config: ResolvedConfig;
+  config: Required<BotholomewConfig>;
   conn: DbConnection;
   threadId: string;
   projectDir: string;

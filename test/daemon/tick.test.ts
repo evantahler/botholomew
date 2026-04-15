@@ -49,6 +49,7 @@ describe("daemon tick", () => {
       chunker_model: "claude-haiku-4-20250514",
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
+  max_turns: 0,
       system_prompt_override: "",
     });
 
@@ -69,6 +70,7 @@ describe("daemon tick", () => {
       chunker_model: "claude-haiku-4-20250514",
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
+  max_turns: 0,
       system_prompt_override: "",
     });
 
@@ -98,6 +100,7 @@ describe("daemon tick", () => {
       chunker_model: "claude-haiku-4-20250514",
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
+  max_turns: 0,
       system_prompt_override: "",
     });
 
@@ -131,6 +134,7 @@ describe("daemon tick", () => {
       chunker_model: "claude-haiku-4-20250514",
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
+  max_turns: 0,
       system_prompt_override: "",
     });
 
@@ -184,6 +188,7 @@ describe("daemon tick", () => {
       chunker_model: "claude-haiku-4-20250514",
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
+  max_turns: 0,
       system_prompt_override: "",
     });
 
