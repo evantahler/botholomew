@@ -3,6 +3,7 @@ import type { DbConnection } from "../../src/db/connection.ts";
 import {
   claimNextTask,
   createTask,
+  deleteTask,
   getTask,
   listTasks,
   updateTaskStatus,
@@ -68,6 +69,20 @@ describe("task CRUD", () => {
   test("get nonexistent task returns null", async () => {
     const task = await getTask(conn, "nonexistent-id");
     expect(task).toBeNull();
+  });
+
+  test("delete a task", async () => {
+    const task = await createTask(conn, { name: "To delete" });
+    const deleted = await deleteTask(conn, task.id);
+    expect(deleted).toBe(true);
+
+    const fetched = await getTask(conn, task.id);
+    expect(fetched).toBeNull();
+  });
+
+  test("delete nonexistent task returns false", async () => {
+    const deleted = await deleteTask(conn, "nonexistent-id");
+    expect(deleted).toBe(false);
   });
 });
 
