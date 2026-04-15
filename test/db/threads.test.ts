@@ -7,6 +7,7 @@ import {
   getThread,
   listThreads,
   logInteraction,
+  updateThreadTitle,
 } from "../../src/db/threads.ts";
 import { setupTestDb } from "../helpers.ts";
 
@@ -51,6 +52,20 @@ describe("thread CRUD", () => {
 
     const result = await getThread(conn, threadId);
     expect(result?.thread.ended_at).not.toBeNull();
+  });
+
+  test("update thread title", async () => {
+    const threadId = await createThread(
+      conn,
+      "chat_session",
+      undefined,
+      "Interactive chat",
+    );
+
+    await updateThreadTitle(conn, threadId, "Discussing project architecture");
+
+    const result = await getThread(conn, threadId);
+    expect(result?.thread.title).toBe("Discussing project architecture");
   });
 
   test("get nonexistent thread returns null", async () => {

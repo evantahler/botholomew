@@ -125,6 +125,7 @@ export function App({
   const sessionRef = useRef<ChatSession | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>(1);
   const [daemonRunning, setDaemonRunning] = useState(false);
+  const [chatTitle, setChatTitle] = useState<string | undefined>(undefined);
   const queueRef = useRef<string[]>([]);
   const processingRef = useRef(false);
   const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
@@ -378,6 +379,28 @@ export function App({
     }
   }, [ready, initialPrompt, processQueue, syncQueue]);
 
+  // Poll for chat thread title updates
+  useEffect(() => {
+    if (!ready || !sessionRef.current) return;
+    let mounted = true;
+
+    const refreshTitle = async () => {
+      const session = sessionRef.current;
+      if (!session) return;
+      const result = await getThread(session.conn, session.threadId);
+      if (mounted && result?.thread.title) {
+        setChatTitle(result.thread.title);
+      }
+    };
+
+    refreshTitle();
+    const interval = setInterval(refreshTitle, 5000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [ready]);
+
   const handleSubmit = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
@@ -458,10 +481,11 @@ export function App({
         <StatusBar
           projectDir={projectDir}
           conn={sessionConn}
+          chatTitle={chatTitle}
           onDaemonStatusChange={setDaemonRunning}
         />
       ) : null,
-    [projectDir, sessionConn],
+    [projectDir, sessionConn, chatTitle],
   );
 
   const allToolCalls = useMemo(
