@@ -78,7 +78,7 @@ describe("context CRUD", () => {
     const existing = await getContextItemByPath(conn, path);
     expect(existing).not.toBeNull();
 
-    const updated = await updateContextItem(conn, existing!.id, {
+    const updated = await updateContextItem(conn, existing?.id, {
       title: "Updated",
       content: "v2",
       mime_type: "text/markdown",
@@ -88,7 +88,7 @@ describe("context CRUD", () => {
     expect(updated?.content).toBe("v2");
     expect(updated?.title).toBe("Updated");
     expect(updated?.mime_type).toBe("text/markdown");
-    expect(updated?.id).toBe(existing!.id);
+    expect(updated?.id).toBe(existing?.id);
 
     const items = await listContextItems(conn);
     expect(items.length).toBe(1);
