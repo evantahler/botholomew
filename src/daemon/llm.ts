@@ -148,7 +148,7 @@ export async function runAgentLoop(input: {
       toolResults.push({
         type: "tool_result",
         tool_use_id: toolUse.id,
-        content: maybeStoreResult(toolUse.name, result.output),
+        content: maybeStoreResult(toolUse.name, result.output).text,
       });
     }
 

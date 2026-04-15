@@ -104,6 +104,11 @@ function buildDetailAnsi(tool: ToolCallData): string {
 
   if (tool.output) {
     lines.push(`${BOLD}${BLUE}Output${RESET}`);
+    if (tool.largeResult) {
+      lines.push(
+        `${YELLOW}Paginated for LLM: ${tool.largeResult.chars.toLocaleString()} chars, ${tool.largeResult.pages} page(s) — stored as ${tool.largeResult.id}${RESET}`,
+      );
+    }
     lines.push(colorizeJson(tool.output));
   } else if (!tool.running) {
     lines.push(`${BOLD}${BLUE}Output${RESET}`);

@@ -53,35 +53,43 @@ describe("large-results store", () => {
   describe("maybeStoreResult", () => {
     it("returns small results unchanged", () => {
       const small = "x".repeat(100);
-      expect(maybeStoreResult("test_tool", small)).toBe(small);
+      const result = maybeStoreResult("test_tool", small);
+      expect(result.text).toBe(small);
+      expect(result.stored).toBeUndefined();
     });
 
     it("returns results at exactly MAX_INLINE_CHARS unchanged", () => {
       const exact = "x".repeat(MAX_INLINE_CHARS);
-      expect(maybeStoreResult("test_tool", exact)).toBe(exact);
+      const result = maybeStoreResult("test_tool", exact);
+      expect(result.text).toBe(exact);
+      expect(result.stored).toBeUndefined();
     });
 
     it("stores results exceeding MAX_INLINE_CHARS and returns a stub", () => {
       const big = "x".repeat(MAX_INLINE_CHARS + 1);
       const result = maybeStoreResult("my_tool", big);
 
-      expect(result).toContain("[Large result from my_tool");
-      expect(result).toContain("read_large_result");
-      expect(result.length).toBeLessThan(big.length);
+      expect(result.text).toContain("[Large result from my_tool");
+      expect(result.text).toContain("read_large_result");
+      expect(result.text.length).toBeLessThan(big.length);
+      expect(result.stored).toBeDefined();
+      expect(result.stored?.chars).toBe(big.length);
+      expect(result.stored?.pages).toBeGreaterThan(0);
+      expect(result.stored?.id).toMatch(/^lr_\d+$/);
     });
 
     it("stub includes a preview of the content", () => {
       const big = `HELLO_PREFIX${"x".repeat(MAX_INLINE_CHARS)}`;
       const result = maybeStoreResult("my_tool", big);
-      expect(result).toContain("HELLO_PREFIX");
+      expect(result.text).toContain("HELLO_PREFIX");
     });
 
     it("stored result is readable via readLargeResultPage", () => {
       const big = "abcdef".repeat(5000);
-      const stub = maybeStoreResult("my_tool", big);
+      const result = maybeStoreResult("my_tool", big);
 
       // Extract the id from the stub
-      const match = stub.match(/lr_\d+/);
+      const match = result.text.match(/lr_\d+/);
       expect(match).not.toBeNull();
       const id = match?.[0] ?? "";
 

@@ -71,15 +71,27 @@ export function buildResultStub(
   ].join("\n");
 }
 
+export interface MaybeStoreResultOutput {
+  text: string;
+  stored?: { id: string; chars: number; pages: number };
+}
+
 /**
  * If the tool output exceeds MAX_INLINE_CHARS, store it and return a stub.
  * Otherwise return the original output unchanged.
  */
-export function maybeStoreResult(toolName: string, output: string): string {
-  if (output.length <= MAX_INLINE_CHARS) return output;
+export function maybeStoreResult(
+  toolName: string,
+  output: string,
+): MaybeStoreResultOutput {
+  if (output.length <= MAX_INLINE_CHARS) return { text: output };
 
   const id = storeLargeResult(toolName, output);
-  return buildResultStub(id, toolName, output);
+  const pages = Math.ceil(output.length / PAGE_SIZE_CHARS);
+  return {
+    text: buildResultStub(id, toolName, output),
+    stored: { id, chars: output.length, pages },
+  };
 }
 
 /** Clear all stored results (useful between agent loop runs or for cleanup) */

@@ -6,6 +6,7 @@ import {
   sendMessage,
   startChatSession,
 } from "../chat/session.ts";
+import { MAX_INLINE_CHARS, PAGE_SIZE_CHARS } from "../daemon/large-results.ts";
 import type { Interaction } from "../db/threads.ts";
 import { getThread } from "../db/threads.ts";
 import { ContextPanel } from "./components/ContextPanel.tsx";
@@ -49,6 +50,13 @@ function restoreMessagesFromInteractions(
       const tc = pendingTools.find((t) => t.name === ix.tool_name && !t.output);
       if (tc) {
         tc.output = ix.content;
+        if (ix.content.length > MAX_INLINE_CHARS) {
+          tc.largeResult = {
+            id: "(restored)",
+            chars: ix.content.length,
+            pages: Math.ceil(ix.content.length / PAGE_SIZE_CHARS),
+          };
+        }
       }
     } else if (ix.kind === "message" && ix.role === "user") {
       result.push({
@@ -287,13 +295,16 @@ export function App({
             pendingToolCalls.push(tc);
             setActiveToolCalls([...pendingToolCalls]);
           },
-          onToolEnd: (name, output) => {
+          onToolEnd: (name, output, meta) => {
             const tc = pendingToolCalls.find(
               (t) => t.name === name && t.running,
             );
             if (tc) {
               tc.running = false;
               tc.output = output;
+              if (meta?.largeResult) {
+                tc.largeResult = meta.largeResult;
+              }
             }
             setActiveToolCalls([...pendingToolCalls]);
           },
