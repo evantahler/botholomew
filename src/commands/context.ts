@@ -5,6 +5,8 @@ import type { Command } from "commander";
 import { isText } from "istextorbinary";
 import { createSpinner } from "nanospinner";
 import { loadConfig } from "../config/loader.ts";
+import type { BotholomewConfig } from "../config/schemas.ts";
+import { generateDescription } from "../context/describer.ts";
 import { embedSingle } from "../context/embedder.ts";
 import {
   type PreparedIngestion,
@@ -157,7 +159,7 @@ export function registerContextCommand(program: Command) {
         ).start();
         const itemIds: { id: string; contextPath: string }[] = [];
         for (const { filePath, contextPath } of filesToAdd) {
-          const result = await addFile(conn, filePath, contextPath);
+          const result = await addFile(conn, filePath, contextPath, config);
           if (result) itemIds.push({ id: result, contextPath });
         }
         upsertSpinner.success({
@@ -443,6 +445,7 @@ async function addFile(
   conn: DbConnection,
   filePath: string,
   contextPath: string,
+  config: Required<BotholomewConfig>,
 ): Promise<string | null> {
   try {
     const bunFile = Bun.file(filePath);
@@ -452,10 +455,14 @@ async function addFile(
 
     const content = textual ? await bunFile.text() : null;
 
+    const description = await generateDescription(config, {
+      filename,
+      mimeType,
+      content,
+    });
+
     const existing = await getContextItemByPath(conn, contextPath);
     let item: ContextItem;
-
-    const description = `File imported from ${filePath}`;
 
     if (existing) {
       const updated = await updateContextItem(conn, existing.id, {
