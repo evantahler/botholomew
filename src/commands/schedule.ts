@@ -163,7 +163,7 @@ function enabledColor(enabled: boolean): string {
 }
 
 function printSchedule(s: Schedule) {
-  const id = ansis.dim(s.id.slice(0, 8));
+  const id = ansis.dim(s.id);
   const lastRun = s.last_run_at
     ? s.last_run_at.toISOString()
     : ansis.dim("never");

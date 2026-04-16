@@ -209,7 +209,7 @@ describe("thread view", () => {
     expect(output).toContain("Interactions (2)");
   });
 
-  test("supports short ID prefix", async () => {
+  test("supports full ID lookup", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
@@ -219,13 +219,13 @@ describe("thread view", () => {
       conn,
       "chat_session",
       undefined,
-      "Prefix Test",
+      "Full ID Test",
     );
     conn.close();
 
-    const result = await run(["thread", "view", threadId.slice(0, 8)]);
+    const result = await run(["thread", "view", threadId]);
     expect(result.code).toBe(0);
-    expect(result.stdout + result.stderr).toContain("Prefix Test");
+    expect(result.stdout + result.stderr).toContain("Full ID Test");
   });
 
   test("errors on unknown thread", async () => {

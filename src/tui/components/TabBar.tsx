@@ -1,6 +1,6 @@
 import { Box, Text } from "ink";
 
-export type TabId = 1 | 2 | 3 | 4 | 5 | 6;
+export type TabId = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 1, label: "Chat" },
@@ -9,6 +9,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 4, label: "Tasks" },
   { id: 5, label: "Threads" },
   { id: 6, label: "Help" },
+  { id: 7, label: "Schedules" },
 ];
 
 interface TabBarProps {
