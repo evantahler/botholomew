@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { contextPathExists } from "../../db/context.ts";
+import { resolveContextItem } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
-  path: z.string().describe("File path to check"),
+  path: z.string().describe("File path or context item ID"),
 });
 
 const outputSchema = z.object({
@@ -18,7 +18,7 @@ export const contextExistsTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const exists = await contextPathExists(ctx.conn, input.path);
-    return { exists, is_error: false };
+    const item = await resolveContextItem(ctx.conn, input.path);
+    return { exists: item !== null, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { getContextItem, getContextItemByPath } from "../../db/context.ts";
-import { isUuid } from "../../db/uuid.ts";
+import { resolveContextItemOrThrow } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
@@ -24,10 +23,7 @@ export const contextReadTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const item = isUuid(input.path)
-      ? await getContextItem(ctx.conn, input.path)
-      : await getContextItemByPath(ctx.conn, input.path);
-    if (!item) throw new Error(`Not found: ${input.path}`);
+    const item = await resolveContextItemOrThrow(ctx.conn, input.path);
     if (item.content == null) throw new Error(`No text content: ${input.path}`);
 
     let content = item.content;
