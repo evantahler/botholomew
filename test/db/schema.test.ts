@@ -35,7 +35,7 @@ describe("schema migrations", () => {
     )) as {
       count: number;
     };
-    expect(row.count).toBe(7);
+    expect(row.count).toBe(8);
 
     db.close();
   });
@@ -62,6 +62,7 @@ describe("schema migrations", () => {
       "context_ids",
       "created_at",
       "updated_at",
+      "output",
     ]);
 
     db.close();

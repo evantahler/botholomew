@@ -110,6 +110,7 @@ describe("buildSystemPrompt", () => {
       claimed_at: new Date(),
       blocked_by: [],
       context_ids: [],
+      output: null,
       created_at: new Date(),
       updated_at: new Date(),
     };
@@ -137,6 +138,7 @@ describe("buildSystemPrompt", () => {
       claimed_at: new Date(),
       blocked_by: [],
       context_ids: [],
+      output: null,
       created_at: new Date(),
       updated_at: new Date(),
     };
@@ -200,6 +202,7 @@ describe("buildSystemPrompt", () => {
       claimed_at: new Date(),
       blocked_by: [],
       context_ids: [],
+      output: null,
       created_at: new Date(),
       updated_at: new Date(),
     };

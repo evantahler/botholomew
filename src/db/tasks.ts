@@ -22,6 +22,7 @@ export interface Task {
   claimed_at: Date | null;
   blocked_by: string[];
   context_ids: string[];
+  output: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -37,6 +38,7 @@ interface TaskRow {
   claimed_at: string | null;
   blocked_by: string;
   context_ids: string;
+  output: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -53,6 +55,7 @@ function rowToTask(row: TaskRow): Task {
     claimed_at: row.claimed_at ? new Date(row.claimed_at) : null,
     blocked_by: JSON.parse(row.blocked_by || "[]"),
     context_ids: JSON.parse(row.context_ids || "[]"),
+    output: row.output,
     created_at: new Date(row.created_at),
     updated_at: new Date(row.updated_at),
   };
@@ -130,13 +133,15 @@ export async function updateTaskStatus(
   id: string,
   status: Task["status"],
   reason?: string,
+  output?: string,
 ): Promise<void> {
   await db.queryRun(
     `UPDATE tasks
-     SET status = ?1, waiting_reason = ?2, updated_at = current_timestamp::VARCHAR
-     WHERE id = ?3`,
+     SET status = ?1, waiting_reason = ?2, output = ?3, updated_at = current_timestamp::VARCHAR
+     WHERE id = ?4`,
     status,
     reason ?? null,
+    output ?? null,
     id,
   );
 }
@@ -231,7 +236,7 @@ export async function resetTask(
   const row = await db.queryGet<TaskRow>(
     `UPDATE tasks
      SET status = 'pending', claimed_by = NULL, claimed_at = NULL,
-         waiting_reason = NULL, updated_at = current_timestamp::VARCHAR
+         waiting_reason = NULL, output = NULL, updated_at = current_timestamp::VARCHAR
      WHERE id = ?1
      RETURNING *`,
     id,

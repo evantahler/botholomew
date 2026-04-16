@@ -168,6 +168,7 @@ function printTaskDetail(t: Task) {
   console.log(`  Priority:    ${priorityColor(t.priority)}`);
   if (t.description) console.log(`  Description: ${t.description}`);
   if (t.waiting_reason) console.log(`  Waiting:     ${t.waiting_reason}`);
+  if (t.output) console.log(`  Output:      ${t.output}`);
   if (t.claimed_by) console.log(`  Claimed by:  ${t.claimed_by}`);
   if (t.blocked_by.length > 0)
     console.log(`  Blocked by:  ${t.blocked_by.join(", ")}`);
