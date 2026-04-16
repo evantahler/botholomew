@@ -85,6 +85,39 @@ export async function createContextItem(
   return rowToContextItem(row);
 }
 
+/**
+ * Atomic upsert by context_path: updates if the path exists, inserts otherwise.
+ *
+ * DuckDB implements UPDATE as delete+insert on tables with unique indexes,
+ * which violates foreign keys from the embeddings table. We must delete
+ * embeddings before updating; callers (context add, file_write) re-create
+ * them in their ingestion phase.
+ */
+export async function upsertContextItem(
+  db: DbConnection,
+  params: {
+    title: string;
+    content?: string;
+    mimeType?: string;
+    sourcePath?: string;
+    contextPath: string;
+    description?: string;
+    isTextual?: boolean;
+  },
+): Promise<ContextItem> {
+  const existing = await getContextItemByPath(db, params.contextPath);
+  if (existing) {
+    const updated = await updateContextItem(db, existing.id, {
+      title: params.title,
+      content: params.content,
+      mime_type: params.mimeType,
+    });
+    if (!updated) throw new Error(`Failed to update: ${params.contextPath}`);
+    return updated;
+  }
+  return createContextItem(db, params);
+}
+
 export async function getContextItem(
   db: DbConnection,
   id: string,
