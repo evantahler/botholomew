@@ -14,12 +14,12 @@ import {
 import type { DbConnection } from "../db/connection.ts";
 import {
   type ContextItem,
-  createContextItem,
   deleteContextItemByPath,
   getContextItemByPath,
   listContextItems,
   listContextItemsByPrefix,
   updateContextItem,
+  upsertContextItem,
 } from "../db/context.ts";
 import { getEmbeddingsForItem, hybridSearch } from "../db/embeddings.ts";
 import { logger } from "../utils/logger.ts";
@@ -444,30 +444,16 @@ async function addFile(
     const mimeType = bunFile.type.split(";")[0] || "application/octet-stream";
     const filename = basename(filePath);
     const textual = isText(filename) !== false;
-
     const content = textual ? await bunFile.text() : null;
 
-    const existing = await getContextItemByPath(conn, contextPath);
-    let item: ContextItem;
-
-    if (existing) {
-      const updated = await updateContextItem(conn, existing.id, {
-        title: filename,
-        content: content ?? undefined,
-        mime_type: mimeType,
-      });
-      if (!updated) throw new Error(`Failed to update: ${contextPath}`);
-      item = updated;
-    } else {
-      item = await createContextItem(conn, {
-        title: filename,
-        content: content ?? undefined,
-        mimeType,
-        sourcePath: filePath,
-        contextPath,
-        isTextual: textual,
-      });
-    }
+    const item = await upsertContextItem(conn, {
+      title: filename,
+      content: content ?? undefined,
+      mimeType,
+      sourcePath: filePath,
+      contextPath,
+      isTextual: textual,
+    });
 
     return textual && content ? item.id : null;
   } catch (err) {

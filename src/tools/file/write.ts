@@ -1,12 +1,7 @@
 import { isText } from "istextorbinary";
 import { z } from "zod";
 import { ingestByPath } from "../../context/ingest.ts";
-import {
-  createContextItem,
-  getContextItemByPath,
-  updateContextItem,
-  updateContextItemContent,
-} from "../../db/context.ts";
+import { upsertContextItem } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 function mimeFromPath(path: string): string {
@@ -53,33 +48,10 @@ export const fileWriteTool = {
   execute: async (input, ctx) => {
     const mimeType = mimeFromPath(input.path);
     const isTextual = isTextualPath(input.path);
-    const existing = await getContextItemByPath(ctx.conn, input.path);
-
-    if (existing) {
-      if (input.content_base64) {
-        // Binary update — store as content for now (DB blob support can be added later)
-        await updateContextItemContent(
-          ctx.conn,
-          input.path,
-          input.content_base64,
-        );
-      } else {
-        await updateContextItemContent(ctx.conn, input.path, input.content);
-      }
-      if (input.title || input.description) {
-        await updateContextItem(ctx.conn, existing.id, {
-          title: input.title,
-          description: input.description,
-        });
-      }
-      await ingestByPath(ctx.conn, input.path, ctx.config);
-      return { id: existing.id, path: input.path, is_error: false };
-    }
-
     const title =
       input.title ?? input.path.split("/").filter(Boolean).pop() ?? input.path;
 
-    const item = await createContextItem(ctx.conn, {
+    const item = await upsertContextItem(ctx.conn, {
       title,
       description: input.description,
       content: input.content_base64 ?? input.content,
