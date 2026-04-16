@@ -55,18 +55,6 @@ function buildScheduleDetailAnsi(schedule: Schedule): string {
     `${ansi.bold}${ansi.primary}Frequency${ansi.reset}   ${ansi.accent}${schedule.frequency}${ansi.reset}`,
   );
 
-  const lastRun = schedule.last_run_at
-    ? schedule.last_run_at.toLocaleString([], {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "(never)";
-  lines.push(
-    `${ansi.bold}${ansi.primary}Last Run${ansi.reset}    ${ansi.dim}${lastRun}${ansi.reset}`,
-  );
-
   const created = schedule.created_at.toLocaleString([], {
     month: "short",
     day: "numeric",
@@ -84,6 +72,18 @@ function buildScheduleDetailAnsi(schedule: Schedule): string {
   );
   lines.push(
     `${ansi.bold}${ansi.primary}Updated${ansi.reset}     ${ansi.dim}${updated}${ansi.reset}`,
+  );
+
+  const lastRunDisplay = schedule.last_run_at
+    ? schedule.last_run_at.toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "(never)";
+  lines.push(
+    `${ansi.bold}${ansi.primary}Last Run${ansi.reset}    ${lastRunDisplay}`,
   );
   lines.push("");
 
@@ -158,11 +158,12 @@ export const SchedulePanel = memo(function SchedulePanel({
 
   const visibleRows = Math.max(1, termRows - 6);
   const maxDetailScroll = Math.max(0, detailLines.length - visibleRows);
+  const sidebarItems = Math.max(1, Math.floor((visibleRows - 1) / 2));
   const sidebarScrollOffset = Math.max(
     0,
     Math.min(
-      selectedIndex - Math.floor(visibleRows / 2),
-      schedules.length - visibleRows,
+      selectedIndex - Math.floor(sidebarItems / 2),
+      schedules.length - sidebarItems,
     ),
   );
 
@@ -282,7 +283,7 @@ export const SchedulePanel = memo(function SchedulePanel({
 
   const sidebarVisible = schedules.slice(
     sidebarScrollOffset,
-    sidebarScrollOffset + visibleRows,
+    sidebarScrollOffset + sidebarItems,
   );
 
   const detailVisible = detailLines.slice(
@@ -326,13 +327,13 @@ export const SchedulePanel = memo(function SchedulePanel({
           const i = vi + sidebarScrollOffset;
           const isSelected = i === selectedIndex;
           const enabledKey = String(schedule.enabled);
-          const maxName = SIDEBAR_WIDTH - 12;
+          const maxName = SIDEBAR_WIDTH - 6;
           const nameDisplay =
             schedule.name.length > maxName
               ? `${schedule.name.slice(0, maxName - 1)}…`
               : schedule.name;
           return (
-            <Box key={schedule.id} paddingX={1}>
+            <Box key={schedule.id} flexDirection="column" paddingX={1}>
               <Text
                 backgroundColor={isSelected ? theme.selectionBg : undefined}
                 bold={isSelected}
@@ -344,10 +345,10 @@ export const SchedulePanel = memo(function SchedulePanel({
                   {ENABLED_ICONS[enabledKey]}
                 </Text>{" "}
                 {nameDisplay}
-                <Text dimColor bold={false}>
-                  {" "}
-                  {schedule.frequency}
-                </Text>
+              </Text>
+              <Text dimColor wrap="truncate-end">
+                {"    "}
+                {schedule.frequency}
               </Text>
             </Box>
           );
