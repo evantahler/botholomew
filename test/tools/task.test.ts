@@ -12,8 +12,8 @@ import { setupToolContext } from "../helpers.ts";
 let ctx: ToolContext;
 let conn: DbConnection;
 
-beforeEach(() => {
-  ({ ctx, conn } = setupToolContext());
+beforeEach(async () => {
+  ({ ctx, conn } = await setupToolContext());
 });
 
 // ── create_task ─────────────────────────────────────────────

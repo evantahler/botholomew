@@ -12,8 +12,8 @@ import { setupTestDb } from "../helpers.ts";
 
 let conn: DbConnection;
 
-beforeEach(() => {
-  conn = setupTestDb();
+beforeEach(async () => {
+  conn = await setupTestDb();
 });
 
 describe("task CRUD", () => {

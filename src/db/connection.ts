@@ -1,46 +1,113 @@
-import { Database } from "bun:sqlite";
-import { existsSync } from "node:fs";
-import { getExtensionPath } from "@sqliteai/sqlite-vector";
+import { DuckDBInstance } from "@duckdb/node-api";
 
-export type DbConnection = Database;
+type SqlParam = string | number | boolean | null | number[];
 
-// Bun bundles its own SQLite, but on macOS it uses Apple's proprietary build
-// which has sqlite3_load_extension() disabled for security. Since we need
-// loadable extensions (sqlite-vector), we swap in Homebrew's vanilla SQLite
-// via setCustomSQLite(). This must be called exactly once, before any
-// Database instance is created. On Linux, Bun's bundled SQLite supports
-// extensions natively, so no swap is needed.
-let sqliteConfigured = false;
+/**
+ * Thin wrapper around DuckDB connection that provides a familiar
+ * query interface similar to bun:sqlite. Automatically translates
+ * ?N parameter placeholders to $N for DuckDB compatibility.
+ */
+export class DbConnection {
+  // biome-ignore lint/suspicious/noExplicitAny: DuckDB internal types
+  private conn: any;
+  // biome-ignore lint/suspicious/noExplicitAny: DuckDB internal types
+  private instance: any;
 
-function ensureCustomSQLite(): void {
-  if (sqliteConfigured) return;
-  sqliteConfigured = true;
-
-  if (process.platform !== "darwin") return;
-
-  // Homebrew sqlite paths (arm64 and x86_64)
-  const candidates = [
-    "/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib",
-    "/usr/local/opt/sqlite/lib/libsqlite3.dylib",
-  ];
-  const sqlitePath = candidates.find((p) => existsSync(p));
-  if (!sqlitePath) {
-    throw new Error(
-      "Homebrew SQLite not found. On macOS, Botholomew requires Homebrew's SQLite " +
-        "to load the sqlite-vector extension (Apple's build disables extension loading). " +
-        "Install it with: brew install sqlite",
-    );
+  // biome-ignore lint/suspicious/noExplicitAny: DuckDB internal types
+  constructor(conn: any, instance: any) {
+    this.conn = conn;
+    this.instance = instance;
   }
-  Database.setCustomSQLite(sqlitePath);
+
+  /** Execute raw SQL with no return value. */
+  async exec(sql: string): Promise<void> {
+    await this.conn.run(sql);
+  }
+
+  /** Run a query and return the first row, or null. */
+  async queryGet<T = Record<string, unknown>>(
+    sql: string,
+    ...params: SqlParam[]
+  ): Promise<T | null> {
+    const translated = translateParams(sql);
+    const result = await this.conn.runAndReadAll(
+      translated,
+      flattenParams(params),
+    );
+    const rows = await result.getRowObjectsJS();
+    return (rows[0] ? convertRow(rows[0]) : null) as T | null;
+  }
+
+  /** Run a query and return all rows. */
+  async queryAll<T = Record<string, unknown>>(
+    sql: string,
+    ...params: SqlParam[]
+  ): Promise<T[]> {
+    const translated = translateParams(sql);
+    const result = await this.conn.runAndReadAll(
+      translated,
+      flattenParams(params),
+    );
+    const rows = await result.getRowObjectsJS();
+    return rows.map(convertRow) as T[];
+  }
+
+  /** Run a mutation and return the number of changed rows. */
+  async queryRun(
+    sql: string,
+    ...params: SqlParam[]
+  ): Promise<{ changes: number }> {
+    const translated = translateParams(sql);
+    const result = await this.conn.run(translated, flattenParams(params));
+    return { changes: result.rowsChanged };
+  }
+
+  /** Close the connection and dispose of the instance. */
+  close(): void {
+    this.conn.disconnectSync();
+    this.instance.closeSync();
+  }
 }
 
-export function getConnection(dbPath: string): Database {
-  ensureCustomSQLite();
-  const db = new Database(dbPath, { create: true });
-  db.exec("PRAGMA journal_mode = WAL");
-  db.exec("PRAGMA foreign_keys = ON");
-  db.loadExtension(getExtensionPath());
-  return db;
+/**
+ * Convert DuckDB row values to JS-friendly types:
+ * - BigInt → number (safe for counts and IDs)
+ * - Date → ISO string (matches our TEXT column convention)
+ * - Nested arrays/objects are left as-is
+ */
+// biome-ignore lint/suspicious/noExplicitAny: row values are dynamic
+function convertRow(row: Record<string, any>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(row)) {
+    if (typeof val === "bigint") {
+      out[key] = Number(val);
+    } else {
+      out[key] = val;
+    }
+  }
+  return out;
+}
+
+/** Translate ?N placeholders to $N for DuckDB. */
+function translateParams(sql: string): string {
+  return sql.replace(/\?(\d+)/g, "$$$1");
+}
+
+/** Flatten params, converting number[] to JSON strings for vector columns. */
+function flattenParams(params: SqlParam[]): SqlParam[] {
+  return params.map((p) => (Array.isArray(p) ? JSON.stringify(p) : p));
+}
+
+export async function getConnection(dbPath?: string): Promise<DbConnection> {
+  const instance = await DuckDBInstance.create(dbPath ?? ":memory:");
+  const conn = await instance.connect();
+
+  // Load VSS extension for vector similarity search
+  await conn.run("INSTALL vss; LOAD vss;");
+  // Enable HNSW index persistence for file-backed databases
+  await conn.run("SET hnsw_enable_experimental_persistence = true;");
+
+  return new DbConnection(conn, instance);
 }
 
 export async function withRetry<T>(
@@ -53,12 +120,7 @@ export async function withRetry<T>(
       return await fn();
     } catch (err) {
       lastError = err;
-      const isBusy =
-        err instanceof Error &&
-        (err.message.includes("SQLITE_BUSY") ||
-          err.message.includes("database is locked"));
-      if (!isBusy || attempt === maxRetries - 1) throw err;
-      // exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
+      if (attempt === maxRetries - 1) throw err;
       await Bun.sleep(100 * 2 ** attempt);
     }
   }

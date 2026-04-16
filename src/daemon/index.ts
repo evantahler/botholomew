@@ -10,8 +10,8 @@ import { tick } from "./tick.ts";
 export async function startDaemon(projectDir: string): Promise<void> {
   const config = await loadConfig(projectDir);
   const dbPath = getDbPath(projectDir);
-  const conn = getConnection(dbPath);
-  migrate(conn);
+  const conn = await getConnection(dbPath);
+  await migrate(conn);
 
   // Initialize MCPX client for external tool access
   const mcpxClient = await createMcpxClient(projectDir);

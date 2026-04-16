@@ -1,11 +1,7 @@
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
 import { getContextItem, getContextItemByPath } from "../db/context.ts";
-import {
-  createEmbedding,
-  deleteEmbeddingsForItem,
-  initVectorSearch,
-} from "../db/embeddings.ts";
+import { createEmbedding, deleteEmbeddingsForItem } from "../db/embeddings.ts";
 import { logger } from "../utils/logger.ts";
 import { chunk } from "./chunker.ts";
 import { embed as defaultEmbed } from "./embedder.ts";
@@ -74,24 +70,22 @@ export interface IngestionResult {
 
 /**
  * Store a prepared ingestion into the database.
- * This is fast (synchronous DB writes) and must be called sequentially.
+ * This is the fast DB-write phase and must be called sequentially.
  */
-export function storeIngestion(
+export async function storeIngestion(
   conn: DbConnection,
   prepared: PreparedIngestion,
-): IngestionResult {
-  initVectorSearch(conn);
-
+): Promise<IngestionResult> {
   let isUpdate = false;
-  conn.exec("BEGIN");
+  await conn.exec("BEGIN TRANSACTION");
   try {
-    const deleted = deleteEmbeddingsForItem(conn, prepared.itemId);
+    const deleted = await deleteEmbeddingsForItem(conn, prepared.itemId);
     isUpdate = deleted > 0;
 
     for (const [i, c] of prepared.chunks.entries()) {
       const v = prepared.vectors[i];
       if (!v) continue;
-      createEmbedding(conn, {
+      await createEmbedding(conn, {
         contextItemId: prepared.itemId,
         chunkIndex: c.index,
         chunkContent: c.content,
@@ -102,15 +96,14 @@ export function storeIngestion(
       });
     }
 
-    conn
-      .query(
-        "UPDATE context_items SET indexed_at = datetime('now') WHERE id = ?1",
-      )
-      .run(prepared.itemId);
+    await conn.queryRun(
+      "UPDATE context_items SET indexed_at = current_timestamp::VARCHAR WHERE id = ?1",
+      prepared.itemId,
+    );
 
-    conn.exec("COMMIT");
+    await conn.exec("COMMIT");
   } catch (err) {
-    conn.exec("ROLLBACK");
+    await conn.exec("ROLLBACK");
     throw err;
   }
 
@@ -136,7 +129,7 @@ export async function ingestContextItem(
 ): Promise<number> {
   const prepared = await prepareIngestion(conn, itemId, config, embedFn);
   if (!prepared) return 0;
-  return storeIngestion(conn, prepared).chunks;
+  return (await storeIngestion(conn, prepared)).chunks;
 }
 
 /**

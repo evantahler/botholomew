@@ -91,10 +91,14 @@ export async function createThread(
   title?: string,
 ): Promise<string> {
   const id = uuidv7();
-  db.query(
+  await db.queryRun(
     `INSERT INTO threads (id, type, task_id, title)
      VALUES (?1, ?2, ?3, ?4)`,
-  ).run(id, type, taskId ?? null, title ?? "");
+    id,
+    type,
+    taskId ?? null,
+    title ?? "",
+  );
   return id;
 }
 
@@ -112,18 +116,16 @@ export async function logInteraction(
   },
 ): Promise<string> {
   // Get next sequence number
-  const seqRow = db
-    .query(
-      "SELECT COALESCE(MAX(sequence), 0) + 1 AS next_seq FROM interactions WHERE thread_id = ?1",
-    )
-    .get(threadId) as { next_seq: number };
-  const sequence = seqRow.next_seq;
+  const seqRow = await db.queryGet<{ next_seq: number }>(
+    "SELECT COALESCE(MAX(sequence), 0) + 1 AS next_seq FROM interactions WHERE thread_id = ?1",
+    threadId,
+  );
+  const sequence = seqRow?.next_seq ?? 1;
 
   const id = uuidv7();
-  db.query(
+  await db.queryRun(
     `INSERT INTO interactions (id, thread_id, sequence, role, kind, content, tool_name, tool_input, duration_ms, token_count)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
-  ).run(
     id,
     threadId,
     sequence,
@@ -142,7 +144,8 @@ export async function endThread(
   db: DbConnection,
   threadId: string,
 ): Promise<void> {
-  db.query("UPDATE threads SET ended_at = datetime('now') WHERE id = ?1").run(
+  await db.queryRun(
+    "UPDATE threads SET ended_at = current_timestamp::VARCHAR WHERE id = ?1",
     threadId,
   );
 }
@@ -151,7 +154,10 @@ export async function reopenThread(
   db: DbConnection,
   threadId: string,
 ): Promise<void> {
-  db.query("UPDATE threads SET ended_at = NULL WHERE id = ?1").run(threadId);
+  await db.queryRun(
+    "UPDATE threads SET ended_at = NULL WHERE id = ?1",
+    threadId,
+  );
 }
 
 export async function updateThreadTitle(
@@ -159,23 +165,27 @@ export async function updateThreadTitle(
   threadId: string,
   title: string,
 ): Promise<void> {
-  db.query("UPDATE threads SET title = ?2 WHERE id = ?1").run(threadId, title);
+  await db.queryRun(
+    "UPDATE threads SET title = ?2 WHERE id = ?1",
+    threadId,
+    title,
+  );
 }
 
 export async function getThread(
   db: DbConnection,
   threadId: string,
 ): Promise<{ thread: Thread; interactions: Interaction[] } | null> {
-  const threadRow = db
-    .query("SELECT * FROM threads WHERE id = ?1")
-    .get(threadId) as ThreadRow | null;
+  const threadRow = await db.queryGet<ThreadRow>(
+    "SELECT * FROM threads WHERE id = ?1",
+    threadId,
+  );
   if (!threadRow) return null;
 
-  const interactionRows = db
-    .query(
-      "SELECT * FROM interactions WHERE thread_id = ?1 ORDER BY sequence ASC",
-    )
-    .all(threadId) as InteractionRow[];
+  const interactionRows = await db.queryAll<InteractionRow>(
+    "SELECT * FROM interactions WHERE thread_id = ?1 ORDER BY sequence ASC",
+    threadId,
+  );
 
   return {
     thread: rowToThread(threadRow),
@@ -187,8 +197,11 @@ export async function deleteThread(
   db: DbConnection,
   threadId: string,
 ): Promise<boolean> {
-  db.query("DELETE FROM interactions WHERE thread_id = ?1").run(threadId);
-  const result = db.query("DELETE FROM threads WHERE id = ?1").run(threadId);
+  await db.queryRun("DELETE FROM interactions WHERE thread_id = ?1", threadId);
+  const result = await db.queryRun(
+    "DELETE FROM threads WHERE id = ?1",
+    threadId,
+  );
   return result.changes > 0;
 }
 
@@ -197,22 +210,20 @@ export async function getInteractionsAfter(
   threadId: string,
   afterSequence: number,
 ): Promise<Interaction[]> {
-  const rows = db
-    .query(
-      `SELECT * FROM interactions WHERE thread_id = ?1 AND sequence > ?2 ORDER BY sequence ASC`,
-    )
-    .all(threadId, afterSequence) as InteractionRow[];
+  const rows = await db.queryAll<InteractionRow>(
+    `SELECT * FROM interactions WHERE thread_id = ?1 AND sequence > ?2 ORDER BY sequence ASC`,
+    threadId,
+    afterSequence,
+  );
   return rows.map(rowToInteraction);
 }
 
 export async function getActiveThread(
   db: DbConnection,
 ): Promise<Thread | null> {
-  const row = db
-    .query(
-      `SELECT * FROM threads WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1`,
-    )
-    .get() as ThreadRow | null;
+  const row = await db.queryGet<ThreadRow>(
+    `SELECT * FROM threads WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1`,
+  );
   return row ? rowToThread(row) : null;
 }
 
@@ -220,9 +231,10 @@ export async function isThreadEnded(
   db: DbConnection,
   threadId: string,
 ): Promise<boolean> {
-  const row = db
-    .query(`SELECT ended_at FROM threads WHERE id = ?1`)
-    .get(threadId) as { ended_at: string | null } | null;
+  const row = await db.queryGet<{ ended_at: string | null }>(
+    `SELECT ended_at FROM threads WHERE id = ?1`,
+    threadId,
+  );
   if (!row) return true;
   return row.ended_at !== null;
 }
@@ -241,12 +253,11 @@ export async function listThreads(
   ]);
   const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
 
-  const rows = db
-    .query(
-      `SELECT * FROM threads ${where}
+  const rows = await db.queryAll<ThreadRow>(
+    `SELECT * FROM threads ${where}
      ORDER BY started_at DESC
      ${limit}`,
-    )
-    .all(...params) as ThreadRow[];
+    ...params,
+  );
   return rows.map(rowToThread);
 }

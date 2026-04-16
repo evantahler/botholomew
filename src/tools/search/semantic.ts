@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { embedSingle } from "../../context/embedder.ts";
-import { hybridSearch, initVectorSearch } from "../../db/embeddings.ts";
+import { hybridSearch } from "../../db/embeddings.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
@@ -36,10 +36,13 @@ export const searchSemanticTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    initVectorSearch(ctx.conn);
-
     const queryVec = await embedSingle(input.query, ctx.config);
-    const results = hybridSearch(ctx.conn, input.query, queryVec, input.top_k);
+    const results = await hybridSearch(
+      ctx.conn,
+      input.query,
+      queryVec,
+      input.top_k,
+    );
 
     const threshold = input.threshold;
     const filtered =

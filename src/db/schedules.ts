@@ -19,7 +19,7 @@ interface ScheduleRow {
   description: string;
   frequency: string;
   last_run_at: string | null;
-  enabled: number;
+  enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -31,7 +31,7 @@ function rowToSchedule(row: ScheduleRow): Schedule {
     description: row.description,
     frequency: row.frequency,
     last_run_at: row.last_run_at ? new Date(row.last_run_at) : null,
-    enabled: row.enabled === 1,
+    enabled: !!row.enabled,
     created_at: new Date(row.created_at),
     updated_at: new Date(row.updated_at),
   };
@@ -46,18 +46,15 @@ export async function createSchedule(
   },
 ): Promise<Schedule> {
   const id = uuidv7();
-  const row = db
-    .query(
-      `INSERT INTO schedules (id, name, description, frequency)
+  const row = await db.queryGet<ScheduleRow>(
+    `INSERT INTO schedules (id, name, description, frequency)
      VALUES (?1, ?2, ?3, ?4)
      RETURNING *`,
-    )
-    .get(
-      id,
-      params.name,
-      params.description ?? "",
-      params.frequency,
-    ) as ScheduleRow | null;
+    id,
+    params.name,
+    params.description ?? "",
+    params.frequency,
+  );
   if (!row) throw new Error("INSERT did not return a row");
   return rowToSchedule(row);
 }
@@ -66,9 +63,10 @@ export async function getSchedule(
   db: DbConnection,
   id: string,
 ): Promise<Schedule | null> {
-  const row = db
-    .query("SELECT * FROM schedules WHERE id = ?1")
-    .get(id) as ScheduleRow | null;
+  const row = await db.queryGet<ScheduleRow>(
+    "SELECT * FROM schedules WHERE id = ?1",
+    id,
+  );
   return row ? rowToSchedule(row) : null;
 }
 
@@ -83,9 +81,10 @@ export async function listSchedules(
     ],
   ]);
 
-  const rows = db
-    .query(`SELECT * FROM schedules ${where} ORDER BY created_at ASC`)
-    .all(...params) as ScheduleRow[];
+  const rows = await db.queryAll<ScheduleRow>(
+    `SELECT * FROM schedules ${where} ORDER BY created_at ASC`,
+    ...params,
+  );
   return rows.map(rowToSchedule);
 }
 
@@ -110,14 +109,13 @@ export async function updateSchedule(
     return getSchedule(db, id);
   }
 
-  setClauses.push("updated_at = datetime('now')");
+  setClauses.push("updated_at = current_timestamp::VARCHAR");
   params.push(id);
 
-  const row = db
-    .query(
-      `UPDATE schedules SET ${setClauses.join(", ")} WHERE id = ?${params.length} RETURNING *`,
-    )
-    .get(...params) as ScheduleRow | null;
+  const row = await db.queryGet<ScheduleRow>(
+    `UPDATE schedules SET ${setClauses.join(", ")} WHERE id = ?${params.length} RETURNING *`,
+    ...params,
+  );
   return row ? rowToSchedule(row) : null;
 }
 
@@ -125,7 +123,7 @@ export async function deleteSchedule(
   db: DbConnection,
   id: string,
 ): Promise<boolean> {
-  const result = db.query("DELETE FROM schedules WHERE id = ?1").run(id);
+  const result = await db.queryRun("DELETE FROM schedules WHERE id = ?1", id);
   return result.changes > 0;
 }
 
@@ -133,7 +131,8 @@ export async function markScheduleRun(
   db: DbConnection,
   id: string,
 ): Promise<void> {
-  db.query(
-    `UPDATE schedules SET last_run_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1`,
-  ).run(id);
+  await db.queryRun(
+    `UPDATE schedules SET last_run_at = current_timestamp::VARCHAR, updated_at = current_timestamp::VARCHAR WHERE id = ?1`,
+    id,
+  );
 }

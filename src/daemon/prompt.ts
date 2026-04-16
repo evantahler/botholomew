@@ -4,7 +4,7 @@ import type { BotholomewConfig } from "../config/schemas.ts";
 import { getBotholomewDir } from "../constants.ts";
 import { embedSingle } from "../context/embedder.ts";
 import type { DbConnection } from "../db/connection.ts";
-import { hybridSearch, initVectorSearch } from "../db/embeddings.ts";
+import { hybridSearch } from "../db/embeddings.ts";
 import type { Task } from "../db/tasks.ts";
 import { parseContextFile } from "../utils/frontmatter.ts";
 import { logger } from "../utils/logger.ts";
@@ -101,8 +101,7 @@ export async function buildSystemPrompt(
     try {
       const query = `${task.name} ${task.description}`;
       const queryVec = await embedSingle(query, _config);
-      initVectorSearch(conn);
-      const results = hybridSearch(conn, query, queryVec, 5);
+      const results = await hybridSearch(conn, query, queryVec, 5);
 
       if (results.length > 0) {
         parts.push("## Relevant Context");

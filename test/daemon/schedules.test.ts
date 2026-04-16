@@ -40,8 +40,8 @@ const testConfig = {
   system_prompt_override: "",
 };
 
-beforeEach(() => {
-  conn = setupTestDb();
+beforeEach(async () => {
+  conn = await setupTestDb();
   mockResponse = {};
 });
 

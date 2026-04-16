@@ -74,20 +74,17 @@ export async function createTask(
   const blockedBy = JSON.stringify(blockedByArr);
   const contextIds = JSON.stringify(params.context_ids ?? []);
 
-  const row = db
-    .query(
-      `INSERT INTO tasks (id, name, description, priority, blocked_by, context_ids)
+  const row = await db.queryGet<TaskRow>(
+    `INSERT INTO tasks (id, name, description, priority, blocked_by, context_ids)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6)
      RETURNING *`,
-    )
-    .get(
-      id,
-      params.name,
-      params.description ?? "",
-      params.priority ?? "medium",
-      blockedBy,
-      contextIds,
-    ) as TaskRow | null;
+    id,
+    params.name,
+    params.description ?? "",
+    params.priority ?? "medium",
+    blockedBy,
+    contextIds,
+  );
   if (!row) throw new Error("INSERT did not return a row");
   return rowToTask(row);
 }
@@ -96,9 +93,10 @@ export async function getTask(
   db: DbConnection,
   id: string,
 ): Promise<Task | null> {
-  const row = db
-    .query("SELECT * FROM tasks WHERE id = ?1")
-    .get(id) as TaskRow | null;
+  const row = await db.queryGet<TaskRow>(
+    "SELECT * FROM tasks WHERE id = ?1",
+    id,
+  );
   return row ? rowToTask(row) : null;
 }
 
@@ -116,15 +114,14 @@ export async function listTasks(
   ]);
   const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
 
-  const rows = db
-    .query(
-      `SELECT * FROM tasks ${where}
+  const rows = await db.queryAll<TaskRow>(
+    `SELECT * FROM tasks ${where}
      ORDER BY
        CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
        created_at ASC
      ${limit}`,
-    )
-    .all(...params) as TaskRow[];
+    ...params,
+  );
   return rows.map(rowToTask);
 }
 
@@ -134,11 +131,14 @@ export async function updateTaskStatus(
   status: Task["status"],
   reason?: string,
 ): Promise<void> {
-  db.query(
+  await db.queryRun(
     `UPDATE tasks
-     SET status = ?1, waiting_reason = ?2, updated_at = datetime('now')
+     SET status = ?1, waiting_reason = ?2, updated_at = current_timestamp::VARCHAR
      WHERE id = ?3`,
-  ).run(status, reason ?? null, id);
+    status,
+    reason ?? null,
+    id,
+  );
 }
 
 export async function validateBlockedBy(
@@ -206,14 +206,13 @@ export async function updateTask(
     return getTask(db, id);
   }
 
-  setClauses.push("updated_at = datetime('now')");
+  setClauses.push("updated_at = current_timestamp::VARCHAR");
   params.push(id);
 
-  const row = db
-    .query(
-      `UPDATE tasks SET ${setClauses.join(", ")} WHERE id = ?${params.length} RETURNING *`,
-    )
-    .get(...params) as TaskRow | null;
+  const row = await db.queryGet<TaskRow>(
+    `UPDATE tasks SET ${setClauses.join(", ")} WHERE id = ?${params.length} RETURNING *`,
+    ...params,
+  );
   return row ? rowToTask(row) : null;
 }
 
@@ -221,7 +220,7 @@ export async function deleteTask(
   db: DbConnection,
   id: string,
 ): Promise<boolean> {
-  const result = db.query("DELETE FROM tasks WHERE id = ?1").run(id);
+  const result = await db.queryRun("DELETE FROM tasks WHERE id = ?1", id);
   return result.changes > 0;
 }
 
@@ -229,15 +228,14 @@ export async function resetTask(
   db: DbConnection,
   id: string,
 ): Promise<Task | null> {
-  const row = db
-    .query(
-      `UPDATE tasks
+  const row = await db.queryGet<TaskRow>(
+    `UPDATE tasks
      SET status = 'pending', claimed_by = NULL, claimed_at = NULL,
-         waiting_reason = NULL, updated_at = datetime('now')
+         waiting_reason = NULL, updated_at = current_timestamp::VARCHAR
      WHERE id = ?1
      RETURNING *`,
-    )
-    .get(id) as TaskRow | null;
+    id,
+  );
   return row ? rowToTask(row) : null;
 }
 
@@ -245,19 +243,18 @@ export async function resetStaleTasks(
   db: DbConnection,
   timeoutSeconds: number,
 ): Promise<string[]> {
-  const rows = db
-    .query(
-      `UPDATE tasks
+  const rows = await db.queryAll<{ id: string }>(
+    `UPDATE tasks
      SET status = 'pending',
          claimed_by = NULL,
          claimed_at = NULL,
-         updated_at = datetime('now')
+         updated_at = current_timestamp::VARCHAR
      WHERE status = 'in_progress'
        AND claimed_at IS NOT NULL
-       AND claimed_at < datetime('now', '-' || ?1 || ' seconds')
+       AND claimed_at::TIMESTAMP < current_timestamp - to_seconds(CAST(?1 AS BIGINT))
      RETURNING id`,
-    )
-    .all(timeoutSeconds) as { id: string }[];
+    timeoutSeconds,
+  );
   return rows.map((r) => r.id);
 }
 
@@ -266,37 +263,55 @@ export async function claimNextTask(
   claimedBy = "daemon",
 ): Promise<Task | null> {
   // Find highest-priority unblocked pending task
-  const row = db
-    .query(
-      `SELECT * FROM tasks
+  // Use application-level filtering for blocked_by since DuckDB doesn't have json_each
+  const allPending = await db.queryAll<TaskRow>(
+    `SELECT * FROM tasks
      WHERE status = 'pending'
-       AND (
-         blocked_by = '[]'
-         OR blocked_by IS NULL
-         OR NOT EXISTS (
-           SELECT 1 FROM json_each(blocked_by) AS b
-           WHERE b.value NOT IN (SELECT id FROM tasks WHERE status = 'complete')
-         )
-       )
      ORDER BY
        CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
-       created_at ASC
-     LIMIT 1`,
-    )
-    .get() as TaskRow | null;
+       created_at ASC`,
+  );
 
-  if (!row) return null;
-  const task = rowToTask(row);
+  // Find the first task whose blockers are all complete
+  let claimableRow: TaskRow | null = null;
+  for (const row of allPending) {
+    const blockedBy: string[] = JSON.parse(row.blocked_by || "[]");
+    if (blockedBy.length === 0) {
+      claimableRow = row;
+      break;
+    }
+    // Check if all blockers are complete
+    let allComplete = true;
+    for (const blockerId of blockedBy) {
+      const blocker = await db.queryGet<{ status: string }>(
+        "SELECT status FROM tasks WHERE id = ?1",
+        blockerId,
+      );
+      if (!blocker || blocker.status !== "complete") {
+        allComplete = false;
+        break;
+      }
+    }
+    if (allComplete) {
+      claimableRow = row;
+      break;
+    }
+  }
+
+  if (!claimableRow) return null;
+  const task = rowToTask(claimableRow);
 
   // Claim it
-  db.query(
+  await db.queryRun(
     `UPDATE tasks
      SET status = 'in_progress',
          claimed_by = ?1,
-         claimed_at = datetime('now'),
-         updated_at = datetime('now')
+         claimed_at = current_timestamp::VARCHAR,
+         updated_at = current_timestamp::VARCHAR
      WHERE id = ?2 AND status = 'pending'`,
-  ).run(claimedBy, task.id);
+    claimedBy,
+    task.id,
+  );
 
   return {
     ...task,

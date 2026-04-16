@@ -7,7 +7,7 @@ An AI Agent for knowledge work. Unlike coding agents, Botholomew is focused on i
 1. **No shell / filesystem access.** The agent has no bash, read/write, or direct filesystem tools. All storage is abstracted through manage-context tools scoped to `.botholomew/`.
 2. **Distributed from the start.** Orchestrator, tool execution, memory, and context are separate modules, making it possible to run locally and on the web.
 3. **TUI interface.** A terminal UI built with Ink (React for CLI), styled after Claude Code.
-4. **It's all files.** Each Botholomew project is a collection of markdown and a SQLite database — portable and shareable.
+4. **It's all files.** Each Botholomew project is a collection of markdown and a DuckDB database — portable and shareable.
 
 ---
 
@@ -23,7 +23,7 @@ The interactive TUI session. The chat agent doesn't work tasks itself — it enq
 
 ### Data
 
-Both daemon and chat share the same SQLite database at `.botholomew/data.sqlite`. Each opens its own connection. SQLite WAL mode enables concurrent readers; a retry-on-lock layer handles write contention.
+Both daemon and chat share the same DuckDB database at `.botholomew/data.duckdb`. Each opens its own connection. A retry-on-lock layer handles write contention.
 
 ---
 
@@ -55,9 +55,9 @@ New projects start with:
 
 ---
 
-## Dynamic Context (SQLite)
+## Dynamic Context (DuckDB)
 
-The `.botholomew/data.sqlite` file powers tasks, schedules, context, embeddings, and interaction logs.
+The `.botholomew/data.duckdb` file powers tasks, schedules, context, embeddings, and interaction logs.
 
 ### Tasks
 
@@ -149,8 +149,7 @@ Plus meta-utils: `--help`, `--version`
 - **Runtime**: Bun + TypeScript
 - **CLI framework**: Commander.js
 - **TUI**: Ink 6 (React 19 for CLI)
-- **Database**: SQLite via `bun:sqlite` (built-in, zero dependencies)
-- **Vector search**: TBD (future milestone)
+- **Database**: DuckDB via `@duckdb/node-api` with VSS extension for native vector search
 - **Embeddings**: `@huggingface/transformers` with `Xenova/bge-small-en-v1.5` (local, no 3rd party)
 - **LLM**: `@anthropic-ai/sdk` (direct)
 - **Tools**: MCPX imported as TS library
@@ -176,7 +175,7 @@ botholomew/
       schemas.ts                    # BotholomewConfig type + defaults
       loader.ts                     # load/validate .botholomew/config.json
     db/
-      connection.ts                 # SQLite connection via bun:sqlite w/ retry-on-lock
+      connection.ts                 # DuckDB connection via @duckdb/node-api w/ retry-on-lock
       uuid.ts                       # UUIDv7 re-export from uuid package
       schema.ts                     # SQL migrations + migrate()
       tasks.ts                      # task CRUD
@@ -242,20 +241,20 @@ botholomew/
 ```
 
 Notes:
-- SQLite is built into Bun via `bun:sqlite` — zero external dependencies needed.
+- DuckDB is used via `@duckdb/node-api` with the VSS extension for native vector search.
 - UUIDv7 for IDs generated via the `uuid` package.
 - `@xenova/transformers` for embeddings is NOT in M1 — context/embedding CRUD are stubs.
 - Ink 6 requires React 19.
 
-### SQLite Schema
+### DuckDB Schema
 
-All tables in `src/db/schema.ts`. A `_migrations` table tracks applied migrations. UUIDv7 IDs are generated in application code via the `uuid` package. Enums are enforced with CHECK constraints. Array columns (blocked_by, context_ids) use JSON TEXT with `json_each()` for in-SQL filtering. Timestamps are ISO 8601 TEXT with `datetime('now')` defaults. See `src/db/sql/*.sql` for the current schema.
+All tables in `src/db/schema.ts`. A `_migrations` table tracks applied migrations. UUIDv7 IDs are generated in application code via the `uuid` package. Enums are enforced with CHECK constraints. Array columns (blocked_by, context_ids) use JSON TEXT. Timestamps are ISO 8601 TEXT with `datetime('now')` defaults. See `src/db/sql/*.sql` for the current schema.
 
 ### Key Module Details
 
 **`src/db/connection.ts`**
-- `getConnection(dbPath)` — opens SQLite via `bun:sqlite` with WAL mode and foreign keys enabled
-- `withRetry()` — retries on SQLITE_BUSY with exponential backoff
+- `getConnection(dbPath)` — opens DuckDB via `@duckdb/node-api`, loads VSS extension, enables HNSW persistence
+- `withRetry()` — retries on busy with exponential backoff
 
 **`src/config/loader.ts`**
 - Loads `.botholomew/config.json`, merges with defaults
@@ -263,7 +262,7 @@ All tables in `src/db/schema.ts`. A `_migrations` table tracks applied migration
 
 **`src/init/index.ts`**
 - Creates `.botholomew/` directory with `soul.md`, `beliefs.md`, `goals.md`, `config.json`, `mcpx/servers.json`
-- Opens SQLite and runs migrations
+- Opens DuckDB and runs migrations
 - Updates `.gitignore` to exclude `.botholomew/`
 
 **`src/daemon/tick.ts`**

@@ -43,8 +43,8 @@ describe("context delete CLI", () => {
     await initProject(tempDir);
 
     // Seed a context item directly via DB
-    const conn = getConnection(getDbPath(tempDir));
-    migrate(conn);
+    const conn = await getConnection(getDbPath(tempDir));
+    await migrate(conn);
     await createContextItem(conn, {
       title: "test.md",
       content: "hello",
@@ -59,8 +59,8 @@ describe("context delete CLI", () => {
     );
 
     // Verify it's actually gone
-    const conn2 = getConnection(getDbPath(tempDir));
-    migrate(conn2);
+    const conn2 = await getConnection(getDbPath(tempDir));
+    await migrate(conn2);
     const item = await getContextItemByPath(conn2, "/docs/test.md");
     conn2.close();
     expect(item).toBeNull();

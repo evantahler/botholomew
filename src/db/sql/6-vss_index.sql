@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_embeddings_cosine ON embeddings USING HNSW (embedding) WITH (metric = 'cosine');

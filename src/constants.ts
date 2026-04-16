@@ -12,7 +12,7 @@ export const DEFAULTS = {
   UPDATE_CHECK_INTERVAL_MS: 24 * 60 * 60 * 1000, // 24 hours
   UPDATE_CHECK_TIMEOUT_MS: 5_000,
 } as const;
-export const DB_FILENAME = "data.sqlite";
+export const DB_FILENAME = "data.duckdb";
 export const PID_FILENAME = "daemon.pid";
 export const LOG_FILENAME = "daemon.log";
 export const CONFIG_FILENAME = "config.json";

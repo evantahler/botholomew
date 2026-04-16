@@ -4,7 +4,7 @@
 
 Build the knowledge management foundation — the ability to ingest, chunk, embed, and search content. This is Botholomew's core differentiator: a local hybrid search system that makes the agent's context rich and relevant.
 
-The agent interacts with context items through a **virtual filesystem abstraction** — `dir`, `file`, and `search` tools that map to the `context_items` and `embeddings` tables in SQLite. The `context_path` column acts as the file path; `content` is the file body.
+The agent interacts with context items through a **virtual filesystem abstraction** — `dir`, `file`, and `search` tools that map to the `context_items` and `embeddings` tables in DuckDB. The `context_path` column acts as the file path; `content` is the file body.
 
 ## What Gets Unblocked
 
@@ -30,7 +30,7 @@ Every tool (task, dir, file, search) is an instance of a shared `Tool` base clas
 - **Name** and **description** — used for both LLM tool definitions and CLI help text
 - **Zod input schema** — per-field descriptions; validates args, generates JSON Schema for Anthropic API, generates Commander options
 - **Zod output schema** — strongly typed, guaranteed response format
-- **`execute()` method** — the actual implementation (SQLite-backed)
+- **`execute()` method** — the actual implementation (DuckDB-backed)
 
 The same Tool definition serves two consumers with thin adapters:
 1. **Daemon agent** — Zod input → Anthropic `Tool` JSON Schema; `execute()` called from `executeToolCall()`
@@ -186,7 +186,7 @@ Replace the stub with full implementation:
 
 ### 9. Vector Search
 
-SQLite does not have a native vector search extension. Embedding search uses brute-force cosine similarity computed in application code (or via a SQL expression over JSON-encoded float arrays). For the scale of a single-user knowledge base, this is sufficient.
+DuckDB's VSS extension provides native vector search via `array_cosine_distance()` with HNSW indexes. Embeddings are stored as `FLOAT[384]` arrays and searched using DuckDB's built-in vector similarity operations.
 
 ### 10. Embeddings Cascade on Mutations
 

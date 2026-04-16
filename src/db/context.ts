@@ -29,7 +29,7 @@ interface ContextItemRow {
   content: string | null;
   content_blob: unknown;
   mime_type: string;
-  is_textual: number;
+  is_textual: boolean;
   source_path: string | null;
   context_path: string;
   indexed_at: string | null;
@@ -44,7 +44,7 @@ function rowToContextItem(row: ContextItemRow): ContextItem {
     description: row.description,
     content: row.content,
     mime_type: row.mime_type,
-    is_textual: row.is_textual === 1,
+    is_textual: !!row.is_textual,
     source_path: row.source_path,
     context_path: row.context_path,
     indexed_at: row.indexed_at ? new Date(row.indexed_at) : null,
@@ -68,22 +68,19 @@ export async function createContextItem(
   },
 ): Promise<ContextItem> {
   const id = uuidv7();
-  const row = db
-    .query(
-      `INSERT INTO context_items (id, title, description, content, mime_type, is_textual, source_path, context_path)
+  const row = await db.queryGet<ContextItemRow>(
+    `INSERT INTO context_items (id, title, description, content, mime_type, is_textual, source_path, context_path)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
      RETURNING *`,
-    )
-    .get(
-      id,
-      params.title,
-      params.description ?? "",
-      params.content ?? null,
-      params.mimeType ?? "text/plain",
-      params.isTextual !== false ? 1 : 0,
-      params.sourcePath ?? null,
-      params.contextPath,
-    ) as ContextItemRow | null;
+    id,
+    params.title,
+    params.description ?? "",
+    params.content ?? null,
+    params.mimeType ?? "text/plain",
+    params.isTextual !== false,
+    params.sourcePath ?? null,
+    params.contextPath,
+  );
   if (!row) throw new Error("INSERT did not return a row");
   return rowToContextItem(row);
 }
@@ -92,9 +89,10 @@ export async function getContextItem(
   db: DbConnection,
   id: string,
 ): Promise<ContextItem | null> {
-  const row = db
-    .query("SELECT * FROM context_items WHERE id = ?1")
-    .get(id) as ContextItemRow | null;
+  const row = await db.queryGet<ContextItemRow>(
+    "SELECT * FROM context_items WHERE id = ?1",
+    id,
+  );
   return row ? rowToContextItem(row) : null;
 }
 
@@ -102,9 +100,10 @@ export async function getContextItemByPath(
   db: DbConnection,
   contextPath: string,
 ): Promise<ContextItem | null> {
-  const row = db
-    .query("SELECT * FROM context_items WHERE context_path = ?1")
-    .get(contextPath) as ContextItemRow | null;
+  const row = await db.queryGet<ContextItemRow>(
+    "SELECT * FROM context_items WHERE context_path = ?1",
+    contextPath,
+  );
   return row ? rowToContextItem(row) : null;
 }
 
@@ -124,11 +123,10 @@ export async function listContextItems(
   const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
   const offset = filters?.offset ? `OFFSET ${filters.offset}` : "";
 
-  const rows = db
-    .query(
-      `SELECT * FROM context_items ${where} ORDER BY context_path ASC ${limit} ${offset}`,
-    )
-    .all(...params) as ContextItemRow[];
+  const rows = await db.queryAll<ContextItemRow>(
+    `SELECT * FROM context_items ${where} ORDER BY context_path ASC ${limit} ${offset}`,
+    ...params,
+  );
   return rows.map(rowToContextItem);
 }
 
@@ -144,26 +142,22 @@ export async function listContextItemsByPrefix(
 
   let rows: ContextItemRow[];
   if (opts?.recursive) {
-    rows = db
-      .query(
-        `SELECT * FROM context_items
+    rows = await db.queryAll<ContextItemRow>(
+      `SELECT * FROM context_items
        WHERE context_path LIKE ?1
        ORDER BY context_path ASC ${limit} ${offset}`,
-      )
-      .all(`${normalizedPrefix}%`) as ContextItemRow[];
+      `${normalizedPrefix}%`,
+    );
   } else {
     // Only immediate children: match prefix but no further slashes
-    rows = db
-      .query(
-        `SELECT * FROM context_items
+    rows = await db.queryAll<ContextItemRow>(
+      `SELECT * FROM context_items
        WHERE context_path LIKE ?1
          AND context_path NOT LIKE ?2
        ORDER BY context_path ASC ${limit} ${offset}`,
-      )
-      .all(
-        `${normalizedPrefix}%`,
-        `${normalizedPrefix}%/%`,
-      ) as ContextItemRow[];
+      `${normalizedPrefix}%`,
+      `${normalizedPrefix}%/%`,
+    );
   }
 
   return rows.map(rowToContextItem);
@@ -173,11 +167,10 @@ export async function contextPathExists(
   db: DbConnection,
   contextPath: string,
 ): Promise<boolean> {
-  const row = db
-    .query(
-      "SELECT 1 AS found FROM context_items WHERE context_path = ?1 LIMIT 1",
-    )
-    .get(contextPath);
+  const row = await db.queryGet(
+    "SELECT 1 AS found FROM context_items WHERE context_path = ?1 LIMIT 1",
+    contextPath,
+  );
   return row != null;
 }
 
@@ -192,19 +185,19 @@ export async function getDistinctDirectories(
     : "/";
 
   // Extract the first path segment after the prefix
-  const rows = db
-    .query(
-      `SELECT DISTINCT
+  const rows = await db.queryAll<{ dir: string }>(
+    `SELECT DISTINCT
         ?1 || CASE
-          WHEN instr(substr(context_path, length(?1) + 1), '/') > 0
-          THEN substr(substr(context_path, length(?1) + 1), 1, instr(substr(context_path, length(?1) + 1), '/') - 1)
+          WHEN strpos(substr(context_path, length(?1) + 1), '/') > 0
+          THEN substr(substr(context_path, length(?1) + 1), 1, strpos(substr(context_path, length(?1) + 1), '/') - 1)
           ELSE substr(context_path, length(?1) + 1)
         END AS dir
       FROM context_items
       WHERE context_path LIKE ?2
       ORDER BY dir ASC`,
-    )
-    .all(normalizedPrefix, `${normalizedPrefix}%/%`) as { dir: string }[];
+    normalizedPrefix,
+    `${normalizedPrefix}%/%`,
+  );
 
   return rows.map((row) => row.dir);
 }
@@ -225,17 +218,16 @@ export async function updateContextItem(
     ["mime_type", updates.mime_type],
   ]);
 
-  setClauses.push("updated_at = datetime('now')");
+  setClauses.push("updated_at = current_timestamp::VARCHAR");
   params.push(id);
 
-  const row = db
-    .query(
-      `UPDATE context_items
+  const row = await db.queryGet<ContextItemRow>(
+    `UPDATE context_items
      SET ${setClauses.join(", ")}
      WHERE id = ?${params.length}
      RETURNING *`,
-    )
-    .get(...params) as ContextItemRow | null;
+    ...params,
+  );
   return row ? rowToContextItem(row) : null;
 }
 
@@ -244,14 +236,14 @@ export async function updateContextItemContent(
   contextPath: string,
   content: string,
 ): Promise<ContextItem | null> {
-  const row = db
-    .query(
-      `UPDATE context_items
-     SET content = ?1, updated_at = datetime('now')
+  const row = await db.queryGet<ContextItemRow>(
+    `UPDATE context_items
+     SET content = ?1, updated_at = current_timestamp::VARCHAR
      WHERE context_path = ?2
      RETURNING *`,
-    )
-    .get(content, contextPath) as ContextItemRow | null;
+    content,
+    contextPath,
+  );
   return row ? rowToContextItem(row) : null;
 }
 
@@ -312,14 +304,14 @@ export async function moveContextItem(
   oldPath: string,
   newPath: string,
 ): Promise<void> {
-  const row = db
-    .query(
-      `UPDATE context_items
-     SET context_path = ?1, updated_at = datetime('now')
+  const row = await db.queryGet(
+    `UPDATE context_items
+     SET context_path = ?1, updated_at = current_timestamp::VARCHAR
      WHERE context_path = ?2
      RETURNING id`,
-    )
-    .get(newPath, oldPath);
+    newPath,
+    oldPath,
+  );
   if (!row) {
     throw new Error(`Not found: ${oldPath}`);
   }
@@ -332,10 +324,11 @@ export async function deleteContextItem(
   id: string,
 ): Promise<boolean> {
   // Delete embeddings first (foreign key)
-  db.query("DELETE FROM embeddings WHERE context_item_id = ?1").run(id);
-  const row = db
-    .query("DELETE FROM context_items WHERE id = ?1 RETURNING id")
-    .get(id);
+  await db.queryRun("DELETE FROM embeddings WHERE context_item_id = ?1", id);
+  const row = await db.queryGet(
+    "DELETE FROM context_items WHERE id = ?1 RETURNING id",
+    id,
+  );
   return row != null;
 }
 
@@ -356,21 +349,21 @@ export async function deleteContextItemsByPrefix(
   const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
 
   // Delete embeddings for all matching items
-  db.query(
+  await db.queryRun(
     `DELETE FROM embeddings
      WHERE context_item_id IN (
        SELECT id FROM context_items
        WHERE context_path LIKE ?1
      )`,
-  ).run(`${normalizedPrefix}%`);
+    `${normalizedPrefix}%`,
+  );
 
-  const rows = db
-    .query(
-      `DELETE FROM context_items
+  const rows = await db.queryAll(
+    `DELETE FROM context_items
      WHERE context_path LIKE ?1
      RETURNING id`,
-    )
-    .all(`${normalizedPrefix}%`);
+    `${normalizedPrefix}%`,
+  );
   return rows.length;
 }
 
@@ -382,17 +375,17 @@ export async function searchContextByKeyword(
   limit = 20,
 ): Promise<ContextItem[]> {
   const pattern = `%${query}%`;
-  const rows = db
-    .query(
-      `SELECT * FROM context_items
+  const rows = await db.queryAll<ContextItemRow>(
+    `SELECT * FROM context_items
      WHERE content IS NOT NULL
        AND (
-         content LIKE ?1 COLLATE NOCASE
-         OR title LIKE ?1 COLLATE NOCASE
+         content ILIKE ?1
+         OR title ILIKE ?1
        )
      ORDER BY updated_at DESC
      LIMIT ?2`,
-    )
-    .all(pattern, limit) as ContextItemRow[];
+    pattern,
+    limit,
+  );
   return rows.map(rowToContextItem);
 }

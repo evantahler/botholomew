@@ -10,15 +10,18 @@ export const mockEmbed = async (texts: string[]) =>
   texts.map(() => new Array(EMBEDDING_DIMENSION).fill(0));
 
 /** Create a fresh in-memory database with migrations applied. */
-export function setupTestDb(): DbConnection {
-  const conn = getConnection(":memory:");
-  migrate(conn);
+export async function setupTestDb(): Promise<DbConnection> {
+  const conn = await getConnection();
+  await migrate(conn);
   return conn;
 }
 
 /** Create a ToolContext backed by a fresh in-memory database. */
-export function setupToolContext(): { conn: DbConnection; ctx: ToolContext } {
-  const conn = setupTestDb();
+export async function setupToolContext(): Promise<{
+  conn: DbConnection;
+  ctx: ToolContext;
+}> {
+  const conn = await setupTestDb();
   const ctx: ToolContext = {
     conn,
     projectDir: "/tmp/test",

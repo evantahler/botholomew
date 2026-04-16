@@ -2,25 +2,6 @@ import { EMBEDDING_DIMENSION } from "../constants.ts";
 import type { DbConnection } from "./connection.ts";
 import { uuidv7 } from "./uuid.ts";
 
-// Track which connections have been initialized for vector search
-const initializedConnections = new WeakSet<DbConnection>();
-
-/**
- * Initialize sqlite-vector on the embeddings table for this connection.
- * Must be called once per connection before vector operations.
- * The dimension parameter allows overriding for tests.
- */
-export function initVectorSearch(
-  conn: DbConnection,
-  dimension = EMBEDDING_DIMENSION,
-): void {
-  if (initializedConnections.has(conn)) return;
-  conn.exec(
-    `SELECT vector_init('embeddings', 'embedding', 'dimension=${dimension},type=FLOAT32,distance=COSINE')`,
-  );
-  initializedConnections.add(conn);
-}
-
 export interface Embedding {
   id: string;
   context_item_id: string;
@@ -45,7 +26,7 @@ interface EmbeddingRow {
   title: string;
   description: string;
   source_path: string | null;
-  embedding: Uint8Array | null;
+  embedding: number[] | null;
   created_at: string;
 }
 
@@ -58,14 +39,12 @@ function rowToEmbedding(row: EmbeddingRow): Embedding {
     title: row.title,
     description: row.description,
     source_path: row.source_path,
-    embedding: row.embedding
-      ? Array.from(new Float32Array(row.embedding.buffer))
-      : [],
+    embedding: row.embedding ?? [],
     created_at: new Date(row.created_at),
   };
 }
 
-export function createEmbedding(
+export async function createEmbedding(
   conn: DbConnection,
   params: {
     contextItemId: string;
@@ -76,23 +55,20 @@ export function createEmbedding(
     sourcePath?: string | null;
     embedding: number[];
   },
-): Embedding {
+): Promise<Embedding> {
   const id = uuidv7();
-  conn
-    .query(
-      `INSERT INTO embeddings (id, context_item_id, chunk_index, chunk_content, title, description, source_path, embedding)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, vector_as_f32(?8))`,
-    )
-    .run(
-      id,
-      params.contextItemId,
-      params.chunkIndex,
-      params.chunkContent,
-      params.title,
-      params.description ?? "",
-      params.sourcePath ?? null,
-      JSON.stringify(params.embedding),
-    );
+  await conn.queryRun(
+    `INSERT INTO embeddings (id, context_item_id, chunk_index, chunk_content, title, description, source_path, embedding)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8::FLOAT[${EMBEDDING_DIMENSION}])`,
+    id,
+    params.contextItemId,
+    params.chunkIndex,
+    params.chunkContent,
+    params.title,
+    params.description ?? "",
+    params.sourcePath ?? null,
+    params.embedding,
+  );
 
   return {
     id,
@@ -107,52 +83,51 @@ export function createEmbedding(
   };
 }
 
-export function getEmbeddingsForItem(
+export async function getEmbeddingsForItem(
   conn: DbConnection,
   contextItemId: string,
-): Embedding[] {
-  const rows = conn
-    .query(
-      "SELECT * FROM embeddings WHERE context_item_id = ?1 ORDER BY chunk_index ASC",
-    )
-    .all(contextItemId) as EmbeddingRow[];
+): Promise<Embedding[]> {
+  const rows = await conn.queryAll<EmbeddingRow>(
+    "SELECT * FROM embeddings WHERE context_item_id = ?1 ORDER BY chunk_index ASC",
+    contextItemId,
+  );
   return rows.map(rowToEmbedding);
 }
 
-export function deleteEmbeddingsForItem(
+export async function deleteEmbeddingsForItem(
   conn: DbConnection,
   contextItemId: string,
-): number {
-  const result = conn
-    .query("DELETE FROM embeddings WHERE context_item_id = ?1")
-    .run(contextItemId);
+): Promise<number> {
+  const result = await conn.queryRun(
+    "DELETE FROM embeddings WHERE context_item_id = ?1",
+    contextItemId,
+  );
   return result.changes;
 }
 
-interface VectorScanRow extends EmbeddingRow {
+interface VectorSearchRow extends EmbeddingRow {
   distance: number;
 }
 
 /**
- * Vector similarity search using sqlite-vector's SIMD-accelerated
- * cosine distance via vector_full_scan(). Returns results sorted by
+ * Vector similarity search using DuckDB's array_cosine_distance().
+ * With an HNSW index on the embedding column, DuckDB automatically
+ * uses the index for top-k queries. Returns results sorted by
  * similarity (closest first), with score = 1 - distance.
  */
-export function searchEmbeddings(
+export async function searchEmbeddings(
   conn: DbConnection,
   queryEmbedding: number[],
   limit = 10,
-): EmbeddingSearchResult[] {
-  const queryJson = JSON.stringify(queryEmbedding);
-
-  const rows = conn
-    .query(
-      `SELECT e.*, v.distance
-       FROM embeddings e
-       JOIN vector_full_scan('embeddings', 'embedding', vector_as_f32(?1), ?2) v
-         ON e.rowid = v.rowid`,
-    )
-    .all(queryJson, limit) as VectorScanRow[];
+): Promise<EmbeddingSearchResult[]> {
+  const rows = await conn.queryAll<VectorSearchRow>(
+    `SELECT *, array_cosine_distance(embedding, ?1::FLOAT[${EMBEDDING_DIMENSION}]) AS distance
+     FROM embeddings
+     ORDER BY distance ASC
+     LIMIT ?2`,
+    queryEmbedding,
+    limit,
+  );
 
   return rows.map((row) => ({
     ...rowToEmbedding(row),
@@ -160,28 +135,27 @@ export function searchEmbeddings(
   }));
 }
 
-export function hybridSearch(
+export async function hybridSearch(
   conn: DbConnection,
   query: string,
   queryEmbedding: number[],
   limit = 10,
-): EmbeddingSearchResult[] {
+): Promise<EmbeddingSearchResult[]> {
   const k = 60; // RRF constant
 
   // Keyword search: match on chunk_content and title
-  const keywordRows = conn
-    .query(
-      `SELECT * FROM embeddings
-       WHERE chunk_content LIKE '%' || ?1 || '%'
-          OR title LIKE '%' || ?1 || '%'
-       LIMIT 100`,
-    )
-    .all(query) as EmbeddingRow[];
+  const keywordRows = await conn.queryAll<EmbeddingRow>(
+    `SELECT * FROM embeddings
+     WHERE chunk_content ILIKE '%' || ?1 || '%'
+        OR title ILIKE '%' || ?1 || '%'
+     LIMIT 100`,
+    query,
+  );
 
   const keywordRanked = keywordRows.map(rowToEmbedding);
 
-  // Vector search via sqlite-vector
-  const vectorResults = searchEmbeddings(conn, queryEmbedding, 100);
+  // Vector search via DuckDB VSS
+  const vectorResults = await searchEmbeddings(conn, queryEmbedding, 100);
 
   // Reciprocal rank fusion
   const scores = new Map<string, { embedding: Embedding; score: number }>();

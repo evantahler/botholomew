@@ -5,8 +5,8 @@ import { seedFile, setupToolContext } from "../helpers.ts";
 
 let ctx: ToolContext;
 
-beforeEach(() => {
-  ({ ctx } = setupToolContext());
+beforeEach(async () => {
+  ({ ctx } = await setupToolContext());
 });
 
 describe("search_context", () => {

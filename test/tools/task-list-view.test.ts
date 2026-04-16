@@ -7,8 +7,8 @@ import { setupToolContext } from "../helpers.ts";
 
 let ctx: ToolContext;
 
-beforeEach(() => {
-  ({ ctx } = setupToolContext());
+beforeEach(async () => {
+  ({ ctx } = await setupToolContext());
 });
 
 // ── list_tasks ────────────────────────────────────────────

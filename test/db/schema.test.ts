@@ -3,15 +3,15 @@ import { getConnection } from "../../src/db/connection.ts";
 import { migrate } from "../../src/db/schema.ts";
 
 describe("schema migrations", () => {
-  test("migrate runs cleanly on a fresh database", () => {
-    const db = getConnection(":memory:");
-    migrate(db);
+  test("migrate runs cleanly on a fresh database", async () => {
+    const db = await getConnection();
+    await migrate(db);
 
     // Verify all tables exist
-    const rows = db
-      .query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-      .all() as { name: string }[];
-    const tables = rows.map((row) => row.name);
+    const rows = await db.queryAll<{ table_name: string }>(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' ORDER BY table_name",
+    );
+    const tables = rows.map((row) => row.table_name);
 
     expect(tables).toContain("_migrations");
     expect(tables).toContain("tasks");
@@ -25,27 +25,29 @@ describe("schema migrations", () => {
     db.close();
   });
 
-  test("migrate is idempotent", () => {
-    const db = getConnection(":memory:");
-    migrate(db);
-    migrate(db); // should not throw
+  test("migrate is idempotent", async () => {
+    const db = await getConnection();
+    await migrate(db);
+    await migrate(db); // should not throw
 
-    const row = db.query("SELECT COUNT(*) AS count FROM _migrations").get() as {
+    const row = (await db.queryGet(
+      "SELECT COUNT(*) AS count FROM _migrations",
+    )) as {
       count: number;
     };
-    expect(row.count).toBe(5);
+    expect(row.count).toBe(6);
 
     db.close();
   });
 
-  test("tasks table has correct columns", () => {
-    const db = getConnection(":memory:");
-    migrate(db);
+  test("tasks table has correct columns", async () => {
+    const db = await getConnection();
+    await migrate(db);
 
-    const rows = db.query("PRAGMA table_info('tasks')").all() as {
-      name: string;
-    }[];
-    const columns = rows.map((row) => row.name);
+    const rows = await db.queryAll<{ column_name: string }>(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'tasks' AND table_schema = 'main' ORDER BY ordinal_position",
+    );
+    const columns = rows.map((row) => row.column_name);
 
     expect(columns).toEqual([
       "id",
@@ -65,14 +67,14 @@ describe("schema migrations", () => {
     db.close();
   });
 
-  test("threads table has correct columns", () => {
-    const db = getConnection(":memory:");
-    migrate(db);
+  test("threads table has correct columns", async () => {
+    const db = await getConnection();
+    await migrate(db);
 
-    const rows = db.query("PRAGMA table_info('threads')").all() as {
-      name: string;
-    }[];
-    const columns = rows.map((row) => row.name);
+    const rows = await db.queryAll<{ column_name: string }>(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'threads' AND table_schema = 'main' ORDER BY ordinal_position",
+    );
+    const columns = rows.map((row) => row.column_name);
 
     expect(columns).toEqual([
       "id",
@@ -87,14 +89,14 @@ describe("schema migrations", () => {
     db.close();
   });
 
-  test("interactions table has correct columns", () => {
-    const db = getConnection(":memory:");
-    migrate(db);
+  test("interactions table has correct columns", async () => {
+    const db = await getConnection();
+    await migrate(db);
 
-    const rows = db.query("PRAGMA table_info('interactions')").all() as {
-      name: string;
-    }[];
-    const columns = rows.map((row) => row.name);
+    const rows = await db.queryAll<{ column_name: string }>(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'interactions' AND table_schema = 'main' ORDER BY ordinal_position",
+    );
+    const columns = rows.map((row) => row.column_name);
 
     expect(columns).toEqual([
       "id",

@@ -21,11 +21,7 @@ import {
   listContextItemsByPrefix,
   updateContextItem,
 } from "../db/context.ts";
-import {
-  getEmbeddingsForItem,
-  hybridSearch,
-  initVectorSearch,
-} from "../db/embeddings.ts";
+import { getEmbeddingsForItem, hybridSearch } from "../db/embeddings.ts";
 import { logger } from "../utils/logger.ts";
 import { withDb } from "./with-db.ts";
 
@@ -205,7 +201,7 @@ export function registerContextCommand(program: Command) {
         let filesAdded = 0;
         let filesUpdated = 0;
         for (const p of prepared) {
-          const result = storeIngestion(conn, p);
+          const result = await storeIngestion(conn, p);
           chunks += result.chunks;
           if (result.isUpdate) filesUpdated++;
           else filesAdded++;
@@ -226,9 +222,8 @@ export function registerContextCommand(program: Command) {
     .action((query, opts) =>
       withDb(program, async (conn, dir) => {
         const config = await loadConfig(dir);
-        initVectorSearch(conn);
         const queryVec = await embedSingle(query, config);
-        const results = hybridSearch(conn, query, queryVec, opts.topK);
+        const results = await hybridSearch(conn, query, queryVec, opts.topK);
 
         if (results.length === 0) {
           logger.dim("No results found.");
@@ -280,7 +275,7 @@ export function registerContextCommand(program: Command) {
           return;
         }
 
-        const embeddings = getEmbeddingsForItem(conn, item.id);
+        const embeddings = await getEmbeddingsForItem(conn, item.id);
 
         console.log(ansis.bold(item.title));
         console.log(`  Path:      ${item.context_path}`);
@@ -411,7 +406,7 @@ export function registerContextCommand(program: Command) {
 
         let chunks = 0;
         for (const p of prepared) {
-          const result = storeIngestion(conn, p);
+          const result = await storeIngestion(conn, p);
           chunks += result.chunks;
         }
 

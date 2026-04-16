@@ -19,7 +19,7 @@ let ctx: ToolContext;
 beforeEach(async () => {
   tempDir = await mkdtemp(join(tmpdir(), "bth-self-modify-"));
   ctx = {
-    conn: setupTestDb(),
+    conn: await setupTestDb(),
     projectDir: tempDir,
     config: { ...DEFAULT_CONFIG },
     mcpxClient: null,

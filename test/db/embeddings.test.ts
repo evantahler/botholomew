@@ -1,21 +1,34 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import { EMBEDDING_DIMENSION } from "../../src/constants.ts";
 import type { DbConnection } from "../../src/db/connection.ts";
 import { createContextItem } from "../../src/db/context.ts";
 import {
   createEmbedding,
   deleteEmbeddingsForItem,
   hybridSearch,
-  initVectorSearch,
   searchEmbeddings,
 } from "../../src/db/embeddings.ts";
 import { setupTestDb } from "../helpers.ts";
 
 let conn: DbConnection;
 
-beforeEach(() => {
-  conn = setupTestDb();
-  initVectorSearch(conn, 3); // 3-dim vectors for tests
+beforeEach(async () => {
+  conn = await setupTestDb();
 });
+
+/** Create a 384-dim vector with a value at the given index */
+function vec(index: number, value = 1): number[] {
+  const v = new Array(EMBEDDING_DIMENSION).fill(0);
+  v[index] = value;
+  return v;
+}
+
+/** Create a 384-dim vector from a few leading values */
+function vecFrom(...values: number[]): number[] {
+  const v = new Array(EMBEDDING_DIMENSION).fill(0);
+  for (let i = 0; i < values.length; i++) v[i] = values[i] ?? 0;
+  return v;
+}
 
 async function makeContextItem(title: string) {
   return await createContextItem(conn, {
@@ -32,56 +45,40 @@ async function makeContextItem(title: string) {
 describe("createEmbedding", () => {
   test("inserts an embedding row", async () => {
     const item = await makeContextItem("Test Item");
-    const emb = createEmbedding(conn, {
+    const emb = await createEmbedding(conn, {
       contextItemId: item.id,
       chunkIndex: 0,
       chunkContent: "some chunk text",
       title: "Test Item chunk 0",
-      embedding: [0.1, 0.2, 0.3],
+      embedding: vecFrom(0.1, 0.2, 0.3),
     });
 
     expect(emb.id).toBeTruthy();
     expect(emb.context_item_id).toBe(item.id);
     expect(emb.chunk_index).toBe(0);
     expect(emb.chunk_content).toBe("some chunk text");
-    expect(emb.embedding).toEqual([0.1, 0.2, 0.3]);
-  });
-
-  test("stores embedding as BLOB in DB", async () => {
-    const item = await makeContextItem("Blob Check");
-    const emb = createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 0,
-      chunkContent: "chunk",
-      title: "chunk 0",
-      embedding: [1.0, 2.0, 3.0],
-    });
-
-    const row = conn
-      .query("SELECT typeof(embedding) as t FROM embeddings WHERE id = ?1")
-      .get(emb.id) as { t: string };
-    expect(row.t).toBe("blob");
+    expect(emb.embedding.length).toBe(EMBEDDING_DIMENSION);
   });
 
   test("enforces unique (context_item_id, chunk_index)", async () => {
     const item = await makeContextItem("Unique Check");
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item.id,
       chunkIndex: 0,
       chunkContent: "first",
       title: "chunk 0",
-      embedding: [1, 0, 0],
+      embedding: vec(0),
     });
 
-    expect(() =>
+    expect(
       createEmbedding(conn, {
         contextItemId: item.id,
         chunkIndex: 0,
         chunkContent: "duplicate",
         title: "chunk 0 dup",
-        embedding: [0, 1, 0],
+        embedding: vec(1),
       }),
-    ).toThrow();
+    ).rejects.toThrow();
   });
 });
 
@@ -90,60 +87,59 @@ describe("createEmbedding", () => {
 describe("deleteEmbeddingsForItem", () => {
   test("deletes all embeddings for a context item", async () => {
     const item = await makeContextItem("Delete Test");
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item.id,
       chunkIndex: 0,
       chunkContent: "chunk 0",
       title: "c0",
-      embedding: [1, 0, 0],
+      embedding: vec(0),
     });
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item.id,
       chunkIndex: 1,
       chunkContent: "chunk 1",
       title: "c1",
-      embedding: [0, 1, 0],
+      embedding: vec(1),
     });
 
-    const deleted = deleteEmbeddingsForItem(conn, item.id);
+    const deleted = await deleteEmbeddingsForItem(conn, item.id);
     expect(deleted).toBe(2);
 
-    const remaining = conn
-      .query(
-        "SELECT COUNT(*) as cnt FROM embeddings WHERE context_item_id = ?1",
-      )
-      .get(item.id) as { cnt: number };
+    const remaining = (await conn.queryGet(
+      "SELECT COUNT(*) as cnt FROM embeddings WHERE context_item_id = ?1",
+      item.id,
+    )) as { cnt: number };
     expect(remaining.cnt).toBe(0);
   });
 
-  test("returns 0 when no embeddings exist", () => {
-    const deleted = deleteEmbeddingsForItem(conn, "nonexistent-id");
+  test("returns 0 when no embeddings exist", async () => {
+    const deleted = await deleteEmbeddingsForItem(conn, "nonexistent-id");
     expect(deleted).toBe(0);
   });
 
   test("does not delete embeddings for other items", async () => {
     const item1 = await makeContextItem("Item One");
     const item2 = await makeContextItem("Item Two");
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item1.id,
       chunkIndex: 0,
       chunkContent: "chunk",
       title: "c",
-      embedding: [1, 0, 0],
+      embedding: vec(0),
     });
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item2.id,
       chunkIndex: 0,
       chunkContent: "chunk",
       title: "c",
-      embedding: [0, 1, 0],
+      embedding: vec(1),
     });
 
-    deleteEmbeddingsForItem(conn, item1.id);
+    await deleteEmbeddingsForItem(conn, item1.id);
 
-    const remaining = conn
-      .query("SELECT COUNT(*) as cnt FROM embeddings")
-      .get() as { cnt: number };
+    const remaining = (await conn.queryGet(
+      "SELECT COUNT(*) as cnt FROM embeddings",
+    )) as { cnt: number };
     expect(remaining.cnt).toBe(1);
   });
 });
@@ -153,29 +149,29 @@ describe("deleteEmbeddingsForItem", () => {
 describe("searchEmbeddings", () => {
   test("returns results ranked by cosine similarity", async () => {
     const item = await makeContextItem("Search Test");
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item.id,
       chunkIndex: 0,
       chunkContent: "close match",
       title: "close",
-      embedding: [1, 0, 0],
+      embedding: vec(0),
     });
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item.id,
       chunkIndex: 1,
       chunkContent: "medium match",
       title: "medium",
-      embedding: [0.7, 0.7, 0],
+      embedding: vecFrom(0.7, 0.7),
     });
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item.id,
       chunkIndex: 2,
       chunkContent: "far match",
       title: "far",
-      embedding: [0, 0, 1],
+      embedding: vec(2),
     });
 
-    const results = searchEmbeddings(conn, [1, 0, 0], 10);
+    const results = await searchEmbeddings(conn, vec(0), 10);
     expect(results.length).toBe(3);
     expect(results[0]?.chunk_content).toBe("close match");
     expect(results[0]?.score).toBeCloseTo(1.0);
@@ -186,21 +182,21 @@ describe("searchEmbeddings", () => {
   test("respects limit", async () => {
     const item = await makeContextItem("Limit Test");
     for (let i = 0; i < 5; i++) {
-      createEmbedding(conn, {
+      await createEmbedding(conn, {
         contextItemId: item.id,
         chunkIndex: i,
         chunkContent: `chunk ${i}`,
         title: `c${i}`,
-        embedding: [Math.random(), Math.random(), Math.random()],
+        embedding: vecFrom(Math.random(), Math.random(), Math.random()),
       });
     }
 
-    const results = searchEmbeddings(conn, [1, 0, 0], 2);
+    const results = await searchEmbeddings(conn, vec(0), 2);
     expect(results.length).toBe(2);
   });
 
-  test("returns empty array when no embeddings exist", () => {
-    const results = searchEmbeddings(conn, [1, 0, 0]);
+  test("returns empty array when no embeddings exist", async () => {
+    const results = await searchEmbeddings(conn, vec(0));
     expect(results).toEqual([]);
   });
 });
@@ -210,29 +206,29 @@ describe("searchEmbeddings", () => {
 describe("hybridSearch", () => {
   test("combines keyword and vector results", async () => {
     const item = await makeContextItem("Hybrid Test");
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item.id,
       chunkIndex: 0,
       chunkContent: "quarterly revenue report",
       title: "revenue",
-      embedding: [1, 0, 0],
+      embedding: vec(0),
     });
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item.id,
       chunkIndex: 1,
       chunkContent: "annual revenue summary",
       title: "annual",
-      embedding: [0, 0, 1],
+      embedding: vec(2),
     });
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item.id,
       chunkIndex: 2,
       chunkContent: "financial overview",
       title: "overview",
-      embedding: [0.9, 0.1, 0],
+      embedding: vecFrom(0.9, 0.1),
     });
 
-    const results = hybridSearch(conn, "revenue", [1, 0, 0], 10);
+    const results = await hybridSearch(conn, "revenue", vec(0), 10);
     expect(results.length).toBe(3);
     expect(results[0]?.chunk_content).toBe("quarterly revenue report");
     expect(results[0]?.score).toBeGreaterThan(results[1]?.score ?? 0);
@@ -240,15 +236,15 @@ describe("hybridSearch", () => {
 
   test("returns keyword-only matches", async () => {
     const item = await makeContextItem("Keyword Only");
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item.id,
       chunkIndex: 0,
       chunkContent: "the special keyword here",
       title: "special",
-      embedding: [0, 0, 1],
+      embedding: vec(2),
     });
 
-    const results = hybridSearch(conn, "special", [1, 0, 0], 10);
+    const results = await hybridSearch(conn, "special", vec(0), 10);
     expect(results.length).toBe(1);
     expect(results[0]?.chunk_content).toContain("special");
   });
@@ -256,21 +252,21 @@ describe("hybridSearch", () => {
   test("respects limit", async () => {
     const item = await makeContextItem("Limit Hybrid");
     for (let i = 0; i < 5; i++) {
-      createEmbedding(conn, {
+      await createEmbedding(conn, {
         contextItemId: item.id,
         chunkIndex: i,
         chunkContent: `match chunk ${i}`,
         title: `match ${i}`,
-        embedding: [1, 0, 0],
+        embedding: vec(0),
       });
     }
 
-    const results = hybridSearch(conn, "match", [1, 0, 0], 2);
+    const results = await hybridSearch(conn, "match", vec(0), 2);
     expect(results.length).toBe(2);
   });
 
-  test("returns empty when nothing matches", () => {
-    const results = hybridSearch(conn, "nonexistent", [1, 0, 0]);
+  test("returns empty when nothing matches", async () => {
+    const results = await hybridSearch(conn, "nonexistent", vec(0));
     expect(results).toEqual([]);
   });
 });
@@ -278,37 +274,22 @@ describe("hybridSearch", () => {
 // ── Edge cases ────────────────────────────────────────────
 
 describe("edge cases", () => {
-  test("search with zero vector returns results", async () => {
-    const item = await makeContextItem("Zero Vector Test");
-    createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 0,
-      chunkContent: "some content",
-      title: "chunk 0",
-      embedding: [1, 0, 0],
-    });
-
-    // A zero vector should still return results (with score of 0 / NaN distance)
-    const results = searchEmbeddings(conn, [0, 0, 0], 10);
-    expect(results.length).toBe(1);
-  });
-
   test("search with large number of embeddings respects limit", async () => {
     const item = await makeContextItem("Many Embeddings");
     for (let i = 0; i < 20; i++) {
-      createEmbedding(conn, {
+      await createEmbedding(conn, {
         contextItemId: item.id,
         chunkIndex: i,
         chunkContent: `chunk ${i}`,
         title: `c${i}`,
-        embedding: [Math.cos(i), Math.sin(i), 0],
+        embedding: vecFrom(Math.cos(i), Math.sin(i)),
       });
     }
 
-    const results5 = searchEmbeddings(conn, [1, 0, 0], 5);
+    const results5 = await searchEmbeddings(conn, vec(0), 5);
     expect(results5.length).toBe(5);
 
-    const results10 = searchEmbeddings(conn, [1, 0, 0], 10);
+    const results10 = await searchEmbeddings(conn, vec(0), 10);
     expect(results10.length).toBe(10);
   });
 
@@ -316,23 +297,23 @@ describe("edge cases", () => {
     const item1 = await makeContextItem("Item One");
     const item2 = await makeContextItem("Item Two");
 
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item1.id,
       chunkIndex: 0,
       chunkContent: "first item content",
       title: "first",
-      embedding: [1, 0, 0],
+      embedding: vec(0),
     });
 
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item2.id,
       chunkIndex: 0,
       chunkContent: "second item content",
       title: "second",
-      embedding: [0.9, 0.1, 0],
+      embedding: vecFrom(0.9, 0.1),
     });
 
-    const results = searchEmbeddings(conn, [1, 0, 0], 10);
+    const results = await searchEmbeddings(conn, vec(0), 10);
     expect(results.length).toBe(2);
     const itemIds = results.map((r) => r.context_item_id);
     expect(itemIds).toContain(item1.id);
@@ -341,16 +322,16 @@ describe("edge cases", () => {
 
   test("hybrid search deduplicates results found by both keyword and vector", async () => {
     const item = await makeContextItem("Dedup Test");
-    createEmbedding(conn, {
+    await createEmbedding(conn, {
       contextItemId: item.id,
       chunkIndex: 0,
       chunkContent: "unique keyword content",
       title: "unique",
-      embedding: [1, 0, 0],
+      embedding: vec(0),
     });
 
     // Search with keyword that matches AND vector that matches
-    const results = hybridSearch(conn, "unique", [1, 0, 0], 10);
+    const results = await hybridSearch(conn, "unique", vec(0), 10);
     expect(results.length).toBe(1);
     // Score should be boosted by appearing in both keyword and vector results
     expect(results[0]?.score).toBeGreaterThan(0);

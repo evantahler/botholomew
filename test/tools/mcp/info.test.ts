@@ -5,7 +5,7 @@ import { setupToolContext } from "../../helpers.ts";
 
 describe("mcp_info", () => {
   test("returns not found with hint when mcpxClient is null", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     const result = await mcpInfoTool.execute(
       { server: "gmail", tool: "send_email" },
       ctx,
@@ -16,7 +16,7 @@ describe("mcp_info", () => {
   });
 
   test("returns not found with discovery hint for unknown tool", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = {
       info: mock(async () => undefined),
     } as unknown as McpxClient;
@@ -31,7 +31,7 @@ describe("mcp_info", () => {
   });
 
   test("returns tool schema with exec hint when found", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = {
       info: mock(async () => ({
         name: "send_email",
@@ -63,7 +63,7 @@ describe("mcp_info", () => {
   });
 
   test("handles tool with no inputSchema", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = {
       info: mock(async () => ({
         name: "ping",
