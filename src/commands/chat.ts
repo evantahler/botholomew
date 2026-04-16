@@ -16,25 +16,41 @@ export function registerChatCommand(program: Command) {
     )
     .option("--thread-id <id>", "Resume an existing chat thread")
     .option("-p, --prompt <text>", "Start chat with an initial prompt")
-    .action(async (opts: { threadId?: string; prompt?: string }) => {
-      const { render } = await import("ink");
-      const React = await import("react");
-      const { App } = await import("../tui/App.tsx");
-      const dir = program.opts().dir;
-      const instance = render(
-        React.createElement(App, {
-          projectDir: dir,
-          threadId: opts.threadId,
-          initialPrompt: opts.prompt,
-        }),
-        {
-          exitOnCtrlC: false,
-          kittyKeyboard: {
-            mode: "enabled",
-            flags: ["disambiguateEscapeCodes"],
+    .option("--no-daemon", "don't auto-start the daemon")
+    .action(
+      async (opts: {
+        threadId?: string;
+        prompt?: string;
+        daemon?: boolean;
+      }) => {
+        const { render } = await import("ink");
+        const React = await import("react");
+        const { App } = await import("../tui/App.tsx");
+        const dir = program.opts().dir;
+
+        // Auto-spawn daemon if not running (attached mode)
+        if (opts.daemon !== false) {
+          const { ensureDaemonRunning } = await import(
+            "../daemon/ensure-running.ts"
+          );
+          await ensureDaemonRunning(dir);
+        }
+
+        const instance = render(
+          React.createElement(App, {
+            projectDir: dir,
+            threadId: opts.threadId,
+            initialPrompt: opts.prompt,
+          }),
+          {
+            exitOnCtrlC: false,
+            kittyKeyboard: {
+              mode: "enabled",
+              flags: ["disambiguateEscapeCodes"],
+            },
           },
-        },
-      );
-      await instance.waitUntilExit();
-    });
+        );
+        await instance.waitUntilExit();
+      },
+    );
 }

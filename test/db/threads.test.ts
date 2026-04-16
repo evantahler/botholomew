@@ -4,7 +4,10 @@ import {
   createThread,
   deleteThread,
   endThread,
+  getActiveThread,
+  getInteractionsAfter,
   getThread,
+  isThreadEnded,
   listThreads,
   logInteraction,
   updateThreadTitle,
@@ -213,5 +216,79 @@ describe("listThreads", () => {
 
     const threads = await listThreads(conn, { limit: 2 });
     expect(threads).toHaveLength(2);
+  });
+});
+
+describe("follow queries", () => {
+  test("getInteractionsAfter returns only interactions after given sequence", async () => {
+    const threadId = await createThread(conn, "daemon_tick");
+    for (let i = 0; i < 5; i++) {
+      await logInteraction(conn, threadId, {
+        role: "assistant",
+        kind: "message",
+        content: `Message ${i + 1}`,
+      });
+    }
+
+    const after3 = await getInteractionsAfter(conn, threadId, 3);
+    expect(after3).toHaveLength(2);
+    expect(after3[0]?.sequence).toBe(4);
+    expect(after3[1]?.sequence).toBe(5);
+  });
+
+  test("getInteractionsAfter returns empty when caught up", async () => {
+    const threadId = await createThread(conn, "daemon_tick");
+    await logInteraction(conn, threadId, {
+      role: "assistant",
+      kind: "message",
+      content: "Only message",
+    });
+
+    const result = await getInteractionsAfter(conn, threadId, 1);
+    expect(result).toHaveLength(0);
+  });
+
+  test("getActiveThread returns most recent active thread", async () => {
+    const id1 = await createThread(
+      conn,
+      "daemon_tick",
+      undefined,
+      "First tick",
+    );
+    await endThread(conn, id1);
+    const id2 = await createThread(
+      conn,
+      "daemon_tick",
+      undefined,
+      "Second tick",
+    );
+
+    const active = await getActiveThread(conn);
+    expect(active).not.toBeNull();
+    expect(active?.id).toBe(id2);
+    expect(active?.title).toBe("Second tick");
+  });
+
+  test("getActiveThread returns null when all threads ended", async () => {
+    const id = await createThread(conn, "daemon_tick");
+    await endThread(conn, id);
+
+    const active = await getActiveThread(conn);
+    expect(active).toBeNull();
+  });
+
+  test("isThreadEnded returns false for active thread", async () => {
+    const id = await createThread(conn, "daemon_tick");
+    expect(await isThreadEnded(conn, id)).toBe(false);
+  });
+
+  test("isThreadEnded returns true for ended thread", async () => {
+    const id = await createThread(conn, "daemon_tick");
+    await endThread(conn, id);
+    expect(await isThreadEnded(conn, id)).toBe(true);
+  });
+
+  test("isThreadEnded returns true for nonexistent thread", async () => {
+    expect(await isThreadEnded(conn, "nonexistent")).toBe(true);
   });
 });

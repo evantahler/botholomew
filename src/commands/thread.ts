@@ -2,7 +2,14 @@ import ansis from "ansis";
 import type { Command } from "commander";
 import type { DbConnection } from "../db/connection.ts";
 import type { Interaction, Thread } from "../db/threads.ts";
-import { deleteThread, getThread, listThreads } from "../db/threads.ts";
+import {
+  deleteThread,
+  getActiveThread,
+  getInteractionsAfter,
+  getThread,
+  isThreadEnded,
+  listThreads,
+} from "../db/threads.ts";
 import { logger } from "../utils/logger.ts";
 import { withDb } from "./with-db.ts";
 
@@ -76,6 +83,87 @@ export function registerThreadCommand(program: Command) {
           process.exit(1);
         }
         logger.success(`Deleted thread: ${resolvedId}`);
+      }),
+    );
+
+  thread
+    .command("follow [id]")
+    .description("Follow a thread live (like tail -f)")
+    .option("-i, --interval <ms>", "poll interval in ms", parseInt)
+    .action((id, opts) =>
+      withDb(program, async (conn) => {
+        let resolvedId: string;
+        if (id) {
+          const found = await resolveThreadId(conn, id);
+          if (!found) {
+            logger.error(`Thread not found: ${id}`);
+            process.exit(1);
+          }
+          resolvedId = found;
+        } else {
+          const active = await getActiveThread(conn);
+          if (!active) {
+            logger.error("No active thread found.");
+            process.exit(1);
+          }
+          resolvedId = active.id;
+        }
+
+        const result = await getThread(conn, resolvedId);
+        if (!result) {
+          logger.error(`Thread not found: ${resolvedId}`);
+          process.exit(1);
+        }
+
+        printThreadDetail(result.thread, result.interactions);
+
+        if (result.thread.ended_at) {
+          logger.dim("Thread already ended.");
+          return;
+        }
+
+        let lastSequence =
+          result.interactions.length > 0
+            ? (result.interactions[result.interactions.length - 1]?.sequence ??
+              0)
+            : 0;
+
+        const pollMs = opts.interval ?? 500;
+        logger.info(
+          `Following thread ${ansis.dim(resolvedId.slice(0, 8))}... (Ctrl+C to stop)`,
+        );
+
+        const interval = setInterval(async () => {
+          try {
+            const newInteractions = await getInteractionsAfter(
+              conn,
+              resolvedId,
+              lastSequence,
+            );
+            for (const i of newInteractions) {
+              printInteraction(i);
+              lastSequence = i.sequence;
+            }
+
+            const ended = await isThreadEnded(conn, resolvedId);
+            if (ended) {
+              logger.dim("Thread ended.");
+              clearInterval(interval);
+              process.exit(0);
+            }
+          } catch {
+            // Transient DB errors (e.g. SQLITE_BUSY) — retry next tick
+          }
+        }, pollMs);
+
+        process.on("SIGINT", () => {
+          clearInterval(interval);
+          console.log();
+          process.exit(0);
+        });
+
+        // Keep the process alive
+        await new Promise(() => {});
       }),
     );
 }
