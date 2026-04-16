@@ -112,6 +112,12 @@ function buildTaskDetailAnsi(task: Task): string {
     lines.push("");
   }
 
+  if (task.output) {
+    lines.push(`${ansi.bold}${ansi.primary}Output${ansi.reset}`);
+    lines.push(`${ansi.dim}${task.output}${ansi.reset}`);
+    lines.push("");
+  }
+
   if (task.blocked_by.length > 0) {
     lines.push(`${ansi.bold}${ansi.primary}Blocked By${ansi.reset}`);
     for (const id of task.blocked_by) {
