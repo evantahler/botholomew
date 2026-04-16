@@ -7,7 +7,7 @@
 | 3 | [Schedules & Task Hardening](milestone-3-schedules-and-task-hardening.md) | **Done** | Recurring schedules, cycle detection, timeouts, full task/schedule CLI |
 | 4 | [MCPX Integration](milestone-4-mcpx-integration.md) | **Done** | External tools via MCP servers (Gmail, Slack, web, etc.) |
 | 5 | [Chat TUI](milestone-5-chat-tui.md) | **Done** | Interactive Ink/React terminal UI for conversational interaction |
-| 6 | [Daemon Watchdog & Distribution](milestone-6-daemon-watchdog-and-distribution.md) | Planned | OS-level watchdog, binary compilation, agent self-modification |
+| 6 | [Daemon Watchdog & Distribution](milestone-6-daemon-watchdog-and-distribution.md) | **Done** | OS-level watchdog, agent self-modification |
 | 7 | [Skills (Slash-Commands)](milestone-7-skills.md) | Planned | User-defined slash-commands loaded from `.botholomew/skills/` markdown files |
 | 8 | [Remote Context](milestone-8-remote-context.md) | Planned | Ingest context from URLs via LLM-driven MCPX tool selection |
 
