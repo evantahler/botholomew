@@ -57,8 +57,10 @@ export async function migrate(db: DbConnection): Promise<void> {
       await db.exec(statement);
     }
 
-    await db.exec(
-      `INSERT INTO _migrations (id, name) VALUES (${migration.id}, '${migration.name}')`,
+    await db.queryRun(
+      "INSERT INTO _migrations (id, name) VALUES (?1, ?2)",
+      migration.id,
+      migration.name,
     );
   }
 }

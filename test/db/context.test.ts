@@ -277,6 +277,58 @@ describe("mutations", () => {
     expect(item.content).toBe("a\nB\nc\nD\ne");
   });
 
+  test("applyPatches — throws for nonexistent item", async () => {
+    await expect(
+      applyPatchesToContextItem(conn, "/does-not-exist.md", [
+        { start_line: 1, end_line: 1, content: "x" },
+      ]),
+    ).rejects.toThrow("Not found");
+  });
+
+  test("applyPatches — throws for null content", async () => {
+    await createContextItem(conn, {
+      title: "Binary",
+      contextPath: "/binary.bin",
+      isTextual: false,
+    });
+
+    await expect(
+      applyPatchesToContextItem(conn, "/binary.bin", [
+        { start_line: 1, end_line: 1, content: "x" },
+      ]),
+    ).rejects.toThrow("No text content");
+  });
+
+  test("applyPatches — out-of-bounds start_line extends content", async () => {
+    await createContextItem(conn, {
+      title: "Short",
+      contextPath: "/short.md",
+      content: "only-one-line",
+    });
+
+    // start_line 5 on a 1-line file — splice inserts at end
+    const { item } = await applyPatchesToContextItem(conn, "/short.md", [
+      { start_line: 5, end_line: 0, content: "appended" },
+    ]);
+
+    expect(item.content).toContain("only-one-line");
+    expect(item.content).toContain("appended");
+  });
+
+  test("applyPatches — replace single line with multiple lines", async () => {
+    await createContextItem(conn, {
+      title: "Test",
+      contextPath: "/test.md",
+      content: "a\nb\nc",
+    });
+
+    const { item } = await applyPatchesToContextItem(conn, "/test.md", [
+      { start_line: 2, end_line: 2, content: "x\ny\nz" },
+    ]);
+
+    expect(item.content).toBe("a\nx\ny\nz\nc");
+  });
+
   test("copyContextItem", async () => {
     await createContextItem(conn, {
       title: "Original",
