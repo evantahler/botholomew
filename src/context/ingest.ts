@@ -59,6 +59,7 @@ export async function prepareIngestion(
   const textsForEmbedding = chunks.map((c) => {
     const parts: string[] = [];
     if (item.title) parts.push(`Title: ${item.title}`);
+    if (item.description) parts.push(`Description: ${item.description}`);
     if (item.source_path) parts.push(`Source: ${item.source_path}`);
     parts.push(c.content);
     return parts.join("\n");

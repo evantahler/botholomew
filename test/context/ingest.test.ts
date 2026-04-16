@@ -142,6 +142,7 @@ describe("prepareIngestion", () => {
   test("prepends metadata to text sent to embedder", async () => {
     const item = await createContextItem(conn, {
       title: "My Report",
+      description: "Quarterly revenue summary",
       content: "Some content to embed.",
       contextPath: "/docs/report.md",
       mimeType: "text/plain",
@@ -167,6 +168,7 @@ describe("prepareIngestion", () => {
 
     const embeddedText = capturedTexts[0]?.[0];
     expect(embeddedText).toStartWith("Title: My Report\n");
+    expect(embeddedText).toContain("Description: Quarterly revenue summary\n");
     expect(embeddedText).toContain("Source: /home/user/report.md\n");
     expect(embeddedText).toContain("Some content to embed.");
 

@@ -455,9 +455,12 @@ async function addFile(
     const existing = await getContextItemByPath(conn, contextPath);
     let item: ContextItem;
 
+    const description = `File imported from ${filePath}`;
+
     if (existing) {
       const updated = await updateContextItem(conn, existing.id, {
         title: filename,
+        description,
         content: content ?? undefined,
         mime_type: mimeType,
       });
@@ -466,6 +469,7 @@ async function addFile(
     } else {
       item = await createContextItem(conn, {
         title: filename,
+        description,
         content: content ?? undefined,
         mimeType,
         sourcePath: filePath,
