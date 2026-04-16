@@ -192,6 +192,41 @@ export async function deleteThread(
   return result.changes > 0;
 }
 
+export async function getInteractionsAfter(
+  db: DbConnection,
+  threadId: string,
+  afterSequence: number,
+): Promise<Interaction[]> {
+  const rows = db
+    .query(
+      `SELECT * FROM interactions WHERE thread_id = ?1 AND sequence > ?2 ORDER BY sequence ASC`,
+    )
+    .all(threadId, afterSequence) as InteractionRow[];
+  return rows.map(rowToInteraction);
+}
+
+export async function getActiveThread(
+  db: DbConnection,
+): Promise<Thread | null> {
+  const row = db
+    .query(
+      `SELECT * FROM threads WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1`,
+    )
+    .get() as ThreadRow | null;
+  return row ? rowToThread(row) : null;
+}
+
+export async function isThreadEnded(
+  db: DbConnection,
+  threadId: string,
+): Promise<boolean> {
+  const row = db
+    .query(`SELECT ended_at FROM threads WHERE id = ?1`)
+    .get(threadId) as { ended_at: string | null } | null;
+  if (!row) return true;
+  return row.ended_at !== null;
+}
+
 export async function listThreads(
   db: DbConnection,
   filters?: {

@@ -22,6 +22,11 @@ export const EMBEDDING_DIMENSION = 384;
 export const EMBEDDING_MODEL_ID = "Xenova/bge-small-en-v1.5";
 export const EMBEDDING_DTYPE = "fp32";
 
+export const LAUNCHD_LABEL_PREFIX = "com.botholomew.";
+export const SYSTEMD_UNIT_PREFIX = "botholomew-";
+export const LOG_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+export const WATCHDOG_LOG_FILENAME = "watchdog.log";
+
 export function getBotholomewDir(projectDir: string): string {
   return join(projectDir, BOTHOLOMEW_DIR);
 }
@@ -44,4 +49,21 @@ export function getConfigPath(projectDir: string): string {
 
 export function getMcpxDir(projectDir: string): string {
   return join(projectDir, BOTHOLOMEW_DIR, MCPX_DIR);
+}
+
+export function getWatchdogLogPath(projectDir: string): string {
+  return join(projectDir, BOTHOLOMEW_DIR, WATCHDOG_LOG_FILENAME);
+}
+
+/**
+ * Convert an absolute directory path into a service-name-safe string.
+ * e.g. "/Users/evan/myproject" → "users-evan-myproject"
+ */
+export function sanitizePathForServiceName(projectDir: string): string {
+  return projectDir
+    .toLowerCase()
+    .replace(/[/\\:]+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "")
+    .replace(/-+/g, "-");
 }

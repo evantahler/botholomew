@@ -42,6 +42,14 @@ export const updateGoalsTool = {
       const raw = await file.text();
       const parsed = parseContextFile(raw);
       meta = parsed.meta;
+
+      if (!meta["agent-modification"]) {
+        return {
+          message: "Agent modification not allowed for this file",
+          path: filePath,
+          is_error: true,
+        };
+      }
     }
 
     const serialized = serializeContextFile(meta, input.content);

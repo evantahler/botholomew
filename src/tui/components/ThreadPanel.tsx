@@ -1,10 +1,12 @@
 import { Box, Text, useInput, useStdout } from "ink";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DbConnection } from "../../db/connection.ts";
 import {
   deleteThread,
+  getInteractionsAfter,
   getThread,
   type Interaction,
+  isThreadEnded,
   listThreads,
   type Thread,
 } from "../../db/threads.ts";
@@ -197,6 +199,8 @@ export const ThreadPanel = memo(function ThreadPanel({
     thread: Thread;
     interactions: Interaction[];
   } | null>(null);
+  const [following, setFollowing] = useState(false);
+  const lastSeenSequenceRef = useRef(0);
 
   // Fetch thread list
   // biome-ignore lint/correctness/useExhaustiveDependencies: refreshTick triggers manual refresh
@@ -230,10 +234,11 @@ export const ThreadPanel = memo(function ThreadPanel({
     return threads.filter((t) => t.title.toLowerCase().includes(q));
   }, [threads, searchQuery]);
 
-  // Fetch detail for selected thread
+  // Fetch detail for selected thread (skip while following — follow effect handles updates)
   const selectedThread = filteredThreads[selectedIndex];
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedThread?.id is the intentional trigger
   useEffect(() => {
+    if (following) return;
     let mounted = true;
     if (!selectedThread) {
       setSelectedDetail(null);
@@ -249,7 +254,59 @@ export const ThreadPanel = memo(function ThreadPanel({
     return () => {
       mounted = false;
     };
-  }, [conn, selectedThread?.id]);
+  }, [conn, selectedThread?.id, following]);
+
+  // Follow mode: poll for new interactions every 1s
+  // biome-ignore lint/correctness/useExhaustiveDependencies: following and selectedThread?.id are the intentional triggers
+  useEffect(() => {
+    if (!following || !selectedThread) return;
+    let mounted = true;
+
+    const poll = async () => {
+      try {
+        const newInteractions = await getInteractionsAfter(
+          conn,
+          selectedThread.id,
+          lastSeenSequenceRef.current,
+        );
+        if (!mounted || newInteractions.length === 0) return;
+
+        const maxNewSeq =
+          newInteractions[newInteractions.length - 1]?.sequence ?? 0;
+        lastSeenSequenceRef.current = maxNewSeq;
+
+        setSelectedDetail((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            interactions: [...prev.interactions, ...newInteractions],
+          };
+        });
+
+        // Auto-scroll will be handled by the detailLines/maxDetailScroll recalc
+        setDetailScroll(Number.MAX_SAFE_INTEGER);
+
+        const ended = await isThreadEnded(conn, selectedThread.id);
+        if (mounted && ended) {
+          setFollowing(false);
+          // Refresh the thread to get the ended_at timestamp
+          const result = await getThread(conn, selectedThread.id);
+          if (mounted && result) {
+            setSelectedDetail(result);
+          }
+        }
+      } catch {
+        // Transient DB errors — retry next tick
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 1000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [conn, following, selectedThread?.id]);
 
   const isActiveSelected = selectedThread?.id === activeThreadId;
 
@@ -277,10 +334,11 @@ export const ThreadPanel = memo(function ThreadPanel({
     ),
   );
 
-  // Reset detail scroll when selection changes
+  // Reset detail scroll and follow mode when selection changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedIndex is the intentional trigger
   useEffect(() => {
     setDetailScroll(0);
+    setFollowing(false);
   }, [selectedIndex]);
 
   const forceRefresh = useCallback(() => {
@@ -388,6 +446,17 @@ export const ThreadPanel = memo(function ThreadPanel({
       if (input === "s" || input === "/") {
         setSearching(true);
         setSearchQuery("");
+        return;
+      }
+      if (input === "w" && selectedThread) {
+        if (following) {
+          setFollowing(false);
+        } else if (!selectedThread.ended_at) {
+          const maxSeq = selectedDetail?.interactions.at(-1)?.sequence ?? 0;
+          lastSeenSequenceRef.current = maxSeq;
+          setFollowing(true);
+          setDetailScroll(maxDetailScroll);
+        }
         return;
       }
     },
@@ -521,9 +590,16 @@ export const ThreadPanel = memo(function ThreadPanel({
         })}
         {detailLines.length > visibleRows && (
           <Box>
+            {following && (
+              <Text color={theme.success} bold>
+                {" "}
+                FOLLOWING{" "}
+              </Text>
+            )}
             <Text dimColor>
-              s search · f filter · ↑↓ select · j/k scroll · d delete · r
-              refresh · [{detailScroll + 1}–
+              s search · f filter · ↑↓ select · j/k scroll · d delete ·
+              {selectedThread && !selectedThread.ended_at ? " w follow ·" : ""}{" "}
+              r refresh · [{detailScroll + 1}–
               {Math.min(detailScroll + visibleRows, detailLines.length)} of{" "}
               {detailLines.length}]
             </Text>
@@ -531,9 +607,19 @@ export const ThreadPanel = memo(function ThreadPanel({
         )}
         {detailLines.length <= visibleRows && <Box flexGrow={1} />}
         {detailLines.length <= visibleRows && (
-          <Text dimColor>
-            s search · f filter · ↑↓ select · d delete · r refresh
-          </Text>
+          <Box>
+            {following && (
+              <Text color={theme.success} bold>
+                {" "}
+                FOLLOWING{" "}
+              </Text>
+            )}
+            <Text dimColor>
+              s search · f filter · ↑↓ select · d delete ·
+              {selectedThread && !selectedThread.ended_at ? " w follow ·" : ""}{" "}
+              r refresh
+            </Text>
+          </Box>
         )}
       </Box>
     </Box>
