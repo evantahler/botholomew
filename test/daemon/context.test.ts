@@ -1,6 +1,11 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { fitToContextWindow } from "../../src/daemon/context.ts";
+import { MockAnthropicModels } from "../helpers.ts";
+
+mock.module("@anthropic-ai/sdk", () => ({ default: MockAnthropicModels }));
+
+const { getMaxInputTokens } = await import("../../src/daemon/context.ts");
 
 describe("fitToContextWindow", () => {
   const defaultLimit = 200_000;
@@ -87,5 +92,79 @@ describe("fitToContextWindow", () => {
     ];
     const result = fitToContextWindow(messages, "Be helpful.", defaultLimit);
     expect(result).toHaveLength(3);
+  });
+
+  it("handles system prompt that fills the entire budget", () => {
+    // A system prompt that consumes all tokens — budget becomes <= 0
+    const hugeSystemPrompt = "x".repeat(defaultLimit * 4); // way over
+    const messages: MessageParam[] = [
+      { role: "user", content: "Hello" },
+      { role: "assistant", content: "Hi" },
+    ];
+    // Should not throw, should return messages unchanged (warning logged)
+    const result = fitToContextWindow(messages, hugeSystemPrompt, defaultLimit);
+    expect(result).toHaveLength(2);
+  });
+
+  it("does not truncate tool results under the threshold", () => {
+    const smallContent = "x".repeat(1000);
+    const messages: MessageParam[] = [
+      { role: "user", content: "Hello" },
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "test-id",
+            content: smallContent,
+          },
+        ],
+      },
+    ];
+
+    fitToContextWindow(messages, "system", defaultLimit);
+    const block = (messages[1]?.content as Array<{ content: string }>)[0];
+    expect(block?.content).toBe(smallContent);
+    expect(block?.content).not.toContain("[truncated:");
+  });
+
+  it("handles messages with mixed content block types", () => {
+    const messages: MessageParam[] = [
+      { role: "user", content: "Start" },
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "I'll call a tool." },
+          {
+            type: "tool_use",
+            id: "tool_1",
+            name: "test",
+            input: { key: "value" },
+          },
+        ],
+      },
+    ];
+    // Should not crash on mixed block types
+    const result = fitToContextWindow(messages, "system", defaultLimit);
+    expect(result).toHaveLength(2);
+  });
+});
+
+describe("getMaxInputTokens", () => {
+  it("returns the model's max_input_tokens from API", async () => {
+    const result = await getMaxInputTokens("test-key", "test-model-unique");
+    expect(result).toBe(100_000);
+  });
+
+  it("caches results for same model", async () => {
+    // First call hits API, second uses cache
+    const r1 = await getMaxInputTokens("test-key", "cached-model");
+    const r2 = await getMaxInputTokens("test-key", "cached-model");
+    expect(r1).toBe(r2);
+  });
+
+  it("returns default when API fails", async () => {
+    const result = await getMaxInputTokens("test-key", "fail-model");
+    expect(result).toBe(200_000); // DEFAULT_MAX_INPUT_TOKENS
   });
 });

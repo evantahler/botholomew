@@ -79,12 +79,15 @@ export async function startDaemon(
   logger.info(`Tick interval: ${config.tick_interval_seconds}s`);
 
   while (true) {
+    let didWork = false;
     try {
-      await tick(projectDir, conn, config, mcpxClient, callbacks);
+      didWork = await tick(projectDir, conn, config, mcpxClient, callbacks);
     } catch (err) {
       logger.error(`Tick failed: ${err}`);
     }
 
-    await Bun.sleep(config.tick_interval_seconds * 1000);
+    if (!didWork) {
+      await Bun.sleep(config.tick_interval_seconds * 1000);
+    }
   }
 }

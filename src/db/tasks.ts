@@ -1,5 +1,5 @@
 import type { DbConnection } from "./connection.ts";
-import { buildSetClauses, buildWhereClause } from "./query.ts";
+import { buildSetClauses, buildWhereClause, sanitizeInt } from "./query.ts";
 import { uuidv7 } from "./uuid.ts";
 
 export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
@@ -112,7 +112,7 @@ export async function listTasks(
     ["status", filters?.status],
     ["priority", filters?.priority],
   ]);
-  const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
+  const limit = filters?.limit ? `LIMIT ${sanitizeInt(filters.limit)}` : "";
 
   const rows = await db.queryAll<TaskRow>(
     `SELECT * FROM tasks ${where}
@@ -272,51 +272,42 @@ export async function claimNextTask(
        created_at ASC`,
   );
 
-  // Find the first task whose blockers are all complete
-  let claimableRow: TaskRow | null = null;
   for (const row of allPending) {
     const blockedBy: string[] = JSON.parse(row.blocked_by || "[]");
-    if (blockedBy.length === 0) {
-      claimableRow = row;
-      break;
-    }
-    // Check if all blockers are complete
-    let allComplete = true;
-    for (const blockerId of blockedBy) {
-      const blocker = await db.queryGet<{ status: string }>(
-        "SELECT status FROM tasks WHERE id = ?1",
-        blockerId,
-      );
-      if (!blocker || blocker.status !== "complete") {
-        allComplete = false;
-        break;
+    if (blockedBy.length > 0) {
+      // Check if all blockers are complete
+      let allComplete = true;
+      for (const blockerId of blockedBy) {
+        const blocker = await db.queryGet<{ status: string }>(
+          "SELECT status FROM tasks WHERE id = ?1",
+          blockerId,
+        );
+        if (!blocker || blocker.status !== "complete") {
+          allComplete = false;
+          break;
+        }
       }
+      if (!allComplete) continue;
     }
-    if (allComplete) {
-      claimableRow = row;
-      break;
+
+    // Attempt atomic claim — RETURNING confirms we actually got it
+    const claimed = await db.queryGet<TaskRow>(
+      `UPDATE tasks
+       SET status = 'in_progress',
+           claimed_by = ?1,
+           claimed_at = current_timestamp::VARCHAR,
+           updated_at = current_timestamp::VARCHAR
+       WHERE id = ?2 AND status = 'pending'
+       RETURNING *`,
+      claimedBy,
+      row.id,
+    );
+
+    if (claimed) {
+      return rowToTask(claimed);
     }
+    // Another process claimed it — try next candidate
   }
 
-  if (!claimableRow) return null;
-  const task = rowToTask(claimableRow);
-
-  // Claim it
-  await db.queryRun(
-    `UPDATE tasks
-     SET status = 'in_progress',
-         claimed_by = ?1,
-         claimed_at = current_timestamp::VARCHAR,
-         updated_at = current_timestamp::VARCHAR
-     WHERE id = ?2 AND status = 'pending'`,
-    claimedBy,
-    task.id,
-  );
-
-  return {
-    ...task,
-    status: "in_progress",
-    claimed_by: claimedBy,
-    claimed_at: new Date(),
-  };
+  return null;
 }

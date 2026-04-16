@@ -2,25 +2,13 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { DbConnection } from "../../src/db/connection.ts";
 import { createTask } from "../../src/db/tasks.ts";
 import { createThread, getThread } from "../../src/db/threads.ts";
-import { setupTestDb } from "../helpers.ts";
+import { completionResponse, setupTestDb, TEST_CONFIG } from "../helpers.ts";
 
 let mockCreate: ReturnType<typeof mock>;
 
 // Mock the Anthropic SDK
 mock.module("@anthropic-ai/sdk", () => {
-  mockCreate = mock(async () => ({
-    content: [
-      { type: "text", text: "Done." },
-      {
-        type: "tool_use",
-        id: "tool_1",
-        name: "complete_task",
-        input: { summary: "Task completed" },
-      },
-    ],
-    stop_reason: "tool_use",
-    usage: { input_tokens: 100, output_tokens: 50 },
-  }));
+  mockCreate = mock(async () => completionResponse("Task completed"));
 
   return {
     default: class MockAnthropic {
@@ -33,18 +21,7 @@ const { runAgentLoop } = await import("../../src/daemon/llm.ts");
 
 let conn: DbConnection;
 
-const testConfig = {
-  anthropic_api_key: "test-key",
-  openai_api_key: "",
-  model: "claude-opus-4-20250514",
-  chunker_model: "claude-haiku-4-20250514",
-  embedding_model: "text-embedding-3-small",
-  embedding_dimension: 1536,
-  tick_interval_seconds: 300,
-  max_tick_duration_seconds: 120,
-  max_turns: 10,
-  system_prompt_override: "",
-};
+const testConfig = { ...TEST_CONFIG, max_turns: 10 };
 
 beforeEach(async () => {
   conn = await setupTestDb();

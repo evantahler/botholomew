@@ -20,7 +20,7 @@ export async function tick(
   config: Required<BotholomewConfig>,
   mcpxClient?: McpxClient | null,
   callbacks?: DaemonStreamCallbacks,
-): Promise<void> {
+): Promise<boolean> {
   logger.debug("Tick starting...");
 
   // Reset stale tasks stuck in in_progress
@@ -45,7 +45,7 @@ export async function tick(
   const task = await claimNextTask(conn);
   if (!task) {
     logger.debug("No tasks to work on. Sleeping.");
-    return;
+    return false;
   }
 
   logger.info(`Working on task: ${task.name} (${task.id})`);
@@ -108,4 +108,6 @@ export async function tick(
   } finally {
     await endThread(conn, threadId);
   }
+
+  return true;
 }
