@@ -2,6 +2,10 @@ import { EMBEDDING_DIMENSION } from "../constants.ts";
 import type { DbConnection } from "./connection.ts";
 import { uuidv7 } from "./uuid.ts";
 
+if (!Number.isInteger(EMBEDDING_DIMENSION) || EMBEDDING_DIMENSION <= 0) {
+  throw new Error(`Invalid EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION}`);
+}
+
 export interface Embedding {
   id: string;
   context_item_id: string;

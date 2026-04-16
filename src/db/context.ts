@@ -1,5 +1,5 @@
 import type { DbConnection } from "./connection.ts";
-import { buildSetClauses, buildWhereClause } from "./query.ts";
+import { buildSetClauses, buildWhereClause, sanitizeInt } from "./query.ts";
 import { uuidv7 } from "./uuid.ts";
 
 export interface ContextItem {
@@ -120,8 +120,8 @@ export async function listContextItems(
     ["context_path", filters?.contextPath],
     ["mime_type", filters?.mimeType],
   ]);
-  const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
-  const offset = filters?.offset ? `OFFSET ${filters.offset}` : "";
+  const limit = filters?.limit ? `LIMIT ${sanitizeInt(filters.limit)}` : "";
+  const offset = filters?.offset ? `OFFSET ${sanitizeInt(filters.offset)}` : "";
 
   const rows = await db.queryAll<ContextItemRow>(
     `SELECT * FROM context_items ${where} ORDER BY context_path ASC ${limit} ${offset}`,
@@ -137,8 +137,8 @@ export async function listContextItemsByPrefix(
 ): Promise<ContextItem[]> {
   const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
 
-  const limit = opts?.limit ? `LIMIT ${opts.limit}` : "";
-  const offset = opts?.offset ? `OFFSET ${opts.offset}` : "";
+  const limit = opts?.limit ? `LIMIT ${sanitizeInt(opts.limit)}` : "";
+  const offset = opts?.offset ? `OFFSET ${sanitizeInt(opts.offset)}` : "";
 
   let rows: ContextItemRow[];
   if (opts?.recursive) {

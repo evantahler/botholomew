@@ -1,6 +1,17 @@
 type SqlParam = string | number | null;
 
 /**
+ * Validate that a value is a positive integer, suitable for use in
+ * LIMIT / OFFSET clauses that must be interpolated into SQL strings.
+ */
+export function sanitizeInt(val: number): number {
+  if (!Number.isInteger(val) || val <= 0) {
+    throw new Error(`Expected a positive integer, got: ${val}`);
+  }
+  return val;
+}
+
+/**
  * Build a WHERE clause from column-value pairs.
  * Entries with `undefined` values are skipped.
  */
