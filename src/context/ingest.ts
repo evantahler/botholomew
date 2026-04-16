@@ -42,9 +42,7 @@ export async function prepareIngestion(
     return null;
   }
 
-  const chunks = await chunk(item.content, item.mime_type, config);
-  if (chunks.length === 0) return null;
-
+  // Resolve the embed function before chunking — if we can't embed, skip early
   const doEmbed =
     embedFn ??
     (config.openai_api_key
@@ -55,7 +53,17 @@ export async function prepareIngestion(
     return null;
   }
 
-  const vectors = await doEmbed(chunks.map((c) => c.content));
+  const chunks = await chunk(item.content, item.mime_type, config);
+  if (chunks.length === 0) return null;
+
+  const textsForEmbedding = chunks.map((c) => {
+    const parts: string[] = [];
+    if (item.title) parts.push(`Title: ${item.title}`);
+    if (item.source_path) parts.push(`Source: ${item.source_path}`);
+    parts.push(c.content);
+    return parts.join("\n");
+  });
+  const vectors = await doEmbed(textsForEmbedding);
 
   return {
     itemId,

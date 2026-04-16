@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 import { EMBEDDING_DIMENSION } from "../../src/constants.ts";
-import { ingestByPath, ingestContextItem } from "../../src/context/ingest.ts";
+import {
+  ingestByPath,
+  ingestContextItem,
+  prepareIngestion,
+} from "../../src/context/ingest.ts";
 import type { DbConnection } from "../../src/db/connection.ts";
 import { createContextItem, getContextItem } from "../../src/db/context.ts";
 import { initVectorSearch, searchEmbeddings } from "../../src/db/embeddings.ts";
@@ -131,6 +135,43 @@ describe("ingestContextItem", () => {
       mockEmbed,
     );
     expect(count).toBe(0);
+  });
+});
+
+describe("prepareIngestion", () => {
+  test("prepends metadata to text sent to embedder", async () => {
+    const item = await createContextItem(conn, {
+      title: "My Report",
+      content: "Some content to embed.",
+      contextPath: "/docs/report.md",
+      mimeType: "text/plain",
+      isTextual: true,
+      sourcePath: "/home/user/report.md",
+    });
+
+    const capturedTexts: string[][] = [];
+    const capturingEmbed = (texts: string[]): Promise<number[][]> => {
+      capturedTexts.push(texts);
+      return mockEmbed(texts);
+    };
+
+    const prepared = await prepareIngestion(
+      conn,
+      item.id,
+      config,
+      capturingEmbed,
+    );
+
+    expect(prepared).not.toBeNull();
+    expect(capturedTexts).toHaveLength(1);
+
+    const embeddedText = capturedTexts[0]?.[0];
+    expect(embeddedText).toStartWith("Title: My Report\n");
+    expect(embeddedText).toContain("Source: /home/user/report.md\n");
+    expect(embeddedText).toContain("Some content to embed.");
+
+    // Raw chunk content should NOT contain metadata prefix
+    expect(prepared?.chunks[0]?.content).toBe("Some content to embed.");
   });
 });
 
