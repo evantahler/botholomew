@@ -1,6 +1,5 @@
 import ansis from "ansis";
 import type { Command } from "commander";
-import type { DbConnection } from "../db/connection.ts";
 import type { Interaction, Thread } from "../db/threads.ts";
 import {
   deleteThread,
@@ -48,12 +47,7 @@ export function registerThreadCommand(program: Command) {
     )
     .action((id, opts) =>
       withDb(program, async (conn) => {
-        const resolvedId = await resolveThreadId(conn, id);
-        if (!resolvedId) {
-          logger.error(`Thread not found: ${id}`);
-          process.exit(1);
-        }
-        const result = await getThread(conn, resolvedId);
+        const result = await getThread(conn, id);
         if (!result) {
           logger.error(`Thread not found: ${id}`);
           process.exit(1);
@@ -72,17 +66,12 @@ export function registerThreadCommand(program: Command) {
     .description("Delete a thread and its interactions")
     .action((id) =>
       withDb(program, async (conn) => {
-        const resolvedId = await resolveThreadId(conn, id);
-        if (!resolvedId) {
-          logger.error(`Thread not found: ${id}`);
-          process.exit(1);
-        }
-        const deleted = await deleteThread(conn, resolvedId);
+        const deleted = await deleteThread(conn, id);
         if (!deleted) {
           logger.error(`Thread not found: ${id}`);
           process.exit(1);
         }
-        logger.success(`Deleted thread: ${resolvedId}`);
+        logger.success(`Deleted thread: ${id}`);
       }),
     );
 
@@ -94,12 +83,7 @@ export function registerThreadCommand(program: Command) {
       withDb(program, async (conn) => {
         let resolvedId: string;
         if (id) {
-          const found = await resolveThreadId(conn, id);
-          if (!found) {
-            logger.error(`Thread not found: ${id}`);
-            process.exit(1);
-          }
-          resolvedId = found;
+          resolvedId = id;
         } else {
           const active = await getActiveThread(conn);
           if (!active) {
@@ -130,7 +114,7 @@ export function registerThreadCommand(program: Command) {
 
         const pollMs = opts.interval ?? 500;
         logger.info(
-          `Following thread ${ansis.dim(resolvedId.slice(0, 8))}... (Ctrl+C to stop)`,
+          `Following thread ${ansis.dim(resolvedId)}... (Ctrl+C to stop)`,
         );
 
         const interval = setInterval(async () => {
@@ -168,24 +152,6 @@ export function registerThreadCommand(program: Command) {
     );
 }
 
-async function resolveThreadId(
-  conn: DbConnection,
-  idPrefix: string,
-): Promise<string | null> {
-  if (idPrefix.length >= 36) return idPrefix;
-  const all = await listThreads(conn);
-  const matches = all.filter((t) => t.id.startsWith(idPrefix));
-  if (matches.length === 1) {
-    const match = matches[0] as Thread;
-    return match.id;
-  }
-  if (matches.length === 0) return null;
-  logger.error(
-    `Ambiguous thread prefix "${idPrefix}" matches ${matches.length} threads`,
-  );
-  process.exit(1);
-}
-
 function typeColor(type: Thread["type"]): string {
   switch (type) {
     case "daemon_tick":
@@ -213,7 +179,7 @@ function roleColor(role: Interaction["role"]): string {
 }
 
 function printThread(t: Thread) {
-  const id = ansis.dim(t.id.slice(0, 8));
+  const id = ansis.dim(t.id);
   const title = t.title || ansis.dim("(untitled)");
   console.log(`  ${id}  ${typeColor(t.type)}  ${statusLabel(t)}  ${title}`);
 }

@@ -155,7 +155,7 @@ function priorityColor(priority: Task["priority"]): string {
 }
 
 function printTask(t: Task) {
-  const id = ansis.dim(t.id.slice(0, 8));
+  const id = ansis.dim(t.id);
   console.log(
     `  ${id}  ${statusColor(t.status)}  ${priorityColor(t.priority)}  ${t.name}`,
   );

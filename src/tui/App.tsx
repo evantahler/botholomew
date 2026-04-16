@@ -19,6 +19,7 @@ import {
   MessageList,
 } from "./components/MessageList.tsx";
 import { QueuePanel } from "./components/QueuePanel.tsx";
+import { SchedulePanel } from "./components/SchedulePanel.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import { TabBar, type TabId } from "./components/TabBar.tsx";
 import { TaskPanel } from "./components/TaskPanel.tsx";
@@ -219,7 +220,7 @@ export function App({
 
       // Tab key cycles tabs — always active (InputBar ignores tab)
       if (key.tab && !key.shift) {
-        setActiveTab((t) => ((t % 6) + 1) as TabId);
+        setActiveTab((t) => ((t % 7) + 1) as TabId);
         return;
       }
 
@@ -256,7 +257,7 @@ export function App({
       if (tab !== 1) {
         // Number keys jump to tab on non-chat tabs
         const num = Number.parseInt(input, 10);
-        if (num >= 1 && num <= 6) {
+        if (num >= 1 && num <= 7) {
           setActiveTab(num as TabId);
           return;
         }
@@ -419,7 +420,7 @@ export function App({
           content: [
             "Navigation:",
             "  Tab            Cycle between panels",
-            "  1-6            Jump to panel (when not in Chat)",
+            "  1-7            Jump to panel (when not in Chat)",
             "  Escape         Return to Chat",
             "",
             "Chat (Tab 1):",
@@ -454,6 +455,15 @@ export function App({
             "  f              Cycle type filter",
             "  d              Delete thread (with confirmation)",
             "  r              Refresh threads",
+            "",
+            "Schedules (Tab 6):",
+            "  ↑/↓            Navigate schedule list",
+            "  Shift+↑/↓      Scroll detail pane",
+            "  j/k            Scroll detail pane",
+            "  f              Cycle enabled/disabled filter",
+            "  e              Toggle enable/disable",
+            "  d              Delete schedule (with confirmation)",
+            "  r              Refresh schedules",
             "",
             "Commands:",
             "  /help           Show this help",
@@ -581,6 +591,13 @@ export function App({
       </Box>
       <Box
         display={activeTab === 6 ? "flex" : "none"}
+        flexDirection="column"
+        flexGrow={1}
+      >
+        <SchedulePanel conn={conn} isActive={activeTab === 6} />
+      </Box>
+      <Box
+        display={activeTab === 7 ? "flex" : "none"}
         flexDirection="column"
         flexGrow={1}
       >
