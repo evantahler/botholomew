@@ -55,7 +55,7 @@ describe("context delete CLI", () => {
     const result = await run(["context", "delete", "/docs/test.md"]);
     expect(result.code).toBe(0);
     expect(result.stdout + result.stderr).toContain(
-      "Deleted context item: /docs/test.md",
+      "Deleted context entry: /docs/test.md",
     );
 
     // Verify it's actually gone
@@ -73,7 +73,7 @@ describe("context delete CLI", () => {
     const result = await run(["context", "delete", "/no/such/path.md"]);
     expect(result.code).toBe(1);
     expect(result.stdout + result.stderr).toContain(
-      "Context item not found: /no/such/path.md",
+      "Context entry not found: /no/such/path.md",
     );
   });
 });

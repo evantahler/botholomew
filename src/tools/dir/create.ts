@@ -16,10 +16,10 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const dirCreateTool = {
-  name: "dir_create",
-  description: "Create a directory in the virtual filesystem.",
-  group: "dir",
+export const contextCreateDirTool = {
+  name: "context_create_dir",
+  description: "Create a directory in context.",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {

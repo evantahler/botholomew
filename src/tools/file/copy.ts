@@ -18,10 +18,10 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const fileCopyTool = {
-  name: "file_copy",
-  description: "Copy a file in the virtual filesystem.",
-  group: "file",
+export const contextCopyTool = {
+  name: "context_copy",
+  description: "Copy a context item.",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {

@@ -22,9 +22,9 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const searchContextTool = {
-  name: "search_context",
-  description: "Search the context database by keyword.",
+export const contextSearchTool = {
+  name: "context_search",
+  description: "Search context by keyword.",
   group: "context",
   inputSchema,
   outputSchema,

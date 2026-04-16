@@ -22,10 +22,10 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const fileDeleteTool = {
-  name: "file_delete",
-  description: "Delete a file or directory from the virtual filesystem.",
-  group: "file",
+export const contextDeleteTool = {
+  name: "context_delete",
+  description: "Delete a context item or directory.",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {

@@ -11,10 +11,10 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const fileCountLinesTool = {
-  name: "file_count_lines",
-  description: "Count the number of lines in a text file.",
-  group: "file",
+export const contextCountLinesTool = {
+  name: "context_count_lines",
+  description: "Count the number of lines in a text context item.",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {

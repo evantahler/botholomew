@@ -25,7 +25,7 @@ const CHAT_TOOL_NAMES = new Set([
   "create_task",
   "list_tasks",
   "view_task",
-  "search_context",
+  "context_search",
   "search_grep",
   "search_semantic",
   "list_threads",

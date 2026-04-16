@@ -90,7 +90,7 @@ export async function createContextItem(
  *
  * DuckDB implements UPDATE as delete+insert on tables with unique indexes,
  * which violates foreign keys from the embeddings table. We must delete
- * embeddings before updating; callers (context add, file_write) re-create
+ * embeddings before updating; callers (context add, context_write) re-create
  * them in their ingestion phase.
  */
 export async function upsertContextItem(

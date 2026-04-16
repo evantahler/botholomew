@@ -13,31 +13,39 @@ import { withDb } from "./with-db.ts";
 
 registerAllTools();
 
-const GROUP_DESCRIPTIONS: Record<string, string> = {
-  dir: "Directory operations on the virtual filesystem",
-  file: "File operations on the virtual filesystem",
-  search: "Search the virtual filesystem",
-};
+/**
+ * Register context tool subcommands (read, write, edit, etc.) onto an
+ * existing Commander command. Skips tools whose derived subcommand name
+ * collides with an already-registered subcommand on the parent.
+ */
+export function registerContextToolSubcommands(parent: Command) {
+  const existing = new Set(parent.commands.map((c: Command) => c.name()));
+
+  for (const tool of getToolsByGroup("context")) {
+    const subName = deriveSubName(tool.name);
+    if (existing.has(subName)) continue; // skip conflicts with management subcommands
+    registerToolAsCLI(parent, tool);
+  }
+}
 
 export function registerToolCommands(program: Command) {
-  for (const group of ["dir", "file", "search"]) {
-    const groupCmd = program
-      .command(group)
-      .description(GROUP_DESCRIPTIONS[group] ?? `${group} tools`);
+  // The "search" group has its own top-level command
+  for (const group of ["search"]) {
+    const groupCmd = program.command(group).description("Search context");
 
     for (const tool of getToolsByGroup(group)) {
-      registerToolAsCLI(groupCmd, tool, program);
+      registerToolAsCLI(groupCmd, tool);
     }
   }
 }
 
-function registerToolAsCLI(
-  parent: Command,
-  tool: AnyToolDefinition,
-  program: Command,
-) {
-  // Derive subcommand name: "file_read" → "read", "file_count_lines" → "count-lines"
-  const subName = tool.name.replace(/^[^_]+_/, "").replace(/_/g, "-");
+/** Derive CLI subcommand name from tool name: "context_read" → "read", "context_list_dir" → "list-dir" */
+function deriveSubName(toolName: string): string {
+  return toolName.replace(/^[^_]+_/, "").replace(/_/g, "-");
+}
+
+function registerToolAsCLI(parent: Command, tool: AnyToolDefinition) {
+  const subName = deriveSubName(tool.name);
 
   // Inspect zod schema to determine positional args and options
   const shape = tool.inputSchema.shape as Record<string, z.ZodType>;
@@ -93,7 +101,7 @@ function registerToolAsCLI(
   }
 
   cmd.action((...args: unknown[]) =>
-    withDb(program, async (conn, dir) => {
+    withDb(parent.parent ?? parent, async (conn, dir) => {
       try {
         const input = buildInput(tool, positionals, options, shape, args);
 
@@ -224,20 +232,20 @@ function formatOutput(result: unknown, _toolName: string) {
 function isPositionalArg(key: string, toolName: string): boolean {
   // These keys are treated as positional arguments
   const positionalKeys: Record<string, string[]> = {
-    dir_create: ["path"],
-    dir_list: ["path"],
-    dir_tree: ["path"],
-    dir_size: ["path"],
-    file_read: ["path"],
-    file_write: ["path"],
-    file_edit: ["path"],
-    file_delete: ["path"],
-    file_copy: ["src", "dst"],
-    file_move: ["src", "dst"],
-    file_info: ["path"],
-    file_exists: ["path"],
-    file_count_lines: ["path"],
-    search_find: ["pattern"],
+    context_create_dir: ["path"],
+    context_list_dir: ["path"],
+    context_tree: ["path"],
+    context_dir_size: ["path"],
+    context_read: ["path"],
+    context_write: ["path"],
+    context_edit: ["path"],
+    context_delete: ["path"],
+    context_copy: ["src", "dst"],
+    context_move: ["src", "dst"],
+    context_info: ["path"],
+    context_exists: ["path"],
+    context_count_lines: ["path"],
+    context_search: ["query"],
     search_grep: ["pattern"],
     search_semantic: ["query"],
   };

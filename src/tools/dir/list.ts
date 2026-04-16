@@ -36,10 +36,10 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const dirListTool = {
-  name: "dir_list",
-  description: "List directory contents in the virtual filesystem.",
-  group: "dir",
+export const contextListDirTool = {
+  name: "context_list_dir",
+  description: "List directory contents in context.",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
