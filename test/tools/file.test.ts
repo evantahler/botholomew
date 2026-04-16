@@ -89,6 +89,12 @@ describe("context_read", () => {
     expect(result.content).toBe("b\nc");
   });
 
+  test("reads by context item ID", async () => {
+    const item = await seedFile(conn, "/by-id.txt", "found by id");
+    const result = await contextReadTool.execute({ path: item.id }, ctx);
+    expect(result.content).toBe("found by id");
+  });
+
   test("throws for nonexistent file", async () => {
     expect(contextReadTool.execute({ path: "/nope.txt" }, ctx)).rejects.toThrow(
       "Not found",

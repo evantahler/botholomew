@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { getContextItemByPath } from "../../db/context.ts";
+import { getContextItem, getContextItemByPath } from "../../db/context.ts";
+import { isUuid } from "../../db/uuid.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
-  path: z.string().describe("File path to read"),
+  path: z.string().describe("File path or context item ID"),
   offset: z
     .number()
     .optional()
@@ -23,7 +24,9 @@ export const contextReadTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const item = await getContextItemByPath(ctx.conn, input.path);
+    const item = isUuid(input.path)
+      ? await getContextItem(ctx.conn, input.path)
+      : await getContextItemByPath(ctx.conn, input.path);
     if (!item) throw new Error(`Not found: ${input.path}`);
     if (item.content == null) throw new Error(`No text content: ${input.path}`);
 
