@@ -1,60 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
-import { chunk, chunkWithSlidingWindow } from "../../src/context/chunker.ts";
-
-describe("chunkWithSlidingWindow", () => {
-  test("returns single chunk for short content", () => {
-    const content = "Hello world, this is short.";
-    const chunks = chunkWithSlidingWindow(content, 2000);
-    expect(chunks).toHaveLength(1);
-    expect(chunks[0]?.index).toBe(0);
-    expect(chunks[0]?.content).toBe(content);
-  });
-
-  test("splits long content into overlapping chunks", () => {
-    // Create content that's definitely longer than the window
-    const lines = Array.from(
-      { length: 100 },
-      (_, i) => `Line ${i + 1}: ${"x".repeat(30)}`,
-    );
-    const content = lines.join("\n");
-    const chunks = chunkWithSlidingWindow(content, 500, 100);
-
-    expect(chunks.length).toBeGreaterThan(1);
-
-    // Each chunk should be within the window size (roughly)
-    for (const c of chunks) {
-      expect(c?.content.length).toBeLessThanOrEqual(600); // some slack for newline breaking
-    }
-
-    // Indices should be sequential
-    for (let i = 0; i < chunks.length; i++) {
-      expect(chunks[i]?.index).toBe(i);
-    }
-  });
-
-  test("all content is covered", () => {
-    const content = "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ";
-    const chunks = chunkWithSlidingWindow(content, 5, 2);
-
-    // Every character in the original should appear in at least one chunk
-    for (const char of ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]) {
-      const found = chunks.some((c) => c.content.includes(char));
-      expect(found).toBe(true);
-    }
-  });
-
-  test("prefers breaking at newlines", () => {
-    const content = "First line\nSecond line\nThird line\nFourth line";
-    const chunks = chunkWithSlidingWindow(content, 25, 5);
-
-    // Chunks should end at newline boundaries when possible
-    for (const c of chunks.slice(0, -1)) {
-      // Non-last chunks should end with newline or be at a line boundary
-      expect(c.content.endsWith("\n") || c.content.endsWith("line")).toBe(true);
-    }
-  });
-});
+import { addOverlapToChunks, chunk } from "../../src/context/chunker.ts";
 
 describe("chunk", () => {
   test("returns single chunk for short content", async () => {
@@ -64,10 +10,65 @@ describe("chunk", () => {
     expect(chunks[0]?.content).toBe("Hi");
   });
 
-  test("falls back to sliding window without API key", async () => {
+  test("throws when anthropic API key is missing", async () => {
     const config = { ...DEFAULT_CONFIG, anthropic_api_key: "" };
-    const content = "x".repeat(3000);
-    const chunks = await chunk(content, "text/plain", config);
-    expect(chunks.length).toBeGreaterThan(1);
+    const content = "x".repeat(300);
+    await expect(chunk(content, "text/plain", config)).rejects.toThrow(
+      "Anthropic API key is required",
+    );
+  });
+});
+
+describe("addOverlapToChunks", () => {
+  test("does not modify a single chunk", () => {
+    const chunks = [{ index: 0, content: "line1\nline2\nline3" }];
+    const result = addOverlapToChunks(chunks);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.content).toBe("line1\nline2\nline3");
+  });
+
+  test("prepends last N lines of previous chunk to next chunk", () => {
+    const chunks = [
+      { index: 0, content: "a1\na2\na3\na4" },
+      { index: 1, content: "b1\nb2\nb3" },
+      { index: 2, content: "c1\nc2" },
+    ];
+    const result = addOverlapToChunks(chunks, 2);
+
+    expect(result[0]?.content).toBe("a1\na2\na3\na4");
+    expect(result[1]?.content).toBe("a3\na4\nb1\nb2\nb3");
+    expect(result[2]?.content).toBe("b2\nb3\nc1\nc2");
+  });
+
+  test("handles chunks with fewer lines than overlap", () => {
+    const chunks = [
+      { index: 0, content: "only-one-line" },
+      { index: 1, content: "second chunk" },
+    ];
+    const result = addOverlapToChunks(chunks, 3);
+
+    // Previous chunk has 1 line, overlap requests 3 — just uses what's available
+    expect(result[1]?.content).toBe("only-one-line\nsecond chunk");
+  });
+
+  test("returns new array without mutating input", () => {
+    const chunks = [
+      { index: 0, content: "a\nb\nc" },
+      { index: 1, content: "d\ne" },
+    ];
+    const originalContent = chunks[1]?.content;
+    const result = addOverlapToChunks(chunks, 2);
+
+    expect(result[1]?.content).not.toBe(originalContent);
+    expect(chunks[1]?.content).toBe(originalContent);
+  });
+
+  test("returns chunks unchanged when overlapLines is 0", () => {
+    const chunks = [
+      { index: 0, content: "a\nb" },
+      { index: 1, content: "c\nd" },
+    ];
+    const result = addOverlapToChunks(chunks, 0);
+    expect(result[1]?.content).toBe("c\nd");
   });
 });

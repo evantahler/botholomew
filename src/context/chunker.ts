@@ -1,16 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { logger } from "../utils/logger.ts";
 
 export interface Chunk {
   index: number;
   content: string;
 }
 
-const DEFAULT_WINDOW_CHARS = 2000;
-const DEFAULT_OVERLAP_CHARS = 200;
 const SHORT_CONTENT_THRESHOLD = 200;
 const LLM_TIMEOUT_MS = 10_000;
+const DEFAULT_OVERLAP_LINES = 2;
 
 const CHUNKER_TOOL_NAME = "return_chunks";
 const CHUNKER_TOOL = {
@@ -44,42 +42,23 @@ const CHUNKER_TOOL = {
 };
 
 /**
- * Deterministic sliding-window chunker.
- * Splits content into overlapping windows of approximately `windowChars` characters,
- * breaking at newlines when possible.
+ * Add overlapping lines from the end of each chunk to the start of the next.
+ * Improves retrieval when concepts span chunk boundaries.
  */
-export function chunkWithSlidingWindow(
-  content: string,
-  windowChars = DEFAULT_WINDOW_CHARS,
-  overlapChars = DEFAULT_OVERLAP_CHARS,
+export function addOverlapToChunks(
+  chunks: Chunk[],
+  overlapLines = DEFAULT_OVERLAP_LINES,
 ): Chunk[] {
-  if (content.length <= windowChars) {
-    return [{ index: 0, content }];
-  }
+  if (chunks.length <= 1 || overlapLines <= 0) return chunks;
 
-  const chunks: Chunk[] = [];
-  let start = 0;
-  let index = 0;
-
-  while (start < content.length) {
-    let end = Math.min(start + windowChars, content.length);
-
-    // Try to break at a newline near the end of the window
-    if (end < content.length) {
-      const lastNewline = content.lastIndexOf("\n", end);
-      if (lastNewline > start + windowChars / 2) {
-        end = lastNewline + 1;
-      }
-    }
-
-    chunks.push({ index, content: content.slice(start, end) });
-    index++;
-
-    if (end >= content.length) break;
-    start = end - overlapChars;
-  }
-
-  return chunks;
+  return chunks.map((c, i) => {
+    if (i === 0) return { ...c };
+    const prevChunk = chunks[i - 1];
+    if (!prevChunk) return { ...c };
+    const prevLines = prevChunk.content.split("\n");
+    const overlap = prevLines.slice(-overlapLines).join("\n");
+    return { ...c, content: `${overlap}\n${c.content}` };
+  });
 }
 
 /**
@@ -139,7 +118,7 @@ ${content}`,
 }
 
 /**
- * Chunk content using LLM when possible, falling back to sliding window.
+ * Chunk content using the LLM chunker.
  * Short content (<200 chars) is returned as a single chunk.
  */
 export async function chunk(
@@ -151,14 +130,12 @@ export async function chunk(
     return [{ index: 0, content }];
   }
 
-  // Only try LLM chunking if we have an API key
-  if (config.anthropic_api_key) {
-    try {
-      return await chunkWithLLM(content, mimeType, config);
-    } catch (err) {
-      logger.debug(`LLM chunking failed, using sliding window: ${err}`);
-    }
+  if (!config.anthropic_api_key) {
+    throw new Error(
+      "Anthropic API key is required for chunking. Set anthropic_api_key in config.",
+    );
   }
 
-  return chunkWithSlidingWindow(content);
+  const chunks = await chunkWithLLM(content, mimeType, config);
+  return addOverlapToChunks(chunks);
 }
