@@ -85,37 +85,6 @@ export function registerContextCommand(program: Command) {
     );
 
   ctx
-    .command("show <path>")
-    .description("Show details and content of a context entry")
-    .action((path: string) =>
-      withDb(program, async (conn) => {
-        const item = await resolveContextItem(conn, path);
-        if (!item) {
-          logger.error(`Context entry not found: ${path}`);
-          process.exit(1);
-        }
-
-        console.log(ansis.bold(item.title));
-        if (item.description) console.log(`  Description: ${item.description}`);
-        console.log(`  Path:        ${item.context_path}`);
-        console.log(`  MIME type:   ${item.mime_type}`);
-        if (item.source_path) console.log(`  Source:      ${item.source_path}`);
-        const indexed = item.indexed_at
-          ? `${ansis.green("yes")} (${fmtDate(item.indexed_at)})`
-          : ansis.dim("no");
-        console.log(`  Indexed:     ${indexed}`);
-        console.log(`  Created:     ${fmtDate(item.created_at)}`);
-        console.log(`  Updated:     ${fmtDate(item.updated_at)}`);
-
-        if (item.is_textual && item.content) {
-          console.log(`\n${"─".repeat(60)}\n${item.content}`);
-        } else if (!item.is_textual) {
-          console.log(ansis.dim("\n  (binary content not shown)"));
-        }
-      }),
-    );
-
-  ctx
     .command("add <paths...>")
     .description("Add files or directories to context")
     .option("--prefix <prefix>", "virtual path prefix", "/")
