@@ -112,6 +112,61 @@ describe("evaluateSchedule", () => {
     }));
   });
 
+  test("handles LLM response wrapped in markdown code fences", async () => {
+    const jsonBody = JSON.stringify({
+      isDue: true,
+      reasoning: "Due now",
+      tasks: [
+        {
+          name: "Fenced task",
+          description: "From code block",
+          priority: "low",
+        },
+      ],
+    });
+
+    mock.module("@anthropic-ai/sdk", () => ({
+      default: class MockAnthropic {
+        messages = {
+          create: async () => ({
+            content: [
+              { type: "text", text: `\`\`\`json\n${jsonBody}\n\`\`\`` },
+            ],
+            stop_reason: "end_turn",
+            usage: { input_tokens: 50, output_tokens: 50 },
+          }),
+        };
+      },
+    }));
+
+    const { evaluateSchedule: evalFenced } = await import(
+      "../../src/daemon/schedules.ts"
+    );
+
+    const schedule = await createSchedule(conn, {
+      name: "Fenced",
+      frequency: "daily",
+    });
+
+    const result = await evalFenced(TEST_CONFIG, schedule);
+    expect(result.isDue).toBe(true);
+    expect(result.tasksToCreate).toHaveLength(1);
+    expect(result.tasksToCreate[0]?.name).toBe("Fenced task");
+
+    // Restore original mock
+    mock.module("@anthropic-ai/sdk", () => ({
+      default: class MockAnthropic {
+        messages = {
+          create: async () => ({
+            content: [{ type: "text", text: JSON.stringify(mockResponse) }],
+            stop_reason: "end_turn",
+            usage: { input_tokens: 50, output_tokens: 50 },
+          }),
+        };
+      },
+    }));
+  });
+
   test("handles tasks with depends_on", async () => {
     mockResponse = {
       isDue: true,

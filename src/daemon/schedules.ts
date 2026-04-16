@@ -66,10 +66,16 @@ Is this schedule due to run? If yes, what tasks should be created?`;
       messages: [{ role: "user", content: userMessage }],
     });
 
-    const text = response.content
+    let text = response.content
       .filter((b) => b.type === "text")
       .map((b) => b.text)
       .join("");
+
+    // Strip markdown code fences the LLM may wrap around JSON
+    text = text
+      .replace(/^```(?:json)?\s*\n?/, "")
+      .replace(/\n?```\s*$/, "")
+      .trim();
 
     const parsed = JSON.parse(text);
 
