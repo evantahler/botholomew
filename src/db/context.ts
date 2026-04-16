@@ -231,6 +231,29 @@ export async function contextPathExists(
   return row != null;
 }
 
+export async function countContextItemsByPrefix(
+  db: DbConnection,
+  prefix: string,
+  opts?: { recursive?: boolean },
+): Promise<number> {
+  const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
+  let row: { cnt: number } | null;
+  if (opts?.recursive !== false) {
+    row = await db.queryGet<{ cnt: number }>(
+      `SELECT COUNT(*) AS cnt FROM context_items WHERE context_path LIKE ?1`,
+      `${normalizedPrefix}%`,
+    );
+  } else {
+    row = await db.queryGet<{ cnt: number }>(
+      `SELECT COUNT(*) AS cnt FROM context_items
+       WHERE context_path LIKE ?1 AND context_path NOT LIKE ?2`,
+      `${normalizedPrefix}%`,
+      `${normalizedPrefix}%/%`,
+    );
+  }
+  return row ? Number(row.cnt) : 0;
+}
+
 export async function getDistinctDirectories(
   db: DbConnection,
   prefix?: string,
