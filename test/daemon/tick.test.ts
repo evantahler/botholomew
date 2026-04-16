@@ -43,7 +43,7 @@ describe("daemon tick", () => {
       description: "Do a thing",
     });
 
-    await tick("/tmp/test-project", conn, {
+    const didWork = await tick("/tmp/test-project", conn, {
       anthropic_api_key: "test-key",
       openai_api_key: "",
       model: "claude-opus-4-20250514",
@@ -59,6 +59,9 @@ describe("daemon tick", () => {
     // Task should be completed
     const updated = await getTask(conn, task.id);
     expect(updated?.status).toBe("complete");
+
+    // tick should signal that work was done
+    expect(didWork).toBe(true);
   });
 
   test("creates a thread with interactions", async () => {
@@ -100,7 +103,7 @@ describe("daemon tick", () => {
   });
 
   test("does nothing when no tasks available", async () => {
-    await tick("/tmp/test-project", conn, {
+    const didWork = await tick("/tmp/test-project", conn, {
       anthropic_api_key: "test-key",
       openai_api_key: "",
       model: "claude-opus-4-20250514",
@@ -116,6 +119,9 @@ describe("daemon tick", () => {
     // No threads created
     const threads = await listThreads(conn);
     expect(threads).toHaveLength(0);
+
+    // tick should signal no work was done
+    expect(didWork).toBe(false);
   });
 
   test("marks task as failed when LLM throws an error", async () => {
