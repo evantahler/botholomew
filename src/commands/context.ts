@@ -25,6 +25,10 @@ import {
 } from "../db/context.ts";
 import { getEmbeddingsForItem, hybridSearch } from "../db/embeddings.ts";
 import { logger } from "../utils/logger.ts";
+import {
+  registerContextToolSubcommands,
+  registerSearchToolSubcommands,
+} from "./tools.ts";
 import { withDb } from "./with-db.ts";
 
 function fmtDate(d: Date): string {
@@ -33,11 +37,11 @@ function fmtDate(d: Date): string {
 }
 
 export function registerContextCommand(program: Command) {
-  const ctx = program.command("context").description("Manage context items");
+  const ctx = program.command("context").description("Manage context");
 
   ctx
     .command("list")
-    .description("List context items")
+    .description("List context entries")
     .option("--path <prefix>", "filter by path prefix")
     .option("-l, --limit <n>", "max number of items", Number.parseInt)
     .option("-o, --offset <n>", "skip first N items", Number.parseInt)
@@ -55,7 +59,7 @@ export function registerContextCommand(program: Command) {
             });
 
         if (items.length === 0) {
-          logger.dim("No context items found.");
+          logger.dim("No context entries found.");
           return;
         }
 
@@ -82,12 +86,12 @@ export function registerContextCommand(program: Command) {
 
   ctx
     .command("show <path>")
-    .description("Show details and content of a context item")
+    .description("Show details and content of a context entry")
     .action((path: string) =>
       withDb(program, async (conn) => {
         const item = await getContextItemByPath(conn, path);
         if (!item) {
-          logger.error(`Context item not found: ${path}`);
+          logger.error(`Context entry not found: ${path}`);
           process.exit(1);
         }
 
@@ -236,12 +240,17 @@ export function registerContextCommand(program: Command) {
       }),
     );
 
-  ctx
-    .command("search <query>")
-    .description("Search context items")
+  const search = ctx
+    .command("search")
+    .description("Search context entries")
+    .argument("[query]", "search query (hybrid keyword + semantic)")
     .option("-k, --top-k <n>", "max results", Number.parseInt, 10)
     .action((query, opts) =>
       withDb(program, async (conn, dir) => {
+        if (!query) {
+          search.help();
+          return;
+        }
         const config = await loadConfig(dir);
         const queryVec = await embedSingle(query, config);
         const results = await hybridSearch(conn, query, queryVec, opts.topK);
@@ -267,27 +276,29 @@ export function registerContextCommand(program: Command) {
         }
       }),
     );
+
+  registerSearchToolSubcommands(search);
   ctx
     .command("delete <path>")
-    .description("Delete a context item by path")
+    .description("Delete a context entry by path")
     .action((path: string) =>
       withDb(program, async (conn) => {
         const deleted = await deleteContextItemByPath(conn, path);
         if (!deleted) {
-          logger.error(`Context item not found: ${path}`);
+          logger.error(`Context entry not found: ${path}`);
           process.exit(1);
         }
-        logger.success(`Deleted context item: ${path}`);
+        logger.success(`Deleted context entry: ${path}`);
       }),
     );
   ctx
     .command("chunks <path>")
-    .description("Show chunks and embeddings for a context item")
+    .description("Show chunks and embeddings for a context entry")
     .action((path: string) =>
       withDb(program, async (conn) => {
         const item = await getContextItemByPath(conn, path);
         if (!item) {
-          logger.error(`Context item not found: ${path}`);
+          logger.error(`Context entry not found: ${path}`);
           process.exit(1);
         }
 
@@ -336,7 +347,7 @@ export function registerContextCommand(program: Command) {
       withDb(program, async (conn, dir) => {
         const items = await resolveItems(conn, path, !!opts.all);
         if (items.length === 0) {
-          logger.error("No matching context items found.");
+          logger.error("No matching context entries found.");
           process.exit(1);
         }
 
@@ -436,6 +447,10 @@ export function registerContextCommand(program: Command) {
         );
       }),
     );
+
+  // Register context tool subcommands (read, write, edit, list-dir, etc.)
+  // Must come after management subcommands so collision detection works.
+  registerContextToolSubcommands(ctx);
 }
 
 async function resolveItems(
@@ -454,7 +469,7 @@ async function resolveItems(
   return listContextItemsByPrefix(conn, p, { recursive: true });
 }
 
-/** Upsert a file into the context DB. Returns the item ID if textual, null otherwise. */
+/** Upsert a file into context. Returns the item ID if textual, null otherwise. */
 async function addFile(
   conn: DbConnection,
   filePath: string,

@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import type { DbConnection } from "../../src/db/connection.ts";
-import { fileCopyTool } from "../../src/tools/file/copy.ts";
-import { fileCountLinesTool } from "../../src/tools/file/count-lines.ts";
-import { fileDeleteTool } from "../../src/tools/file/delete.ts";
-import { fileEditTool } from "../../src/tools/file/edit.ts";
-import { fileExistsTool } from "../../src/tools/file/exists.ts";
-import { fileInfoTool } from "../../src/tools/file/info.ts";
-import { fileMoveTool } from "../../src/tools/file/move.ts";
-import { fileReadTool } from "../../src/tools/file/read.ts";
-import { fileWriteTool } from "../../src/tools/file/write.ts";
+import { contextCopyTool } from "../../src/tools/file/copy.ts";
+import { contextCountLinesTool } from "../../src/tools/file/count-lines.ts";
+import { contextDeleteTool } from "../../src/tools/file/delete.ts";
+import { contextEditTool } from "../../src/tools/file/edit.ts";
+import { contextExistsTool } from "../../src/tools/file/exists.ts";
+import { contextInfoTool } from "../../src/tools/file/info.ts";
+import { contextMoveTool } from "../../src/tools/file/move.ts";
+import { contextReadTool } from "../../src/tools/file/read.ts";
+import { contextWriteTool } from "../../src/tools/file/write.ts";
 import type { ToolContext } from "../../src/tools/tool.ts";
 import { seedBinaryFile, seedFile, setupToolContext } from "../helpers.ts";
 
@@ -19,35 +19,35 @@ beforeEach(async () => {
   ({ conn, ctx } = await setupToolContext());
 });
 
-// ── file_write ──────────────────────────────────────────────
+// ── context_write ──────────────────────────────────────────────
 
-describe("file_write", () => {
+describe("context_write", () => {
   test("creates a new file", async () => {
-    const result = await fileWriteTool.execute(
+    const result = await contextWriteTool.execute(
       { path: "/hello.txt", content: "hello world" },
       ctx,
     );
     expect(result.path).toBe("/hello.txt");
     expect(result.id).toBeTruthy();
 
-    const read = await fileReadTool.execute({ path: "/hello.txt" }, ctx);
+    const read = await contextReadTool.execute({ path: "/hello.txt" }, ctx);
     expect(read.content).toBe("hello world");
   });
 
   test("overwrites existing file", async () => {
     await seedFile(conn, "/overwrite.txt", "original");
-    const result = await fileWriteTool.execute(
+    const result = await contextWriteTool.execute(
       { path: "/overwrite.txt", content: "updated" },
       ctx,
     );
     expect(result.path).toBe("/overwrite.txt");
 
-    const read = await fileReadTool.execute({ path: "/overwrite.txt" }, ctx);
+    const read = await contextReadTool.execute({ path: "/overwrite.txt" }, ctx);
     expect(read.content).toBe("updated");
   });
 
   test("sets title and description", async () => {
-    await fileWriteTool.execute(
+    await contextWriteTool.execute(
       {
         path: "/doc.md",
         content: "# Doc",
@@ -56,14 +56,14 @@ describe("file_write", () => {
       },
       ctx,
     );
-    const info = await fileInfoTool.execute({ path: "/doc.md" }, ctx);
+    const info = await contextInfoTool.execute({ path: "/doc.md" }, ctx);
     expect(info.title).toBe("My Doc");
     expect(info.description).toBe("A document");
   });
 
   test("writes base64 content", async () => {
     const b64 = btoa("binary data");
-    const result = await fileWriteTool.execute(
+    const result = await contextWriteTool.execute(
       { path: "/data.bin", content: "", content_base64: b64 },
       ctx,
     );
@@ -71,18 +71,18 @@ describe("file_write", () => {
   });
 });
 
-// ── file_read ───────────────────────────────────────────────
+// ── context_read ───────────────────────────────────────────────
 
-describe("file_read", () => {
+describe("context_read", () => {
   test("reads existing file", async () => {
     await seedFile(conn, "/readme.md", "line1\nline2\nline3");
-    const result = await fileReadTool.execute({ path: "/readme.md" }, ctx);
+    const result = await contextReadTool.execute({ path: "/readme.md" }, ctx);
     expect(result.content).toBe("line1\nline2\nline3");
   });
 
   test("reads with offset and limit", async () => {
     await seedFile(conn, "/lines.txt", "a\nb\nc\nd\ne");
-    const result = await fileReadTool.execute(
+    const result = await contextReadTool.execute(
       { path: "/lines.txt", offset: 2, limit: 2 },
       ctx,
     );
@@ -90,25 +90,25 @@ describe("file_read", () => {
   });
 
   test("throws for nonexistent file", async () => {
-    expect(fileReadTool.execute({ path: "/nope.txt" }, ctx)).rejects.toThrow(
+    expect(contextReadTool.execute({ path: "/nope.txt" }, ctx)).rejects.toThrow(
       "Not found",
     );
   });
 
   test("throws for file with no text content", async () => {
     await seedBinaryFile(conn, "/image.png");
-    expect(fileReadTool.execute({ path: "/image.png" }, ctx)).rejects.toThrow(
-      "No text content",
-    );
+    expect(
+      contextReadTool.execute({ path: "/image.png" }, ctx),
+    ).rejects.toThrow("No text content");
   });
 });
 
-// ── file_edit ───────────────────────────────────────────────
+// ── context_edit ───────────────────────────────────────────────
 
-describe("file_edit", () => {
+describe("context_edit", () => {
   test("replaces lines with a patch", async () => {
     await seedFile(conn, "/edit.txt", "line1\nline2\nline3");
-    const result = await fileEditTool.execute(
+    const result = await contextEditTool.execute(
       {
         path: "/edit.txt",
         patches: [{ start_line: 2, end_line: 2, content: "replaced" }],
@@ -122,7 +122,7 @@ describe("file_edit", () => {
 
   test("inserts lines when end_line is 0", async () => {
     await seedFile(conn, "/insert.txt", "line1\nline2");
-    const result = await fileEditTool.execute(
+    const result = await contextEditTool.execute(
       {
         path: "/insert.txt",
         patches: [{ start_line: 2, end_line: 0, content: "inserted" }],
@@ -137,7 +137,7 @@ describe("file_edit", () => {
 
   test("deletes lines with empty content", async () => {
     await seedFile(conn, "/delete.txt", "line1\nline2\nline3");
-    const result = await fileEditTool.execute(
+    const result = await contextEditTool.execute(
       {
         path: "/delete.txt",
         patches: [{ start_line: 2, end_line: 2, content: "" }],
@@ -150,7 +150,7 @@ describe("file_edit", () => {
 
   test("throws for nonexistent file", async () => {
     expect(
-      fileEditTool.execute(
+      contextEditTool.execute(
         {
           path: "/nope.txt",
           patches: [{ start_line: 1, end_line: 1, content: "x" }],
@@ -161,26 +161,32 @@ describe("file_edit", () => {
   });
 });
 
-// ── file_delete ─────────────────────────────────────────────
+// ── context_delete ─────────────────────────────────────────────
 
-describe("file_delete", () => {
+describe("context_delete", () => {
   test("deletes an existing file", async () => {
     await seedFile(conn, "/remove.txt", "bye");
-    const result = await fileDeleteTool.execute({ path: "/remove.txt" }, ctx);
+    const result = await contextDeleteTool.execute(
+      { path: "/remove.txt" },
+      ctx,
+    );
     expect(result.deleted).toBe(1);
 
-    const exists = await fileExistsTool.execute({ path: "/remove.txt" }, ctx);
+    const exists = await contextExistsTool.execute(
+      { path: "/remove.txt" },
+      ctx,
+    );
     expect(exists.exists).toBe(false);
   });
 
   test("throws when deleting nonexistent without force", async () => {
-    expect(fileDeleteTool.execute({ path: "/ghost.txt" }, ctx)).rejects.toThrow(
-      "Not found",
-    );
+    expect(
+      contextDeleteTool.execute({ path: "/ghost.txt" }, ctx),
+    ).rejects.toThrow("Not found");
   });
 
   test("does not throw with force flag", async () => {
-    const result = await fileDeleteTool.execute(
+    const result = await contextDeleteTool.execute(
       { path: "/ghost.txt", force: true },
       ctx,
     );
@@ -190,7 +196,7 @@ describe("file_delete", () => {
   test("recursive delete removes children", async () => {
     await seedFile(conn, "/dir/a.txt", "a");
     await seedFile(conn, "/dir/b.txt", "b");
-    const result = await fileDeleteTool.execute(
+    const result = await contextDeleteTool.execute(
       { path: "/dir", recursive: true },
       ctx,
     );
@@ -198,18 +204,18 @@ describe("file_delete", () => {
   });
 });
 
-// ── file_copy ───────────────────────────────────────────────
+// ── context_copy ───────────────────────────────────────────────
 
-describe("file_copy", () => {
+describe("context_copy", () => {
   test("copies a file", async () => {
     await seedFile(conn, "/orig.txt", "content");
-    const result = await fileCopyTool.execute(
+    const result = await contextCopyTool.execute(
       { src: "/orig.txt", dst: "/copy.txt" },
       ctx,
     );
     expect(result.path).toBe("/copy.txt");
 
-    const read = await fileReadTool.execute({ path: "/copy.txt" }, ctx);
+    const read = await contextReadTool.execute({ path: "/copy.txt" }, ctx);
     expect(read.content).toBe("content");
   });
 
@@ -217,14 +223,14 @@ describe("file_copy", () => {
     await seedFile(conn, "/src.txt", "a");
     await seedFile(conn, "/dst.txt", "b");
     expect(
-      fileCopyTool.execute({ src: "/src.txt", dst: "/dst.txt" }, ctx),
+      contextCopyTool.execute({ src: "/src.txt", dst: "/dst.txt" }, ctx),
     ).rejects.toThrow("Destination already exists");
   });
 
   test("overwrites when overwrite is true", async () => {
     await seedFile(conn, "/src.txt", "new");
     await seedFile(conn, "/dst.txt", "old");
-    const result = await fileCopyTool.execute(
+    const result = await contextCopyTool.execute(
       { src: "/src.txt", dst: "/dst.txt", overwrite: true },
       ctx,
     );
@@ -233,26 +239,26 @@ describe("file_copy", () => {
 
   test("throws when source does not exist", async () => {
     expect(
-      fileCopyTool.execute({ src: "/missing.txt", dst: "/dst.txt" }, ctx),
+      contextCopyTool.execute({ src: "/missing.txt", dst: "/dst.txt" }, ctx),
     ).rejects.toThrow();
   });
 });
 
-// ── file_move ───────────────────────────────────────────────
+// ── context_move ───────────────────────────────────────────────
 
-describe("file_move", () => {
+describe("context_move", () => {
   test("moves a file", async () => {
     await seedFile(conn, "/old.txt", "data");
-    const result = await fileMoveTool.execute(
+    const result = await contextMoveTool.execute(
       { src: "/old.txt", dst: "/new.txt" },
       ctx,
     );
     expect(result.path).toBe("/new.txt");
 
-    const exists = await fileExistsTool.execute({ path: "/old.txt" }, ctx);
+    const exists = await contextExistsTool.execute({ path: "/old.txt" }, ctx);
     expect(exists.exists).toBe(false);
 
-    const read = await fileReadTool.execute({ path: "/new.txt" }, ctx);
+    const read = await contextReadTool.execute({ path: "/new.txt" }, ctx);
     expect(read.content).toBe("data");
   });
 
@@ -260,14 +266,14 @@ describe("file_move", () => {
     await seedFile(conn, "/a.txt", "a");
     await seedFile(conn, "/b.txt", "b");
     expect(
-      fileMoveTool.execute({ src: "/a.txt", dst: "/b.txt" }, ctx),
+      contextMoveTool.execute({ src: "/a.txt", dst: "/b.txt" }, ctx),
     ).rejects.toThrow("Destination already exists");
   });
 
   test("overwrites when overwrite is true", async () => {
     await seedFile(conn, "/a.txt", "a");
     await seedFile(conn, "/b.txt", "b");
-    const result = await fileMoveTool.execute(
+    const result = await contextMoveTool.execute(
       { src: "/a.txt", dst: "/b.txt", overwrite: true },
       ctx,
     );
@@ -276,20 +282,20 @@ describe("file_move", () => {
 
   test("throws when source does not exist", async () => {
     expect(
-      fileMoveTool.execute({ src: "/missing.txt", dst: "/dst.txt" }, ctx),
+      contextMoveTool.execute({ src: "/missing.txt", dst: "/dst.txt" }, ctx),
     ).rejects.toThrow();
   });
 });
 
-// ── file_info ───────────────────────────────────────────────
+// ── context_info ───────────────────────────────────────────────
 
-describe("file_info", () => {
+describe("context_info", () => {
   test("returns metadata for existing file", async () => {
     await seedFile(conn, "/meta.txt", "hello\nworld", {
       title: "Meta",
       description: "A test file",
     });
-    const info = await fileInfoTool.execute({ path: "/meta.txt" }, ctx);
+    const info = await contextInfoTool.execute({ path: "/meta.txt" }, ctx);
     expect(info.title).toBe("Meta");
     expect(info.description).toBe("A test file");
     expect(info.mime_type).toBe("text/plain");
@@ -302,33 +308,33 @@ describe("file_info", () => {
   });
 
   test("throws for nonexistent file", async () => {
-    expect(fileInfoTool.execute({ path: "/nope.txt" }, ctx)).rejects.toThrow(
+    expect(contextInfoTool.execute({ path: "/nope.txt" }, ctx)).rejects.toThrow(
       "Not found",
     );
   });
 });
 
-// ── file_exists ─────────────────────────────────────────────
+// ── context_exists ─────────────────────────────────────────────
 
-describe("file_exists", () => {
+describe("context_exists", () => {
   test("returns true for existing file", async () => {
     await seedFile(conn, "/there.txt", "hi");
-    const result = await fileExistsTool.execute({ path: "/there.txt" }, ctx);
+    const result = await contextExistsTool.execute({ path: "/there.txt" }, ctx);
     expect(result.exists).toBe(true);
   });
 
   test("returns false for missing file", async () => {
-    const result = await fileExistsTool.execute({ path: "/nope.txt" }, ctx);
+    const result = await contextExistsTool.execute({ path: "/nope.txt" }, ctx);
     expect(result.exists).toBe(false);
   });
 });
 
-// ── file_count_lines ────────────────────────────────────────
+// ── context_count_lines ────────────────────────────────────────
 
-describe("file_count_lines", () => {
+describe("context_count_lines", () => {
   test("counts lines in a file", async () => {
     await seedFile(conn, "/lines.txt", "a\nb\nc");
-    const result = await fileCountLinesTool.execute(
+    const result = await contextCountLinesTool.execute(
       { path: "/lines.txt" },
       ctx,
     );
@@ -337,7 +343,7 @@ describe("file_count_lines", () => {
 
   test("single line file returns 1", async () => {
     await seedFile(conn, "/single.txt", "only one line");
-    const result = await fileCountLinesTool.execute(
+    const result = await contextCountLinesTool.execute(
       { path: "/single.txt" },
       ctx,
     );
@@ -346,31 +352,34 @@ describe("file_count_lines", () => {
 
   test("throws for nonexistent file", async () => {
     expect(
-      fileCountLinesTool.execute({ path: "/nope.txt" }, ctx),
+      contextCountLinesTool.execute({ path: "/nope.txt" }, ctx),
     ).rejects.toThrow("Not found");
   });
 
   test("throws for non-textual file", async () => {
     await seedBinaryFile(conn, "/bin.dat");
     expect(
-      fileCountLinesTool.execute({ path: "/bin.dat" }, ctx),
+      contextCountLinesTool.execute({ path: "/bin.dat" }, ctx),
     ).rejects.toThrow("No text content");
   });
 });
 
-// ── edge cases ─────────────────────────────────────────────
+// ── edge cases ─────────────────────────────────────────────────
 
-describe("file edge cases", () => {
+describe("context edge cases", () => {
   test("write and read file with empty content", async () => {
-    await fileWriteTool.execute({ path: "/empty.txt", content: "" }, ctx);
-    const result = await fileReadTool.execute({ path: "/empty.txt" }, ctx);
+    await contextWriteTool.execute({ path: "/empty.txt", content: "" }, ctx);
+    const result = await contextReadTool.execute({ path: "/empty.txt" }, ctx);
     expect(result.content).toBe("");
   });
 
   test("write file with very long single line", async () => {
     const longLine = "x".repeat(10000);
-    await fileWriteTool.execute({ path: "/long.txt", content: longLine }, ctx);
-    const result = await fileReadTool.execute({ path: "/long.txt" }, ctx);
+    await contextWriteTool.execute(
+      { path: "/long.txt", content: longLine },
+      ctx,
+    );
+    const result = await contextReadTool.execute({ path: "/long.txt" }, ctx);
     expect(result.content).toBe(longLine);
   });
 
@@ -380,7 +389,7 @@ describe("file edge cases", () => {
       "/multi-edit.txt",
       "line1\nline2\nline3\nline4\nline5",
     );
-    const result = await fileEditTool.execute(
+    const result = await contextEditTool.execute(
       {
         path: "/multi-edit.txt",
         patches: [
@@ -397,13 +406,13 @@ describe("file edge cases", () => {
   });
 
   test("copy preserves content exactly", async () => {
-    const content = "Special chars: \t\n\r\nUnicode: \u00e9\u00e8\u00ea";
+    const content = "Special chars: \t\n\r\nUnicode: éèê";
     await seedFile(conn, "/special.txt", content);
-    await fileCopyTool.execute(
+    await contextCopyTool.execute(
       { src: "/special.txt", dst: "/special-copy.txt" },
       ctx,
     );
-    const result = await fileReadTool.execute(
+    const result = await contextReadTool.execute(
       { path: "/special-copy.txt" },
       ctx,
     );
@@ -412,18 +421,18 @@ describe("file edge cases", () => {
 
   test("move source no longer exists", async () => {
     await seedFile(conn, "/src-move.txt", "moving data");
-    await fileMoveTool.execute(
+    await contextMoveTool.execute(
       { src: "/src-move.txt", dst: "/dst-move.txt" },
       ctx,
     );
 
-    const srcExists = await fileExistsTool.execute(
+    const srcExists = await contextExistsTool.execute(
       { path: "/src-move.txt" },
       ctx,
     );
     expect(srcExists.exists).toBe(false);
 
-    const dstExists = await fileExistsTool.execute(
+    const dstExists = await contextExistsTool.execute(
       { path: "/dst-move.txt" },
       ctx,
     );
@@ -433,14 +442,14 @@ describe("file edge cases", () => {
   test("info returns correct size for multi-byte content", async () => {
     const content = "Hello";
     await seedFile(conn, "/sized.txt", content);
-    const info = await fileInfoTool.execute({ path: "/sized.txt" }, ctx);
+    const info = await contextInfoTool.execute({ path: "/sized.txt" }, ctx);
     expect(info.size).toBe(5);
     expect(info.lines).toBe(1);
   });
 
   test("read with offset beyond file length returns empty", async () => {
     await seedFile(conn, "/short.txt", "only\ntwo");
-    const result = await fileReadTool.execute(
+    const result = await contextReadTool.execute(
       { path: "/short.txt", offset: 100 },
       ctx,
     );
@@ -451,9 +460,12 @@ describe("file edge cases", () => {
     await seedFile(conn, "/keep/a.txt", "keep me");
     await seedFile(conn, "/remove-dir/b.txt", "remove me");
 
-    await fileDeleteTool.execute({ path: "/remove-dir", recursive: true }, ctx);
+    await contextDeleteTool.execute(
+      { path: "/remove-dir", recursive: true },
+      ctx,
+    );
 
-    const kept = await fileExistsTool.execute({ path: "/keep/a.txt" }, ctx);
+    const kept = await contextExistsTool.execute({ path: "/keep/a.txt" }, ctx);
     expect(kept.exists).toBe(true);
   });
 });

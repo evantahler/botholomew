@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { searchContextTool } from "../../src/tools/context/search.ts";
+import { contextSearchTool } from "../../src/tools/context/search.ts";
 import type { ToolContext } from "../../src/tools/tool.ts";
 import { seedFile, setupToolContext } from "../helpers.ts";
 
@@ -9,9 +9,9 @@ beforeEach(async () => {
   ({ ctx } = await setupToolContext());
 });
 
-describe("search_context", () => {
+describe("context_search", () => {
   test("returns empty results for no matches", async () => {
-    const result = await searchContextTool.execute(
+    const result = await contextSearchTool.execute(
       { query: "nonexistent" },
       ctx,
     );
@@ -25,7 +25,7 @@ describe("search_context", () => {
       "/notes/meeting.md",
       "Discussed quarterly revenue",
     );
-    const result = await searchContextTool.execute({ query: "revenue" }, ctx);
+    const result = await contextSearchTool.execute({ query: "revenue" }, ctx);
     expect(result.count).toBe(1);
     expect(result.results[0]?.context_path).toBe("/notes/meeting.md");
   });
@@ -34,7 +34,7 @@ describe("search_context", () => {
     await seedFile(ctx.conn, "/reports/budget.md", "Numbers here", {
       title: "Budget Report",
     });
-    const result = await searchContextTool.execute({ query: "budget" }, ctx);
+    const result = await contextSearchTool.execute({ query: "budget" }, ctx);
     expect(result.count).toBe(1);
   });
 
@@ -42,7 +42,7 @@ describe("search_context", () => {
     await seedFile(ctx.conn, "/a.md", "test content");
     await seedFile(ctx.conn, "/b.md", "test content");
     await seedFile(ctx.conn, "/c.md", "test content");
-    const result = await searchContextTool.execute(
+    const result = await contextSearchTool.execute(
       { query: "test", limit: 2 },
       ctx,
     );
@@ -51,7 +51,7 @@ describe("search_context", () => {
 
   test("returns content preview", async () => {
     await seedFile(ctx.conn, "/doc.md", "A very long document about testing");
-    const result = await searchContextTool.execute({ query: "testing" }, ctx);
+    const result = await contextSearchTool.execute({ query: "testing" }, ctx);
     expect(result.results[0]?.content_preview).toContain("testing");
   });
 });

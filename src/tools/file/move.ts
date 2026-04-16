@@ -17,10 +17,10 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const fileMoveTool = {
-  name: "file_move",
-  description: "Move or rename a file in the virtual filesystem.",
-  group: "file",
+export const contextMoveTool = {
+  name: "context_move",
+  description: "Move or rename a context item.",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {

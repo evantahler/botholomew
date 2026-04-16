@@ -24,10 +24,10 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const dirSizeTool = {
-  name: "dir_size",
-  description: "Get the total size of files in a directory.",
-  group: "dir",
+export const contextDirSizeTool = {
+  name: "context_dir_size",
+  description: "Get the total size of context items in a directory.",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {

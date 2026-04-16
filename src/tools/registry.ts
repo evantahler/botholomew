@@ -1,23 +1,24 @@
 // Context tools
+
 import { readLargeResultTool } from "./context/read-large-result.ts";
-import { searchContextTool } from "./context/search.ts";
+import { contextSearchTool } from "./context/search.ts";
 import { updateBeliefsTool } from "./context/update-beliefs.ts";
 import { updateGoalsTool } from "./context/update-goals.ts";
-// Directory tools
-import { dirCreateTool } from "./dir/create.ts";
-import { dirListTool } from "./dir/list.ts";
-import { dirSizeTool } from "./dir/size.ts";
-import { dirTreeTool } from "./dir/tree.ts";
-import { fileCopyTool } from "./file/copy.ts";
-import { fileCountLinesTool } from "./file/count-lines.ts";
-import { fileDeleteTool } from "./file/delete.ts";
-import { fileEditTool } from "./file/edit.ts";
-import { fileExistsTool } from "./file/exists.ts";
-import { fileInfoTool } from "./file/info.ts";
-import { fileMoveTool } from "./file/move.ts";
-// File tools
-import { fileReadTool } from "./file/read.ts";
-import { fileWriteTool } from "./file/write.ts";
+// Context — directory operations
+import { contextCreateDirTool } from "./dir/create.ts";
+import { contextListDirTool } from "./dir/list.ts";
+import { contextDirSizeTool } from "./dir/size.ts";
+import { contextTreeTool } from "./dir/tree.ts";
+// Context — file operations
+import { contextCopyTool } from "./file/copy.ts";
+import { contextCountLinesTool } from "./file/count-lines.ts";
+import { contextDeleteTool } from "./file/delete.ts";
+import { contextEditTool } from "./file/edit.ts";
+import { contextExistsTool } from "./file/exists.ts";
+import { contextInfoTool } from "./file/info.ts";
+import { contextMoveTool } from "./file/move.ts";
+import { contextReadTool } from "./file/read.ts";
+import { contextWriteTool } from "./file/write.ts";
 // MCP tools
 import { mcpExecTool } from "./mcp/exec.ts";
 import { mcpInfoTool } from "./mcp/info.ts";
@@ -52,22 +53,24 @@ export function registerAllTools(): void {
   registerTool(listTasksTool);
   registerTool(viewTaskTool);
 
-  // Directory
-  registerTool(dirCreateTool);
-  registerTool(dirListTool);
-  registerTool(dirTreeTool);
-  registerTool(dirSizeTool);
-
-  // File
-  registerTool(fileReadTool);
-  registerTool(fileWriteTool);
-  registerTool(fileEditTool);
-  registerTool(fileDeleteTool);
-  registerTool(fileCopyTool);
-  registerTool(fileMoveTool);
-  registerTool(fileInfoTool);
-  registerTool(fileExistsTool);
-  registerTool(fileCountLinesTool);
+  // Context
+  registerTool(contextCreateDirTool);
+  registerTool(contextListDirTool);
+  registerTool(contextTreeTool);
+  registerTool(contextDirSizeTool);
+  registerTool(contextReadTool);
+  registerTool(contextWriteTool);
+  registerTool(contextEditTool);
+  registerTool(contextDeleteTool);
+  registerTool(contextCopyTool);
+  registerTool(contextMoveTool);
+  registerTool(contextInfoTool);
+  registerTool(contextExistsTool);
+  registerTool(contextCountLinesTool);
+  registerTool(contextSearchTool);
+  registerTool(updateBeliefsTool);
+  registerTool(updateGoalsTool);
+  registerTool(readLargeResultTool);
 
   // Schedule
   registerTool(createScheduleTool);
@@ -80,12 +83,6 @@ export function registerAllTools(): void {
   // Thread
   registerTool(listThreadsTool);
   registerTool(viewThreadTool);
-
-  // Context
-  registerTool(searchContextTool);
-  registerTool(updateBeliefsTool);
-  registerTool(updateGoalsTool);
-  registerTool(readLargeResultTool);
 
   // MCP
   registerTool(mcpListToolsTool);

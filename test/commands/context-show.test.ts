@@ -68,7 +68,7 @@ describe("context show CLI", () => {
     const result = await run(["context", "show", "/no/such/path.md"]);
     expect(result.code).toBe(1);
     expect(result.stdout + result.stderr).toContain(
-      "Context item not found: /no/such/path.md",
+      "Context entry not found: /no/such/path.md",
     );
   });
 

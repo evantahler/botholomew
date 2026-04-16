@@ -22,10 +22,11 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const fileInfoTool = {
-  name: "file_info",
-  description: "Show file metadata (size, MIME type, line count, etc.).",
-  group: "file",
+export const contextInfoTool = {
+  name: "context_info",
+  description:
+    "Show context item metadata (size, MIME type, line count, etc.).",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {

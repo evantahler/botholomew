@@ -13,7 +13,6 @@ import { registerScheduleCommand } from "./commands/schedule.ts";
 import { registerSkillCommand } from "./commands/skill.ts";
 import { registerTaskCommand } from "./commands/task.ts";
 import { registerThreadCommand } from "./commands/thread.ts";
-import { registerToolCommands } from "./commands/tools.ts";
 import { registerUpgradeCommand } from "./commands/upgrade.ts";
 import { maybeCheckForUpdate } from "./update/background.ts";
 
@@ -41,7 +40,6 @@ registerChatCommand(program);
 registerContextCommand(program);
 registerMcpxCommand(program);
 registerSkillCommand(program);
-registerToolCommands(program);
 registerPrepareCommand(program);
 registerCheckUpdateCommand(program);
 registerUpgradeCommand(program);

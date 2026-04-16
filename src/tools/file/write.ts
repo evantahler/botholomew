@@ -38,11 +38,11 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const fileWriteTool = {
-  name: "file_write",
+export const contextWriteTool = {
+  name: "context_write",
   description:
-    "Write content to a file in the virtual filesystem. Creates the file if it doesn't exist, or overwrites if it does.",
-  group: "file",
+    "Write content to a context item. Creates the item if it doesn't exist, or overwrites if it does.",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {

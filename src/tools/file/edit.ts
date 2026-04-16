@@ -24,11 +24,11 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const fileEditTool = {
-  name: "file_edit",
+export const contextEditTool = {
+  name: "context_edit",
   description:
-    "Apply git-style patches to a file. Each patch specifies a line range to replace.",
-  group: "file",
+    "Apply git-style patches to a context item. Each patch specifies a line range to replace.",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
