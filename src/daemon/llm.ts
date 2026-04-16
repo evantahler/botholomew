@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type {
+  Message,
   MessageParam,
   ToolResultBlockParam,
   ToolUseBlock,
@@ -15,6 +16,18 @@ import { fitToContextWindow, getMaxInputTokens } from "./context.ts";
 import { clearLargeResults, maybeStoreResult } from "./large-results.ts";
 
 registerAllTools();
+
+export interface DaemonStreamCallbacks {
+  onToken: (text: string) => void;
+  onToolStart: (name: string, input: string) => void;
+  onToolEnd: (
+    name: string,
+    output: string,
+    isError: boolean,
+    durationMs: number,
+  ) => void;
+  onTaskStart: (task: Task) => void;
+}
 
 export interface AgentLoopResult {
   status: "complete" | "failed" | "waiting";
@@ -35,8 +48,10 @@ export async function runAgentLoop(input: {
   threadId: string;
   projectDir: string;
   mcpxClient?: McpxClient | null;
+  callbacks?: DaemonStreamCallbacks;
 }): Promise<AgentLoopResult> {
-  const { systemPrompt, task, config, conn, threadId, projectDir } = input;
+  const { systemPrompt, task, config, conn, threadId, projectDir, callbacks } =
+    input;
 
   const client = new Anthropic({
     apiKey: config.anthropic_api_key || undefined,
@@ -71,13 +86,40 @@ export async function runAgentLoop(input: {
   for (let turn = 0; !maxTurns || turn < maxTurns; turn++) {
     const startTime = Date.now();
     fitToContextWindow(messages, systemPrompt, maxInputTokens);
-    const response = await client.messages.create({
-      model: config.model,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages,
-      tools: daemonTools,
-    });
+
+    let response: Message;
+    let streamedText = "";
+
+    if (callbacks) {
+      const stream = client.messages.stream({
+        model: config.model,
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages,
+        tools: daemonTools,
+      });
+
+      stream.on("text", (text) => {
+        streamedText += text;
+        callbacks.onToken(text);
+      });
+
+      response = await stream.finalMessage();
+
+      // Ensure a newline after streamed text before tool output
+      if (streamedText) {
+        callbacks.onToken("\n");
+      }
+    } else {
+      response = await client.messages.create({
+        model: config.model,
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages,
+        tools: daemonTools,
+      });
+    }
+
     const durationMs = Date.now() - startTime;
     const tokenCount =
       response.usage.input_tokens + response.usage.output_tokens;
@@ -112,12 +154,14 @@ export async function runAgentLoop(input: {
 
     // Log all tool_use entries
     for (const toolUse of toolUseBlocks) {
+      const toolInput = JSON.stringify(toolUse.input);
+      callbacks?.onToolStart(toolUse.name, toolInput);
       await logInteraction(conn, threadId, {
         role: "assistant",
         kind: "tool_use",
         content: `Calling ${toolUse.name}`,
         toolName: toolUse.name,
-        toolInput: JSON.stringify(toolUse.input),
+        toolInput,
       });
     }
 
@@ -126,7 +170,14 @@ export async function runAgentLoop(input: {
       toolUseBlocks.map(async (toolUse) => {
         const start = Date.now();
         const result = await executeToolCall(toolUse, toolCtx);
-        return { toolUse, result, durationMs: Date.now() - start };
+        const elapsed = Date.now() - start;
+        callbacks?.onToolEnd(
+          toolUse.name,
+          result.output,
+          result.isError,
+          elapsed,
+        );
+        return { toolUse, result, durationMs: elapsed };
       }),
     );
 
