@@ -11,10 +11,10 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const fileExistsTool = {
-  name: "file_exists",
-  description: "Check if a file exists in the virtual filesystem.",
-  group: "file",
+export const contextExistsTool = {
+  name: "context_exists",
+  description: "Check if a context item exists.",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {

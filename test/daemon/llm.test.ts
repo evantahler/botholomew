@@ -163,14 +163,14 @@ describe("runAgentLoop", () => {
     const threadId = await createThread(conn, "daemon_tick", task.id);
 
     // Always return a non-terminal tool use so the loop continues.
-    // Use file_exists which never throws (always returns a result).
+    // Use context_exists which never throws (always returns a result).
     let turnCounter = 0;
     mockCreate.mockImplementation(async () => ({
       content: [
         {
           type: "tool_use",
           id: `tool_${++turnCounter}`,
-          name: "file_exists",
+          name: "context_exists",
           input: { path: "/anything.txt" },
         },
       ],
@@ -334,13 +334,13 @@ describe("runAgentLoop", () => {
             {
               type: "tool_use",
               id: "tool_a",
-              name: "file_exists",
+              name: "context_exists",
               input: { path: "/a.txt" },
             },
             {
               type: "tool_use",
               id: "tool_b",
-              name: "file_exists",
+              name: "context_exists",
               input: { path: "/b.txt" },
             },
           ],
@@ -378,13 +378,13 @@ describe("runAgentLoop", () => {
     // Verify both tool results were logged
     const threadData = await getThread(conn, threadId);
     const toolResults = threadData?.interactions.filter(
-      (i) => i.kind === "tool_result" && i.tool_name === "file_exists",
+      (i) => i.kind === "tool_result" && i.tool_name === "context_exists",
     );
     expect(toolResults?.length).toBe(2);
 
     // Verify both tool_use entries were logged
     const toolUses = threadData?.interactions.filter(
-      (i) => i.kind === "tool_use" && i.tool_name === "file_exists",
+      (i) => i.kind === "tool_use" && i.tool_name === "context_exists",
     );
     expect(toolUses?.length).toBe(2);
   });

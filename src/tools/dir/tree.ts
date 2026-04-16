@@ -23,11 +23,10 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const dirTreeTool = {
-  name: "dir_tree",
-  description:
-    "Render a directory as a markdown-style tree in the virtual filesystem.",
-  group: "dir",
+export const contextTreeTool = {
+  name: "context_tree",
+  description: "Render a directory as a markdown-style tree in context.",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {

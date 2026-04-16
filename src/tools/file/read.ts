@@ -16,10 +16,10 @@ const outputSchema = z.object({
   is_error: z.boolean(),
 });
 
-export const fileReadTool = {
-  name: "file_read",
-  description: "Read a file's contents from the virtual filesystem.",
-  group: "file",
+export const contextReadTool = {
+  name: "context_read",
+  description: "Read a context item's contents.",
+  group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {

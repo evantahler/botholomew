@@ -97,7 +97,7 @@ describe("interaction logging", () => {
       role: "assistant",
       kind: "tool_use",
       content: "Calling search tool",
-      toolName: "search_context",
+      toolName: "context_search",
       toolInput: '{"query": "relevant docs"}',
     });
 
@@ -105,7 +105,7 @@ describe("interaction logging", () => {
       role: "tool",
       kind: "tool_result",
       content: "Found 3 results",
-      toolName: "search_context",
+      toolName: "context_search",
       durationMs: 150,
     });
 
@@ -126,7 +126,7 @@ describe("interaction logging", () => {
     // Verify content
     expect(result?.interactions[0]?.role).toBe("user");
     expect(result?.interactions[0]?.kind).toBe("message");
-    expect(result?.interactions[2]?.tool_name).toBe("search_context");
+    expect(result?.interactions[2]?.tool_name).toBe("context_search");
     expect(result?.interactions[2]?.tool_input).toBe(
       '{"query": "relevant docs"}',
     );
