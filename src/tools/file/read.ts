@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { resolveContextItem } from "../../db/context.ts";
+import { resolveContextItemOrThrow } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
@@ -23,8 +23,7 @@ export const contextReadTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const item = await resolveContextItem(ctx.conn, input.path);
-    if (!item) throw new Error(`Not found: ${input.path}`);
+    const item = await resolveContextItemOrThrow(ctx.conn, input.path);
     if (item.content == null) throw new Error(`No text content: ${input.path}`);
 
     let content = item.content;

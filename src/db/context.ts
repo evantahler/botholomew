@@ -152,6 +152,18 @@ export async function resolveContextItem(
     : getContextItemByPath(db, pathOrId);
 }
 
+/**
+ * Like resolveContextItem but throws if not found.
+ */
+export async function resolveContextItemOrThrow(
+  db: DbConnection,
+  pathOrId: string,
+): Promise<ContextItem> {
+  const item = await resolveContextItem(db, pathOrId);
+  if (!item) throw new Error(`Not found: ${pathOrId}`);
+  return item;
+}
+
 export async function listContextItems(
   db: DbConnection,
   filters?: {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { resolveContextItem } from "../../db/context.ts";
+import { resolveContextItemOrThrow } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
@@ -30,8 +30,7 @@ export const contextInfoTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const item = await resolveContextItem(ctx.conn, input.path);
-    if (!item) throw new Error(`Not found: ${input.path}`);
+    const item = await resolveContextItemOrThrow(ctx.conn, input.path);
 
     const content = item.content ?? "";
     return {
