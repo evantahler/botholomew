@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { EMBEDDING_DIMENSION } from "../../src/constants.ts";
 import { ingestContextItem } from "../../src/context/ingest.ts";
 import type { DbConnection } from "../../src/db/connection.ts";
@@ -10,8 +10,13 @@ import { seedFile, setupToolContext } from "../helpers.ts";
 let conn: DbConnection;
 let ctx: ToolContext;
 
+const originalFetch = globalThis.fetch;
 beforeEach(() => {
   ({ conn, ctx } = setupToolContext());
+  ctx.config.openai_api_key = "test-key";
+});
+afterEach(() => {
+  globalThis.fetch = originalFetch;
 });
 
 // ── search_grep ─────────────────────────────────────────────
@@ -131,9 +136,22 @@ describe("search_semantic", () => {
     );
     await ingestContextItem(conn, item.id, ctx.config, mockEmbed);
 
-    // search_semantic uses the real embedder, so we test the grep-based path here
-    // by verifying the tool doesn't throw anymore
-    // Full integration test with real model is in embedder.test.ts
+    // Mock fetch for the embedSingle call inside searchSemanticTool
+    const queryVec = await mockEmbed(["quarterly revenue"]).then(
+      (r) => r[0] ?? [],
+    );
+    globalThis.fetch = mock(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: [{ embedding: queryVec, index: 0 }],
+            usage: { total_tokens: 5 },
+          }),
+          { status: 200 },
+        ),
+      ),
+    ) as unknown as typeof fetch;
+
     const result = await searchSemanticTool.execute(
       { query: "quarterly revenue", top_k: 5 },
       ctx,

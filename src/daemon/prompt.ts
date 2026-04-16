@@ -97,10 +97,10 @@ export async function buildSystemPrompt(
   parts.push(...(await loadPersistentContext(projectDir, taskKeywords)));
 
   // Relevant context from embeddings search
-  if (task && conn) {
+  if (task && conn && _config?.openai_api_key) {
     try {
       const query = `${task.name} ${task.description}`;
-      const queryVec = await embedSingle(query);
+      const queryVec = await embedSingle(query, _config);
       initVectorSearch(conn);
       const results = hybridSearch(conn, query, queryVec, 5);
 

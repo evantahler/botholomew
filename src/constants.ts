@@ -18,9 +18,8 @@ export const LOG_FILENAME = "daemon.log";
 export const CONFIG_FILENAME = "config.json";
 export const MCPX_DIR = "mcpx";
 export const MCPX_SERVERS_FILENAME = "servers.json";
-export const EMBEDDING_DIMENSION = 384;
-export const EMBEDDING_MODEL_ID = "Xenova/bge-small-en-v1.5";
-export const EMBEDDING_DTYPE = "fp32";
+export const EMBEDDING_DIMENSION = 1536;
+export const EMBEDDING_MODEL = "text-embedding-3-small";
 
 export const LAUNCHD_LABEL_PREFIX = "com.botholomew.";
 export const SYSTEMD_UNIT_PREFIX = "botholomew-";

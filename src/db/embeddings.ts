@@ -107,6 +107,18 @@ export function createEmbedding(
   };
 }
 
+export function getEmbeddingsForItem(
+  conn: DbConnection,
+  contextItemId: string,
+): Embedding[] {
+  const rows = conn
+    .query(
+      "SELECT * FROM embeddings WHERE context_item_id = ?1 ORDER BY chunk_index ASC",
+    )
+    .all(contextItemId) as EmbeddingRow[];
+  return rows.map(rowToEmbedding);
+}
+
 export function deleteEmbeddingsForItem(
   conn: DbConnection,
   contextItemId: string,

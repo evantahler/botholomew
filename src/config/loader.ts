@@ -14,9 +14,12 @@ export async function loadConfig(
 
   const config = { ...DEFAULT_CONFIG, ...userConfig };
 
-  // env var override takes precedence
+  // env var overrides take precedence
   if (process.env.ANTHROPIC_API_KEY) {
     config.anthropic_api_key = process.env.ANTHROPIC_API_KEY;
+  }
+  if (process.env.OPENAI_API_KEY) {
+    config.openai_api_key = process.env.OPENAI_API_KEY;
   }
 
   return config;

@@ -33,7 +33,7 @@ describe("schema migrations", () => {
     const row = db.query("SELECT COUNT(*) AS count FROM _migrations").get() as {
       count: number;
     };
-    expect(row.count).toBe(4);
+    expect(row.count).toBe(5);
 
     db.close();
   });

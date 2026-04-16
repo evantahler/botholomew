@@ -38,7 +38,7 @@ export const fileEditTool = {
       input.patches,
     );
 
-    await ingestByPath(ctx.conn, input.path, ctx.config, ctx.embedFn);
+    await ingestByPath(ctx.conn, input.path, ctx.config);
     return { applied, content: item.content ?? "", is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

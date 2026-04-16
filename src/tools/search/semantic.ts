@@ -38,7 +38,7 @@ export const searchSemanticTool = {
   execute: async (input, ctx) => {
     initVectorSearch(ctx.conn);
 
-    const queryVec = await embedSingle(input.query);
+    const queryVec = await embedSingle(input.query, ctx.config);
     const results = hybridSearch(ctx.conn, input.query, queryVec, input.top_k);
 
     const threshold = input.threshold;
