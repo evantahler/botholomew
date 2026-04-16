@@ -243,6 +243,80 @@ describe("runAgentLoop", () => {
     expect(result.status).toBe("complete");
   });
 
+  test("catches tool execution errors and lets agent recover", async () => {
+    // Register a tool that throws to simulate an unexpected error
+    const { registerTool } = await import("../../src/tools/tool.ts");
+    const { z } = await import("zod");
+    registerTool({
+      name: "throwing_tool",
+      description: "A tool that always throws",
+      group: "test",
+      inputSchema: z.object({}),
+      outputSchema: z.object({ message: z.string(), is_error: z.boolean() }),
+      execute: async () => {
+        throw new Error("Unexpected internal error");
+      },
+    });
+
+    const task = await createTask(conn, {
+      name: "Tool throws task",
+      description: "A tool will throw an exception",
+    });
+    const threadId = await createThread(conn, "daemon_tick", task.id);
+
+    let callCount = 0;
+    mockCreate.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          content: [
+            {
+              type: "tool_use",
+              id: "tool_1",
+              name: "throwing_tool",
+              input: {},
+            },
+          ],
+          stop_reason: "tool_use",
+          usage: { input_tokens: 50, output_tokens: 30 },
+        };
+      }
+      // Second call: agent recovers and completes
+      return {
+        content: [
+          {
+            type: "tool_use",
+            id: "tool_2",
+            name: "complete_task",
+            input: { summary: "Recovered from tool error" },
+          },
+        ],
+        stop_reason: "tool_use",
+        usage: { input_tokens: 50, output_tokens: 30 },
+      };
+    });
+
+    const result = await runAgentLoop({
+      systemPrompt: "You are a test agent.",
+      task,
+      config: testConfig,
+      conn,
+      threadId,
+      projectDir: "/tmp/test",
+    });
+
+    expect(result.status).toBe("complete");
+    expect(result.reason).toBe("Recovered from tool error");
+
+    // Verify the error was logged as a tool_result
+    const threadData = await getThread(conn, threadId);
+    const toolResults = threadData?.interactions.filter(
+      (i) => i.kind === "tool_result" && i.tool_name === "throwing_tool",
+    );
+    expect(toolResults?.length).toBe(1);
+    expect(toolResults?.[0]?.content).toContain("threw an error");
+  });
+
   test("executes multiple tool calls in parallel", async () => {
     const task = await createTask(conn, {
       name: "Parallel task",

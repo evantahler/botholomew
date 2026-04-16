@@ -242,7 +242,16 @@ async function executeToolCall(
     };
   }
 
-  const result = await tool.execute(parsed.data, ctx);
+  let result: unknown;
+  try {
+    result = await tool.execute(parsed.data, ctx);
+  } catch (err) {
+    return {
+      output: `Tool ${toolUse.name} threw an error: ${err}. You may retry with different parameters or try an alternative approach.`,
+      terminal: false,
+      isError: true,
+    };
+  }
   const isError =
     typeof result === "object" && result !== null && "is_error" in result
       ? (result as { is_error: boolean }).is_error
