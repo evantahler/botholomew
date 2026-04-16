@@ -114,6 +114,7 @@ export async function listContextItems(
     contextPath?: string;
     mimeType?: string;
     limit?: number;
+    offset?: number;
   },
 ): Promise<ContextItem[]> {
   const { where, params } = buildWhereClause([
@@ -121,10 +122,11 @@ export async function listContextItems(
     ["mime_type", filters?.mimeType],
   ]);
   const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
+  const offset = filters?.offset ? `OFFSET ${filters.offset}` : "";
 
   const rows = db
     .query(
-      `SELECT * FROM context_items ${where} ORDER BY context_path ASC ${limit}`,
+      `SELECT * FROM context_items ${where} ORDER BY context_path ASC ${limit} ${offset}`,
     )
     .all(...params) as ContextItemRow[];
   return rows.map(rowToContextItem);
@@ -133,11 +135,12 @@ export async function listContextItems(
 export async function listContextItemsByPrefix(
   db: DbConnection,
   prefix: string,
-  opts?: { recursive?: boolean; limit?: number },
+  opts?: { recursive?: boolean; limit?: number; offset?: number },
 ): Promise<ContextItem[]> {
   const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
 
   const limit = opts?.limit ? `LIMIT ${opts.limit}` : "";
+  const offset = opts?.offset ? `OFFSET ${opts.offset}` : "";
 
   let rows: ContextItemRow[];
   if (opts?.recursive) {
@@ -145,7 +148,7 @@ export async function listContextItemsByPrefix(
       .query(
         `SELECT * FROM context_items
        WHERE context_path LIKE ?1
-       ORDER BY context_path ASC ${limit}`,
+       ORDER BY context_path ASC ${limit} ${offset}`,
       )
       .all(`${normalizedPrefix}%`) as ContextItemRow[];
   } else {
@@ -155,7 +158,7 @@ export async function listContextItemsByPrefix(
         `SELECT * FROM context_items
        WHERE context_path LIKE ?1
          AND context_path NOT LIKE ?2
-       ORDER BY context_path ASC ${limit}`,
+       ORDER BY context_path ASC ${limit} ${offset}`,
       )
       .all(
         `${normalizedPrefix}%`,

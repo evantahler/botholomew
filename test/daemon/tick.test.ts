@@ -45,8 +45,11 @@ describe("daemon tick", () => {
 
     await tick("/tmp/test-project", conn, {
       anthropic_api_key: "test-key",
+      openai_api_key: "",
       model: "claude-opus-4-20250514",
       chunker_model: "claude-haiku-4-20250514",
+      embedding_model: "text-embedding-3-small",
+      embedding_dimension: 1536,
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
       max_turns: 0,
@@ -66,8 +69,11 @@ describe("daemon tick", () => {
 
     await tick("/tmp/test-project", conn, {
       anthropic_api_key: "test-key",
+      openai_api_key: "",
       model: "claude-opus-4-20250514",
       chunker_model: "claude-haiku-4-20250514",
+      embedding_model: "text-embedding-3-small",
+      embedding_dimension: 1536,
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
       max_turns: 0,
@@ -96,8 +102,11 @@ describe("daemon tick", () => {
   test("does nothing when no tasks available", async () => {
     await tick("/tmp/test-project", conn, {
       anthropic_api_key: "test-key",
+      openai_api_key: "",
       model: "claude-opus-4-20250514",
       chunker_model: "claude-haiku-4-20250514",
+      embedding_model: "text-embedding-3-small",
+      embedding_dimension: 1536,
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
       max_turns: 0,
@@ -130,8 +139,11 @@ describe("daemon tick", () => {
 
     await tickFresh("/tmp/test-project", conn, {
       anthropic_api_key: "test-key",
+      openai_api_key: "",
       model: "claude-opus-4-20250514",
       chunker_model: "claude-haiku-4-20250514",
+      embedding_model: "text-embedding-3-small",
+      embedding_dimension: 1536,
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
       max_turns: 0,
@@ -184,8 +196,11 @@ describe("daemon tick", () => {
 
     await tick("/tmp/test-project", conn, {
       anthropic_api_key: "test-key",
+      openai_api_key: "",
       model: "claude-opus-4-20250514",
       chunker_model: "claude-haiku-4-20250514",
+      embedding_model: "text-embedding-3-small",
+      embedding_dimension: 1536,
       tick_interval_seconds: 300,
       max_tick_duration_seconds: 120,
       max_turns: 0,

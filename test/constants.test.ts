@@ -6,8 +6,7 @@ import {
   DB_FILENAME,
   DEFAULTS,
   EMBEDDING_DIMENSION,
-  EMBEDDING_DTYPE,
-  EMBEDDING_MODEL_ID,
+  EMBEDDING_MODEL,
   ENV,
   getBotholomewDir,
   getConfigPath,
@@ -34,9 +33,8 @@ describe("constants", () => {
   });
 
   test("embedding constants are defined", () => {
-    expect(EMBEDDING_DIMENSION).toBe(384);
-    expect(EMBEDDING_MODEL_ID).toBe("Xenova/bge-small-en-v1.5");
-    expect(EMBEDDING_DTYPE).toBe("fp32");
+    expect(EMBEDDING_DIMENSION).toBe(1536);
+    expect(EMBEDDING_MODEL).toBe("text-embedding-3-small");
   });
 
   test("environment variable keys are defined", () => {

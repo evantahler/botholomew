@@ -1,13 +1,12 @@
 import { DEFAULT_CONFIG } from "../src/config/schemas.ts";
 import { EMBEDDING_DIMENSION } from "../src/constants.ts";
-import type { EmbedFn } from "../src/context/embedder.ts";
 import { type DbConnection, getConnection } from "../src/db/connection.ts";
 import { createContextItem } from "../src/db/context.ts";
 import { migrate } from "../src/db/schema.ts";
 import type { ToolContext } from "../src/tools/tool.ts";
 
-/** Mock embedder that returns zero vectors without loading a real model. */
-export const mockEmbed: EmbedFn = async (texts: string[]) =>
+/** Mock embedder that returns zero vectors without calling a real API. */
+export const mockEmbed = async (texts: string[]) =>
   texts.map(() => new Array(EMBEDDING_DIMENSION).fill(0));
 
 /** Create a fresh in-memory database with migrations applied. */
@@ -25,7 +24,6 @@ export function setupToolContext(): { conn: DbConnection; ctx: ToolContext } {
     projectDir: "/tmp/test",
     config: { ...DEFAULT_CONFIG },
     mcpxClient: null,
-    embedFn: mockEmbed,
   };
   return { conn, ctx };
 }
