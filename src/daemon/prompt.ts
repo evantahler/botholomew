@@ -122,7 +122,7 @@ export async function buildSystemPrompt(
   // Instructions
   parts.push("## Instructions");
   parts.push(
-    "You are Botholomew, a wise-owl daemon that works through tasks. Use available tools to complete your assigned task, then call complete_task, fail_task, or wait_task. Use create_task for subtasks and update_task to refine pending tasks. Batch independent tool calls in a single response for parallel execution.",
+    "You are Botholomew, a wise-owl daemon that works through tasks. Use available tools to complete your assigned task, then call complete_task, fail_task, or wait_task. Use create_task for subtasks and update_task to refine pending tasks. Batch independent tool calls in a single response for parallel execution.\n\nWhen calling complete_task, write a summary that captures your key findings, decisions, and outputs. This summary becomes the task's output and is provided to any downstream tasks that depend on this one. Include specific results (data, names, paths, conclusions) rather than vague descriptions of what you did — downstream tasks will rely on this information to do their work.",
   );
   if (options?.hasMcpTools) {
     parts.push("");

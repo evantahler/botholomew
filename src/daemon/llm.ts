@@ -8,7 +8,7 @@ import type {
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
-import type { Task } from "../db/tasks.ts";
+import { getTask, type Task } from "../db/tasks.ts";
 import { logInteraction } from "../db/threads.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import { getTool, type ToolContext, toAnthropicTools } from "../tools/tool.ts";
@@ -64,7 +64,24 @@ export async function runAgentLoop(input: {
     mcpxClient: input.mcpxClient ?? null,
   };
 
-  const userMessage = `Task:\nName: ${task.name}\nDescription: ${task.description}\nPriority: ${task.priority}`;
+  // Build predecessor context from completed blocking tasks
+  let predecessorContext = "";
+  if (task.blocked_by.length > 0) {
+    const predecessorOutputs: string[] = [];
+    for (const blockerId of task.blocked_by) {
+      const blocker = await getTask(conn, blockerId);
+      if (blocker?.output) {
+        predecessorOutputs.push(
+          `### ${blocker.name} (${blocker.id})\n${blocker.output}`,
+        );
+      }
+    }
+    if (predecessorOutputs.length > 0) {
+      predecessorContext = `\n\nPredecessor Task Outputs:\n${predecessorOutputs.join("\n\n")}`;
+    }
+  }
+
+  const userMessage = `Task:\nName: ${task.name}\nDescription: ${task.description}\nPriority: ${task.priority}${predecessorContext}`;
 
   const messages: MessageParam[] = [{ role: "user", content: userMessage }];
 
