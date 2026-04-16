@@ -17,9 +17,9 @@ import type { DbConnection } from "../db/connection.ts";
 import {
   type ContextItem,
   deleteContextItemByPath,
-  getContextItemByPath,
   listContextItems,
   listContextItemsByPrefix,
+  resolveContextItem,
   updateContextItem,
   upsertContextItem,
 } from "../db/context.ts";
@@ -89,7 +89,7 @@ export function registerContextCommand(program: Command) {
     .description("Show details and content of a context entry")
     .action((path: string) =>
       withDb(program, async (conn) => {
-        const item = await getContextItemByPath(conn, path);
+        const item = await resolveContextItem(conn, path);
         if (!item) {
           logger.error(`Context entry not found: ${path}`);
           process.exit(1);
@@ -296,7 +296,7 @@ export function registerContextCommand(program: Command) {
     .description("Show chunks and embeddings for a context entry")
     .action((path: string) =>
       withDb(program, async (conn) => {
-        const item = await getContextItemByPath(conn, path);
+        const item = await resolveContextItem(conn, path);
         if (!item) {
           logger.error(`Context entry not found: ${path}`);
           process.exit(1);
@@ -464,7 +464,7 @@ async function resolveItems(
   }
   if (all) return listContextItems(conn);
   const p = path as string;
-  const exact = await getContextItemByPath(conn, p);
+  const exact = await resolveContextItem(conn, p);
   if (exact) return [exact];
   return listContextItemsByPrefix(conn, p, { recursive: true });
 }
