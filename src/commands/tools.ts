@@ -98,8 +98,10 @@ function registerToolAsCLI(parent: Command, tool: AnyToolDefinition) {
     }
   }
 
-  cmd.action((...args: unknown[]) =>
-    withDb(parent.parent ?? parent, async (conn, dir) => {
+  cmd.action((...args: unknown[]) => {
+    let root: Command = parent;
+    while (root.parent) root = root.parent;
+    return withDb(root, async (conn, dir) => {
       try {
         const input = buildInput(tool, positionals, options, shape, args);
 
@@ -116,8 +118,8 @@ function registerToolAsCLI(parent: Command, tool: AnyToolDefinition) {
         logger.error(String(err));
         process.exit(1);
       }
-    }),
-  );
+    });
+  });
 }
 
 function buildInput(
