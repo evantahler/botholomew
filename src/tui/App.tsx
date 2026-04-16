@@ -9,6 +9,7 @@ import {
 import { MAX_INLINE_CHARS, PAGE_SIZE_CHARS } from "../daemon/large-results.ts";
 import type { Interaction } from "../db/threads.ts";
 import { getThread } from "../db/threads.ts";
+import { handleSlashCommand } from "../skills/commands.ts";
 import { ContextPanel } from "./components/ContextPanel.tsx";
 import { HelpPanel } from "./components/HelpPanel.tsx";
 import { InputBar } from "./components/InputBar.tsx";
@@ -209,6 +210,11 @@ export function App({
   queuedMessagesRef.current = queuedMessages;
   selectedQueueIndexRef.current = selectedQueueIndex;
 
+  const tabConsumedRef = useRef(false);
+  const handleTabConsumed = useCallback(() => {
+    tabConsumedRef.current = true;
+  }, []);
+
   const stableAppHandler = useCallback(
     // biome-ignore lint/suspicious/noExplicitAny: Ink's Key type is not exported
     (input: string, key: any) => {
@@ -218,8 +224,12 @@ export function App({
         return;
       }
 
-      // Tab key cycles tabs — always active (InputBar ignores tab)
+      // Tab key cycles tabs — unless InputBar consumed it for completion
       if (key.tab && !key.shift) {
+        if (tabConsumedRef.current) {
+          tabConsumedRef.current = false;
+          return;
+        }
         setActiveTab((t) => ((t % 7) + 1) as TabId);
         return;
       }
@@ -414,6 +424,23 @@ export function App({
       setInputValue("");
 
       if (trimmed === "/help") {
+        const skills = sessionRef.current.skills;
+        const skillLines: string[] = [];
+        if (skills.size > 0) {
+          skillLines.push("", "Skills:");
+          for (const [skillName, skill] of skills) {
+            skillLines.push(
+              `  /${skillName.padEnd(14)} ${skill.description || "(no description)"}`,
+            );
+          }
+        } else {
+          skillLines.push(
+            "",
+            "Skills:",
+            "  (none — add .md files to .botholomew/skills/)",
+          );
+        }
+
         const helpMsg: ChatMessage = {
           id: msgId(),
           role: "system",
@@ -467,7 +494,9 @@ export function App({
             "",
             "Commands:",
             "  /help           Show this help",
+            "  /skills         List available skills",
             "  /quit, /exit    End the chat session",
+            ...skillLines,
           ].join("\n"),
           timestamp: new Date(),
         };
@@ -475,9 +504,28 @@ export function App({
         return;
       }
 
-      if (trimmed === "/quit" || trimmed === "/exit") {
-        exit();
-        return;
+      if (trimmed.startsWith("/")) {
+        const skills = sessionRef.current.skills;
+        const handled = handleSlashCommand(trimmed, {
+          skills,
+          addSystemMessage: (content) => {
+            const msg: ChatMessage = {
+              id: msgId(),
+              role: "system",
+              content,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, msg]);
+          },
+          queueUserMessage: (content) => {
+            setInputHistory((prev) => [...prev, trimmed]);
+            queueRef.current.push(content);
+            syncQueue();
+            processQueue();
+          },
+          exit,
+        });
+        if (handled) return;
       }
 
       setInputHistory((prev) => [...prev, trimmed]);
@@ -501,6 +549,15 @@ export function App({
       ) : null,
     [projectDir, sessionConn, chatTitle],
   );
+
+  const sessionSkills = ready ? sessionRef.current?.skills : undefined;
+  const skillCompletions = useMemo(() => {
+    const builtins = ["/help", "/quit", "/exit", "/skills"];
+    const skillNames = Array.from(sessionSkills?.keys() ?? []).map(
+      (name) => `/${name}`,
+    );
+    return [...builtins, ...skillNames];
+  }, [sessionSkills]);
 
   const allToolCalls = useMemo(
     () => messages.flatMap((m) => m.toolCalls ?? []),
@@ -624,6 +681,8 @@ export function App({
         disabled={activeTab !== 1}
         history={inputHistory}
         header={inputBarHeader}
+        completions={skillCompletions}
+        onTabConsumed={handleTabConsumed}
       />
       <TabBar activeTab={activeTab} />
     </Box>

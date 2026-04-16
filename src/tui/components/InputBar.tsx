@@ -15,6 +15,8 @@ interface InputBarProps {
   disabled: boolean;
   history: string[];
   header?: ReactNode;
+  completions?: string[];
+  onTabConsumed?: () => void;
 }
 
 export const InputBar = memo(function InputBar({
@@ -24,6 +26,8 @@ export const InputBar = memo(function InputBar({
   disabled,
   history,
   header,
+  completions,
+  onTabConsumed,
 }: InputBarProps) {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [cursorPos, setCursorPos] = useState(0);
@@ -39,6 +43,9 @@ export const InputBar = memo(function InputBar({
   const onChangeRef = useRef(onChange);
   const onSubmitRef = useRef(onSubmit);
   const historyRef = useRef(history);
+  const completionsRef = useRef(completions);
+  const onTabConsumedRef = useRef(onTabConsumed);
+  const tabCycleRef = useRef(-1);
 
   valueRef.current = value;
   cursorPosRef.current = cursorPos;
@@ -46,6 +53,8 @@ export const InputBar = memo(function InputBar({
   onChangeRef.current = onChange;
   onSubmitRef.current = onSubmit;
   historyRef.current = history;
+  completionsRef.current = completions;
+  onTabConsumedRef.current = onTabConsumed;
 
   // Blink cursor when input is active — skip ticks while typing so the
   // cursor stays solid and we avoid unnecessary renders during rapid input.
@@ -173,8 +182,37 @@ export const InputBar = memo(function InputBar({
         return;
       }
 
+      // Tab-completion for slash commands
+      if (key.tab) {
+        const comps = completionsRef.current;
+        if (val.startsWith("/") && comps && comps.length > 0) {
+          const matches = comps.filter((c) => c.startsWith(val));
+          if (matches.length === 1) {
+            const completed = `${matches[0] ?? ""} `;
+            valueRef.current = completed;
+            cursorPosRef.current = completed.length;
+            onChangeRef.current(completed);
+            setCursorPos(completed.length);
+            tabCycleRef.current = -1;
+          } else if (matches.length > 1) {
+            const idx = (tabCycleRef.current + 1) % matches.length;
+            tabCycleRef.current = idx;
+            const completed = matches[idx] ?? "";
+            valueRef.current = completed;
+            cursorPosRef.current = completed.length;
+            onChangeRef.current(completed);
+            setCursorPos(completed.length);
+          }
+          onTabConsumedRef.current?.();
+        }
+        return;
+      }
+
+      // Reset tab cycle on any non-tab key
+      tabCycleRef.current = -1;
+
       // Ignore other control keys
-      if (key.ctrl || key.escape || key.tab) {
+      if (key.ctrl || key.escape) {
         return;
       }
 

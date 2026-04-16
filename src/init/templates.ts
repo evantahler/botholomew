@@ -37,6 +37,29 @@ agent-modification: true
 - Get set up and ready to help.
 `;
 
+export const SUMMARIZE_SKILL = `---
+name: summarize
+description: "Summarize the current conversation"
+arguments: []
+---
+
+Summarize this conversation so far. Provide a concise bullet-point summary
+of what we discussed, any decisions made, and any open action items.
+`;
+
+export const STANDUP_SKILL = `---
+name: standup
+description: "Generate a standup update from recent tasks"
+arguments: []
+---
+
+Generate a standup update. Look at recent tasks (completed in the last 24 hours
+and currently in progress) and format a brief standup-style update with:
+- What was done (completed tasks)
+- What's in progress
+- Any blockers or waiting items
+`;
+
 export const DEFAULT_CONFIG = {
   anthropic_api_key: "your-api-key-here",
   model: "claude-opus-4-20250514",

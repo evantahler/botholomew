@@ -1,6 +1,11 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { getBotholomewDir, getDbPath, getMcpxDir } from "../constants.ts";
+import {
+  getBotholomewDir,
+  getDbPath,
+  getMcpxDir,
+  getSkillsDir,
+} from "../constants.ts";
 import { getConnection } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
 import { logger } from "../utils/logger.ts";
@@ -10,6 +15,8 @@ import {
   DEFAULT_MCPX_SERVERS,
   GOALS_MD,
   SOUL_MD,
+  STANDUP_SKILL,
+  SUMMARIZE_SKILL,
 } from "./templates.ts";
 
 export async function initProject(
@@ -18,6 +25,7 @@ export async function initProject(
 ): Promise<void> {
   const dotDir = getBotholomewDir(projectDir);
   const mcpxDir = getMcpxDir(projectDir);
+  const skillsDir = getSkillsDir(projectDir);
 
   // Check if already initialized
   const dirExists = await Bun.file(join(dotDir, "soul.md")).exists();
@@ -30,11 +38,16 @@ export async function initProject(
   // Create directories
   await mkdir(dotDir, { recursive: true });
   await mkdir(mcpxDir, { recursive: true });
+  await mkdir(skillsDir, { recursive: true });
 
   // Write template files
   await Bun.write(join(dotDir, "soul.md"), SOUL_MD);
   await Bun.write(join(dotDir, "beliefs.md"), BELIEFS_MD);
   await Bun.write(join(dotDir, "goals.md"), GOALS_MD);
+
+  // Write default skills
+  await Bun.write(join(skillsDir, "summarize.md"), SUMMARIZE_SKILL);
+  await Bun.write(join(skillsDir, "standup.md"), STANDUP_SKILL);
 
   // Write config (with placeholder API key)
   await Bun.write(
