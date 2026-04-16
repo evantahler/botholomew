@@ -58,12 +58,9 @@ The watchdog needs to handle multiple Botholomew projects on one machine:
 - Each project gets its own launchd/systemd unit, keyed by a hash of the project directory path
 - `botholomew daemon list` — new subcommand, lists all registered Botholomew projects on this machine (scan LaunchAgents/systemd user units for botholomew entries)
 
-### 5. Binary Compilation
+### 5. ~~Binary Compilation~~ (Dropped)
 
-Set up `bun build --compile`:
-- `bun run build` produces `dist/botholomew` — a single standalone binary
-- Test that the binary works on a clean machine (no Bun required)
-- Add build instructions to CLAUDE.md
+Binary compilation is not feasible — native dependencies like DuckDB and the embedding libraries cannot be bundled by `bun build --compile`.
 
 ### 6. Agent Self-Modification
 
@@ -85,8 +82,7 @@ Add daemon tools:
 | `src/daemon/healthcheck.ts` | **New** — standalone health check script |
 | `src/commands/daemon.ts` | Implement install/uninstall, add list subcommand |
 | `src/daemon/llm.ts` | Add update_beliefs, update_goals tools |
-| `package.json` | Verify build script works |
-| `CLAUDE.md` | Add build/distribution docs |
+| ~~`package.json`~~ | ~~Build script~~ (dropped — native deps can't compile) |
 
 ## Tests
 
@@ -100,6 +96,9 @@ Add daemon tools:
 2. Kill the daemon process — watchdog restarts it within 60 seconds
 3. `botholomew daemon status` — shows daemon running + watchdog installed
 4. `botholomew daemon uninstall` — removes watchdog
-5. `bun run build && ./dist/botholomew --version` — binary works standalone
-6. Daemon modifies beliefs.md during a tick — file updated correctly, frontmatter preserved
-7. `botholomew daemon list` — shows all registered projects on this machine
+5. Daemon modifies beliefs.md during a tick — file updated correctly, frontmatter preserved
+6. `botholomew daemon list` — shows all registered projects on this machine
+
+## Status: **Done**
+
+Binary compilation was dropped (native deps like DuckDB can't be bundled). All other items are implemented and tested.

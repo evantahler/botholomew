@@ -17,6 +17,7 @@ import {
   searchContextByKeyword,
   updateContextItem,
   updateContextItemContent,
+  upsertContextItem,
 } from "../../src/db/context.ts";
 import { setupTestDb } from "../helpers.ts";
 
@@ -51,13 +52,13 @@ describe("context CRUD", () => {
       contextPath: "/docs/test.md",
     });
 
-    expect(() =>
+    await expect(
       createContextItem(conn, {
         title: "Second",
         content: "v2",
         contextPath: "/docs/test.md",
       }),
-    ).toThrow();
+    ).rejects.toThrow();
 
     const items = await listContextItems(conn);
     expect(items.length).toBe(1);
@@ -92,6 +93,59 @@ describe("context CRUD", () => {
 
     const items = await listContextItems(conn);
     expect(items.length).toBe(1);
+  });
+
+  test("upsertContextItem: insert when new", async () => {
+    const item = await upsertContextItem(conn, {
+      title: "New File",
+      content: "hello",
+      contextPath: "/docs/new.md",
+    });
+    expect(item.title).toBe("New File");
+    expect(item.content).toBe("hello");
+    expect(item.context_path).toBe("/docs/new.md");
+
+    const items = await listContextItems(conn);
+    expect(items.length).toBe(1);
+  });
+
+  test("upsertContextItem: update when exists", async () => {
+    const original = await upsertContextItem(conn, {
+      title: "V1",
+      content: "first",
+      contextPath: "/docs/test.md",
+    });
+
+    const updated = await upsertContextItem(conn, {
+      title: "V2",
+      content: "second",
+      contextPath: "/docs/test.md",
+      mimeType: "text/markdown",
+    });
+
+    expect(updated.id).toBe(original.id);
+    expect(updated.title).toBe("V2");
+    expect(updated.content).toBe("second");
+    expect(updated.mime_type).toBe("text/markdown");
+
+    const items = await listContextItems(conn);
+    expect(items.length).toBe(1);
+  });
+
+  test("upsertContextItem: preserves created_at on update", async () => {
+    const original = await upsertContextItem(conn, {
+      title: "V1",
+      content: "first",
+      contextPath: "/docs/test.md",
+    });
+
+    const updated = await upsertContextItem(conn, {
+      title: "V2",
+      content: "second",
+      contextPath: "/docs/test.md",
+    });
+
+    expect(updated.created_at.getTime()).toBe(original.created_at.getTime());
   });
 
   test("get by path", async () => {
