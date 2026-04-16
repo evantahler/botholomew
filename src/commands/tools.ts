@@ -1,3 +1,4 @@
+import ansis from "ansis";
 import type { Command } from "commander";
 import { z } from "zod";
 import { loadConfig } from "../config/loader.ts";
@@ -218,6 +219,29 @@ function formatOutput(result: unknown, _toolName: string) {
           const m = match as { path: string; line: number; content: string };
           console.log(`${m.path}:${m.line}: ${m.content}`);
         }
+      }
+      return;
+    }
+
+    if ("results" in obj && Array.isArray(obj.results)) {
+      for (const [i, r] of (
+        obj.results as {
+          path: string;
+          title: string;
+          score: number;
+          snippet: string;
+        }[]
+      ).entries()) {
+        const score = (r.score * 100).toFixed(1);
+        console.log(
+          `${ansis.bold(`${i + 1}.`)} ${ansis.cyan(r.title)} ${ansis.dim(`(${score}%)`)}`,
+        );
+        console.log(`   ${ansis.dim(r.path)}`);
+        if (r.snippet) {
+          const snippet = r.snippet.slice(0, 120).replace(/\n/g, " ");
+          console.log(`   ${snippet}...`);
+        }
+        console.log("");
       }
       return;
     }
