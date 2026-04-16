@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { getContextItemByPath } from "../../db/context.ts";
+import { resolveContextItem } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
-  path: z.string().describe("File path"),
+  path: z.string().describe("File path or context item ID"),
 });
 
 const outputSchema = z.object({
@@ -30,7 +30,7 @@ export const contextInfoTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const item = await getContextItemByPath(ctx.conn, input.path);
+    const item = await resolveContextItem(ctx.conn, input.path);
     if (!item) throw new Error(`Not found: ${input.path}`);
 
     const content = item.content ?? "";
