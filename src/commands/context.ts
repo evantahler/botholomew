@@ -25,7 +25,10 @@ import {
 } from "../db/context.ts";
 import { getEmbeddingsForItem, hybridSearch } from "../db/embeddings.ts";
 import { logger } from "../utils/logger.ts";
-import { registerContextToolSubcommands } from "./tools.ts";
+import {
+  registerContextToolSubcommands,
+  registerSearchToolSubcommands,
+} from "./tools.ts";
 import { withDb } from "./with-db.ts";
 
 function fmtDate(d: Date): string {
@@ -237,12 +240,17 @@ export function registerContextCommand(program: Command) {
       }),
     );
 
-  ctx
-    .command("search <query>")
+  const search = ctx
+    .command("search")
     .description("Search context entries")
+    .argument("[query]", "search query (hybrid keyword + semantic)")
     .option("-k, --top-k <n>", "max results", Number.parseInt, 10)
     .action((query, opts) =>
       withDb(program, async (conn, dir) => {
+        if (!query) {
+          search.help();
+          return;
+        }
         const config = await loadConfig(dir);
         const queryVec = await embedSingle(query, config);
         const results = await hybridSearch(conn, query, queryVec, opts.topK);
@@ -268,6 +276,8 @@ export function registerContextCommand(program: Command) {
         }
       }),
     );
+
+  registerSearchToolSubcommands(search);
   ctx
     .command("delete <path>")
     .description("Delete a context entry by path")

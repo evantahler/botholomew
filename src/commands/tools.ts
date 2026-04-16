@@ -27,14 +27,13 @@ export function registerContextToolSubcommands(parent: Command) {
   }
 }
 
-export function registerToolCommands(program: Command) {
-  // The "search" group has its own top-level command
-  for (const group of ["search"]) {
-    const groupCmd = program.command(group).description("Search context");
-
-    for (const tool of getToolsByGroup(group)) {
-      registerToolAsCLI(groupCmd, tool);
-    }
+/**
+ * Register search tool subcommands (grep, semantic) onto an
+ * existing Commander command (e.g. the "context search" group).
+ */
+export function registerSearchToolSubcommands(parent: Command) {
+  for (const tool of getToolsByGroup("search")) {
+    registerToolAsCLI(parent, tool);
   }
 }
 
