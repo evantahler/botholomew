@@ -9,6 +9,7 @@ import {
 import { createThread, endThread, logInteraction } from "../db/threads.ts";
 import { logger } from "../utils/logger.ts";
 import { generateThreadTitle } from "../utils/title.ts";
+import type { DaemonStreamCallbacks } from "./llm.ts";
 import { runAgentLoop } from "./llm.ts";
 import { buildSystemPrompt } from "./prompt.ts";
 import { processSchedules } from "./schedules.ts";
@@ -18,6 +19,7 @@ export async function tick(
   conn: DbConnection,
   config: Required<BotholomewConfig>,
   mcpxClient?: McpxClient | null,
+  callbacks?: DaemonStreamCallbacks,
 ): Promise<void> {
   logger.debug("Tick starting...");
 
@@ -47,6 +49,7 @@ export async function tick(
   }
 
   logger.info(`Working on task: ${task.name} (${task.id})`);
+  callbacks?.onTaskStart(task);
 
   // Create a thread for this tick
   const threadId = await createThread(
@@ -70,6 +73,7 @@ export async function tick(
       threadId,
       projectDir,
       mcpxClient,
+      callbacks,
     });
 
     // Update task status

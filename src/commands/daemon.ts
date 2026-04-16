@@ -12,7 +12,7 @@ export function registerDaemonCommand(program: Command) {
     .action(async () => {
       const dir = program.opts().dir;
       const { startDaemon } = await import("../daemon/index.ts");
-      await startDaemon(dir);
+      await startDaemon(dir, { foreground: true });
     });
 
   daemon
