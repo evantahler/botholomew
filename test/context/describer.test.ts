@@ -22,4 +22,15 @@ describe("generateDescription", () => {
     });
     expect(result).toBe("");
   });
+
+  test("returns empty string for binary files with filePath but no API key", async () => {
+    const config = { ...DEFAULT_CONFIG, anthropic_api_key: "" };
+    const result = await generateDescription(config, {
+      filename: "photo.png",
+      mimeType: "image/png",
+      content: null,
+      filePath: "/tmp/photo.png",
+    });
+    expect(result).toBe("");
+  });
 });

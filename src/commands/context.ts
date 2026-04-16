@@ -63,7 +63,7 @@ export function registerContextCommand(program: Command) {
           return;
         }
 
-        const header = `${ansis.bold("Path".padEnd(40))} ${"Title".padEnd(25)} ${"Type".padEnd(20)} ${"Updated".padEnd(18)} Indexed`;
+        const header = `${ansis.bold("Path".padEnd(35))} ${"Title".padEnd(20)} ${"Description".padEnd(30)} ${"Type".padEnd(15)} ${"Updated".padEnd(18)} Indexed`;
         console.log(header);
         console.log("-".repeat(header.length));
 
@@ -72,8 +72,11 @@ export function registerContextCommand(program: Command) {
             ? ansis.green("yes")
             : ansis.dim("no");
           const updated = ansis.dim(fmtDate(item.updated_at).padEnd(18));
+          const desc = item.description
+            ? ansis.dim(item.description.slice(0, 29).padEnd(30))
+            : ansis.dim("".padEnd(30));
           console.log(
-            `${item.context_path.padEnd(40)} ${item.title.slice(0, 24).padEnd(25)} ${item.mime_type.slice(0, 19).padEnd(20)} ${updated} ${indexed}`,
+            `${item.context_path.slice(0, 34).padEnd(35)} ${item.title.slice(0, 19).padEnd(20)} ${desc} ${item.mime_type.slice(0, 14).padEnd(15)} ${updated} ${indexed}`,
           );
         }
 
@@ -93,6 +96,7 @@ export function registerContextCommand(program: Command) {
         }
 
         console.log(ansis.bold(item.title));
+        if (item.description) console.log(`  Description: ${item.description}`);
         console.log(`  Path:        ${item.context_path}`);
         console.log(`  MIME type:   ${item.mime_type}`);
         if (item.source_path) console.log(`  Source:      ${item.source_path}`);
@@ -459,6 +463,7 @@ async function addFile(
       filename,
       mimeType,
       content,
+      filePath,
     });
 
     const existing = await getContextItemByPath(conn, contextPath);
