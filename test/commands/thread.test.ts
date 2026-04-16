@@ -52,8 +52,8 @@ describe("thread list", () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    const conn = getConnection(getDbPath(tempDir));
-    migrate(conn);
+    const conn = await getConnection(getDbPath(tempDir));
+    await migrate(conn);
     const id1 = await createThread(conn, "chat_session", undefined, "Chat A");
     const id2 = await createThread(conn, "daemon_tick", undefined, "Tick B");
     conn.close();
@@ -71,8 +71,8 @@ describe("thread list", () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    const conn = getConnection(getDbPath(tempDir));
-    migrate(conn);
+    const conn = await getConnection(getDbPath(tempDir));
+    await migrate(conn);
     await createThread(conn, "chat_session", undefined, "Chat");
     await createThread(conn, "daemon_tick", undefined, "Tick");
     conn.close();
@@ -90,8 +90,8 @@ describe("thread view", () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    const conn = getConnection(getDbPath(tempDir));
-    migrate(conn);
+    const conn = await getConnection(getDbPath(tempDir));
+    await migrate(conn);
     const threadId = await createThread(
       conn,
       "chat_session",
@@ -125,8 +125,8 @@ describe("thread view", () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    const conn = getConnection(getDbPath(tempDir));
-    migrate(conn);
+    const conn = await getConnection(getDbPath(tempDir));
+    await migrate(conn);
     const threadId = await createThread(
       conn,
       "chat_session",
@@ -169,8 +169,8 @@ describe("thread view", () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    const conn = getConnection(getDbPath(tempDir));
-    migrate(conn);
+    const conn = await getConnection(getDbPath(tempDir));
+    await migrate(conn);
     const threadId = await createThread(
       conn,
       "chat_session",
@@ -213,8 +213,8 @@ describe("thread view", () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    const conn = getConnection(getDbPath(tempDir));
-    migrate(conn);
+    const conn = await getConnection(getDbPath(tempDir));
+    await migrate(conn);
     const threadId = await createThread(
       conn,
       "chat_session",
@@ -243,8 +243,8 @@ describe("thread delete", () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    const conn = getConnection(getDbPath(tempDir));
-    migrate(conn);
+    const conn = await getConnection(getDbPath(tempDir));
+    await migrate(conn);
     const threadId = await createThread(
       conn,
       "chat_session",
@@ -263,8 +263,8 @@ describe("thread delete", () => {
     expect(result.stdout + result.stderr).toContain("Deleted thread");
 
     // Verify it's actually gone
-    const conn2 = getConnection(getDbPath(tempDir));
-    migrate(conn2);
+    const conn2 = await getConnection(getDbPath(tempDir));
+    await migrate(conn2);
     const gone = await getThread(conn2, threadId);
     conn2.close();
     expect(gone).toBeNull();

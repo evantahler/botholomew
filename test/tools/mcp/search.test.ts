@@ -19,14 +19,14 @@ function mockClient(
 
 describe("mcp_search", () => {
   test("returns empty results with hint when mcpxClient is null", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     const result = await mcpSearchTool.execute({ query: "email" }, ctx);
     expect(result.results).toEqual([]);
     expect(result.hint).toContain("No MCP servers configured");
   });
 
   test("returns search results with next-action hint", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = mockClient([
       {
         server: "gmail",
@@ -50,7 +50,7 @@ describe("mcp_search", () => {
   });
 
   test("returns hint for empty results", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = mockClient([]);
 
     const result = await mcpSearchTool.execute({ query: "nonexistent" }, ctx);
@@ -60,7 +60,7 @@ describe("mcp_search", () => {
   });
 
   test("returns error_message when search index is missing", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = {
       search: mock(async () => {
         throw new Error("Search index not found");
@@ -75,7 +75,7 @@ describe("mcp_search", () => {
   });
 
   test("returns error_message for generic search failure", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = {
       search: mock(async () => {
         throw new Error("Something broke");

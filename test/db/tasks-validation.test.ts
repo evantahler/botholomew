@@ -13,8 +13,8 @@ import { setupTestDb } from "../helpers.ts";
 
 let conn: DbConnection;
 
-beforeEach(() => {
-  conn = setupTestDb();
+beforeEach(async () => {
+  conn = await setupTestDb();
 });
 
 describe("cycle detection", () => {
@@ -136,14 +136,13 @@ describe("resetStaleTasks", () => {
     const task = await createTask(conn, { name: "Stale" });
 
     // Manually set to in_progress with old claimed_at
-    conn
-      .query(
-        `UPDATE tasks
+    await conn.queryRun(
+      `UPDATE tasks
        SET status = 'in_progress', claimed_by = 'daemon',
-           claimed_at = datetime('now', '-1 hour')
+           claimed_at = (current_timestamp - INTERVAL '1 hour')::VARCHAR
        WHERE id = ?1`,
-      )
-      .run(task.id);
+      task.id,
+    );
 
     const resetIds = await resetStaleTasks(conn, 60); // 60s timeout
     expect(resetIds).toContain(task.id);
@@ -156,14 +155,13 @@ describe("resetStaleTasks", () => {
   test("does not reset recent in_progress tasks", async () => {
     const task = await createTask(conn, { name: "Active" });
 
-    conn
-      .query(
-        `UPDATE tasks
+    await conn.queryRun(
+      `UPDATE tasks
        SET status = 'in_progress', claimed_by = 'daemon',
-           claimed_at = datetime('now')
+           claimed_at = current_timestamp::VARCHAR
        WHERE id = ?1`,
-      )
-      .run(task.id);
+      task.id,
+    );
 
     const resetIds = await resetStaleTasks(conn, 60);
     expect(resetIds).not.toContain(task.id);

@@ -44,8 +44,8 @@ export async function startChatSession(
     );
   }
 
-  const conn = getConnection(getDbPath(projectDir));
-  migrate(conn);
+  const conn = await getConnection(getDbPath(projectDir));
+  await migrate(conn);
 
   let threadId: string;
   const messages: MessageParam[] = [];

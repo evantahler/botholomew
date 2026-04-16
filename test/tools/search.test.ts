@@ -11,8 +11,8 @@ let conn: DbConnection;
 let ctx: ToolContext;
 
 const originalFetch = globalThis.fetch;
-beforeEach(() => {
-  ({ conn, ctx } = setupToolContext());
+beforeEach(async () => {
+  ({ conn, ctx } = await setupToolContext());
   ctx.config.openai_api_key = "test-key";
 });
 afterEach(() => {

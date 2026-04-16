@@ -39,8 +39,8 @@ describe("context show CLI", () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    const conn = getConnection(getDbPath(tempDir));
-    migrate(conn);
+    const conn = await getConnection(getDbPath(tempDir));
+    await migrate(conn);
     await createContextItem(conn, {
       title: "test.md",
       content: "# Hello World\n\nSome content here.",
@@ -76,8 +76,8 @@ describe("context show CLI", () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    const conn = getConnection(getDbPath(tempDir));
-    migrate(conn);
+    const conn = await getConnection(getDbPath(tempDir));
+    await migrate(conn);
     await createContextItem(conn, {
       title: "image.png",
       contextPath: "/assets/image.png",

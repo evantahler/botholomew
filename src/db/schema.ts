@@ -29,20 +29,18 @@ function loadMigrations(): Migration[] {
   });
 }
 
-export function migrate(db: DbConnection): void {
+export async function migrate(db: DbConnection): Promise<void> {
   // Create migrations tracking table
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS _migrations (
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,
-      applied_at TEXT DEFAULT (datetime('now'))
+      applied_at TEXT DEFAULT (current_timestamp::VARCHAR)
     )
   `);
 
   // Get already-applied migrations
-  const rows = db.query("SELECT id FROM _migrations").all() as {
-    id: number;
-  }[];
+  const rows = await db.queryAll<{ id: number }>("SELECT id FROM _migrations");
   const applied = new Set(rows.map((row) => row.id));
 
   // Run pending migrations in order
@@ -56,10 +54,10 @@ export function migrate(db: DbConnection): void {
       .filter((s) => s.length > 0);
 
     for (const statement of statements) {
-      db.exec(statement);
+      await db.exec(statement);
     }
 
-    db.exec(
+    await db.exec(
       `INSERT INTO _migrations (id, name) VALUES (${migration.id}, '${migration.name}')`,
     );
   }

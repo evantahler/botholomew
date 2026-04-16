@@ -3,7 +3,7 @@ CREATE TABLE threads (
   type TEXT NOT NULL CHECK(type IN ('daemon_tick', 'chat_session')),
   task_id TEXT,
   title TEXT NOT NULL DEFAULT '',
-  started_at TEXT NOT NULL DEFAULT (datetime('now')),
+  started_at TEXT NOT NULL DEFAULT (current_timestamp::VARCHAR),
   ended_at TEXT,
   metadata TEXT
 );
@@ -19,6 +19,6 @@ CREATE TABLE interactions (
   tool_input TEXT,
   duration_ms INTEGER,
   token_count INTEGER,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at TEXT NOT NULL DEFAULT (current_timestamp::VARCHAR),
   UNIQUE(thread_id, sequence)
 );

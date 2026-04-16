@@ -25,7 +25,7 @@ describe("constants", () => {
   });
 
   test("file name constants are defined", () => {
-    expect(DB_FILENAME).toBe("data.sqlite");
+    expect(DB_FILENAME).toBe("data.duckdb");
     expect(PID_FILENAME).toBe("daemon.pid");
     expect(LOG_FILENAME).toBe("daemon.log");
     expect(CONFIG_FILENAME).toBe("config.json");
@@ -54,9 +54,9 @@ describe("path helpers", () => {
     expect(getBotholomewDir(projectDir)).toBe(join(projectDir, ".botholomew"));
   });
 
-  test("getDbPath returns project/.botholomew/data.sqlite", () => {
+  test("getDbPath returns project/.botholomew/data.duckdb", () => {
     expect(getDbPath(projectDir)).toBe(
-      join(projectDir, ".botholomew", "data.sqlite"),
+      join(projectDir, ".botholomew", "data.duckdb"),
     );
   });
 

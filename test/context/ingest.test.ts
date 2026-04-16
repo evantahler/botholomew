@@ -4,7 +4,7 @@ import { EMBEDDING_DIMENSION } from "../../src/constants.ts";
 import { ingestByPath, ingestContextItem } from "../../src/context/ingest.ts";
 import type { DbConnection } from "../../src/db/connection.ts";
 import { createContextItem, getContextItem } from "../../src/db/context.ts";
-import { initVectorSearch, searchEmbeddings } from "../../src/db/embeddings.ts";
+import { searchEmbeddings } from "../../src/db/embeddings.ts";
 import { setupTestDb } from "../helpers.ts";
 
 const config = { ...DEFAULT_CONFIG };
@@ -29,8 +29,8 @@ function mockEmbed(texts: string[]): Promise<number[][]> {
 
 let conn: DbConnection;
 
-beforeEach(() => {
-  conn = setupTestDb();
+beforeEach(async () => {
+  conn = await setupTestDb();
 });
 
 describe("ingestContextItem", () => {
@@ -47,8 +47,7 @@ describe("ingestContextItem", () => {
     expect(count).toBeGreaterThan(0);
 
     // Verify embeddings are stored
-    initVectorSearch(conn);
-    const results = searchEmbeddings(
+    const results = await searchEmbeddings(
       conn,
       await mockEmbed(["test"]).then((r) => r[0] ?? []),
       10,
@@ -114,8 +113,7 @@ describe("ingestContextItem", () => {
     expect(count2).toBe(count1);
 
     // Total embeddings should match the latest ingest
-    initVectorSearch(conn);
-    const allResults = searchEmbeddings(
+    const allResults = await searchEmbeddings(
       conn,
       await mockEmbed(["test"]).then((r) => r[0] ?? []),
       100,

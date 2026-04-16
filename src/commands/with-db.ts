@@ -13,8 +13,8 @@ export async function withDb<T>(
   fn: (conn: DbConnection, dir: string) => Promise<T>,
 ): Promise<T> {
   const dir = program.opts().dir;
-  const conn = getConnection(getDbPath(dir));
-  migrate(conn);
+  const conn = await getConnection(getDbPath(dir));
+  await migrate(conn);
   try {
     return await fn(conn, dir);
   } finally {

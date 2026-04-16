@@ -35,9 +35,11 @@ export const fileMoveTool = {
     await moveContextItem(ctx.conn, input.src, input.dst);
 
     // Update embedding source_paths to match new location
-    ctx.conn
-      .query("UPDATE embeddings SET source_path = ?1 WHERE source_path = ?2")
-      .run(input.dst, input.src);
+    await ctx.conn.queryRun(
+      "UPDATE embeddings SET source_path = ?1 WHERE source_path = ?2",
+      input.dst,
+      input.src,
+    );
 
     return { path: input.dst, is_error: false };
   },

@@ -8,8 +8,8 @@ import { setupToolContext } from "../helpers.ts";
 let conn: DbConnection;
 let ctx: ToolContext;
 
-beforeEach(() => {
-  ({ conn, ctx } = setupToolContext());
+beforeEach(async () => {
+  ({ conn, ctx } = await setupToolContext());
 });
 
 describe("create_schedule", () => {

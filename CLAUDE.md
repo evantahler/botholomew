@@ -9,7 +9,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `commands/` — CLI subcommand handlers
   - `config/` — Configuration loading/schemas
   - `daemon/` — Daemon tick loop, LLM integration, prompt building
-  - `db/` — SQLite connection (bun:sqlite), schema migrations, CRUD modules
+  - `db/` — DuckDB connection (`@duckdb/node-api`), schema migrations, CRUD modules
   - `init/` — Project initialization
   - `tui/` — Ink (React) TUI components
   - `utils/` — Logger, frontmatter, PID management
@@ -25,7 +25,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 ## Tech Stack
 
 - **Runtime**: Bun + TypeScript
-- **Database**: SQLite (`bun:sqlite`)
+- **Database**: DuckDB (`@duckdb/node-api`) with VSS extension for vector search
 - **LLM**: Anthropic SDK (`@anthropic-ai/sdk`)
 - **CLI**: Commander.js
 - **TUI**: Ink 6 + React 19
@@ -44,14 +44,15 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 
 ## Database Patterns
 
-- **Connection**: use `DbConnection` type from `src/db/connection.ts` (re-export of `bun:sqlite` `Database`)
+- **Connection**: use `DbConnection` type from `src/db/connection.ts` (wrapper around `@duckdb/node-api`)
 - **Migrations**: always call `migrate(db)` after opening a connection — it's idempotent
 - **IDs**: UUIDv7 generated in application code via `uuidv7()` from `src/db/uuid.ts` (re-exports `uuid` package)
-- **Queries**: use parameterized queries (`?1, ?2, ...`) — never string interpolation
-- **Timestamps**: stored as ISO 8601 TEXT in SQLite (`datetime('now')`), converted to `Date` objects in TypeScript interfaces
-- **Booleans**: stored as INTEGER (0/1) in SQLite, converted to `boolean` in TypeScript
-- **Arrays**: `blocked_by`/`context_ids` are JSON TEXT columns — `JSON.stringify()` on write, `JSON.parse()` on read, `json_each()` for in-SQL filtering
-- **Row mapping**: each module has a `RowType` interface (raw SQLite strings/numbers) and a `rowToX()` function that converts to the public TypeScript interface with proper types
+- **Queries**: use parameterized queries (`?1, ?2, ...`) — never string interpolation (auto-translated to `$N` for DuckDB)
+- **Timestamps**: stored as ISO 8601 TEXT (`datetime('now')`), converted to `Date` objects in TypeScript interfaces
+- **Booleans**: stored as INTEGER (0/1) in DuckDB, converted to `boolean` in TypeScript
+- **Arrays**: `blocked_by`/`context_ids` are JSON TEXT columns — `JSON.stringify()` on write, `JSON.parse()` on read
+- **Vectors**: embedding columns use DuckDB's native `FLOAT[N]` array type with HNSW indexes and `array_cosine_distance()` for similarity search
+- **Row mapping**: each module has a `RowType` interface (raw DuckDB values) and a `rowToX()` function that converts to the public TypeScript interface with proper types
 
 ## Testing
 

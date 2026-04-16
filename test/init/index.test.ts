@@ -28,7 +28,7 @@ describe("initProject", () => {
     expect(await Bun.file(join(dotDir, "mcpx", "servers.json")).exists()).toBe(
       true,
     );
-    expect(await Bun.file(join(dotDir, "data.sqlite")).exists()).toBe(true);
+    expect(await Bun.file(join(dotDir, "data.duckdb")).exists()).toBe(true);
   });
 
   test("soul.md has correct frontmatter", async () => {

@@ -50,8 +50,8 @@ export async function initProject(
 
   // Initialize database
   const dbPath = getDbPath(projectDir);
-  const conn = getConnection(dbPath);
-  migrate(conn);
+  const conn = await getConnection(dbPath);
+  await migrate(conn);
   conn.close();
 
   // Update .gitignore

@@ -17,7 +17,7 @@ function mockClient(
 
 describe("mcp_exec", () => {
   test("returns error message when mcpxClient is null", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     const result = await mcpExecTool.execute(
       { server: "gmail", tool: "send_email" },
       ctx,
@@ -29,7 +29,7 @@ describe("mcp_exec", () => {
   });
 
   test("executes tool and returns formatted result", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = mockClient({
       content: [{ type: "text", text: "Email sent successfully" }],
     });
@@ -45,7 +45,7 @@ describe("mcp_exec", () => {
   });
 
   test("propagates isError from tool result with hint", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = mockClient(
       {
         content: [{ type: "text", text: "Auth failed" }],
@@ -63,7 +63,7 @@ describe("mcp_exec", () => {
   });
 
   test("classifies network errors as retryable", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = {
       exec: mock(async () => {
         throw new Error("ECONNREFUSED: connection refused");
@@ -80,7 +80,7 @@ describe("mcp_exec", () => {
   });
 
   test("classifies auth errors", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = {
       exec: mock(async () => {
         throw new Error("401 Unauthorized");
@@ -97,7 +97,7 @@ describe("mcp_exec", () => {
   });
 
   test("classifies input validation errors", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = {
       exec: mock(async () => {
         throw new Error("Validation failed: required field missing");
@@ -114,7 +114,7 @@ describe("mcp_exec", () => {
   });
 
   test("classifies unknown errors as permanent", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     ctx.mcpxClient = {
       exec: mock(async () => {
         throw new Error("Something completely unexpected");
@@ -131,7 +131,7 @@ describe("mcp_exec", () => {
   });
 
   test("passes args through to exec", async () => {
-    const { ctx } = setupToolContext();
+    const { ctx } = await setupToolContext();
     const execMock = mock(async () => ({
       content: [{ type: "text" as const, text: "ok" }],
       isError: false,
