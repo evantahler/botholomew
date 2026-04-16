@@ -8,8 +8,8 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 3, label: "Context" },
   { id: 4, label: "Tasks" },
   { id: 5, label: "Threads" },
-  { id: 6, label: "Help" },
-  { id: 7, label: "Schedules" },
+  { id: 6, label: "Schedules" },
+  { id: 7, label: "Help" },
 ];
 
 interface TabBarProps {

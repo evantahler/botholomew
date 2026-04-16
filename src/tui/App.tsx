@@ -456,7 +456,7 @@ export function App({
             "  d              Delete thread (with confirmation)",
             "  r              Refresh threads",
             "",
-            "Schedules (Tab 7):",
+            "Schedules (Tab 6):",
             "  ↑/↓            Navigate schedule list",
             "  Shift+↑/↓      Scroll detail pane",
             "  j/k            Scroll detail pane",
@@ -594,18 +594,18 @@ export function App({
         flexDirection="column"
         flexGrow={1}
       >
-        <HelpPanel
-          projectDir={projectDir}
-          threadId={threadId}
-          daemonRunning={daemonRunning}
-        />
+        <SchedulePanel conn={conn} isActive={activeTab === 6} />
       </Box>
       <Box
         display={activeTab === 7 ? "flex" : "none"}
         flexDirection="column"
         flexGrow={1}
       >
-        <SchedulePanel conn={conn} isActive={activeTab === 7} />
+        <HelpPanel
+          projectDir={projectDir}
+          threadId={threadId}
+          daemonRunning={daemonRunning}
+        />
       </Box>
 
       {/* Queued messages (only on Chat tab) */}
