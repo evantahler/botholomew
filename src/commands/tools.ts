@@ -18,10 +18,14 @@ registerAllTools();
  * existing Commander command. Skips tools whose derived subcommand name
  * collides with an already-registered subcommand on the parent.
  */
+/** Context tools that are agent-only (not exposed as CLI subcommands) */
+const AGENT_ONLY_TOOLS = new Set(["update_beliefs", "update_goals"]);
+
 export function registerContextToolSubcommands(parent: Command) {
   const existing = new Set(parent.commands.map((c: Command) => c.name()));
 
   for (const tool of getToolsByGroup("context")) {
+    if (AGENT_ONLY_TOOLS.has(tool.name)) continue;
     const subName = deriveSubName(tool.name);
     if (existing.has(subName)) continue; // skip conflicts with management subcommands
     registerToolAsCLI(parent, tool);
