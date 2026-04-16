@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initProject } from "../../src/init/index.ts";
+import { parseSkillFile } from "../../src/skills/parser.ts";
 import { parseContextFile } from "../../src/utils/frontmatter.ts";
 
 let tempDir: string;
@@ -78,6 +79,25 @@ describe("initProject", () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
     await initProject(tempDir, { force: true }); // should not throw
+  });
+
+  test("creates skills directory with default skill files", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
+    await initProject(tempDir);
+
+    const skillsDir = join(tempDir, ".botholomew", "skills");
+    const expectedSkills = ["summarize.md", "standup.md"];
+
+    for (const filename of expectedSkills) {
+      const file = Bun.file(join(skillsDir, filename));
+      expect(await file.exists()).toBe(true);
+
+      const raw = await file.text();
+      const skill = parseSkillFile(raw, filename);
+      expect(skill.name).toBeTruthy();
+      expect(skill.description).toBeTruthy();
+      expect(skill.body).toBeTruthy();
+    }
   });
 
   test("creates .gitignore entries", async () => {

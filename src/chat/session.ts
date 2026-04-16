@@ -13,6 +13,8 @@ import {
   reopenThread,
 } from "../db/threads.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
+import { loadSkills } from "../skills/loader.ts";
+import type { SkillDefinition } from "../skills/parser.ts";
 import type { ToolContext } from "../tools/tool.ts";
 import { generateThreadTitle } from "../utils/title.ts";
 import {
@@ -29,6 +31,7 @@ export interface ChatSession {
   messages: MessageParam[];
   systemPrompt: string;
   toolCtx: ToolContext;
+  skills: Map<string, SkillDefinition>;
   cleanup: () => Promise<void>;
 }
 
@@ -83,6 +86,7 @@ export async function startChatSession(
   const systemPrompt = await buildChatSystemPrompt(projectDir);
 
   const mcpxClient = await createMcpxClient(projectDir);
+  const skills = await loadSkills(projectDir);
 
   const toolCtx: ToolContext = {
     conn,
@@ -103,6 +107,7 @@ export async function startChatSession(
     messages,
     systemPrompt,
     toolCtx,
+    skills,
     cleanup,
   };
 }
