@@ -152,18 +152,34 @@ export function registerContextCommand(program: Command) {
           text: `Found ${filesToAdd.length} file(s) to add.`,
         });
 
-        // Phase 2: Load config and upsert DB records (sequential, fast)
+        // Phase 2: Load config and upsert DB records (batched, parallel LLM descriptions)
         const config = await loadConfig(dir);
+        const CONCURRENCY = 10;
+        let addCompleted = 0;
         const upsertSpinner = createSpinner(
-          "Adding files to database...",
+          `Adding and describing 0/${filesToAdd.length} files...`,
         ).start();
         const itemIds: { id: string; contextPath: string }[] = [];
-        for (const { filePath, contextPath } of filesToAdd) {
-          const result = await addFile(conn, filePath, contextPath, config);
-          if (result) itemIds.push({ id: result, contextPath });
+
+        for (let i = 0; i < filesToAdd.length; i += CONCURRENCY) {
+          const batch = filesToAdd.slice(i, i + CONCURRENCY);
+          const results = await Promise.all(
+            batch.map(async ({ filePath, contextPath }) => {
+              const result = await addFile(conn, filePath, contextPath, config);
+              addCompleted++;
+              upsertSpinner.update({
+                text: `Adding and describing ${addCompleted}/${filesToAdd.length} files...`,
+              });
+              return result ? { id: result, contextPath } : null;
+            }),
+          );
+          for (const r of results) {
+            if (r) itemIds.push(r);
+          }
         }
+
         upsertSpinner.success({
-          text: `Added ${itemIds.length} file(s) to database.`,
+          text: `Added and described ${itemIds.length} file(s).`,
         });
 
         // Phase 3: Chunk + embed in parallel (network I/O)
@@ -175,7 +191,6 @@ export function registerContextCommand(program: Command) {
           process.exit(0);
         }
 
-        const CONCURRENCY = 10;
         let completed = 0;
         const embedSpinner = createSpinner(
           `Embedding 0/${itemIds.length} files...`,
