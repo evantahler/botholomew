@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { DbConnection } from "../../src/db/connection.ts";
 import { createSchedule, getSchedule } from "../../src/db/schedules.ts";
 import { listTasks } from "../../src/db/tasks.ts";
-import { setupTestDb } from "../helpers.ts";
+import { setupTestDb, TEST_CONFIG } from "../helpers.ts";
 
 let mockResponse: Record<string, unknown> = {};
 
@@ -27,19 +27,6 @@ const { evaluateSchedule, processSchedules } = await import(
 
 let conn: DbConnection;
 
-const testConfig = {
-  anthropic_api_key: "test-key",
-  openai_api_key: "",
-  model: "claude-opus-4-20250514",
-  chunker_model: "claude-haiku-4-20250514",
-  embedding_model: "text-embedding-3-small",
-  embedding_dimension: 1536,
-  tick_interval_seconds: 300,
-  max_tick_duration_seconds: 120,
-  max_turns: 0,
-  system_prompt_override: "",
-};
-
 beforeEach(async () => {
   conn = await setupTestDb();
   mockResponse = {};
@@ -60,7 +47,7 @@ describe("evaluateSchedule", () => {
       frequency: "every morning",
     });
 
-    const result = await evaluateSchedule(testConfig, schedule);
+    const result = await evaluateSchedule(TEST_CONFIG, schedule);
     expect(result.isDue).toBe(true);
     expect(result.tasksToCreate).toHaveLength(1);
     expect(result.tasksToCreate[0]?.name).toBe("Check email");
@@ -78,7 +65,7 @@ describe("evaluateSchedule", () => {
       frequency: "every 4 hours",
     });
 
-    const result = await evaluateSchedule(testConfig, schedule);
+    const result = await evaluateSchedule(TEST_CONFIG, schedule);
     expect(result.isDue).toBe(false);
     expect(result.tasksToCreate).toHaveLength(0);
   });
@@ -107,7 +94,7 @@ describe("evaluateSchedule", () => {
       frequency: "daily",
     });
 
-    const result = await evalFresh(testConfig, schedule);
+    const result = await evalFresh(TEST_CONFIG, schedule);
     expect(result.isDue).toBe(false);
     expect(result.reasoning).toContain("failed");
 
@@ -145,7 +132,7 @@ describe("evaluateSchedule", () => {
       frequency: "daily",
     });
 
-    const result = await evaluateSchedule(testConfig, schedule);
+    const result = await evaluateSchedule(TEST_CONFIG, schedule);
     expect(result.tasksToCreate).toHaveLength(2);
     expect(result.tasksToCreate[1]?.depends_on).toEqual([0]);
   });
@@ -166,7 +153,7 @@ describe("processSchedules", () => {
       frequency: "every morning",
     });
 
-    await processSchedules(conn, testConfig);
+    await processSchedules(conn, TEST_CONFIG);
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(1);
@@ -185,7 +172,7 @@ describe("processSchedules", () => {
       frequency: "daily",
     });
 
-    await processSchedules(conn, testConfig);
+    await processSchedules(conn, TEST_CONFIG);
 
     const updated = await getSchedule(conn, schedule.id);
     expect(updated?.last_run_at).not.toBeNull();
@@ -203,7 +190,7 @@ describe("processSchedules", () => {
       frequency: "weekly",
     });
 
-    await processSchedules(conn, testConfig);
+    await processSchedules(conn, TEST_CONFIG);
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(0);
@@ -224,7 +211,7 @@ describe("processSchedules", () => {
     const { updateSchedule } = await import("../../src/db/schedules.ts");
     await updateSchedule(conn, schedule.id, { enabled: false });
 
-    await processSchedules(conn, testConfig);
+    await processSchedules(conn, TEST_CONFIG);
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(0);
@@ -250,7 +237,7 @@ describe("processSchedules", () => {
       frequency: "daily",
     });
 
-    await processSchedules(conn, testConfig);
+    await processSchedules(conn, TEST_CONFIG);
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(2);
@@ -265,7 +252,7 @@ describe("processSchedules", () => {
 
   test("does nothing with no enabled schedules", async () => {
     // No schedules at all — should return immediately
-    await processSchedules(conn, testConfig);
+    await processSchedules(conn, TEST_CONFIG);
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(0);

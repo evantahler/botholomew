@@ -3,23 +3,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serializeContextFile } from "../../src/utils/frontmatter.ts";
+import { mockEmbedSingle, silentLogger } from "../helpers.ts";
 
 // Mock the embedder to avoid loading the real model
 mock.module("../../src/context/embedder.ts", () => ({
-  embedSingle: async () => new Array(384).fill(0),
+  embedSingle: mockEmbedSingle,
 }));
 
 // Mock the logger to suppress output
-mock.module("../../src/utils/logger.ts", () => ({
-  logger: {
-    info: () => {},
-    success: () => {},
-    warn: () => {},
-    error: () => {},
-    debug: () => {},
-    dim: () => {},
-  },
-}));
+mock.module("../../src/utils/logger.ts", () => silentLogger);
 
 const { buildSystemPrompt } = await import("../../src/daemon/prompt.ts");
 
