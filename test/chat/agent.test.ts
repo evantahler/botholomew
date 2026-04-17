@@ -1,5 +1,33 @@
-import { describe, expect, test } from "bun:test";
-import { buildChatSystemPrompt, getChatTools } from "../../src/chat/agent.ts";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { serializeContextFile } from "../../src/utils/frontmatter.ts";
+import { mockEmbed, mockEmbedSingle, silentLogger } from "../helpers.ts";
+
+// Mock the embedder to avoid loading the real model
+mock.module("../../src/context/embedder.ts", () => ({
+  embed: mockEmbed,
+  embedSingle: mockEmbedSingle,
+}));
+
+// Mock the logger to suppress output
+mock.module("../../src/utils/logger.ts", () => silentLogger);
+
+const { buildChatSystemPrompt, getChatTools } = await import(
+  "../../src/chat/agent.ts"
+);
+
+let projectDir: string;
+
+beforeEach(async () => {
+  projectDir = await mkdtemp(join(tmpdir(), "botholomew-chat-test-"));
+  await mkdir(join(projectDir, ".botholomew"), { recursive: true });
+});
+
+afterEach(async () => {
+  await rm(projectDir, { recursive: true, force: true });
+});
 
 describe("getChatTools", () => {
   test("returns only chat-allowed tools", () => {
@@ -42,7 +70,7 @@ describe("getChatTools", () => {
 
 describe("buildChatSystemPrompt", () => {
   test("includes chat-specific instructions", async () => {
-    const prompt = await buildChatSystemPrompt("/tmp/test-project");
+    const prompt = await buildChatSystemPrompt(projectDir);
     expect(prompt).toContain("Botholomew");
     expect(prompt).toContain("interactive chat interface");
     expect(prompt).toContain("create_task");
@@ -50,8 +78,73 @@ describe("buildChatSystemPrompt", () => {
   });
 
   test("includes meta header", async () => {
-    const prompt = await buildChatSystemPrompt("/tmp/test-project");
+    const prompt = await buildChatSystemPrompt(projectDir);
     expect(prompt).toContain("Current time:");
-    expect(prompt).toContain("/tmp/test-project");
+    expect(prompt).toContain(projectDir);
+  });
+
+  test("includes always-loaded context files", async () => {
+    const content = serializeContextFile(
+      { loading: "always", "agent-modification": false },
+      "I am the soul of the project.",
+    );
+    await Bun.write(join(projectDir, ".botholomew", "soul.md"), content);
+
+    const prompt = await buildChatSystemPrompt(projectDir);
+    expect(prompt).toContain("## soul.md");
+    expect(prompt).toContain("I am the soul of the project.");
+  });
+
+  test("includes contextual files when keywordSource matches", async () => {
+    const content = serializeContextFile(
+      { loading: "contextual", "agent-modification": false },
+      "Our invoicing system uses Stripe for billing.",
+    );
+    await Bun.write(join(projectDir, ".botholomew", "invoicing.md"), content);
+
+    const prompt = await buildChatSystemPrompt(projectDir, {
+      keywordSource: "what is our invoicing setup?",
+    });
+    expect(prompt).toContain("invoicing.md (contextual)");
+    expect(prompt).toContain("Our invoicing system uses Stripe for billing.");
+  });
+
+  test("excludes contextual files when keywordSource does not match", async () => {
+    const content = serializeContextFile(
+      { loading: "contextual", "agent-modification": false },
+      "Our invoicing system uses Stripe for billing.",
+    );
+    await Bun.write(join(projectDir, ".botholomew", "invoicing.md"), content);
+
+    const prompt = await buildChatSystemPrompt(projectDir, {
+      keywordSource: "deployment pipeline help",
+    });
+    expect(prompt).not.toContain("invoicing.md");
+    expect(prompt).not.toContain("Our invoicing system uses Stripe");
+  });
+
+  test("excludes contextual files when no keywordSource is given", async () => {
+    const content = serializeContextFile(
+      { loading: "contextual", "agent-modification": false },
+      "Our invoicing system uses Stripe for billing.",
+    );
+    await Bun.write(join(projectDir, ".botholomew", "invoicing.md"), content);
+
+    const prompt = await buildChatSystemPrompt(projectDir);
+    expect(prompt).not.toContain("invoicing.md");
+    expect(prompt).not.toContain("Our invoicing system uses Stripe");
+  });
+
+  test("always-loaded files appear even when keywordSource matches nothing", async () => {
+    const always = serializeContextFile(
+      { loading: "always", "agent-modification": true },
+      "Beliefs content here.",
+    );
+    await Bun.write(join(projectDir, ".botholomew", "beliefs.md"), always);
+
+    const prompt = await buildChatSystemPrompt(projectDir, {
+      keywordSource: "zzz nonmatching xyzzy",
+    });
+    expect(prompt).toContain("Beliefs content here.");
   });
 });

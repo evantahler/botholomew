@@ -37,7 +37,6 @@ describe("startChatSession", () => {
     expect(session.threadId).toBeTruthy();
     expect(session.conn).toBeTruthy();
     expect(session.messages).toEqual([]);
-    expect(session.systemPrompt).toContain("interactive chat interface");
   });
 
   test("creates a chat_session thread in the database", async () => {
