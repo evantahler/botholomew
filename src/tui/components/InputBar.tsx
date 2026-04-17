@@ -4,9 +4,13 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
+import type { SlashCommand } from "../../skills/commands.ts";
+import { getSlashMatches } from "../slashCompletion.ts";
+import { SlashCommandPopup } from "./SlashCommandPopup.tsx";
 
 interface InputBarProps {
   value: string;
@@ -15,8 +19,7 @@ interface InputBarProps {
   disabled: boolean;
   history: string[];
   header?: ReactNode;
-  completions?: string[];
-  onTabConsumed?: () => void;
+  slashCommands?: SlashCommand[];
 }
 
 export const InputBar = memo(function InputBar({
@@ -26,12 +29,13 @@ export const InputBar = memo(function InputBar({
   disabled,
   history,
   header,
-  completions,
-  onTabConsumed,
+  slashCommands,
 }: InputBarProps) {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [cursorPos, setCursorPos] = useState(0);
   const [cursorVisible, setCursorVisible] = useState(true);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [popupDismissed, setPopupDismissed] = useState(false);
   const savedInput = useRef("");
   const lastActivity = useRef(Date.now());
 
@@ -43,9 +47,9 @@ export const InputBar = memo(function InputBar({
   const onChangeRef = useRef(onChange);
   const onSubmitRef = useRef(onSubmit);
   const historyRef = useRef(history);
-  const completionsRef = useRef(completions);
-  const onTabConsumedRef = useRef(onTabConsumed);
-  const tabCycleRef = useRef(-1);
+  const slashCommandsRef = useRef(slashCommands);
+  const selectedIndexRef = useRef(selectedIndex);
+  const popupDismissedRef = useRef(popupDismissed);
 
   valueRef.current = value;
   cursorPosRef.current = cursorPos;
@@ -53,8 +57,39 @@ export const InputBar = memo(function InputBar({
   onChangeRef.current = onChange;
   onSubmitRef.current = onSubmit;
   historyRef.current = history;
-  completionsRef.current = completions;
-  onTabConsumedRef.current = onTabConsumed;
+  slashCommandsRef.current = slashCommands;
+  selectedIndexRef.current = selectedIndex;
+  popupDismissedRef.current = popupDismissed;
+
+  // Matches visible in the autocomplete popup, or null when it should be
+  // hidden (non-slash input, space typed, no matches, or user escaped).
+  const popupMatches = useMemo(() => {
+    if (popupDismissed) return null;
+    return getSlashMatches(value, slashCommands ?? []);
+  }, [value, slashCommands, popupDismissed]);
+
+  // Reset highlight to top whenever the match list changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally reset on match-list change, not value change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [popupMatches?.length]);
+
+  // Clamp highlight if the list shrank (defensive — the effect above usually handles it).
+  useEffect(() => {
+    if (popupMatches && selectedIndex >= popupMatches.length) {
+      setSelectedIndex(Math.max(0, popupMatches.length - 1));
+    }
+  }, [popupMatches, selectedIndex]);
+
+  // Clear the dismissed flag as soon as the user edits the value,
+  // so a fresh "/" reopens the popup.
+  const prevValueRef = useRef(value);
+  useEffect(() => {
+    if (prevValueRef.current !== value && popupDismissed) {
+      setPopupDismissed(false);
+    }
+    prevValueRef.current = value;
+  }, [value, popupDismissed]);
 
   // Blink cursor when input is active — skip ticks while typing so the
   // cursor stays solid and we avoid unnecessary renders during rapid input.
@@ -87,8 +122,43 @@ export const InputBar = memo(function InputBar({
       const hIdx = historyIndexRef.current;
       const hist = historyRef.current;
 
-      // Enter: submit (shift+enter or opt+enter inserts newline)
+      // Is the slash popup visible right now? Recompute from the authoritative
+      // ref-state so we don't depend on stale closure values.
+      const popupOpen = !popupDismissedRef.current
+        ? getSlashMatches(val, slashCommandsRef.current ?? [])
+        : null;
+
+      const acceptSelection = () => {
+        if (!popupOpen) return false;
+        const chosen =
+          popupOpen[Math.min(selectedIndexRef.current, popupOpen.length - 1)];
+        if (!chosen) return false;
+        const completed = `/${chosen.name} `;
+        valueRef.current = completed;
+        cursorPosRef.current = completed.length;
+        onChangeRef.current(completed);
+        setCursorPos(completed.length);
+        // A trailing space makes the popup disappear naturally via regex,
+        // but set dismissed too so stray state can't re-open it.
+        setPopupDismissed(true);
+        return true;
+      };
+
+      // Escape: close popup if open, keep value untouched
+      if (key.escape) {
+        if (popupOpen) {
+          setPopupDismissed(true);
+        }
+        return;
+      }
+
+      // Enter: if popup is open, accept selection (do not submit).
+      // Otherwise submit as before.
       if (key.return) {
+        if (popupOpen && !key.shift && !key.meta) {
+          acceptSelection();
+          return;
+        }
         if (key.shift || key.meta) {
           const before = val.slice(0, pos);
           const after = val.slice(pos);
@@ -105,6 +175,14 @@ export const InputBar = memo(function InputBar({
           cursorPosRef.current = 0;
           setCursorPos(0);
           onSubmitRef.current(val);
+        }
+        return;
+      }
+
+      // Tab: accept popup selection if open. No-op otherwise.
+      if (key.tab) {
+        if (popupOpen) {
+          acceptSelection();
         }
         return;
       }
@@ -138,81 +216,71 @@ export const InputBar = memo(function InputBar({
         return;
       }
 
-      // History navigation
-      if (key.upArrow && hist.length > 0) {
-        const nextIndex = hIdx + 1;
-        if (nextIndex < hist.length) {
-          if (hIdx === -1) {
-            savedInput.current = val;
-          }
-          historyIndexRef.current = nextIndex;
-          setHistoryIndex(nextIndex);
-          const entry = hist[hist.length - 1 - nextIndex];
-          if (entry !== undefined) {
-            valueRef.current = entry;
-            cursorPosRef.current = entry.length;
-            onChangeRef.current(entry);
-            setCursorPos(entry.length);
+      // Up/Down: popup navigation when open, history otherwise
+      if (key.upArrow) {
+        if (popupOpen) {
+          const next = Math.max(0, selectedIndexRef.current - 1);
+          selectedIndexRef.current = next;
+          setSelectedIndex(next);
+          return;
+        }
+        if (hist.length > 0) {
+          const nextIndex = hIdx + 1;
+          if (nextIndex < hist.length) {
+            if (hIdx === -1) {
+              savedInput.current = val;
+            }
+            historyIndexRef.current = nextIndex;
+            setHistoryIndex(nextIndex);
+            const entry = hist[hist.length - 1 - nextIndex];
+            if (entry !== undefined) {
+              valueRef.current = entry;
+              cursorPosRef.current = entry.length;
+              onChangeRef.current(entry);
+              setCursorPos(entry.length);
+            }
           }
         }
         return;
       }
 
-      if (key.downArrow && hist.length > 0) {
-        if (hIdx > 0) {
-          const nextIndex = hIdx - 1;
-          historyIndexRef.current = nextIndex;
-          setHistoryIndex(nextIndex);
-          const entry = hist[hist.length - 1 - nextIndex];
-          if (entry !== undefined) {
-            valueRef.current = entry;
-            cursorPosRef.current = entry.length;
-            onChangeRef.current(entry);
-            setCursorPos(entry.length);
+      if (key.downArrow) {
+        if (popupOpen) {
+          const next = Math.min(
+            popupOpen.length - 1,
+            selectedIndexRef.current + 1,
+          );
+          selectedIndexRef.current = next;
+          setSelectedIndex(next);
+          return;
+        }
+        if (hist.length > 0) {
+          if (hIdx > 0) {
+            const nextIndex = hIdx - 1;
+            historyIndexRef.current = nextIndex;
+            setHistoryIndex(nextIndex);
+            const entry = hist[hist.length - 1 - nextIndex];
+            if (entry !== undefined) {
+              valueRef.current = entry;
+              cursorPosRef.current = entry.length;
+              onChangeRef.current(entry);
+              setCursorPos(entry.length);
+            }
+          } else if (hIdx === 0) {
+            historyIndexRef.current = -1;
+            setHistoryIndex(-1);
+            const saved = savedInput.current;
+            valueRef.current = saved;
+            cursorPosRef.current = saved.length;
+            onChangeRef.current(saved);
+            setCursorPos(saved.length);
           }
-        } else if (hIdx === 0) {
-          historyIndexRef.current = -1;
-          setHistoryIndex(-1);
-          const saved = savedInput.current;
-          valueRef.current = saved;
-          cursorPosRef.current = saved.length;
-          onChangeRef.current(saved);
-          setCursorPos(saved.length);
         }
         return;
       }
-
-      // Tab-completion for slash commands
-      if (key.tab) {
-        const comps = completionsRef.current;
-        if (val.startsWith("/") && comps && comps.length > 0) {
-          const matches = comps.filter((c) => c.startsWith(val));
-          if (matches.length === 1) {
-            const completed = `${matches[0] ?? ""} `;
-            valueRef.current = completed;
-            cursorPosRef.current = completed.length;
-            onChangeRef.current(completed);
-            setCursorPos(completed.length);
-            tabCycleRef.current = -1;
-          } else if (matches.length > 1) {
-            const idx = (tabCycleRef.current + 1) % matches.length;
-            tabCycleRef.current = idx;
-            const completed = matches[idx] ?? "";
-            valueRef.current = completed;
-            cursorPosRef.current = completed.length;
-            onChangeRef.current(completed);
-            setCursorPos(completed.length);
-          }
-          onTabConsumedRef.current?.();
-        }
-        return;
-      }
-
-      // Reset tab cycle on any non-tab key
-      tabCycleRef.current = -1;
 
       // Ignore other control keys
-      if (key.ctrl || key.escape) {
+      if (key.ctrl) {
         return;
       }
 
@@ -239,36 +307,45 @@ export const InputBar = memo(function InputBar({
 
   const isMultiline = value.includes("\n");
   const placeholder = !value && !disabled;
+  const showPopup = !disabled && popupMatches !== null;
 
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="single"
-      borderColor={disabled ? "gray" : "green"}
-      paddingX={1}
-    >
-      {header}
-      {!disabled && (
-        <Box flexDirection="column">
-          <Box>
-            <Text color="green">{"› "}</Text>
-            {placeholder ? (
-              <Text dimColor>Type a message...</Text>
-            ) : (
-              <Text>
-                {value.slice(0, cursorPos)}
-                <Text inverse={cursorVisible}>{value[cursorPos] ?? " "}</Text>
-                {value.slice(cursorPos + 1)}
-              </Text>
+    <Box flexDirection="column">
+      {showPopup && popupMatches && (
+        <SlashCommandPopup
+          matches={popupMatches}
+          selectedIndex={selectedIndex}
+        />
+      )}
+      <Box
+        flexDirection="column"
+        borderStyle="single"
+        borderColor={disabled ? "gray" : "green"}
+        paddingX={1}
+      >
+        {header}
+        {!disabled && (
+          <Box flexDirection="column">
+            <Box>
+              <Text color="green">{"› "}</Text>
+              {placeholder ? (
+                <Text dimColor>Type a message...</Text>
+              ) : (
+                <Text>
+                  {value.slice(0, cursorPos)}
+                  <Text inverse={cursorVisible}>{value[cursorPos] ?? " "}</Text>
+                  {value.slice(cursorPos + 1)}
+                </Text>
+              )}
+            </Box>
+            {isMultiline && (
+              <Box>
+                <Text dimColor> alt+return for newline, return to send</Text>
+              </Box>
             )}
           </Box>
-          {isMultiline && (
-            <Box>
-              <Text dimColor> alt+return for newline, return to send</Text>
-            </Box>
-          )}
-        </Box>
-      )}
+        )}
+      </Box>
     </Box>
   );
 });

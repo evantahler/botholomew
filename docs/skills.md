@@ -89,8 +89,23 @@ From inside `botholomew chat`:
 > /skills              # list all available skills
 > /summarize           # run the summarize skill
 > /review src/cli.ts   # positional argument becomes $1
-> /rev<TAB>            # tab-completes to /review
 ```
+
+### Autocomplete popup
+
+Typing `/` at the start of the input pops up a menu of matching
+commands (built-ins `/help`, `/skills`, `/exit` plus every
+skill loaded from `.botholomew/skills/`). Each row shows the command
+name and its description.
+
+| Key | Action |
+|---|---|
+| `↑` / `↓` | Move the highlight |
+| `Tab` or `Return` | Accept the highlighted command (fills in `/<name> ` so you can type arguments) |
+| `Esc` | Close the popup without changing the input |
+
+The popup filters as you keep typing, and it disappears once you type
+a space — so a second `Return` submits the message as usual.
 
 A system message ("Running skill: review") is printed to the TUI when a
 skill is invoked, so it's visually distinct from a regular message.

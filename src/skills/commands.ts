@@ -1,6 +1,17 @@
 import type { SkillDefinition } from "./parser.ts";
 import { renderSkill } from "./parser.ts";
 
+export interface SlashCommand {
+  name: string;
+  description: string;
+}
+
+export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+  { name: "help", description: "Show command reference and shortcuts" },
+  { name: "skills", description: "List available skills" },
+  { name: "exit", description: "End the chat session" },
+];
+
 export interface SlashCommandContext {
   skills: Map<string, SkillDefinition>;
   addSystemMessage: (content: string) => void;
@@ -22,7 +33,7 @@ export function handleSlashCommand(
   const name = commandPart.slice(1).toLowerCase(); // remove leading /
 
   // Built-in commands
-  if (name === "quit" || name === "exit") {
+  if (name === "exit") {
     ctx.exit();
     return true;
   }
