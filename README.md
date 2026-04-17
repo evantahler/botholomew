@@ -128,6 +128,8 @@ Everything the agent can touch is here. No surprises.
 | `botholomew nuke context\|tasks\|schedules\|threads\|all` | Bulk-erase sections of the database |
 | `botholomew upgrade` | Self-update |
 
+All `list` subcommands support `-l, --limit <n>` and `-o, --offset <n>` for pagination.
+
 ---
 
 ## How it works

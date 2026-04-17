@@ -17,16 +17,18 @@ export function registerTaskCommand(program: Command) {
 
   task
     .command("list")
-    .description("List all tasks")
+    .description("List all tasks (newest first)")
     .option("-s, --status <status>", "filter by status")
     .option("-p, --priority <priority>", "filter by priority")
-    .option("-l, --limit <n>", "max number of tasks", parseInt)
+    .option("-l, --limit <n>", "max number of tasks", Number.parseInt)
+    .option("-o, --offset <n>", "skip first N tasks", Number.parseInt)
     .action((opts) =>
       withDb(program, async (conn) => {
         const tasks = await listTasks(conn, {
           status: opts.status,
           priority: opts.priority,
           limit: opts.limit,
+          offset: opts.offset,
         });
 
         if (tasks.length === 0) {
@@ -34,9 +36,15 @@ export function registerTaskCommand(program: Command) {
           return;
         }
 
+        const header = `${ansis.bold("ID".padEnd(36))}  ${ansis.bold("Status".padEnd(11))}  ${ansis.bold("Priority".padEnd(6))}  ${ansis.bold("Created".padEnd(19))}  ${ansis.bold("Updated".padEnd(19))}  ${ansis.bold("Name")}`;
+        console.log(header);
+        console.log("-".repeat(120));
+
         for (const t of tasks) {
           printTask(t);
         }
+
+        console.log(`\n${ansis.dim(`${tasks.length} task(s)`)}`);
       }),
     );
 
@@ -154,10 +162,26 @@ function priorityColor(priority: Task["priority"]): string {
   }
 }
 
+function formatTime(date: Date): string {
+  return date
+    .toISOString()
+    .replace("T", " ")
+    .replace(/\.\d{3}Z$/, "");
+}
+
+function padColored(colored: string, raw: string, width: number): string {
+  const padding = Math.max(0, width - raw.length);
+  return colored + " ".repeat(padding);
+}
+
 function printTask(t: Task) {
-  const id = ansis.dim(t.id);
+  const id = ansis.dim(t.id.padEnd(36));
+  const status = padColored(statusColor(t.status), t.status, 11);
+  const priority = padColored(priorityColor(t.priority), t.priority, 6);
+  const created = ansis.dim(formatTime(t.created_at).padEnd(19));
+  const updated = ansis.dim(formatTime(t.updated_at).padEnd(19));
   console.log(
-    `  ${id}  ${statusColor(t.status)}  ${priorityColor(t.priority)}  ${t.name}`,
+    `${id}  ${status}  ${priority}  ${created}  ${updated}  ${t.name}`,
   );
 }
 

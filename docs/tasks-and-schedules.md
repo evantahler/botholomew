@@ -152,8 +152,9 @@ next tick.
 # Add work
 botholomew task add "Draft Q4 retro" --priority high
 
-# Inspect
+# Inspect (newest first; supports --status, --priority, --limit, --offset)
 botholomew task list --status pending
+botholomew task list --limit 20 --offset 20
 botholomew task view <id>
 
 # Force the daemon to pick up

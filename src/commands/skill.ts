@@ -27,7 +27,9 @@ export function registerSkillCommand(program: Command) {
   skill
     .command("list")
     .description("List all skills loaded from .botholomew/skills/")
-    .action(async () => {
+    .option("-l, --limit <n>", "max number of skills", Number.parseInt)
+    .option("-o, --offset <n>", "skip first N skills", Number.parseInt)
+    .action(async (opts: { limit?: number; offset?: number }) => {
       const dir = program.opts().dir;
       const skills = await loadSkills(dir);
 
@@ -39,12 +41,21 @@ export function registerSkillCommand(program: Command) {
       const sorted = [...skills.values()].sort((a, b) =>
         a.name.localeCompare(b.name),
       );
+      const total = sorted.length;
+      const start = opts.offset ?? 0;
+      const end = opts.limit ? start + opts.limit : undefined;
+      const page = sorted.slice(start, end);
+
+      if (page.length === 0) {
+        logger.dim(`No skills on this page (total: ${total}).`);
+        return;
+      }
 
       const header = `${ansis.bold("Name".padEnd(20))} ${ansis.bold("Description".padEnd(40))} ${ansis.bold("Args".padEnd(20))} ${ansis.bold("Path")}`;
       console.log(header);
       console.log("-".repeat(header.length));
 
-      for (const s of sorted) {
+      for (const s of page) {
         const name = s.name.padEnd(20);
         const desc = s.description
           ? s.description.slice(0, 39).padEnd(40)
@@ -61,7 +72,11 @@ export function registerSkillCommand(program: Command) {
         console.log(`${name} ${desc} ${args} ${path}`);
       }
 
-      console.log(`\n${ansis.dim(`${sorted.length} skill(s)`)}`);
+      const footer =
+        page.length === total
+          ? `${total} skill(s)`
+          : `showing ${page.length} of ${total} skill(s)`;
+      console.log(`\n${ansis.dim(footer)}`);
     });
 
   skill
