@@ -105,6 +105,9 @@ botholomew skill show review          # print the full skill file
 botholomew skill create daily-log     # scaffold a new skill
 ```
 
+`skill show` exits non-zero if the name doesn't match a loaded skill, and
+prints the available skill names to stderr.
+
 Skills are parsed by `src/skills/parser.ts` and loaded from disk by
 `src/skills/loader.ts` at chat-session start. They're cached on the
 `ChatSession` object, so changes require restarting the chat — but not
