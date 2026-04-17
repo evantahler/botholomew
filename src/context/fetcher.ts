@@ -161,6 +161,7 @@ async function runFetcherLoop(
 
   const toolCtx: ToolContext = {
     conn: null as unknown as DbConnection,
+    dbPath: "",
     projectDir: "",
     config,
     mcpxClient,

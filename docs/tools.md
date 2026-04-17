@@ -63,7 +63,8 @@ Every tool receives a `ToolContext`:
 
 ```ts
 interface ToolContext {
-  conn: DbConnection;            // DuckDB connection
+  conn: DbConnection;             // short-lived connection, scoped to this tool call
+  dbPath: string;                 // for long-running tools that manage their own withDb
   projectDir: string;             // absolute path to the project
   config: Required<BotholomewConfig>;  // resolved config (API keys, model, …)
   mcpxClient: McpxClient | null;  // external MCP tools (may be null)
@@ -71,9 +72,27 @@ interface ToolContext {
 ```
 
 This is the only capability surface. A tool that isn't handed an
-`mcpxClient` can't reach the network; a tool that doesn't use `conn`
-can't touch the database. The context is constructed once per
-tick/session and passed to every `execute()` call.
+`mcpxClient` can't reach the network; a tool that doesn't use `conn` or
+`dbPath` can't touch the database.
+
+### `conn` vs `dbPath`
+
+The executor (`runAgentLoop` / `runChatTurn`) wraps each tool call in
+`withDb(dbPath, async (conn) => tool.execute(input, { ...ctx, conn }))`.
+That means:
+
+- `ctx.conn` is **already open** for the duration of one `execute()` call
+  and will be closed immediately after. Use it for ordinary tools that
+  do one or two quick queries.
+- `ctx.dbPath` is for tools that run long enough that holding the file
+  lock would block the daemon or CLI (e.g., `context_refresh` re-fetching
+  many URLs). Wrap each DB touch in
+  `await withDb(ctx.dbPath, async (conn) => { … })` so the lock is
+  released between items.
+
+DuckDB holds the file lock at the instance level. A tool that hangs on
+`ctx.conn` through a long network round-trip keeps that lock held. When
+in doubt, prefer granular `ctx.dbPath` wrapping.
 
 ---
 

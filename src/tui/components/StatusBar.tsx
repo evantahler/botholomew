@@ -1,13 +1,13 @@
 import { Box, Text } from "ink";
 import { useEffect, useState } from "react";
-import type { DbConnection } from "../../db/connection.ts";
+import { withDb } from "../../db/connection.ts";
 import { listTasks } from "../../db/tasks.ts";
 import { getDaemonStatus } from "../../utils/pid.ts";
 import { LogoChar } from "./Logo.tsx";
 
 interface StatusBarProps {
   projectDir: string;
-  conn: DbConnection;
+  dbPath: string;
   chatTitle?: string;
   onDaemonStatusChange?: (running: boolean) => void;
 }
@@ -20,7 +20,7 @@ interface Status {
 
 export function StatusBar({
   projectDir,
-  conn,
+  dbPath,
   chatTitle,
   onDaemonStatusChange,
 }: StatusBarProps) {
@@ -35,8 +35,10 @@ export function StatusBar({
 
     const refresh = async () => {
       const daemon = await getDaemonStatus(projectDir);
-      const pending = await listTasks(conn, { status: "pending" });
-      const inProgress = await listTasks(conn, { status: "in_progress" });
+      const [pending, inProgress] = await withDb(dbPath, async (conn) => [
+        await listTasks(conn, { status: "pending" }),
+        await listTasks(conn, { status: "in_progress" }),
+      ]);
       if (mounted) {
         const daemonRunning = daemon !== null;
         setStatus({
@@ -54,7 +56,7 @@ export function StatusBar({
       mounted = false;
       clearInterval(interval);
     };
-  }, [projectDir, conn, onDaemonStatusChange]);
+  }, [projectDir, dbPath, onDaemonStatusChange]);
 
   return (
     <Box paddingX={0}>

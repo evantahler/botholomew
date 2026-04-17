@@ -7,6 +7,7 @@ import {
   startChatSession,
 } from "../chat/session.ts";
 import { MAX_INLINE_CHARS, PAGE_SIZE_CHARS } from "../daemon/large-results.ts";
+import { withDb } from "../db/connection.ts";
 import type { Interaction } from "../db/threads.ts";
 import { getThread } from "../db/threads.ts";
 import {
@@ -163,7 +164,9 @@ export function App({
         sessionRef.current = session;
 
         if (session.messages.length > 0) {
-          const threadData = await getThread(session.conn, session.threadId);
+          const threadData = await withDb(session.dbPath, (conn) =>
+            getThread(conn, session.threadId),
+          );
           if (threadData) {
             setMessages(
               restoreMessagesFromInteractions(threadData.interactions),
@@ -409,7 +412,9 @@ export function App({
     const refreshTitle = async () => {
       const session = sessionRef.current;
       if (!session) return;
-      const result = await getThread(session.conn, session.threadId);
+      const result = await withDb(session.dbPath, (conn) =>
+        getThread(conn, session.threadId),
+      );
       if (mounted && result?.thread.title) {
         setChatTitle(result.thread.title);
       }
@@ -547,18 +552,18 @@ export function App({
     [exit, processQueue, syncQueue],
   );
 
-  const sessionConn = sessionRef.current?.conn;
+  const sessionDbPath = sessionRef.current?.dbPath;
   const inputBarHeader = useMemo(
     () =>
-      sessionConn ? (
+      sessionDbPath ? (
         <StatusBar
           projectDir={projectDir}
-          conn={sessionConn}
+          dbPath={sessionDbPath}
           chatTitle={chatTitle}
           onDaemonStatusChange={setDaemonRunning}
         />
       ) : null,
-    [projectDir, sessionConn, chatTitle],
+    [projectDir, sessionDbPath, chatTitle],
   );
 
   const sessionSkills = ready ? sessionRef.current?.skills : undefined;
@@ -602,7 +607,7 @@ export function App({
     );
   }
 
-  const conn = sessionRef.current.conn;
+  const dbPath = sessionRef.current.dbPath;
   const threadId = sessionRef.current.threadId;
 
   return (
@@ -642,14 +647,14 @@ export function App({
         flexDirection="column"
         flexGrow={1}
       >
-        <ContextPanel conn={conn} isActive={activeTab === 3} />
+        <ContextPanel dbPath={dbPath} isActive={activeTab === 3} />
       </Box>
       <Box
         display={activeTab === 4 ? "flex" : "none"}
         flexDirection="column"
         flexGrow={1}
       >
-        <TaskPanel conn={conn} isActive={activeTab === 4} />
+        <TaskPanel dbPath={dbPath} isActive={activeTab === 4} />
       </Box>
       <Box
         display={activeTab === 5 ? "flex" : "none"}
@@ -657,7 +662,7 @@ export function App({
         flexGrow={1}
       >
         <ThreadPanel
-          conn={conn}
+          dbPath={dbPath}
           activeThreadId={threadId}
           isActive={activeTab === 5}
         />
@@ -667,7 +672,7 @@ export function App({
         flexDirection="column"
         flexGrow={1}
       >
-        <SchedulePanel conn={conn} isActive={activeTab === 6} />
+        <SchedulePanel dbPath={dbPath} isActive={activeTab === 6} />
       </Box>
       <Box
         display={activeTab === 7 ? "flex" : "none"}

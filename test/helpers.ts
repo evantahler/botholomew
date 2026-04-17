@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { BotholomewConfig } from "../src/config/schemas.ts";
 import { DEFAULT_CONFIG } from "../src/config/schemas.ts";
 import { EMBEDDING_DIMENSION } from "../src/constants.ts";
@@ -97,6 +100,32 @@ export async function setupTestDb(): Promise<DbConnection> {
   return conn;
 }
 
+/**
+ * Create a fresh file-backed database with migrations applied. Use this when
+ * a test needs to pass a `dbPath` to production code that opens/closes its
+ * own connections — `:memory:` can't be shared across `withDb` calls.
+ *
+ * Returns `{ conn, dbPath, cleanup }`. Call `cleanup()` in `afterEach`.
+ */
+export async function setupTestDbFile(): Promise<{
+  conn: DbConnection;
+  dbPath: string;
+  cleanup: () => Promise<void>;
+}> {
+  const dir = await mkdtemp(join(tmpdir(), "both-db-"));
+  const dbPath = join(dir, "test.duckdb");
+  const conn = await getConnection(dbPath);
+  await migrate(conn);
+  return {
+    conn,
+    dbPath,
+    cleanup: async () => {
+      conn.close();
+      await rm(dir, { recursive: true, force: true });
+    },
+  };
+}
+
 /** Create a ToolContext backed by a fresh in-memory database. */
 export async function setupToolContext(): Promise<{
   conn: DbConnection;
@@ -105,6 +134,7 @@ export async function setupToolContext(): Promise<{
   const conn = await setupTestDb();
   const ctx: ToolContext = {
     conn,
+    dbPath: ":memory:",
     projectDir: "/tmp/test",
     config: { ...DEFAULT_CONFIG },
     mcpxClient: null,

@@ -1,8 +1,12 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import type { DbConnection } from "../../src/db/connection.ts";
 import { createTask, getTask } from "../../src/db/tasks.ts";
 import { getThread, listThreads } from "../../src/db/threads.ts";
-import { completionResponse, setupTestDb, TEST_CONFIG } from "../helpers.ts";
+import {
+  completionResponse,
+  setupTestDbFile,
+  TEST_CONFIG,
+} from "../helpers.ts";
 
 // Mock the Anthropic SDK before importing tick
 mock.module("@anthropic-ai/sdk", () => {
@@ -19,9 +23,15 @@ mock.module("@anthropic-ai/sdk", () => {
 const { tick } = await import("../../src/daemon/tick.ts");
 
 let conn: DbConnection;
+let dbPath: string;
+let cleanup: () => Promise<void>;
 
 beforeEach(async () => {
-  conn = await setupTestDb();
+  ({ conn, dbPath, cleanup } = await setupTestDbFile());
+});
+
+afterEach(async () => {
+  await cleanup();
 });
 
 describe("daemon tick", () => {
@@ -31,7 +41,7 @@ describe("daemon tick", () => {
       description: "Do a thing",
     });
 
-    const didWork = await tick("/tmp/test-project", conn, TEST_CONFIG);
+    const didWork = await tick("/tmp/test-project", dbPath, TEST_CONFIG);
 
     // Task should be completed
     const updated = await getTask(conn, task.id);
@@ -47,7 +57,7 @@ describe("daemon tick", () => {
       description: "Do a thing",
     });
 
-    await tick("/tmp/test-project", conn, TEST_CONFIG);
+    await tick("/tmp/test-project", dbPath, TEST_CONFIG);
 
     // Should have created a thread
     const threads = await listThreads(conn, { type: "daemon_tick" });
@@ -69,7 +79,7 @@ describe("daemon tick", () => {
   });
 
   test("does nothing when no tasks available", async () => {
-    const didWork = await tick("/tmp/test-project", conn, TEST_CONFIG);
+    const didWork = await tick("/tmp/test-project", dbPath, TEST_CONFIG);
 
     // No threads created
     const threads = await listThreads(conn);
@@ -98,7 +108,7 @@ describe("daemon tick", () => {
       description: "LLM will error",
     });
 
-    await tickFresh("/tmp/test-project", conn, TEST_CONFIG);
+    await tickFresh("/tmp/test-project", dbPath, TEST_CONFIG);
 
     const updated = await getTask(conn, task.id);
     expect(updated?.status).toBe("failed");
@@ -132,7 +142,7 @@ describe("daemon tick", () => {
       priority: "high",
     });
 
-    await tick("/tmp/test-project", conn, TEST_CONFIG);
+    await tick("/tmp/test-project", dbPath, TEST_CONFIG);
 
     // High priority task should be completed
     const updatedHigh = await getTask(conn, highTask.id);

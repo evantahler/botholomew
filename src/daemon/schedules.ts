@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import type { DbConnection } from "../db/connection.ts";
+import { withDb } from "../db/connection.ts";
 import {
   listSchedules,
   markScheduleRun,
@@ -105,14 +105,17 @@ Is this schedule due to run? If yes, what tasks should be created?`;
 }
 
 export async function processSchedules(
-  conn: DbConnection,
+  dbPath: string,
   config: Required<BotholomewConfig>,
 ): Promise<void> {
-  const schedules = await listSchedules(conn, { enabled: true });
+  const schedules = await withDb(dbPath, (conn) =>
+    listSchedules(conn, { enabled: true }),
+  );
   if (schedules.length === 0) return;
 
   for (const schedule of schedules) {
     try {
+      // LLM evaluation does no DB work — no connection held here.
       const evaluation = await evaluateSchedule(config, schedule);
 
       if (!evaluation.isDue) {
@@ -128,16 +131,18 @@ export async function processSchedules(
           .map((i: number) => createdIds[i])
           .filter(Boolean) as string[];
 
-        const task = await createTask(conn, {
-          name: taskDef.name,
-          description: taskDef.description,
-          priority: taskDef.priority,
-          blocked_by: blockedBy,
-        });
+        const task = await withDb(dbPath, (conn) =>
+          createTask(conn, {
+            name: taskDef.name,
+            description: taskDef.description,
+            priority: taskDef.priority,
+            blocked_by: blockedBy,
+          }),
+        );
         createdIds.push(task.id);
       }
 
-      await markScheduleRun(conn, schedule.id);
+      await withDb(dbPath, (conn) => markScheduleRun(conn, schedule.id));
       logger.info(
         `Schedule "${schedule.name}" fired, created ${createdIds.length} task(s)`,
       );

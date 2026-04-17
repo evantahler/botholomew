@@ -79,7 +79,9 @@ export interface IngestionResult {
 
 /**
  * Store a prepared ingestion into the database.
- * This is the fast DB-write phase and must be called sequentially.
+ * All statements in BEGIN/COMMIT/ROLLBACK must share one connection, so the
+ * caller must pass a connection that lives long enough for the transaction
+ * (the tool executor wraps each tool call in `withDb`, which satisfies this).
  */
 export async function storeIngestion(
   conn: DbConnection,

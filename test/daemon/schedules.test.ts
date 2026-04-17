@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import type { DbConnection } from "../../src/db/connection.ts";
 import { createSchedule, getSchedule } from "../../src/db/schedules.ts";
 import { listTasks } from "../../src/db/tasks.ts";
-import { setupTestDb, TEST_CONFIG } from "../helpers.ts";
+import { setupTestDbFile, TEST_CONFIG } from "../helpers.ts";
 
 let mockResponse: Record<string, unknown> = {};
 
@@ -26,10 +26,16 @@ const { evaluateSchedule, processSchedules } = await import(
 );
 
 let conn: DbConnection;
+let dbPath: string;
+let cleanup: () => Promise<void>;
 
 beforeEach(async () => {
-  conn = await setupTestDb();
+  ({ conn, dbPath, cleanup } = await setupTestDbFile());
   mockResponse = {};
+});
+
+afterEach(async () => {
+  await cleanup();
 });
 
 describe("evaluateSchedule", () => {
@@ -208,7 +214,7 @@ describe("processSchedules", () => {
       frequency: "every morning",
     });
 
-    await processSchedules(conn, TEST_CONFIG);
+    await processSchedules(dbPath, TEST_CONFIG);
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(1);
@@ -227,7 +233,7 @@ describe("processSchedules", () => {
       frequency: "daily",
     });
 
-    await processSchedules(conn, TEST_CONFIG);
+    await processSchedules(dbPath, TEST_CONFIG);
 
     const updated = await getSchedule(conn, schedule.id);
     expect(updated?.last_run_at).not.toBeNull();
@@ -245,7 +251,7 @@ describe("processSchedules", () => {
       frequency: "weekly",
     });
 
-    await processSchedules(conn, TEST_CONFIG);
+    await processSchedules(dbPath, TEST_CONFIG);
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(0);
@@ -266,7 +272,7 @@ describe("processSchedules", () => {
     const { updateSchedule } = await import("../../src/db/schedules.ts");
     await updateSchedule(conn, schedule.id, { enabled: false });
 
-    await processSchedules(conn, TEST_CONFIG);
+    await processSchedules(dbPath, TEST_CONFIG);
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(0);
@@ -292,7 +298,7 @@ describe("processSchedules", () => {
       frequency: "daily",
     });
 
-    await processSchedules(conn, TEST_CONFIG);
+    await processSchedules(dbPath, TEST_CONFIG);
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(2);
@@ -307,7 +313,7 @@ describe("processSchedules", () => {
 
   test("does nothing with no enabled schedules", async () => {
     // No schedules at all — should return immediately
-    await processSchedules(conn, TEST_CONFIG);
+    await processSchedules(dbPath, TEST_CONFIG);
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(0);

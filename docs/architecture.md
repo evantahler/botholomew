@@ -11,9 +11,14 @@ Botholomew is four cooperating processes that share a single DuckDB database:
 4. **The CLI** — everything else (`task add`, `schedule list`, `context
    search`, …). Each invocation opens its own DuckDB connection.
 
-All four share `.botholomew/data.duckdb`. Writes are serialized via
-`withRetry()` in `src/db/connection.ts`, which retries on busy with
-exponential backoff.
+All four share `.botholomew/data.duckdb`. DuckDB holds the file lock at
+the instance level (not the connection), so **no process holds a DB
+connection longer than a single logical operation**. Each CRUD call runs
+inside a short-lived `withDb(dbPath, fn)` from `src/db/connection.ts`,
+which acquires a connection, executes, and releases the instance when the
+last overlapping caller in the process is done. `withRetry` wraps the
+acquire path and retries with exponential backoff if another process is
+holding the lock.
 
 **Safety note.** None of these processes give the agent direct access
 to your machine. The daemon is the only thing executing LLM tool
@@ -109,10 +114,29 @@ Schema lives in `src/db/sql/2-logging_tables.sql`.
 
 ## Connection model
 
-- **Daemon**: opens one `DbConnection` at startup, holds it for the
-  process lifetime.
-- **Chat**: opens one connection per session.
-- **CLI invocations**: open a connection, do their work, close it.
+Every process uses the same policy: **open a DuckDB connection for one
+logical operation, then close it.**
+
+- **Daemon**: `tick()` takes a `dbPath`, not a held connection. Each call
+  into `src/db/*` is wrapped in `withDb` — stale-task reset, task claim,
+  thread create, every `logInteraction`, the status update. The LLM
+  network round-trip holds no connection.
+- **Chat**: `ChatSession` carries `dbPath`. Each write (user message
+  log, tool-use log, tool-result log, title update, thread end) is its
+  own `withDb`. Tool execution wraps each call in `withDb` so `ctx.conn`
+  is scoped to that tool call only.
+- **CLI invocations**: `withDb` in `src/commands/with-db.ts` opens a
+  connection for the command, applies migrations, and closes when the
+  callback returns.
+- **TUI panels**: take `dbPath`, not `conn`, and wrap each refresh poll
+  in `withDb`.
+
+DuckDB's file lock is process-wide and held by the *instance*, not
+individual connections. Within one process we refcount a shared
+instance so overlapping `withDb` calls (e.g., parallel tool execution
+via `Promise.all`) don't trip DuckDB's "don't open the same DB twice"
+rule; when the last caller in the process releases, we close the
+instance and free the OS-level lock so another process can claim it.
 
 The DuckDB VSS extension is loaded at connect time (`INSTALL vss; LOAD
 vss;`) and HNSW persistence is enabled so vector indexes survive

@@ -44,8 +44,14 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 
 ## Database Patterns
 
-- **Connection**: use `DbConnection` type from `src/db/connection.ts` (wrapper around `@duckdb/node-api`)
-- **Migrations**: always call `migrate(db)` after opening a connection — it's idempotent
+- **Connection lifecycle**: DuckDB holds the file lock at the *instance* level, so **no process holds a connection longer than one logical operation**. Always use `withDb(dbPath, async (conn) => { ... })` from `src/db/connection.ts` — it opens a conn, runs your callback, closes, and releases the OS lock. Never stash a `DbConnection` on a long-lived object (daemon tick, chat session, TUI component state).
+- **`dbPath` is the currency**: long-lived callers (daemon, chat session, TUI panels) hold `dbPath: string`, not `conn`. They open a fresh `withDb` per operation.
+- **CRUD modules in `src/db/*`**: still take `conn: DbConnection` as their first argument. Callers supply one via `withDb`. Don't change these signatures to `dbPath` — tests pass an in-memory conn directly, which wouldn't survive a `withDb` (separate `:memory:` instances don't share state).
+- **Tools (`src/tools/*`)**: `ToolContext` has both `conn` (short-lived, scoped to this tool call) and `dbPath` (for long-running tools). Default to `ctx.conn`. For tools that take more than a couple seconds (e.g., `context_refresh` re-fetching many URLs), wrap DB touches in `await withDb(ctx.dbPath, ...)` so the lock releases between items.
+- **Transactions**: `BEGIN / COMMIT / ROLLBACK` must all run on the **same** `conn`. Keep the whole transaction inside one `withDb` block.
+- **Retry**: `withRetry` (inside `withDb`) catches DuckDB "Conflicting lock" errors and backs off exponentially (100, 200, 400 … up to 8 tries ≈ 25 s). Non-lock errors propagate immediately.
+- **Parallel tool calls**: safe. Overlapping `withDb` calls in one process share a refcounted instance; DuckDB's "don't open the same DB twice in a process" rule stays satisfied, and the OS lock releases once every overlapping caller has closed.
+- **Migrations**: always call `migrate(conn)` after opening — it's idempotent. In entrypoints, do it once in a short `withDb` at startup (daemon, chat, CLI via `src/commands/with-db.ts`).
 - **IDs**: UUIDv7 generated in application code via `uuidv7()` from `src/db/uuid.ts` (re-exports `uuid` package)
 - **Queries**: use parameterized queries (`?1, ?2, ...`) — never string interpolation (auto-translated to `$N` for DuckDB)
 - **Timestamps**: stored as ISO 8601 TEXT (`datetime('now')`), converted to `Date` objects in TypeScript interfaces
@@ -57,8 +63,8 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 ## Testing
 
 - **Tests are required**: all new features and bug fixes must include tests. `bun test` and `bun run lint` must pass before merging.
-- Use `getConnection(":memory:")` for in-memory test databases
-- Call `migrate(conn)` in `beforeEach` to get a fresh schema each test
+- Default to `setupTestDb()` from `test/helpers.ts` for in-memory tests — it calls `getConnection()` + `migrate(conn)`.
+- Use `setupTestDbFile()` when a test needs to pass a `dbPath` to production code that opens/closes its own connections (daemon `tick`, `processSchedules`, `runAgentLoop`, chat session). `:memory:` databases don't share state across `getConnection` calls, so a shared-file DB is required. Remember to call the returned `cleanup()` in `afterEach`.
 
 ## Documentation
 
@@ -77,6 +83,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `docs/tui.md` — the `botholomew chat` TUI: tabs, shortcuts, slash-command popup, message queue, streaming
 - **When to update which doc:**
   - Touching `src/db/sql/*.sql` or `src/db/schema.ts` → update `docs/virtual-filesystem.md` and/or `docs/context-and-search.md` with any new columns, tables, or indexes.
+  - Changing connection lifecycle or `withDb` semantics in `src/db/connection.ts` → update the "Connection model" section in `docs/architecture.md` and the "Database Patterns" section in this file.
   - Adding/renaming/removing a tool in `src/tools/` → update the relevant doc (`virtual-filesystem.md` for file/dir tools, `context-and-search.md` for search tools, `tools.md` if the registry pattern changed) and the CLI reference table in `README.md`.
   - Adding a CLI subcommand in `src/commands/` → update the CLI table in `README.md` and the doc for that area.
   - Changing config defaults in `src/config/schemas.ts` → update `docs/configuration.md`.

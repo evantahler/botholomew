@@ -1,6 +1,6 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import type { DbConnection } from "../../db/connection.ts";
+import { withDb } from "../../db/connection.ts";
 import {
   type ContextItem,
   deleteContextItem,
@@ -11,7 +11,7 @@ import {
 } from "../../db/context.ts";
 
 interface ContextPanelProps {
-  conn: DbConnection;
+  dbPath: string;
   isActive: boolean;
 }
 
@@ -32,7 +32,7 @@ type Entry = DirEntry | FileEntry;
 const CHROME_LINES = 8;
 
 export const ContextPanel = memo(function ContextPanel({
-  conn,
+  dbPath,
   isActive,
 }: ContextPanelProps) {
   const { stdout } = useStdout();
@@ -64,10 +64,10 @@ export const ContextPanel = memo(function ContextPanel({
 
   const loadEntries = useCallback(
     async (path: string) => {
-      const dirs = await getDistinctDirectories(conn, path);
-      const files = await listContextItemsByPrefix(conn, path, {
-        recursive: false,
-      });
+      const [dirs, files] = await withDb(dbPath, async (conn) => [
+        await getDistinctDirectories(conn, path),
+        await listContextItemsByPrefix(conn, path, { recursive: false }),
+      ]);
 
       const dirEntries: DirEntry[] = dirs.map((d) => ({
         type: "directory",
@@ -84,7 +84,7 @@ export const ContextPanel = memo(function ContextPanel({
       setScrollOffset(0);
       setPreview(null);
     },
-    [conn],
+    [dbPath],
   );
 
   useEffect(() => {
@@ -99,13 +99,15 @@ export const ContextPanel = memo(function ContextPanel({
         setSearchResults(null);
         return;
       }
-      const results = await searchContextByKeyword(conn, query.trim(), 50);
+      const results = await withDb(dbPath, (conn) =>
+        searchContextByKeyword(conn, query.trim(), 50),
+      );
       setSearchResults(results);
       setCursor(0);
       setScrollOffset(0);
       setPreview(null);
     },
-    [conn],
+    [dbPath],
   );
 
   // Compute the items list and visible window for the current view
@@ -171,11 +173,13 @@ export const ContextPanel = memo(function ContextPanel({
         if (input === "y" || input === "d") {
           const entry = entries[cursor];
           if (entry) {
-            if (entry.type === "directory") {
-              deleteContextItemsByPrefix(conn, entry.path);
-            } else {
-              deleteContextItem(conn, entry.item.id);
-            }
+            void withDb(dbPath, async (conn) => {
+              if (entry.type === "directory") {
+                await deleteContextItemsByPrefix(conn, entry.path);
+              } else {
+                await deleteContextItem(conn, entry.item.id);
+              }
+            });
             setConfirmDelete(false);
             loadEntries(currentPath);
           }

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { withRetry } from "../../src/db/connection.ts";
 
+const lockError = () => new Error("Conflicting lock is held in bun by user");
+
 describe("withRetry", () => {
   test("returns immediately on first success", async () => {
     let attempts = 0;
@@ -13,12 +15,12 @@ describe("withRetry", () => {
     expect(attempts).toBe(1);
   });
 
-  test("retries on transient errors and succeeds on later attempt", async () => {
+  test("retries lock-conflict errors and succeeds on later attempt", async () => {
     let attempts = 0;
     const result = await withRetry(async () => {
       attempts++;
       if (attempts < 3) {
-        throw new Error("transient error");
+        throw lockError();
       }
       return "recovered";
     }, 5);
@@ -27,28 +29,28 @@ describe("withRetry", () => {
     expect(attempts).toBe(3);
   });
 
-  test("throws after exhausting all retries", async () => {
+  test("throws after exhausting retries on persistent lock conflicts", async () => {
     let attempts = 0;
     await expect(
       withRetry(async () => {
         attempts++;
-        throw new Error("persistent error");
+        throw lockError();
       }, 3),
-    ).rejects.toThrow("persistent error");
+    ).rejects.toThrow(/Conflicting lock/);
 
     expect(attempts).toBe(3);
   });
 
-  test("uses default maxRetries of 5", async () => {
+  test("does not retry non-lock errors", async () => {
     let attempts = 0;
     await expect(
       withRetry(async () => {
         attempts++;
-        throw new Error("always fails");
+        throw new Error("constraint violation: primary key");
       }),
-    ).rejects.toThrow("always fails");
+    ).rejects.toThrow("constraint violation");
 
-    expect(attempts).toBe(5);
+    expect(attempts).toBe(1);
   });
 
   test("works with async functions that return different types", async () => {

@@ -5,7 +5,15 @@ import type { BotholomewConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
 
 export interface ToolContext {
+  /**
+   * Short-lived DB connection scoped to this tool call. Safe for single-query
+   * tools. Do NOT hold it across slow work (network, embedding, long loops) —
+   * the instance-level file lock stays held until every connection closes.
+   * For long-running tools, use `dbPath` with `withDb` per logical operation.
+   */
   conn: DbConnection;
+  /** Path to the DuckDB file. Use with `withDb` for long-running tools. */
+  dbPath: string;
   projectDir: string;
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;
