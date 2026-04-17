@@ -202,22 +202,19 @@ cases it compares the new content against what's stored, updates only
 when they differ, and re-embeds only the changed items. Missing files
 are reported, not silently dropped.
 
-Today `refresh` lives on the CLI only — the daemon has no registered
-tool for it, so a schedule that says "run `context refresh`" will
-enqueue a task the agent can't actually work. Until
-[#105](https://github.com/evantahler/botholomew/issues/105) lands, the
-right way to run it on a schedule is an external timer:
+The same logic is exposed to the daemon as the `context_refresh`
+tool, so schedules like "every morning at 7, refresh remote context"
+work end-to-end without an external scheduler. The tool takes the
+same arguments as the CLI (`path` for a single item or subtree,
+`all: true` for every sourced item) and returns a structured summary
+(`checked`, `updated`, `unchanged`, `missing`, `reembedded`,
+`chunks`, per-item statuses) so the agent can report back or feed a
+downstream task via `complete_task`.
 
-```bash
-# cron — every morning at 7
-0 7 * * * cd ~/my-project && botholomew context refresh --all
-
-# launchd / systemd — point the user-level service at the same command
-```
-
-Once the daemon-accessible tool from #105 exists, you'll be able to
-drive it entirely from Botholomew schedules without an external
-scheduler.
+Under the hood, URL fetches from the daemon open a nested fetcher
+loop with the project's MCPX client — the same path the CLI uses.
+`all: true` across many URLs is serial (each URL runs its own
+Anthropic agent loop), so prefer narrowing with `path` when you can.
 
 ---
 
