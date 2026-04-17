@@ -169,6 +169,9 @@ Topics worth understanding in detail:
 
 - **[Architecture](docs/architecture.md)** — daemon, chat, watchdog, and how
   they share a database.
+- **[The TUI](docs/tui.md)** — the `botholomew chat` Ink/React terminal UI:
+  seven tabs, slash-command autocomplete, message queue, and tool-call
+  visualization.
 - **[The virtual filesystem](docs/virtual-filesystem.md)** — why the agent's
   "files" are actually DuckDB rows, and how `context_read`/`context_write` work.
 - **[Context & hybrid search](docs/context-and-search.md)** — LLM-driven

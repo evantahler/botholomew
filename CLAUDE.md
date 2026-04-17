@@ -74,6 +74,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `docs/mcpx.md` — `servers.json`, local servers vs. MCP gateways (Arcade), `mcp_*` meta-tools
   - `docs/watchdog.md` — launchd/systemd, healthcheck, multi-project naming
   - `docs/configuration.md` — every key in `config.json`
+  - `docs/tui.md` — the `botholomew chat` TUI: tabs, shortcuts, slash-command popup, message queue, streaming
 - **When to update which doc:**
   - Touching `src/db/sql/*.sql` or `src/db/schema.ts` → update `docs/virtual-filesystem.md` and/or `docs/context-and-search.md` with any new columns, tables, or indexes.
   - Adding/renaming/removing a tool in `src/tools/` → update the relevant doc (`virtual-filesystem.md` for file/dir tools, `context-and-search.md` for search tools, `tools.md` if the registry pattern changed) and the CLI reference table in `README.md`.
@@ -83,6 +84,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - Adding or renaming a skill template in `src/init/templates.ts` → update `docs/skills.md` and `src/init/index.ts`.
   - Changing watchdog install behavior (`src/daemon/watchdog.ts`, `healthcheck.ts`) → update `docs/watchdog.md`.
   - Changing anything in persistent-context loading (`src/daemon/prompt.ts`) → update `docs/persistent-context.md`.
+  - Changing anything in `src/tui/` (new tab, new shortcut, input behavior) → update `docs/tui.md`.
 - If a doc reference goes stale (links a renamed file, cites a removed behavior), fix it in the same PR — don't leave it for later.
 - When adding a new top-level feature, add a new doc under `docs/` and link it from the "Deep dives" section of `README.md`.
 - Never claim a feature exists that isn't implemented. If something is planned, say so and link to the milestone under `docs/plans/`.
