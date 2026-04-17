@@ -10,7 +10,7 @@ calling out to a vector DB service.
 ## The pipeline
 
 When you add a document (`botholomew context add ./report.pdf` or the
-agent writes via `file_write`), this happens:
+agent writes via `context_write`), this happens:
 
 ```
  content ─► create context_item row
@@ -33,19 +33,22 @@ fragments. Botholomew instead asks a **small, fast** model (Haiku by
 default) to propose chunk boundaries for each document:
 
 ```json
-[
-  { "start": 0,   "end": 412, "title": "Q4 Overview",     "description": "..." },
-  { "start": 413, "end": 980, "title": "Revenue by region", "description": "..." },
-  ...
-]
+{
+  "chunks": [
+    { "start_line": 1,   "end_line": 42  },
+    { "start_line": 43,  "end_line": 98  }
+  ]
+}
 ```
 
-The chunker has a sliding-window fallback (500 tokens, 50 overlap) if the
-LLM call fails, so ingestion never blocks on model availability.
+The chunker only returns line ranges (1-based, inclusive) — see
+`CHUNKER_TOOL` in `src/context/chunker.ts`.
 
-Each chunk is embedded separately; the `title` and `description` are
-stored alongside the embedding and surface in search results as the
-snippet.
+Each chunk is embedded separately; the `title` and `description` come
+from the parent `context_item` (set at ingestion time), are prepended
+to the chunk's text at embed time, and surface in search results as
+the snippet. If the chunker fails, ingestion fails — there is no
+sliding-window fallback today.
 
 ---
 

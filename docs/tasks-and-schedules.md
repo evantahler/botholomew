@@ -139,6 +139,11 @@ Trade-offs:
 - **Drift.** The model's idea of "morning" might not match yours.
   Tighten the frequency text if you see misfires.
 
+`botholomew schedule trigger <id>` runs the same evaluation loop on
+demand and creates the task(s) immediately — handy for verifying that
+a new schedule produces the tasks you expect without waiting for the
+next tick.
+
 ---
 
 ## Running the queue by hand

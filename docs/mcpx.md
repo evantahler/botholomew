@@ -61,16 +61,28 @@ access per user. MCPX accepts both shapes.
 ## Managing servers from the CLI
 
 ```bash
-botholomew mcpx list                 # configured servers + connection status
-botholomew mcpx add gmail            # add interactively
+botholomew mcpx servers                                      # list configured server names
+botholomew mcpx ping                                         # check connectivity to all servers (or pass names to filter)
+botholomew mcpx add gmail --command npx --args -y @modelcontextprotocol/server-gmail
+botholomew mcpx add arcade --url https://api.arcade.dev/mcp/engineering
 botholomew mcpx remove gmail
-botholomew mcpx tools                # list every tool from every server
-botholomew mcpx tools gmail          # filter to one server
-botholomew mcpx test gmail.search '{"query":"test"}'   # dry-run a tool call
+botholomew mcpx auth arcade                                  # OAuth / token flow for HTTP servers
+botholomew mcpx search "read email"                          # keyword + semantic search over all tools
+botholomew mcpx info gmail                                   # server overview
+botholomew mcpx info gmail list_messages                     # input schema for one tool
+botholomew mcpx exec gmail list_messages '{"maxResults":10}' # dry-run a tool call
+botholomew mcpx import-global                                # copy ~/.mcpx into this project
+botholomew mcpx index                                        # rebuild the tool search index
+botholomew mcpx resource arcade                              # list resources for a server (or read one by URI)
+botholomew mcpx prompt arcade                                # list prompts for a server (or render one by name)
+botholomew mcpx task <action> <server> [taskId]              # list/get/result/cancel async tool tasks
 ```
 
-`mcpx test` is the fastest way to confirm a server is wired up before
-handing it to the agent.
+`mcpx exec` is the fastest way to confirm a server is wired up before
+handing it to the agent. `mcpx auth` runs the OAuth flow for HTTP
+servers that need it (most Arcade gateways do), and `mcpx
+import-global` is the usual way to bootstrap a new project from your
+global `~/.mcpx/` configuration.
 
 ---
 
@@ -84,7 +96,7 @@ handing it to the agent.
 
 The daemon holds the client for its entire lifetime and calls
 `client.close()` on SIGTERM/SIGINT. CLI commands like
-`botholomew mcpx test` open a client, do their work, and close it.
+`botholomew mcpx exec` open a client, do their work, and close it.
 
 ---
 
@@ -143,4 +155,4 @@ You don't need a server when:
 - The work happens entirely in `.botholomew/` (the virtual filesystem,
   embeddings, tasks, schedules).
 - You just want Claude to *read* something you already put in context —
-  `file_read` / `search_semantic` are enough.
+  `context_read` / `search_semantic` are enough.

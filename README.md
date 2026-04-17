@@ -121,9 +121,9 @@ Everything the agent can touch is here. No surprises.
 | `botholomew task list\|add\|view\|update\|reset\|delete` | Manage the task queue |
 | `botholomew schedule list\|add\|enable\|trigger\|delete` | Recurring work |
 | `botholomew context add\|list\|view\|search\|refresh\|remove` | Ingest & browse knowledge (files, folders, URLs) |
-| `botholomew mcpx add\|list\|tools\|test` | Configure external MCP servers |
-| `botholomew skill list\|show\|create` | Manage slash-command skills |
-| `botholomew file\|dir\|search ...` | Direct access to the agent's virtual filesystem |
+| `botholomew mcpx servers\|add\|remove\|info\|search\|exec\|ping\|auth\|import-global` | Configure external MCP servers |
+| `botholomew skill list\|show\|create\|validate` | Manage slash-command skills |
+| `botholomew context ... \| search ...` | Direct access to the agent's virtual filesystem |
 | `botholomew thread list\|view` | Browse the agent's interaction history |
 | `botholomew nuke context\|tasks\|schedules\|threads\|all` | Bulk-erase sections of the database |
 | `botholomew upgrade` | Self-update |
@@ -170,7 +170,7 @@ Topics worth understanding in detail:
 - **[Architecture](docs/architecture.md)** — daemon, chat, watchdog, and how
   they share a database.
 - **[The virtual filesystem](docs/virtual-filesystem.md)** — why the agent's
-  "files" are actually DuckDB rows, and how `file_read`/`file_write` work.
+  "files" are actually DuckDB rows, and how `context_read`/`context_write` work.
 - **[Context & hybrid search](docs/context-and-search.md)** — LLM-driven
   chunking, OpenAI embeddings, and DuckDB's HNSW-accelerated keyword +
   vector search.
