@@ -118,10 +118,14 @@ skill is invoked, so it's visually distinct from a regular message.
 botholomew skill list                 # table of all skills
 botholomew skill show review          # print the full skill file
 botholomew skill create daily-log     # scaffold a new skill
+botholomew skill validate             # parse every .botholomew/skills/*.md and report errors
+botholomew skill validate path.md     # validate a single file (handy before committing)
 ```
 
 `skill show` exits non-zero if the name doesn't match a loaded skill, and
-prints the available skill names to stderr.
+prints the available skill names to stderr. `skill validate` exits
+non-zero if any file fails to parse, so it fits naturally into a
+pre-commit hook or CI check.
 
 Skills are parsed by `src/skills/parser.ts` and loaded from disk by
 `src/skills/loader.ts` at chat-session start. They're cached on the
@@ -136,7 +140,7 @@ the daemon.
   of the output unless you describe it.
 - **Use positional args, not free-form.** `/review src/cli.ts` is easier
   to tab-complete than `/review --file=src/cli.ts`.
-- **Reference tools by name.** "Read the file with `file_read`" nudges
+- **Reference tools by name.** "Read the file with `context_read`" nudges
   the agent toward the right tool and keeps token counts down.
 - **Keep them short.** A skill is a prompt, not a program. If your skill
   is 200 lines of conditional logic, it probably wants to be a real

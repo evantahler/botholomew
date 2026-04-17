@@ -84,7 +84,7 @@ schema to the Anthropic SDK's `Tool` type using `z.toJSONSchema()`:
 
 ```ts
 {
-  name: "file_write",
+  name: "context_write",
   description: "Create or overwrite a file in the virtual filesystem.",
   input_schema: {
     type: "object",
@@ -112,8 +112,8 @@ any of which transitions the task out of `in_progress`.
 Commander subcommand per tool, grouped by `group`:
 
 ```bash
-botholomew file read /notes/meeting.md --offset 10 --limit 20
-botholomew dir tree / --max-items 100
+botholomew context read /notes/meeting.md --offset 10 --limit 20
+botholomew context tree / --max-depth 3
 botholomew search semantic "quarterly revenue"
 ```
 
