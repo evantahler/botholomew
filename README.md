@@ -125,6 +125,7 @@ Everything the agent can touch is here. No surprises.
 | `botholomew skill list\|show\|create` | Manage slash-command skills |
 | `botholomew file\|dir\|search ...` | Direct access to the agent's virtual filesystem |
 | `botholomew thread list\|view` | Browse the agent's interaction history |
+| `botholomew nuke context\|tasks\|schedules\|threads\|all` | Bulk-erase sections of the database |
 | `botholomew upgrade` | Self-update |
 
 ---

@@ -133,3 +133,31 @@ restarts. See `src/db/connection.ts`.
 The watchdog doesn't run the daemon directly (`KeepAlive: false` on
 macOS) — it runs `healthcheck.ts`, which is cheap and idempotent. See
 [the watchdog doc](watchdog.md).
+
+---
+
+## Nuke: bulk database resets
+
+During development and when reusing a project, you often want to wipe
+part of the database without blowing away the whole `.botholomew/`
+directory (which would also erase `soul.md`, `beliefs.md`, `goals.md`,
+`config.json`, and your skills). `botholomew nuke` covers that:
+
+| Scope | Clears |
+|---|---|
+| `nuke context` | `context_items`, `embeddings` |
+| `nuke tasks` | `tasks` |
+| `nuke schedules` | `schedules` |
+| `nuke threads` | `threads`, `interactions` (both daemon ticks and chat sessions) |
+| `nuke all` | everything above plus `daemon_state` |
+
+Each subcommand requires `-y`/`--yes` to actually delete — running
+without the flag prints per-table row counts and exits, so it doubles
+as a dry run. Nothing on disk (soul, beliefs, goals, config, skills) is
+ever touched.
+
+For safety, `nuke` refuses to run while the daemon is alive — stop it
+first with `botholomew daemon stop`. The schema itself (tables,
+`_migrations`) is always preserved.
+
+See `src/commands/nuke.ts`.

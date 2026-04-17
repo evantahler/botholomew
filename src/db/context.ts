@@ -428,6 +428,17 @@ export async function deleteContextItemByPath(
   return deleteContextItem(db, item.id);
 }
 
+export async function deleteAllContextItems(
+  db: DbConnection,
+): Promise<{ contextItems: number; embeddings: number }> {
+  const embeddings = await db.queryRun("DELETE FROM embeddings");
+  const contextItems = await db.queryRun("DELETE FROM context_items");
+  return {
+    contextItems: contextItems.changes,
+    embeddings: embeddings.changes,
+  };
+}
+
 export async function deleteContextItemsByPrefix(
   db: DbConnection,
   prefix: string,
