@@ -120,7 +120,7 @@ Everything the agent can touch is here. No surprises.
 | `botholomew chat` | Interactive Ink/React TUI |
 | `botholomew task list\|add\|view\|update\|reset\|delete` | Manage the task queue |
 | `botholomew schedule list\|add\|enable\|trigger\|delete` | Recurring work |
-| `botholomew context add\|list\|view\|search\|remove` | Ingest & browse knowledge |
+| `botholomew context add\|list\|view\|search\|refresh\|remove` | Ingest & browse knowledge (files, folders, URLs) |
 | `botholomew mcpx add\|list\|tools\|test` | Configure external MCP servers |
 | `botholomew skill list\|show\|create` | Manage slash-command skills |
 | `botholomew file\|dir\|search ...` | Direct access to the agent's virtual filesystem |

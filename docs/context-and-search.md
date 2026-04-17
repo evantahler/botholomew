@@ -125,8 +125,8 @@ context is most relevant to the task at hand.
 
 ## Loading context
 
-Context gets into Botholomew two ways: local ingestion, and a remote
-loading agent that handles URLs.
+Context gets into Botholomew two ways: local ingestion, and an
+LLM-driven loading agent that handles URLs.
 
 ### Local files and folders
 
@@ -140,57 +140,76 @@ botholomew context add ~/Documents/strategy --prefix /strategy
 feeds every file through the ingestion pipeline (item → chunks →
 embeddings). Binary files (PDFs, images) are stored in `content_blob`
 with `is_textual = false`; textual files are indexed for hybrid search.
-Re-running `context add` on the same path updates in place — re-chunks,
-re-embeds, and replaces — so running it on a cron is a valid way to
-keep a folder mirrored.
+Re-running `context add` on the same path upserts — it replaces the
+stored content and re-embeds, so running it on a cron keeps a folder
+mirrored. Items are stored with `source_type = 'file'` and their
+original absolute path in `source_path`.
 
 ### Remote content via a loading agent
 
-URLs aren't just `fetch()`d — Botholomew runs a small LLM-driven agent
-whose only job is to fetch the content at a URL:
+URLs aren't `fetch()`d directly. Botholomew runs a focused LLM agent
+(`src/context/fetcher.ts`) whose only job is to retrieve the content at
+a URL using the MCP tools you have configured:
 
 ```bash
 botholomew context add https://docs.google.com/document/d/abc123/edit
 botholomew context add https://github.com/evantahler/botholomew/issues/42
 botholomew context add https://example.com/blog/post
+
+# Override the derived virtual path for a single URL
+botholomew context add https://example.com --name /articles/example.md
+
+# Hand the fetcher extra guidance (auth notes, tool hints, etc.)
+botholomew context add https://internal.corp/doc \
+  --prompt-addition "Use the corp-wiki MCP server, not Firecrawl"
 ```
 
-The loader agent:
+The fetcher runs a tool-use loop (up to 10 turns) with a small tool set:
 
-1. Inspects the URL and the list of configured MCP tools.
-2. Picks the best tool for the job — Google Docs tools for a Google
-   Docs link, a GitHub MCP server for GitHub URLs, a generic web
-   fetcher or Arcade-gateway tool for everything else.
-3. Calls that tool, cleans up the content, and hands it to the normal
-   ingestion pipeline.
-4. Falls back to a plain HTTP `fetch()` + HTML strip if no MCP tool
-   wants the URL.
+- `mcp_list_tools` / `mcp_search` — discover which MCP tools are
+  available and which might handle this URL.
+- `mcp_info` — read a tool's input schema before calling it.
+- `mcp_exec` — execute an MCP tool. The harness captures the full
+  result and sends the LLM **only a 2,000-char preview**, keyed by the
+  call's `tool_use_id`. Large pages don't explode the context window.
+- `accept_content(exec_call_id, title, mime_type?)` — terminal. The
+  agent picks which captured exec result to save by its id; the harness
+  stores the full content it already has in memory.
+- `request_http_fallback()` — terminal. Explicit signal that no MCP
+  tool fits; the harness then runs a plain `fetch()` + HTML strip.
+- `report_failure(message)` — terminal. Surfaces an actionable message
+  back to you ("this Google Doc is private — share it with your service
+  account") instead of a silent failure.
 
-The origin is stored in `context_items.source_path` (and
-`source_type = 'url'`), so provenance is tracked end-to-end.
+If no MCPX client is configured at all, or if the loop exceeds its turn
+budget, the fetcher falls back to plain HTTP with a 30s timeout and
+extracts `<title>` for textual content.
 
-### Refreshing on a schedule
+The origin URL is stored in `context_items.source_path` and
+`source_type = 'url'`, so `context list` shows a "Source" column
+distinguishing file-backed vs. URL-backed items.
 
-Remote content goes stale. Two ways to keep it fresh:
+### Refreshing stale content
 
 ```bash
-botholomew context refresh                    # refresh every url item
-botholomew context refresh /docs/strategy.md  # refresh one item
-botholomew context refresh --stale 7d         # only items older than 7 days
+botholomew context refresh /docs/strategy.md   # refresh one item
+botholomew context refresh --all               # refresh every sourced item
 ```
 
-Refresh re-fetches via the same loading agent, compares against stored
-content, and re-ingests only when there's a change. To run it
-automatically, create a schedule:
+`refresh` works for both `file` and `url` source types: for files it
+re-reads from disk, for URLs it re-runs the loading agent. In both
+cases it compares the new content against what's stored, updates only
+when they differ, and re-embeds only the changed items. Missing files
+are reported, not silently dropped.
+
+To run it automatically, create a schedule — the daemon will evaluate
+it on its next tick and enqueue the refresh as a task:
 
 ```bash
 botholomew schedule add "Refresh remote context" \
   --frequency "every morning" \
-  --description "Run context refresh --stale 1d and report any items that changed"
+  --description "Run context refresh --all and report any items that changed"
 ```
-
-The daemon will evaluate the schedule on its next tick and enqueue the
-refresh task.
 
 ---
 
