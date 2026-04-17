@@ -1,6 +1,7 @@
 // Context tools
 
 import { readLargeResultTool } from "./context/read-large-result.ts";
+import { contextRefreshTool } from "./context/refresh.ts";
 import { contextSearchTool } from "./context/search.ts";
 import { updateBeliefsTool } from "./context/update-beliefs.ts";
 import { updateGoalsTool } from "./context/update-goals.ts";
@@ -68,6 +69,7 @@ export function registerAllTools(): void {
   registerTool(contextExistsTool);
   registerTool(contextCountLinesTool);
   registerTool(contextSearchTool);
+  registerTool(contextRefreshTool);
   registerTool(updateBeliefsTool);
   registerTool(updateGoalsTool);
   registerTool(readLargeResultTool);

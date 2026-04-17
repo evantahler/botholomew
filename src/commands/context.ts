@@ -14,6 +14,7 @@ import {
   prepareIngestion,
   storeIngestion,
 } from "../context/ingest.ts";
+import { refreshContextItems } from "../context/refresh.ts";
 import { isUrl, urlToContextPath } from "../context/url-utils.ts";
 import type { DbConnection } from "../db/connection.ts";
 import {
@@ -22,7 +23,6 @@ import {
   listContextItems,
   listContextItemsByPrefix,
   resolveContextItem,
-  updateContextItem,
   upsertContextItem,
 } from "../db/context.ts";
 import { getEmbeddingsForItem, hybridSearch } from "../db/embeddings.ts";
@@ -444,95 +444,55 @@ export function registerContextCommand(program: Command) {
         const hasUrls = sourced.some((i) => i.source_type === "url");
         const mcpxClient = hasUrls ? await createMcpxClient(dir) : null;
 
-        // Phase 1: Read files / fetch URLs, compare, and update DB
-        const spinner = createSpinner(
+        const refreshSpinner = createSpinner(
           `Refreshing 0/${sourced.length} items...`,
         ).start();
-        let updated = 0;
-        let unchanged = 0;
-        let missing = 0;
-        const toReembed: string[] = [];
+        const embedSpinner = createSpinner("Embedding 0 item(s)...");
 
-        for (const [idx, item] of sourced.entries()) {
-          spinner.update({
-            text: `Refreshing ${idx + 1}/${sourced.length} items...`,
-          });
-          try {
-            const sourcePath = item.source_path as string;
-            let content: string;
-
-            if (item.source_type === "url") {
-              const fetched = await fetchUrl(sourcePath, config, mcpxClient);
-              content = fetched.content;
-            } else {
-              const bunFile = Bun.file(sourcePath);
-              if (!(await bunFile.exists())) {
-                missing++;
-                logger.warn(`  Missing: ${item.source_path}`);
-                continue;
-              }
-              content = await bunFile.text();
-            }
-
-            if (content === item.content) {
-              unchanged++;
-              continue;
-            }
-            await updateContextItem(conn, item.id, { content });
-            updated++;
-            toReembed.push(item.id);
-          } catch (err) {
-            logger.warn(`  Error refreshing ${item.source_path}: ${err}`);
-          }
-        }
-        spinner.success({
-          text: `Checked ${sourced.length} item(s): ${updated} updated, ${unchanged} unchanged, ${missing} missing.`,
-        });
-
-        // Phase 2: Re-embed changed items
-        if (toReembed.length === 0 || !config.openai_api_key) {
-          if (toReembed.length > 0 && !config.openai_api_key) {
-            logger.dim("Skipping embeddings (no OpenAI API key configured).");
-          }
-          return;
-        }
-
-        const CONCURRENCY = 10;
-        let completed = 0;
-        const embedSpinner = createSpinner(
-          `Embedding 0/${toReembed.length} item(s)...`,
-        ).start();
-
-        const prepared: PreparedIngestion[] = [];
-        for (let i = 0; i < toReembed.length; i += CONCURRENCY) {
-          const batch = toReembed.slice(i, i + CONCURRENCY);
-          const results = await Promise.all(
-            batch.map(async (id) => {
-              const result = await prepareIngestion(conn, id, config);
-              completed++;
-              embedSpinner.update({
-                text: `Embedding ${completed}/${toReembed.length} item(s)...`,
+        const result = await refreshContextItems(
+          conn,
+          sourced,
+          config,
+          mcpxClient,
+          {
+            onItemProgress: (done, total) => {
+              refreshSpinner.update({
+                text: `Refreshing ${done}/${total} items...`,
               });
-              return result;
-            }),
-          );
-          for (const r of results) {
-            if (r) prepared.push(r);
-          }
-        }
-        embedSpinner.success({
-          text: `Embedded ${prepared.length} item(s).`,
+            },
+            onEmbedProgress: (done, total) => {
+              if (done === 1) embedSpinner.start();
+              embedSpinner.update({
+                text: `Embedding ${done}/${total} item(s)...`,
+              });
+            },
+          },
+        );
+
+        refreshSpinner.success({
+          text: `Checked ${result.checked} item(s): ${result.updated} updated, ${result.unchanged} unchanged, ${result.missing} missing.`,
         });
 
-        let chunks = 0;
-        for (const p of prepared) {
-          const result = await storeIngestion(conn, p);
-          chunks += result.chunks;
+        for (const item of result.items) {
+          if (item.status === "missing") {
+            logger.warn(`  Missing: ${item.source_path}`);
+          } else if (item.status === "error") {
+            logger.warn(
+              `  Error refreshing ${item.source_path}: ${item.error}`,
+            );
+          }
         }
 
-        logger.success(
-          `Refreshed ${updated} item(s), ${chunks} chunk(s) re-indexed.`,
-        );
+        if (result.reembedded > 0) {
+          embedSpinner.success({
+            text: `Embedded ${result.reembedded} item(s).`,
+          });
+          logger.success(
+            `Refreshed ${result.updated} item(s), ${result.chunks} chunk(s) re-indexed.`,
+          );
+        } else if (result.embeddings_skipped) {
+          logger.dim("Skipping embeddings (no OpenAI API key configured).");
+        }
       }),
     );
 

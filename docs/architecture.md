@@ -62,6 +62,8 @@ set — it does **not** execute long-running work itself. Instead, it:
 - answers questions about tasks, threads, and context,
 - creates tasks (via the `create_task` tool) that the daemon will pick up,
 - reads daemon activity (`list_threads`, `view_thread`),
+- looks up context items by path or UUID (`context_info`, `context_search`)
+  and can refresh them in place (`context_refresh`),
 - invokes **skills** (`/review`, `/standup`, …) defined in
   `.botholomew/skills/`,
 - edits `beliefs.md` and `goals.md` via `update_beliefs` / `update_goals`.

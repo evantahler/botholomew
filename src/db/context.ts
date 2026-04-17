@@ -290,6 +290,10 @@ export async function getDistinctDirectories(
 
 // --- Mutations ---
 
+// `UPDATE context_items ... RETURNING *` can crash @duckdb/node-api via a C++
+// exception when the table's unique index is in a violated state. Update +
+// separate SELECT is equivalent here (single-connection, no concurrent writers)
+// and avoids the crash entirely.
 export async function updateContextItem(
   db: DbConnection,
   id: string,
@@ -307,14 +311,13 @@ export async function updateContextItem(
   setClauses.push("updated_at = current_timestamp::VARCHAR");
   params.push(id);
 
-  const row = await db.queryGet<ContextItemRow>(
+  await db.queryRun(
     `UPDATE context_items
      SET ${setClauses.join(", ")}
-     WHERE id = ?${params.length}
-     RETURNING *`,
+     WHERE id = ?${params.length}`,
     ...params,
   );
-  return row ? rowToContextItem(row) : null;
+  return getContextItem(db, id);
 }
 
 export async function updateContextItemContent(
@@ -322,15 +325,14 @@ export async function updateContextItemContent(
   contextPath: string,
   content: string,
 ): Promise<ContextItem | null> {
-  const row = await db.queryGet<ContextItemRow>(
+  await db.queryRun(
     `UPDATE context_items
      SET content = ?1, updated_at = current_timestamp::VARCHAR
-     WHERE context_path = ?2
-     RETURNING *`,
+     WHERE context_path = ?2`,
     content,
     contextPath,
   );
-  return row ? rowToContextItem(row) : null;
+  return getContextItemByPath(db, contextPath);
 }
 
 export async function applyPatchesToContextItem(
