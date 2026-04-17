@@ -1,6 +1,6 @@
 {
   "name": "botholomew",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "An AI agent for knowledge work",
   "type": "module",
   "bin": {
@@ -24,7 +24,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
     "@duckdb/node-api": "^1.5.2-r.1",
-    "@evantahler/mcpx": "0.18.3",
+    "@evantahler/mcpx": "0.18.6",
     "ansis": "^4.2.0",
     "commander": "^14.0.0",
     "gray-matter": "^4.0.3",
