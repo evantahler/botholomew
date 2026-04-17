@@ -1,5 +1,5 @@
 import type { DbConnection } from "./connection.ts";
-import { buildSetClauses, buildWhereClause } from "./query.ts";
+import { buildSetClauses, buildWhereClause, sanitizeInt } from "./query.ts";
 import { uuidv7 } from "./uuid.ts";
 
 export interface Schedule {
@@ -72,7 +72,7 @@ export async function getSchedule(
 
 export async function listSchedules(
   db: DbConnection,
-  filters?: { enabled?: boolean },
+  filters?: { enabled?: boolean; limit?: number; offset?: number },
 ): Promise<Schedule[]> {
   const { where, params } = buildWhereClause([
     [
@@ -80,9 +80,13 @@ export async function listSchedules(
       filters?.enabled !== undefined ? (filters.enabled ? 1 : 0) : undefined,
     ],
   ]);
+  const limit = filters?.limit ? `LIMIT ${sanitizeInt(filters.limit)}` : "";
+  const offset = filters?.offset ? `OFFSET ${sanitizeInt(filters.offset)}` : "";
 
   const rows = await db.queryAll<ScheduleRow>(
-    `SELECT * FROM schedules ${where} ORDER BY created_at ASC`,
+    `SELECT * FROM schedules ${where}
+     ORDER BY created_at ASC, id ASC
+     ${limit} ${offset}`,
     ...params,
   );
   return rows.map(rowToSchedule);

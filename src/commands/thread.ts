@@ -19,12 +19,14 @@ export function registerThreadCommand(program: Command) {
     .command("list")
     .description("List threads")
     .option("-t, --type <type>", "filter by type (daemon_tick, chat_session)")
-    .option("-l, --limit <n>", "max number of threads", parseInt)
+    .option("-l, --limit <n>", "max number of threads", Number.parseInt)
+    .option("-o, --offset <n>", "skip first N threads", Number.parseInt)
     .action((opts) =>
       withDb(program, async (conn) => {
         const threads = await listThreads(conn, {
           type: opts.type,
           limit: opts.limit,
+          offset: opts.offset,
         });
 
         if (threads.length === 0) {

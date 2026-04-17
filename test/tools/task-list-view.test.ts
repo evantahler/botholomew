@@ -20,12 +20,12 @@ describe("list_tasks", () => {
     expect(result.count).toBe(0);
   });
 
-  test("returns all tasks", async () => {
+  test("returns all tasks newest first", async () => {
     await createTask(ctx.conn, { name: "Task A" });
     await createTask(ctx.conn, { name: "Task B" });
     const result = await listTasksTool.execute({}, ctx);
     expect(result.count).toBe(2);
-    expect(result.tasks.map((t) => t.name)).toEqual(["Task A", "Task B"]);
+    expect(result.tasks.map((t) => t.name)).toEqual(["Task B", "Task A"]);
   });
 
   test("filters by status", async () => {

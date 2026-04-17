@@ -109,7 +109,9 @@ export function registerDaemonCommand(program: Command) {
   daemon
     .command("list")
     .description("List all registered Botholomew projects on this machine")
-    .action(async () => {
+    .option("-l, --limit <n>", "max number of projects", Number.parseInt)
+    .option("-o, --offset <n>", "skip first N projects", Number.parseInt)
+    .action(async (opts: { limit?: number; offset?: number }) => {
       const { listAllWatchdogProjects } = await import("../daemon/watchdog.ts");
       try {
         const projects = await listAllWatchdogProjects();
@@ -117,9 +119,20 @@ export function registerDaemonCommand(program: Command) {
           logger.dim("No registered projects found.");
           return;
         }
-        for (const p of projects) {
+        const total = projects.length;
+        const start = opts.offset ?? 0;
+        const end = opts.limit ? start + opts.limit : undefined;
+        const page = projects.slice(start, end);
+        if (page.length === 0) {
+          logger.dim(`No projects on this page (total: ${total}).`);
+          return;
+        }
+        for (const p of page) {
           logger.info(p.projectDir);
           logger.dim(`  Config: ${p.configPath}`);
+        }
+        if (page.length !== total) {
+          logger.dim(`\nshowing ${page.length} of ${total} project(s)`);
         }
       } catch (err) {
         logger.error(
