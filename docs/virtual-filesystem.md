@@ -5,9 +5,16 @@ Botholomew's agent has no access to your real filesystem. When it calls
 it's a row in the `context_items` table with `context_path =
 '/notes/meeting.md'`.
 
-This is deliberate:
+This is deliberate, and it's the single most important safety property
+of the system:
 
-- **Safety.** The agent can't touch anything outside the project.
+- **Safety.** The agent cannot read your home directory, cannot
+  overwrite your SSH keys, cannot `rm -rf` anything, cannot exfiltrate
+  files it wasn't handed. A prompt-injected instruction telling it to
+  "read `~/.ssh/id_rsa`" has nothing to act on — that path doesn't
+  exist in its world. The worst a rogue agent can do is corrupt rows
+  inside `.botholomew/data.duckdb`, which you can recover from a
+  backup of a single file.
 - **Portability.** The entire "filesystem" is a single DuckDB file you
   can copy, share, or back up.
 - **Searchability.** Every "file" is already indexed, chunked, embedded,
@@ -120,3 +127,10 @@ A DuckDB row is already all of those things at once — transactional,
 searchable, and backed by a single file you can `cp` or `sqlite3` (well,
 `duckdb`) into. The trade-off: you can't `cat` a note from the shell.
 That's what `botholomew file read` is for.
+
+And the biggest reason: **safety**. A filesystem abstraction that
+happens to be a database is a filesystem the agent cannot escape.
+There is no `..`, no symlink, no `/etc/passwd` — just a `context_path`
+column with a `UNIQUE` constraint. If you're comfortable letting a
+model make decisions on your behalf but not comfortable letting it
+touch your disk, that's exactly the trade Botholomew makes.

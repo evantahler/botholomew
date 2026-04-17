@@ -130,4 +130,9 @@ agent-modification: false
 
 Tasks mentioning "deploy", "release", or "version" will now include this
 file in the system prompt automatically. You didn't have to register it
-anywhere — the daemon scans `.botholomew/` on every tick.
+anywhere — on every tick the daemon reads every `.md` file in
+`.botholomew/`, extracts words longer than three characters from the
+task's name and description, and includes any `loading: contextual`
+file whose content contains at least one of those words. See
+`loadPersistentContext()` in `src/daemon/prompt.ts` for the exact
+logic.

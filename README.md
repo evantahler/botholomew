@@ -28,9 +28,16 @@ is granted deliberately, per project, through MCP servers.
 - **Local-first.** All data stays on your machine. Embeddings are indexed in
   DuckDB's native vector store with HNSW. Model calls go direct to Anthropic
   and OpenAI.
-- **Extensible.** External tools come from MCP servers (Gmail, Slack,
-  GitHub, Firecrawl, …) via [MCPX](https://github.com/evantahler/mcpx).
+- **Extensible.** External tools come from MCP servers via
+  [MCPX](https://github.com/evantahler/mcpx) — run them locally (Gmail,
+  Slack, GitHub) or connect through an MCP gateway like
+  [Arcade.dev](https://www.arcade.dev/) to reach hundreds of
+  authenticated services without managing each server yourself.
   Reusable workflows are defined as markdown "skills" (slash commands).
+- **Safe by default.** The agent has no shell, no network, and no
+  filesystem access of its own. Everything it can touch lives in
+  `.botholomew/` — and every external capability is something you
+  explicitly add.
 - **Self-healing.** An OS-level watchdog (launchd on macOS, systemd on Linux)
   restarts the daemon if it dies, rotates logs, and runs on boot.
 - **Self-modifying.** The agent maintains its own `beliefs.md` and
@@ -198,14 +205,6 @@ Topics worth understanding in detail:
   terminal UI
 - **[Commander.js](https://github.com/tj/commander.js)** for the CLI
 - **[Zod](https://zod.dev)** for tool input/output schemas
-
----
-
-## Roadmap
-
-Botholomew is built in milestones; see [docs/plans/](docs/plans/README.md)
-for the full roadmap. Milestones 1–7 are done; M8 (remote context ingestion
-via LLM-chosen MCP tools) is next.
 
 ---
 

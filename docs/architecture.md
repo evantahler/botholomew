@@ -15,6 +15,14 @@ All four share `.botholomew/data.duckdb`. Writes are serialized via
 `withRetry()` in `src/db/connection.ts`, which retries on busy with
 exponential backoff.
 
+**Safety note.** None of these processes give the agent direct access
+to your machine. The daemon is the only thing executing LLM tool
+calls, and the only tools it sees are the ones registered in
+`src/tools/` (all operating inside `.botholomew/`) plus whichever MCP
+servers you explicitly configured. There is no "just read the file
+system" escape hatch. See [the virtual filesystem
+doc](virtual-filesystem.md) for the full argument.
+
 ---
 
 ## The daemon tick loop

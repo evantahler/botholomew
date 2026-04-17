@@ -10,6 +10,18 @@ project-local manifest (`.botholomew/mcpx/servers.json`) lists the MCP
 servers this project can use, and the daemon connects to them at
 startup.
 
+You have two options for *how* those servers run:
+
+- **Run individual servers yourself.** Point MCPX at a stdio command
+  (`npx ...`) or a remote HTTP endpoint. Good for a handful of
+  well-known integrations.
+- **Use an MCP gateway.** A gateway like
+  [Arcade.dev](https://www.arcade.dev/) exposes hundreds of
+  authenticated tools (Gmail, Google Drive, Slack, GitHub, Notion,
+  Linear, …) behind one endpoint, handles OAuth for you, and is
+  maintained centrally. Configure it once and Botholomew sees the full
+  tool surface.
+
 ---
 
 ## Configuration
@@ -26,16 +38,20 @@ format:
       "args": ["-y", "@modelcontextprotocol/server-gmail"],
       "env": {}
     },
-    "firecrawl": {
+    "arcade": {
       "type": "http",
-      "url": "https://mcp.firecrawl.dev/search"
+      "url": "https://api.arcade.dev/v1/mcp",
+      "env": {
+        "ARCADE_API_KEY": "${ARCADE_API_KEY}"
+      }
     }
   }
 }
 ```
 
 `type: "stdio"` launches a subprocess and speaks MCP over pipes;
-`type: "http"` connects to a remote MCP server. MCPX handles both.
+`type: "http"` connects to a remote MCP server (like an Arcade gateway).
+MCPX handles both.
 
 ---
 

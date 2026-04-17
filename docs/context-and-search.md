@@ -123,6 +123,77 @@ context is most relevant to the task at hand.
 
 ---
 
+## Loading context
+
+Context gets into Botholomew two ways: local ingestion, and a remote
+loading agent that handles URLs.
+
+### Local files and folders
+
+```bash
+botholomew context add ./notes
+botholomew context add ./report.pdf
+botholomew context add ~/Documents/strategy --prefix /strategy
+```
+
+`context add` walks directories recursively, detects mime types, and
+feeds every file through the ingestion pipeline (item → chunks →
+embeddings). Binary files (PDFs, images) are stored in `content_blob`
+with `is_textual = false`; textual files are indexed for hybrid search.
+Re-running `context add` on the same path updates in place — re-chunks,
+re-embeds, and replaces — so running it on a cron is a valid way to
+keep a folder mirrored.
+
+### Remote content via a loading agent
+
+URLs aren't just `fetch()`d — Botholomew runs a small LLM-driven agent
+whose only job is to fetch the content at a URL:
+
+```bash
+botholomew context add https://docs.google.com/document/d/abc123/edit
+botholomew context add https://github.com/evantahler/botholomew/issues/42
+botholomew context add https://example.com/blog/post
+```
+
+The loader agent:
+
+1. Inspects the URL and the list of configured MCP tools.
+2. Picks the best tool for the job — Google Docs tools for a Google
+   Docs link, a GitHub MCP server for GitHub URLs, a generic web
+   fetcher or Arcade-gateway tool for everything else.
+3. Calls that tool, cleans up the content, and hands it to the normal
+   ingestion pipeline.
+4. Falls back to a plain HTTP `fetch()` + HTML strip if no MCP tool
+   wants the URL.
+
+The origin is stored in `context_items.source_path` (and
+`source_type = 'url'`), so provenance is tracked end-to-end.
+
+### Refreshing on a schedule
+
+Remote content goes stale. Two ways to keep it fresh:
+
+```bash
+botholomew context refresh                    # refresh every url item
+botholomew context refresh /docs/strategy.md  # refresh one item
+botholomew context refresh --stale 7d         # only items older than 7 days
+```
+
+Refresh re-fetches via the same loading agent, compares against stored
+content, and re-ingests only when there's a change. To run it
+automatically, create a schedule:
+
+```bash
+botholomew schedule add "Refresh remote context" \
+  --frequency "every morning" \
+  --description "Run context refresh --stale 1d and report any items that changed"
+```
+
+The daemon will evaluate the schedule on its next tick and enqueue the
+refresh task.
+
+---
+
 ## Why OpenAI for embeddings?
 
 Earlier milestones used a local `@xenova/transformers` model
