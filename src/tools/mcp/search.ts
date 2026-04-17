@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fakeMcpSearch, isCaptureMode } from "../../daemon/fake-mcp.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
@@ -36,6 +37,16 @@ export const mcpSearchTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
+    if (isCaptureMode()) {
+      const canned = fakeMcpSearch(input.query);
+      if (canned) {
+        return {
+          results: canned,
+          is_error: false,
+          hint: "Use mcp_info with server and tool name to see the full input schema before calling mcp_exec.",
+        };
+      }
+    }
     if (!ctx.mcpxClient) {
       return {
         results: [],

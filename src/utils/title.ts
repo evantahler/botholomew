@@ -1,5 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import { createLlmClient } from "../daemon/llm-client.ts";
 import type { DbConnection } from "../db/connection.ts";
 import { updateThreadTitle } from "../db/threads.ts";
 import { logger } from "./logger.ts";
@@ -15,9 +15,7 @@ export async function generateThreadTitle(
   context: string,
 ): Promise<void> {
   try {
-    const client = new Anthropic({
-      apiKey: config.anthropic_api_key || undefined,
-    });
+    const client = createLlmClient(config);
 
     const response = await client.messages.create({
       model: config.chunker_model,

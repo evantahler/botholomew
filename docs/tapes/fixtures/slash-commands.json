@@ -1,0 +1,9 @@
+{
+  "turns": [
+    {
+      "text": "Ready when you are.",
+      "chunkSize": 3,
+      "delayMs": 30
+    }
+  ]
+}

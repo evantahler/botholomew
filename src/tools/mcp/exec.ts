@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fakeMcpExec, isCaptureMode } from "../../daemon/fake-mcp.ts";
 import { formatCallToolResult } from "../../mcpx/client.ts";
 import type { ToolDefinition } from "../tool.ts";
 
@@ -81,6 +82,17 @@ export const mcpExecTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
+    if (isCaptureMode()) {
+      const canned = fakeMcpExec(input.server, input.tool, input.args);
+      if (canned) {
+        return {
+          result: canned,
+          is_error: false,
+          error_kind: undefined,
+          hint: undefined,
+        };
+      }
+    }
     if (!ctx.mcpxClient) {
       return {
         result:

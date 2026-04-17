@@ -36,6 +36,12 @@ export function registerChatCommand(program: Command) {
           await ensureDaemonRunning(dir);
         }
 
+        // VHS/ttyd doesn't fully negotiate the Kitty Keyboard protocol, so
+        // Ink's "enabled" mode drops non-text keystrokes (Tab, Escape) under
+        // capture. Use "disabled" mode in capture to keep text input working;
+        // captures that need Tab/Escape should use the `-p` prompt flag or
+        // a /slash command typed as text instead.
+        const isCapture = process.env.BOTHOLOMEW_FAKE_LLM === "1";
         const instance = render(
           React.createElement(App, {
             projectDir: dir,
@@ -44,10 +50,12 @@ export function registerChatCommand(program: Command) {
           }),
           {
             exitOnCtrlC: false,
-            kittyKeyboard: {
-              mode: "enabled",
-              flags: ["disambiguateEscapeCodes"],
-            },
+            kittyKeyboard: isCapture
+              ? { mode: "disabled" }
+              : {
+                  mode: "enabled",
+                  flags: ["disambiguateEscapeCodes"],
+                },
           },
         );
         await instance.waitUntilExit();
