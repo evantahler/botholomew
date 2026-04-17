@@ -63,7 +63,7 @@ export function registerContextCommand(program: Command) {
           return;
         }
 
-        const header = `${ansis.bold("Path".padEnd(35))} ${"Title".padEnd(20)} ${"Description".padEnd(30)} ${"Type".padEnd(15)} ${"Updated".padEnd(18)} Indexed`;
+        const header = `${ansis.bold("ID".padEnd(36))} ${ansis.bold("Path".padEnd(35))} ${"Title".padEnd(20)} ${"Description".padEnd(30)} ${"Type".padEnd(15)} ${"Updated".padEnd(18)} Indexed`;
         console.log(header);
         console.log("-".repeat(header.length));
 
@@ -75,8 +75,9 @@ export function registerContextCommand(program: Command) {
           const desc = item.description
             ? ansis.dim(item.description.slice(0, 29).padEnd(30))
             : ansis.dim("".padEnd(30));
+          const id = ansis.dim(item.id.padEnd(36));
           console.log(
-            `${item.context_path.slice(0, 34).padEnd(35)} ${item.title.slice(0, 19).padEnd(20)} ${desc} ${item.mime_type.slice(0, 14).padEnd(15)} ${updated} ${indexed}`,
+            `${id} ${item.context_path.slice(0, 34).padEnd(35)} ${item.title.slice(0, 19).padEnd(20)} ${desc} ${item.mime_type.slice(0, 14).padEnd(15)} ${updated} ${indexed}`,
           );
         }
 
