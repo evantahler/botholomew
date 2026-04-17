@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import ansis from "ansis";
 import type { Command } from "commander";
 import { getSkillsDir } from "../constants.ts";
@@ -22,6 +22,67 @@ export function registerSkillCommand(program: Command) {
       } else {
         await validateAllSkills(dir);
       }
+    });
+
+  skill
+    .command("list")
+    .description("List all skills loaded from .botholomew/skills/")
+    .action(async () => {
+      const dir = program.opts().dir;
+      const skills = await loadSkills(dir);
+
+      if (skills.size === 0) {
+        logger.dim("No skill files found.");
+        return;
+      }
+
+      const sorted = [...skills.values()].sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
+
+      const header = `${ansis.bold("Name".padEnd(20))} ${ansis.bold("Description".padEnd(40))} ${ansis.bold("Args".padEnd(20))} ${ansis.bold("Path")}`;
+      console.log(header);
+      console.log("-".repeat(header.length));
+
+      for (const s of sorted) {
+        const name = s.name.padEnd(20);
+        const desc = s.description
+          ? s.description.slice(0, 39).padEnd(40)
+          : ansis.dim("(no description)".padEnd(40));
+        const args =
+          s.arguments.length > 0
+            ? s.arguments
+                .map((a) => a.name)
+                .join(",")
+                .slice(0, 19)
+                .padEnd(20)
+            : ansis.dim("none".padEnd(20));
+        const path = relative(dir, s.filePath);
+        console.log(`${name} ${desc} ${args} ${path}`);
+      }
+
+      console.log(`\n${ansis.dim(`${sorted.length} skill(s)`)}`);
+    });
+
+  skill
+    .command("show <name>")
+    .description("Print the raw contents of a skill file")
+    .action(async (name: string) => {
+      const dir = program.opts().dir;
+      const skills = await loadSkills(dir);
+      const s = skills.get(name.toLowerCase());
+
+      if (!s) {
+        logger.error(`Skill not found: ${name}`);
+        if (skills.size > 0) {
+          const available = [...skills.keys()].sort().join(", ");
+          console.error(ansis.dim(`Available: ${available}`));
+        }
+        process.exit(1);
+      }
+
+      const raw = await Bun.file(s.filePath).text();
+      process.stdout.write(raw);
     });
 
   skill
