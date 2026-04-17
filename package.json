@@ -1,6 +1,6 @@
 {
   "name": "botholomew",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "An AI agent for knowledge work",
   "type": "module",
   "bin": {
