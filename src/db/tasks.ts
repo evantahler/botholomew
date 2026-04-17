@@ -229,6 +229,11 @@ export async function deleteTask(
   return result.changes > 0;
 }
 
+export async function deleteAllTasks(db: DbConnection): Promise<number> {
+  const result = await db.queryRun("DELETE FROM tasks");
+  return result.changes;
+}
+
 export async function resetTask(
   db: DbConnection,
   id: string,

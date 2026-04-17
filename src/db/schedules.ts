@@ -127,6 +127,11 @@ export async function deleteSchedule(
   return result.changes > 0;
 }
 
+export async function deleteAllSchedules(db: DbConnection): Promise<number> {
+  const result = await db.queryRun("DELETE FROM schedules");
+  return result.changes;
+}
+
 export async function markScheduleRun(
   db: DbConnection,
   id: string,

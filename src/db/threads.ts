@@ -205,6 +205,17 @@ export async function deleteThread(
   return result.changes > 0;
 }
 
+export async function deleteAllThreads(
+  db: DbConnection,
+): Promise<{ threads: number; interactions: number }> {
+  const interactions = await db.queryRun("DELETE FROM interactions");
+  const threads = await db.queryRun("DELETE FROM threads");
+  return {
+    threads: threads.changes,
+    interactions: interactions.changes,
+  };
+}
+
 export async function getInteractionsAfter(
   db: DbConnection,
   threadId: string,
