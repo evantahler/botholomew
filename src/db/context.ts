@@ -56,6 +56,17 @@ function rowToContextItem(row: ContextItemRow): ContextItem {
   };
 }
 
+export class PathConflictError extends Error {
+  existingId: string;
+  contextPath: string;
+  constructor(existingId: string, contextPath: string) {
+    super(`context_path already exists: ${contextPath}`);
+    this.name = "PathConflictError";
+    this.existingId = existingId;
+    this.contextPath = contextPath;
+  }
+}
+
 // --- Basic CRUD ---
 
 export async function createContextItem(
@@ -121,6 +132,28 @@ export async function upsertContextItem(
     if (!updated) throw new Error(`Failed to update: ${params.contextPath}`);
     return updated;
   }
+  return createContextItem(db, params);
+}
+
+/**
+ * Strict creator: throws PathConflictError if context_path already exists.
+ * Use when callers want to surface collisions instead of silently overwriting.
+ */
+export async function createContextItemStrict(
+  db: DbConnection,
+  params: {
+    title: string;
+    content?: string;
+    mimeType?: string;
+    sourceType?: "file" | "url";
+    sourcePath?: string;
+    contextPath: string;
+    description?: string;
+    isTextual?: boolean;
+  },
+): Promise<ContextItem> {
+  const existing = await getContextItemByPath(db, params.contextPath);
+  if (existing) throw new PathConflictError(existing.id, params.contextPath);
   return createContextItem(db, params);
 }
 

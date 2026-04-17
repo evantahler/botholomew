@@ -134,8 +134,11 @@ LLM-driven loading agent that handles URLs.
 ### Local files and folders
 
 ```bash
+# LLM picks a folder for each file based on content + existing structure
 botholomew context add ./notes
 botholomew context add ./report.pdf
+
+# Explicit placement under a prefix (no LLM call)
 botholomew context add ~/Documents/strategy --prefix /strategy
 ```
 
@@ -143,10 +146,50 @@ botholomew context add ~/Documents/strategy --prefix /strategy
 feeds every file through the ingestion pipeline (item → chunks →
 embeddings). Binary files (PDFs, images) are stored in `content_blob`
 with `is_textual = false`; textual files are indexed for hybrid search.
-Re-running `context add` on the same path upserts — it replaces the
-stored content and re-embeds, so running it on a cron keeps a folder
-mirrored. Items are stored with `source_type = 'file'` and their
-original absolute path in `source_path`.
+Items are stored with `source_type = 'file'` and their original
+absolute path in `source_path`.
+
+### Path placement
+
+There are two ways `context add` decides where a file lives in the
+virtual filesystem:
+
+- **Explicit** — pass `--prefix <prefix>` (or `--name <path>` for a
+  single URL) and the path is derived mechanically (`{prefix}/{basename}`
+  for single files, `{prefix}/{relative-path}` for directory walks).
+  Same behavior as before.
+- **LLM-suggested** (default when `--prefix`/`--name` aren't passed) —
+  a single `return_description_and_path` tool-use call produces both a
+  description and an absolute folder path per file. The LLM is primed
+  with the file's basename, a content excerpt, its source filesystem
+  path (for disambiguation when basenames collide — e.g. two projects
+  each with a `README.md`), and a summary of existing folders so it
+  classifies into the current structure instead of inventing new ones.
+
+  In a TTY, the suggestions are printed and you confirm with `Y`/`n`
+  (default accepts — just hit Enter). Pass `--auto-place` to skip the
+  prompt; non-TTY invocations (pipes, scripts) accept automatically.
+
+### Collision handling
+
+Every context item is keyed by a unique `context_path`. When a write
+targets an existing path, the policy is controlled by `--on-conflict`:
+
+| Policy      | Behavior                                                                 |
+| ----------- | ------------------------------------------------------------------------ |
+| `error` *(default)* | Skip the colliding item, keep going through the batch, and exit with a non-zero status listing every collision. |
+| `overwrite` | Replace the existing item and re-embed (the original pre-0.7.7 default). |
+| `skip`      | Log and move on — no write, no error.                                    |
+
+Re-running `context add` on the same path with the default policy is
+now a loud error rather than a silent overwrite. Use
+`--on-conflict=overwrite` when you genuinely want to refresh stored
+content (or `botholomew context refresh` for the idiomatic flow).
+
+The agent-side `context_write` tool follows the same convention:
+defaults to `on_conflict='error'` and returns a PATs-style
+`error_type: "path_conflict"` with a `next_action_hint` that guides the
+agent to `context_read` first or pass `on_conflict='overwrite'`.
 
 ### Remote content via a loading agent
 

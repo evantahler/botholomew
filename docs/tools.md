@@ -85,7 +85,8 @@ schema to the Anthropic SDK's `Tool` type using `z.toJSONSchema()`:
 ```ts
 {
   name: "context_write",
-  description: "Create or overwrite a file in the virtual filesystem.",
+  description:
+    "Write content to a context item. By default, fails if the path already exists — pass on_conflict='overwrite' to replace.",
   input_schema: {
     type: "object",
     properties: { /* derived from Zod */ },
@@ -93,6 +94,11 @@ schema to the Anthropic SDK's `Tool` type using `z.toJSONSchema()`:
   }
 }
 ```
+
+`context_write` accepts an optional `on_conflict: "error" | "overwrite"`
+input (default `"error"`). A collision returns `is_error: true`,
+`error_type: "path_conflict"`, and a `next_action_hint` that steers the
+model back to `context_read` or a retry with `on_conflict='overwrite'`.
 
 `runAgentLoop()` feeds this array into `client.messages.create({ tools:
 ... })`. When the model emits a `tool_use` block, the loop looks up the

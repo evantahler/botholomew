@@ -5,6 +5,7 @@ import {
   contextPathExists,
   copyContextItem,
   createContextItem,
+  createContextItemStrict,
   deleteContextItem,
   deleteContextItemByPath,
   deleteContextItemsByPrefix,
@@ -14,6 +15,7 @@ import {
   listContextItems,
   listContextItemsByPrefix,
   moveContextItem,
+  PathConflictError,
   searchContextByKeyword,
   updateContextItem,
   updateContextItemContent,
@@ -93,6 +95,47 @@ describe("context CRUD", () => {
 
     const items = await listContextItems(conn);
     expect(items.length).toBe(1);
+  });
+
+  test("createContextItemStrict: inserts when new", async () => {
+    const item = await createContextItemStrict(conn, {
+      title: "Strict",
+      content: "hello",
+      contextPath: "/strict/new.md",
+    });
+    expect(item.title).toBe("Strict");
+    expect(item.content).toBe("hello");
+    expect(item.context_path).toBe("/strict/new.md");
+  });
+
+  test("createContextItemStrict: throws PathConflictError on collision", async () => {
+    const first = await createContextItemStrict(conn, {
+      title: "Original",
+      content: "v1",
+      contextPath: "/strict/conflict.md",
+    });
+
+    let caught: unknown;
+    try {
+      await createContextItemStrict(conn, {
+        title: "Second",
+        content: "v2",
+        contextPath: "/strict/conflict.md",
+      });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(PathConflictError);
+    if (caught instanceof PathConflictError) {
+      expect(caught.existingId).toBe(first.id);
+      expect(caught.contextPath).toBe("/strict/conflict.md");
+    }
+
+    // Original content preserved; no new row
+    const items = await listContextItems(conn);
+    expect(items.length).toBe(1);
+    expect(items[0]?.content).toBe("v1");
   });
 
   test("upsertContextItem: insert when new", async () => {
