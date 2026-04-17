@@ -75,18 +75,30 @@ export async function startDaemon(
     ? buildForegroundCallbacks()
     : undefined;
 
-  logger.info(`Daemon started for ${projectDir} (PID ${process.pid})`);
+  logger.info(
+    `Daemon started ${new Date().toISOString()} for ${projectDir} (PID ${process.pid})`,
+  );
   logger.info(`Tick interval: ${config.tick_interval_seconds}s`);
 
+  let tickNum = 0;
   while (true) {
+    tickNum++;
     let didWork = false;
     try {
-      didWork = await tick(projectDir, conn, config, mcpxClient, callbacks);
+      didWork = await tick(
+        projectDir,
+        conn,
+        config,
+        mcpxClient,
+        callbacks,
+        tickNum,
+      );
     } catch (err) {
       logger.error(`Tick failed: ${err}`);
     }
 
     if (!didWork) {
+      logger.phase("sleeping", `${config.tick_interval_seconds}s`);
       await Bun.sleep(config.tick_interval_seconds * 1000);
     }
   }

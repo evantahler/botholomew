@@ -52,6 +52,19 @@ immediately — so a backlog drains as fast as the LLM can process it.
 
 See `src/daemon/tick.ts`.
 
+### Log format
+
+Daemon logs (both foreground stdout and `.botholomew/daemon.log`) prefix
+every line with a local `HH:MM:SS` timestamp. Lifecycle phases render as
+`[[phase-name]]` in bold magenta so they're easy to scan and grep
+(`grep '\[\[' daemon.log`). Phases emitted each tick:
+
+- `[[tick-start]] #N`
+- `[[evaluating-schedules]]` (only when any are enabled)
+- `[[claiming-task]]`
+- `[[tick-end]] #N Xs didWork=true|false`
+- `[[sleeping]] Ns` (only when there was no work)
+
 ---
 
 ## The chat TUI

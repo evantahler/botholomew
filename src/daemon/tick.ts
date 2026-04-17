@@ -1,6 +1,7 @@
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
+import { listSchedules } from "../db/schedules.ts";
 import {
   claimNextTask,
   resetStaleTasks,
@@ -20,8 +21,10 @@ export async function tick(
   config: Required<BotholomewConfig>,
   mcpxClient?: McpxClient | null,
   callbacks?: DaemonStreamCallbacks,
+  tickNum = 1,
 ): Promise<boolean> {
-  logger.debug("Tick starting...");
+  const tickStart = Date.now();
+  logger.phase("tick-start", `#${tickNum}`);
 
   // Reset stale tasks stuck in in_progress
   const resetIds = await resetStaleTasks(
@@ -35,20 +38,27 @@ export async function tick(
   }
 
   // Process schedules (may create new tasks)
-  try {
-    await processSchedules(conn, config);
-  } catch (err) {
-    logger.error(`Schedule processing failed: ${err}`);
+  const enabledSchedules = await listSchedules(conn, { enabled: true });
+  if (enabledSchedules.length > 0) {
+    logger.phase("evaluating-schedules", `${enabledSchedules.length} enabled`);
+    try {
+      await processSchedules(conn, config);
+    } catch (err) {
+      logger.error(`Schedule processing failed: ${err}`);
+    }
   }
 
   // Claim a task
+  logger.phase("claiming-task");
   const task = await claimNextTask(conn);
   if (!task) {
-    logger.debug("No tasks to work on. Sleeping.");
+    logger.info("No task claimed (queue empty or all blocked)");
+    const elapsed = ((Date.now() - tickStart) / 1000).toFixed(1);
+    logger.phase("tick-end", `#${tickNum} ${elapsed}s didWork=false`);
     return false;
   }
 
-  logger.info(`Working on task: ${task.name} (${task.id})`);
+  logger.info(`Claimed task: ${task.name} (${task.id})`);
   callbacks?.onTaskStart(task);
 
   // Create a thread for this tick
@@ -114,6 +124,9 @@ export async function tick(
   } finally {
     await endThread(conn, threadId);
   }
+
+  const elapsed = ((Date.now() - tickStart) / 1000).toFixed(1);
+  logger.phase("tick-end", `#${tickNum} ${elapsed}s didWork=true`);
 
   return true;
 }
