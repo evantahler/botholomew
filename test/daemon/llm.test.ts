@@ -1,8 +1,12 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import type { DbConnection } from "../../src/db/connection.ts";
 import { createTask } from "../../src/db/tasks.ts";
 import { createThread, getThread } from "../../src/db/threads.ts";
-import { completionResponse, setupTestDb, TEST_CONFIG } from "../helpers.ts";
+import {
+  completionResponse,
+  setupTestDbFile,
+  TEST_CONFIG,
+} from "../helpers.ts";
 
 let mockCreate: ReturnType<typeof mock>;
 
@@ -20,12 +24,18 @@ mock.module("@anthropic-ai/sdk", () => {
 const { runAgentLoop } = await import("../../src/daemon/llm.ts");
 
 let conn: DbConnection;
+let dbPath: string;
+let cleanup: () => Promise<void>;
 
 const testConfig = { ...TEST_CONFIG, max_turns: 10 };
 
 beforeEach(async () => {
-  conn = await setupTestDb();
+  ({ conn, dbPath, cleanup } = await setupTestDbFile());
   mockCreate.mockClear();
+});
+
+afterEach(async () => {
+  await cleanup();
 });
 
 describe("runAgentLoop", () => {
@@ -54,7 +64,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "You are a test agent.",
       task,
       config: testConfig,
-      conn,
+      dbPath,
       threadId,
       projectDir: "/tmp/test",
     });
@@ -87,7 +97,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "You are a test agent.",
       task,
       config: testConfig,
-      conn,
+      dbPath,
       threadId,
       projectDir: "/tmp/test",
     });
@@ -120,7 +130,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "You are a test agent.",
       task,
       config: testConfig,
-      conn,
+      dbPath,
       threadId,
       projectDir: "/tmp/test",
     });
@@ -146,7 +156,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "You are a test agent.",
       task,
       config: testConfig,
-      conn,
+      dbPath,
       threadId,
       projectDir: "/tmp/test",
     });
@@ -182,7 +192,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "You are a test agent.",
       task,
       config: testConfig,
-      conn,
+      dbPath,
       threadId,
       projectDir: "/tmp/test",
     });
@@ -234,7 +244,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "You are a test agent.",
       task,
       config: testConfig,
-      conn,
+      dbPath,
       threadId,
       projectDir: "/tmp/test",
     });
@@ -300,7 +310,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "You are a test agent.",
       task,
       config: testConfig,
-      conn,
+      dbPath,
       threadId,
       projectDir: "/tmp/test",
     });
@@ -367,7 +377,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "You are a test agent.",
       task,
       config: testConfig,
-      conn,
+      dbPath,
       threadId,
       projectDir: "/tmp/test",
     });
@@ -414,7 +424,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "You are a test agent.",
       task,
       config: testConfig,
-      conn,
+      dbPath,
       threadId,
       projectDir: "/tmp/test",
     });

@@ -1,7 +1,7 @@
 import ansis from "ansis";
 import { loadConfig } from "../config/loader.ts";
 import { getDbPath } from "../constants.ts";
-import { getConnection } from "../db/connection.ts";
+import { withDb } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
 import { logger } from "../utils/logger.ts";
@@ -49,8 +49,10 @@ export async function startDaemon(
 ): Promise<void> {
   const config = await loadConfig(projectDir);
   const dbPath = getDbPath(projectDir);
-  const conn = await getConnection(dbPath);
-  await migrate(conn);
+
+  // One short-lived connection to apply migrations. After this returns,
+  // the file lock is released so CLI invocations can run freely.
+  await withDb(dbPath, (conn) => migrate(conn));
 
   // Initialize MCPX client for external tool access
   const mcpxClient = await createMcpxClient(projectDir);
@@ -64,7 +66,6 @@ export async function startDaemon(
     logger.info("Daemon shutting down...");
     await mcpxClient?.close();
     await removePidFile(projectDir);
-    conn.close();
     process.exit(0);
   };
 
@@ -87,7 +88,7 @@ export async function startDaemon(
     try {
       didWork = await tick(
         projectDir,
-        conn,
+        dbPath,
         config,
         mcpxClient,
         callbacks,
