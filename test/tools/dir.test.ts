@@ -134,31 +134,82 @@ describe("context_tree", () => {
     await seedFile(conn, "/tree/a.txt", "a");
     await seedFile(conn, "/tree/sub/b.txt", "b");
     const result = await contextTreeTool.execute(
-      { path: "/tree", max_items: 200 },
+      { path: "/tree", max_depth: 3, items_per_dir: 15 },
       ctx,
     );
     expect(result.tree).toContain("/tree");
     expect(result.tree).toContain("a.txt");
     expect(result.tree).toContain("b.txt");
+    expect(result.total_items).toBe(2);
+    expect(result.truncated_dirs).toEqual([]);
+    expect(result.hint).toBe("Tree is complete.");
   });
 
   test("shows (empty) for empty directory", async () => {
     const result = await contextTreeTool.execute(
-      { path: "/void", max_items: 200 },
+      { path: "/void", max_depth: 3, items_per_dir: 15 },
       ctx,
     );
     expect(result.tree).toContain("(empty)");
+    expect(result.total_items).toBe(0);
+    expect(result.truncated_dirs).toEqual([]);
   });
 
-  test("respects max_items", async () => {
-    // Seed more items than max_items
-    for (let i = 0; i < 5; i++) {
+  test("respects items_per_dir and reports overflow", async () => {
+    for (let i = 0; i < 10; i++) {
       await seedFile(conn, `/many/file${i}.txt`, `content ${i}`);
     }
     const result = await contextTreeTool.execute(
-      { path: "/many", max_items: 3 },
+      { path: "/many", max_depth: 3, items_per_dir: 3 },
       ctx,
     );
-    expect(result.tree).toContain("truncated");
+    expect(result.tree).toContain("(+7 more)");
+    expect(result.truncated_dirs).toHaveLength(1);
+    expect(result.truncated_dirs[0]).toEqual({
+      path: "/many",
+      shown: 3,
+      total: 10,
+    });
+    expect(result.hint).toContain("items_per_dir");
+    expect(result.hint).toContain("/many");
+  });
+
+  test("respects max_depth and reports depth-limited dirs", async () => {
+    await seedFile(conn, "/deep/a/b/c/file.txt", "deep");
+    const result = await contextTreeTool.execute(
+      { path: "/deep", max_depth: 2, items_per_dir: 15 },
+      ctx,
+    );
+    // a/ is depth 1, b/ is depth 2 — b should be shown but its contents not expanded
+    expect(result.tree).toContain("a/");
+    expect(result.tree).toContain("b/");
+    expect(result.tree).not.toContain("file.txt");
+    expect(result.tree).toContain("drill in");
+    expect(result.hint).toContain("max_depth");
+  });
+
+  test("total_items reflects recursive count", async () => {
+    await seedFile(conn, "/count/a.txt", "a");
+    await seedFile(conn, "/count/sub/b.txt", "b");
+    await seedFile(conn, "/count/sub/c.txt", "c");
+    const result = await contextTreeTool.execute(
+      { path: "/count", max_depth: 5, items_per_dir: 50 },
+      ctx,
+    );
+    expect(result.total_items).toBe(3);
+  });
+
+  test("sorts directories before files", async () => {
+    await seedFile(conn, "/order/zfile.txt", "z");
+    await seedFile(conn, "/order/adir/x.txt", "x");
+    const result = await contextTreeTool.execute(
+      { path: "/order", max_depth: 3, items_per_dir: 15 },
+      ctx,
+    );
+    const adirIdx = result.tree.indexOf("adir/");
+    const zfileIdx = result.tree.indexOf("zfile.txt");
+    expect(adirIdx).toBeGreaterThan(-1);
+    expect(zfileIdx).toBeGreaterThan(-1);
+    expect(adirIdx).toBeLessThan(zfileIdx);
   });
 });

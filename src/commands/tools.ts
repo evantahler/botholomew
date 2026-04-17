@@ -1,3 +1,4 @@
+import ansis from "ansis";
 import type { Command } from "commander";
 import { z } from "zod";
 import { loadConfig } from "../config/loader.ts";
@@ -17,10 +18,14 @@ registerAllTools();
  * existing Commander command. Skips tools whose derived subcommand name
  * collides with an already-registered subcommand on the parent.
  */
+/** Context tools that are agent-only (not exposed as CLI subcommands) */
+const AGENT_ONLY_TOOLS = new Set(["update_beliefs", "update_goals"]);
+
 export function registerContextToolSubcommands(parent: Command) {
   const existing = new Set(parent.commands.map((c: Command) => c.name()));
 
   for (const tool of getToolsByGroup("context")) {
+    if (AGENT_ONLY_TOOLS.has(tool.name)) continue;
     const subName = deriveSubName(tool.name);
     if (existing.has(subName)) continue; // skip conflicts with management subcommands
     registerToolAsCLI(parent, tool);
@@ -218,6 +223,29 @@ function formatOutput(result: unknown, _toolName: string) {
           const m = match as { path: string; line: number; content: string };
           console.log(`${m.path}:${m.line}: ${m.content}`);
         }
+      }
+      return;
+    }
+
+    if ("results" in obj && Array.isArray(obj.results)) {
+      for (const [i, r] of (
+        obj.results as {
+          path: string;
+          title: string;
+          score: number;
+          snippet: string;
+        }[]
+      ).entries()) {
+        const score = (r.score * 100).toFixed(1);
+        console.log(
+          `${ansis.bold(`${i + 1}.`)} ${ansis.cyan(r.title)} ${ansis.dim(`(${score}%)`)}`,
+        );
+        console.log(`   ${ansis.dim(r.path)}`);
+        if (r.snippet) {
+          const snippet = r.snippet.slice(0, 120).replace(/\n/g, " ");
+          console.log(`   ${snippet}...`);
+        }
+        console.log("");
       }
       return;
     }

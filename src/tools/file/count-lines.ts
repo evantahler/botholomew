@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { getContextItemByPath } from "../../db/context.ts";
+import { resolveContextItemOrThrow } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
-  path: z.string().describe("File path"),
+  path: z.string().describe("File path or context item ID"),
 });
 
 const outputSchema = z.object({
@@ -18,8 +18,7 @@ export const contextCountLinesTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const item = await getContextItemByPath(ctx.conn, input.path);
-    if (!item) throw new Error(`Not found: ${input.path}`);
+    const item = await resolveContextItemOrThrow(ctx.conn, input.path);
     if (item.content == null) throw new Error(`No text content: ${input.path}`);
 
     return { lines: item.content.split("\n").length, is_error: false };

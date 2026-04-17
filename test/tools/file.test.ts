@@ -89,6 +89,12 @@ describe("context_read", () => {
     expect(result.content).toBe("b\nc");
   });
 
+  test("reads by context item ID", async () => {
+    const item = await seedFile(conn, "/by-id.txt", "found by id");
+    const result = await contextReadTool.execute({ path: item.id }, ctx);
+    expect(result.content).toBe("found by id");
+  });
+
   test("throws for nonexistent file", async () => {
     expect(contextReadTool.execute({ path: "/nope.txt" }, ctx)).rejects.toThrow(
       "Not found",
@@ -307,6 +313,15 @@ describe("context_info", () => {
     expect(info.updated_at).toBeTruthy();
   });
 
+  test("returns metadata by ID", async () => {
+    const item = await seedFile(conn, "/meta-id.txt", "hello", {
+      title: "MetaID",
+    });
+    const info = await contextInfoTool.execute({ path: item.id }, ctx);
+    expect(info.title).toBe("MetaID");
+    expect(info.context_path).toBe("/meta-id.txt");
+  });
+
   test("throws for nonexistent file", async () => {
     expect(contextInfoTool.execute({ path: "/nope.txt" }, ctx)).rejects.toThrow(
       "Not found",
@@ -320,6 +335,12 @@ describe("context_exists", () => {
   test("returns true for existing file", async () => {
     await seedFile(conn, "/there.txt", "hi");
     const result = await contextExistsTool.execute({ path: "/there.txt" }, ctx);
+    expect(result.exists).toBe(true);
+  });
+
+  test("returns true when checked by ID", async () => {
+    const item = await seedFile(conn, "/exists-id.txt", "hi");
+    const result = await contextExistsTool.execute({ path: item.id }, ctx);
     expect(result.exists).toBe(true);
   });
 
@@ -338,6 +359,12 @@ describe("context_count_lines", () => {
       { path: "/lines.txt" },
       ctx,
     );
+    expect(result.lines).toBe(3);
+  });
+
+  test("counts lines by ID", async () => {
+    const item = await seedFile(conn, "/count-id.txt", "a\nb\nc");
+    const result = await contextCountLinesTool.execute({ path: item.id }, ctx);
     expect(result.lines).toBe(3);
   });
 

@@ -1,6 +1,6 @@
 import type { DbConnection } from "./connection.ts";
 import { buildSetClauses, buildWhereClause, sanitizeInt } from "./query.ts";
-import { uuidv7 } from "./uuid.ts";
+import { isUuid, uuidv7 } from "./uuid.ts";
 
 export interface ContextItem {
   id: string;
@@ -146,6 +146,30 @@ export async function getContextItemByPath(
   return row ? rowToContextItem(row) : null;
 }
 
+/**
+ * Look up a context item by UUID (if the value looks like one) or by context_path.
+ */
+export async function resolveContextItem(
+  db: DbConnection,
+  pathOrId: string,
+): Promise<ContextItem | null> {
+  return isUuid(pathOrId)
+    ? getContextItem(db, pathOrId)
+    : getContextItemByPath(db, pathOrId);
+}
+
+/**
+ * Like resolveContextItem but throws if not found.
+ */
+export async function resolveContextItemOrThrow(
+  db: DbConnection,
+  pathOrId: string,
+): Promise<ContextItem> {
+  const item = await resolveContextItem(db, pathOrId);
+  if (!item) throw new Error(`Not found: ${pathOrId}`);
+  return item;
+}
+
 export async function listContextItems(
   db: DbConnection,
   filters?: {
@@ -211,6 +235,29 @@ export async function contextPathExists(
     contextPath,
   );
   return row != null;
+}
+
+export async function countContextItemsByPrefix(
+  db: DbConnection,
+  prefix: string,
+  opts?: { recursive?: boolean },
+): Promise<number> {
+  const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
+  let row: { cnt: number } | null;
+  if (opts?.recursive !== false) {
+    row = await db.queryGet<{ cnt: number }>(
+      `SELECT COUNT(*) AS cnt FROM context_items WHERE context_path LIKE ?1`,
+      `${normalizedPrefix}%`,
+    );
+  } else {
+    row = await db.queryGet<{ cnt: number }>(
+      `SELECT COUNT(*) AS cnt FROM context_items
+       WHERE context_path LIKE ?1 AND context_path NOT LIKE ?2`,
+      `${normalizedPrefix}%`,
+      `${normalizedPrefix}%/%`,
+    );
+  }
+  return row ? Number(row.cnt) : 0;
 }
 
 export async function getDistinctDirectories(

@@ -1,0 +1,86 @@
+name: Bump mcpx
+
+on:
+  schedule:
+    - cron: "0 13 * * 1" # Mondays at 13:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Determine versions
+        id: versions
+        run: |
+          CURRENT=$(jq -r '.dependencies["@evantahler/mcpx"]' package.json)
+          LATEST=$(bun info @evantahler/mcpx version 2>/dev/null | tail -n1 | tr -d '[:space:]')
+          if [ -z "$LATEST" ] || [ "$LATEST" = "null" ]; then
+            echo "Failed to resolve latest @evantahler/mcpx version" >&2
+            exit 1
+          fi
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT" = "$LATEST" ]; then
+            echo "up_to_date=true" >> "$GITHUB_OUTPUT"
+            echo "Already on $CURRENT."
+          else
+            echo "up_to_date=false" >> "$GITHUB_OUTPUT"
+            echo "Bumping $CURRENT -> $LATEST."
+          fi
+
+      - name: Bump dependency and project version
+        if: steps.versions.outputs.up_to_date == 'false'
+        run: |
+          jq --arg v "${{ steps.versions.outputs.latest }}" \
+            '.dependencies["@evantahler/mcpx"] = $v' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
+          CUR=$(jq -r .version package.json)
+          IFS='.' read -r MAJ MIN PAT <<< "$CUR"
+          NEW="$MAJ.$MIN.$((PAT + 1))"
+          jq --arg v "$NEW" '.version = $v' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
+          bun install
+
+      - name: Lint
+        if: steps.versions.outputs.up_to_date == 'false'
+        run: bun run lint
+
+      - name: Test
+        if: steps.versions.outputs.up_to_date == 'false'
+        run: bun test
+
+      - name: Create Pull Request
+        id: pr
+        if: steps.versions.outputs.up_to_date == 'false'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: bot/bump-mcpx
+          delete-branch: true
+          commit-message: "Bump @evantahler/mcpx to ${{ steps.versions.outputs.latest }}"
+          title: "Bump @evantahler/mcpx to ${{ steps.versions.outputs.latest }}"
+          body: |
+            Automated bump of `@evantahler/mcpx`: `${{ steps.versions.outputs.current }}` → `${{ steps.versions.outputs.latest }}`.
+
+            Release notes: https://github.com/evantahler/mcpx/releases/tag/v${{ steps.versions.outputs.latest }}
+
+            `bun run lint` and `bun test` passed in the bump workflow. Auto-merge is enabled; the PR will squash-merge once any required status checks pass (or immediately if none are required).
+
+            ---
+
+            _Note: PRs opened by `GITHUB_TOKEN` do not trigger other workflows. To gate auto-merge on CI, set a `BOT_TOKEN` secret (a fine-scoped PAT with `contents: write` + `pull-requests: write`) and set `token: ${{ secrets.BOT_TOKEN }}` on the `peter-evans/create-pull-request` step._
+
+      - name: Enable auto-merge
+        if: steps.versions.outputs.up_to_date == 'false' && steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: gh pr merge "$PR_NUMBER" --auto --squash

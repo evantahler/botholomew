@@ -19,9 +19,9 @@ import type { DbConnection } from "../db/connection.ts";
 import {
   type ContextItem,
   deleteContextItemByPath,
-  getContextItemByPath,
   listContextItems,
   listContextItemsByPrefix,
+  resolveContextItem,
   updateContextItem,
   upsertContextItem,
 } from "../db/context.ts";
@@ -88,37 +88,6 @@ export function registerContextCommand(program: Command) {
         }
 
         console.log(`\n${ansis.dim(`${items.length} item(s)`)}`);
-      }),
-    );
-
-  ctx
-    .command("show <path>")
-    .description("Show details and content of a context entry")
-    .action((path: string) =>
-      withDb(program, async (conn) => {
-        const item = await getContextItemByPath(conn, path);
-        if (!item) {
-          logger.error(`Context entry not found: ${path}`);
-          process.exit(1);
-        }
-
-        console.log(ansis.bold(item.title));
-        if (item.description) console.log(`  Description: ${item.description}`);
-        console.log(`  Path:        ${item.context_path}`);
-        console.log(`  MIME type:   ${item.mime_type}`);
-        if (item.source_path) console.log(`  Source:      ${item.source_path}`);
-        const indexed = item.indexed_at
-          ? `${ansis.green("yes")} (${fmtDate(item.indexed_at)})`
-          : ansis.dim("no");
-        console.log(`  Indexed:     ${indexed}`);
-        console.log(`  Created:     ${fmtDate(item.created_at)}`);
-        console.log(`  Updated:     ${fmtDate(item.updated_at)}`);
-
-        if (item.is_textual && item.content) {
-          console.log(`\n${"─".repeat(60)}\n${item.content}`);
-        } else if (!item.is_textual) {
-          console.log(ansis.dim("\n  (binary content not shown)"));
-        }
       }),
     );
 
@@ -400,7 +369,7 @@ export function registerContextCommand(program: Command) {
     .description("Show chunks and embeddings for a context entry")
     .action((path: string) =>
       withDb(program, async (conn) => {
-        const item = await getContextItemByPath(conn, path);
+        const item = await resolveContextItem(conn, path);
         if (!item) {
           logger.error(`Context entry not found: ${path}`);
           process.exit(1);
@@ -582,7 +551,7 @@ async function resolveItems(
   }
   if (all) return listContextItems(conn);
   const p = path as string;
-  const exact = await getContextItemByPath(conn, p);
+  const exact = await resolveContextItem(conn, p);
   if (exact) return [exact];
   return listContextItemsByPrefix(conn, p, { recursive: true });
 }
