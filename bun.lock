@@ -7,7 +7,7 @@
       "dependencies": {
         "@anthropic-ai/sdk": "^0.88.0",
         "@duckdb/node-api": "^1.5.2-r.1",
-        "@evantahler/mcpx": "0.18.3",
+        "@evantahler/mcpx": "0.18.6",
         "ansis": "^4.2.0",
         "commander": "^14.0.0",
         "gray-matter": "^4.0.3",
@@ -72,7 +72,7 @@
 
     "@emnapi/runtime": ["@emnapi/runtime@1.9.2", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-3U4+MIWHImeyu1wnmVygh5WlgfYDtyf0k8AbLhMFxOipihf6nrWC4syIm/SwEeec0mNSafiiNnMJwbza/Is6Lw=="],
 
-    "@evantahler/mcpx": ["@evantahler/mcpx@0.18.3", "", { "dependencies": { "@huggingface/transformers": "^3.8.1", "@modelcontextprotocol/sdk": "^1.27.1", "@types/picomatch": "^4.0.2", "ajv": "^8.18.0", "ansis": "^4.2.0", "commander": "^14.0.3", "nanospinner": "^1.2.2", "picomatch": "^4.0.3" }, "peerDependencies": { "typescript": "^5" }, "bin": { "mcpx": "src/cli.ts" } }, "sha512-Wi5RUShAf5oaNxDrx34BLJAHQ4/K8VV7XezxfRf6Fn5xR3Cy5LUK9wnP1Aifv/UwqYS+R0sGLDPvj7EVefql5Q=="],
+    "@evantahler/mcpx": ["@evantahler/mcpx@0.18.6", "", { "dependencies": { "@huggingface/transformers": "^3.8.1", "@modelcontextprotocol/sdk": "^1.27.1", "@types/picomatch": "^4.0.2", "ajv": "^8.18.0", "ansis": "^4.2.0", "commander": "^14.0.3", "nanospinner": "^1.2.2", "picomatch": "^4.0.3" }, "peerDependencies": { "typescript": "^5" }, "bin": { "mcpx": "src/cli.ts" } }, "sha512-EMRQ+neceTyaMRNEtee53dR4b22iAJ/amXG/GtQSiep0f+l24kwE5qGX6v13gx9EQX4/eyznieUzpIA/xx6XtQ=="],
 
     "@hono/node-server": ["@hono/node-server@1.19.14", "", { "peerDependencies": { "hono": "^4" } }, "sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw=="],
 
