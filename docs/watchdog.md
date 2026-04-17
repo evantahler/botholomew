@@ -28,7 +28,7 @@ This detects the platform, writes a `.plist` (macOS) or `.service` +
 later.
 
 ```bash
-botholomew daemon list         # all projects with watchdogs installed
+botholomew daemon list         # all projects with watchdogs installed (supports --limit / --offset)
 botholomew daemon uninstall    # remove the watchdog
 ```
 
