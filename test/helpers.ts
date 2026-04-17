@@ -68,6 +68,7 @@ export const silentLogger = {
     error: () => {},
     debug: () => {},
     dim: () => {},
+    phase: () => {},
   },
 };
 

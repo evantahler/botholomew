@@ -1,6 +1,7 @@
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { withDb } from "../db/connection.ts";
+import { listSchedules } from "../db/schedules.ts";
 import {
   claimNextTask,
   resetStaleTasks,
@@ -20,8 +21,10 @@ export async function tick(
   config: Required<BotholomewConfig>,
   mcpxClient?: McpxClient | null,
   callbacks?: DaemonStreamCallbacks,
+  tickNum = 1,
 ): Promise<boolean> {
-  logger.debug("Tick starting...");
+  const tickStart = Date.now();
+  logger.phase("tick-start", `#${tickNum}`);
 
   // Reset stale tasks stuck in in_progress
   const resetIds = await withDb(dbPath, (conn) =>
@@ -33,21 +36,32 @@ export async function tick(
     );
   }
 
-  // Process schedules (may create new tasks)
-  try {
-    await processSchedules(dbPath, config);
-  } catch (err) {
-    logger.error(`Schedule processing failed: ${err}`);
+  // Process schedules (may create new tasks). Check enabled count so we only
+  // log the phase when there's work to evaluate — the call itself is a no-op
+  // otherwise.
+  const enabledSchedules = await withDb(dbPath, (conn) =>
+    listSchedules(conn, { enabled: true }),
+  );
+  if (enabledSchedules.length > 0) {
+    logger.phase("evaluating-schedules", `${enabledSchedules.length} enabled`);
+    try {
+      await processSchedules(dbPath, config);
+    } catch (err) {
+      logger.error(`Schedule processing failed: ${err}`);
+    }
   }
 
   // Claim a task
+  logger.phase("claiming-task");
   const task = await withDb(dbPath, (conn) => claimNextTask(conn));
   if (!task) {
-    logger.debug("No tasks to work on. Sleeping.");
+    logger.info("No task claimed (queue empty or all blocked)");
+    const elapsed = ((Date.now() - tickStart) / 1000).toFixed(1);
+    logger.phase("tick-end", `#${tickNum} ${elapsed}s didWork=false`);
     return false;
   }
 
-  logger.info(`Working on task: ${task.name} (${task.id})`);
+  logger.info(`Claimed task: ${task.name} (${task.id})`);
   callbacks?.onTaskStart(task);
 
   // Create a thread for this tick
@@ -78,14 +92,16 @@ export async function tick(
       callbacks,
     });
 
-    // Update task status and store output
+    // Update task status and store output. Only completed tasks have an
+    // `output`; waiting/failed tasks put their reason in `waiting_reason`.
+    const isComplete = result.status === "complete";
     await withDb(dbPath, (conn) =>
       updateTaskStatus(
         conn,
         task.id,
         result.status,
-        result.reason,
-        result.reason,
+        isComplete ? null : result.reason,
+        isComplete ? result.reason : null,
       ),
     );
 
@@ -109,7 +125,7 @@ export async function tick(
     );
   } catch (err) {
     await withDb(dbPath, (conn) =>
-      updateTaskStatus(conn, task.id, "failed", String(err), String(err)),
+      updateTaskStatus(conn, task.id, "failed", String(err), null),
     );
 
     await withDb(dbPath, (conn) =>
@@ -124,6 +140,9 @@ export async function tick(
   } finally {
     await withDb(dbPath, (conn) => endThread(conn, threadId));
   }
+
+  const elapsed = ((Date.now() - tickStart) / 1000).toFixed(1);
+  logger.phase("tick-end", `#${tickNum} ${elapsed}s didWork=true`);
 
   return true;
 }

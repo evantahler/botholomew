@@ -39,6 +39,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - `bun run lint` runs both `tsc --noEmit` and `biome check`
 - All database access goes through `src/db/` modules
 - All agent interactions are logged to the threads/interactions tables
+- **List operations always support `-l, --limit <n>` and `-o, --offset <n>`** — applies to every CLI `list` subcommand and the corresponding `src/db/` list function. Use `sanitizeInt` on both when interpolating into SQL, and pick a stable `ORDER BY` (with an `id` tiebreaker) so pagination is deterministic.
 - No filesystem tools for the agent — FS access is abstracted through CRUD modules scoped to `.botholomew/`
 - When designing or modifying agent tools, follow PATs (Patterns for Agentic Tools): https://arcade.dev/patterns/llm.txt — key principles: error-guided recovery, next-action hints, token-efficient outputs, error classification
 

@@ -1,5 +1,5 @@
 import type { DbConnection } from "./connection.ts";
-import { buildWhereClause } from "./query.ts";
+import { buildWhereClause, sanitizeInt } from "./query.ts";
 import { uuidv7 } from "./uuid.ts";
 
 export interface Thread {
@@ -256,18 +256,20 @@ export async function listThreads(
     type?: Thread["type"];
     taskId?: string;
     limit?: number;
+    offset?: number;
   },
 ): Promise<Thread[]> {
   const { where, params } = buildWhereClause([
     ["type", filters?.type],
     ["task_id", filters?.taskId],
   ]);
-  const limit = filters?.limit ? `LIMIT ${filters.limit}` : "";
+  const limit = filters?.limit ? `LIMIT ${sanitizeInt(filters.limit)}` : "";
+  const offset = filters?.offset ? `OFFSET ${sanitizeInt(filters.offset)}` : "";
 
   const rows = await db.queryAll<ThreadRow>(
     `SELECT * FROM threads ${where}
-     ORDER BY started_at DESC
-     ${limit}`,
+     ORDER BY started_at DESC, id DESC
+     ${limit} ${offset}`,
     ...params,
   );
   return rows.map(rowToThread);

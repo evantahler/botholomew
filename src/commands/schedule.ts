@@ -19,9 +19,18 @@ export function registerScheduleCommand(program: Command) {
     .description("List all schedules")
     .option("--enabled", "show only enabled schedules")
     .option("--disabled", "show only disabled schedules")
+    .option("-l, --limit <n>", "max number of schedules", Number.parseInt)
+    .option("-o, --offset <n>", "skip first N schedules", Number.parseInt)
     .action((opts) =>
       withDb(program, async (conn) => {
-        const filters: { enabled?: boolean } = {};
+        const filters: {
+          enabled?: boolean;
+          limit?: number;
+          offset?: number;
+        } = {
+          limit: opts.limit,
+          offset: opts.offset,
+        };
         if (opts.enabled) filters.enabled = true;
         if (opts.disabled) filters.enabled = false;
 

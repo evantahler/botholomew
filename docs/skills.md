@@ -115,7 +115,7 @@ skill is invoked, so it's visually distinct from a regular message.
 ## CLI management
 
 ```bash
-botholomew skill list                 # table of all skills
+botholomew skill list                 # table of all skills (supports --limit / --offset)
 botholomew skill show review          # print the full skill file
 botholomew skill create daily-log     # scaffold a new skill
 botholomew skill validate             # parse every .botholomew/skills/*.md and report errors

@@ -46,6 +46,9 @@ describe("daemon tick", () => {
     // Task should be completed
     const updated = await getTask(conn, task.id);
     expect(updated?.status).toBe("complete");
+    // Completion summary belongs in `output`, not `waiting_reason`
+    expect(updated?.output).toBe("Task done successfully");
+    expect(updated?.waiting_reason).toBeNull();
 
     // tick should signal that work was done
     expect(didWork).toBe(true);
@@ -112,6 +115,10 @@ describe("daemon tick", () => {
 
     const updated = await getTask(conn, task.id);
     expect(updated?.status).toBe("failed");
+    // Failure explanation lives in `waiting_reason`; `output` is only for
+    // the deliverable of a completed task.
+    expect(updated?.waiting_reason).toContain("API rate limit exceeded");
+    expect(updated?.output).toBeNull();
 
     // Thread should still be created and ended
     const threads = await listThreads(conn, { type: "daemon_tick" });
@@ -120,6 +127,51 @@ describe("daemon tick", () => {
     expect(thread?.ended_at).not.toBeNull();
 
     // Restore original mock
+    mock.module("@anthropic-ai/sdk", () => ({
+      default: class MockAnthropic {
+        messages = {
+          create: async () => completionResponse(),
+        };
+      },
+    }));
+  });
+
+  test("marks task as waiting when agent calls wait_task", async () => {
+    mock.module("@anthropic-ai/sdk", () => ({
+      default: class MockAnthropic {
+        messages = {
+          create: async () => ({
+            content: [
+              { type: "text", text: "Need more info." },
+              {
+                type: "tool_use",
+                id: "tool_1",
+                name: "wait_task",
+                input: { reason: "Need user approval" },
+              },
+            ],
+            stop_reason: "tool_use",
+            usage: { input_tokens: 10, output_tokens: 10 },
+          }),
+        };
+      },
+    }));
+
+    const { tick: tickFresh } = await import("../../src/daemon/tick.ts");
+
+    const task = await createTask(conn, {
+      name: "Will wait",
+      description: "Agent will call wait_task",
+    });
+
+    await tickFresh("/tmp/test-project", dbPath, TEST_CONFIG);
+
+    const updated = await getTask(conn, task.id);
+    expect(updated?.status).toBe("waiting");
+    expect(updated?.waiting_reason).toBe("Need user approval");
+    expect(updated?.output).toBeNull();
+
+    // Restore default mock
     mock.module("@anthropic-ai/sdk", () => ({
       default: class MockAnthropic {
         messages = {

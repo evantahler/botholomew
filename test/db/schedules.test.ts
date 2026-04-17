@@ -59,6 +59,18 @@ describe("schedule CRUD", () => {
     expect(schedules[1]?.name).toBe("B");
   });
 
+  test("list schedules with limit and offset", async () => {
+    await createSchedule(conn, { name: "A", frequency: "daily" });
+    await createSchedule(conn, { name: "B", frequency: "daily" });
+    await createSchedule(conn, { name: "C", frequency: "daily" });
+    await createSchedule(conn, { name: "D", frequency: "daily" });
+
+    const page = await listSchedules(conn, { limit: 2, offset: 1 });
+    expect(page.length).toBe(2);
+    expect(page[0]?.name).toBe("B");
+    expect(page[1]?.name).toBe("C");
+  });
+
   test("list schedules filtered by enabled", async () => {
     const s = await createSchedule(conn, {
       name: "Active",

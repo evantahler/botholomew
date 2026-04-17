@@ -109,6 +109,7 @@ export async function listTasks(
     status?: Task["status"];
     priority?: Task["priority"];
     limit?: number;
+    offset?: number;
   },
 ): Promise<Task[]> {
   const { where, params } = buildWhereClause([
@@ -116,13 +117,12 @@ export async function listTasks(
     ["priority", filters?.priority],
   ]);
   const limit = filters?.limit ? `LIMIT ${sanitizeInt(filters.limit)}` : "";
+  const offset = filters?.offset ? `OFFSET ${sanitizeInt(filters.offset)}` : "";
 
   const rows = await db.queryAll<TaskRow>(
     `SELECT * FROM tasks ${where}
-     ORDER BY
-       CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
-       created_at ASC
-     ${limit}`,
+     ORDER BY created_at DESC, id DESC
+     ${limit} ${offset}`,
     ...params,
   );
   return rows.map(rowToTask);
@@ -132,8 +132,8 @@ export async function updateTaskStatus(
   db: DbConnection,
   id: string,
   status: Task["status"],
-  reason?: string,
-  output?: string,
+  reason?: string | null,
+  output?: string | null,
 ): Promise<void> {
   await db.queryRun(
     `UPDATE tasks

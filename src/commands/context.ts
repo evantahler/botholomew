@@ -6,7 +6,10 @@ import { isText } from "istextorbinary";
 import { createSpinner } from "nanospinner";
 import { loadConfig } from "../config/loader.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { generateDescription } from "../context/describer.ts";
+import {
+  generateDescription,
+  generateDescriptionAndPath,
+} from "../context/describer.ts";
 import { embedSingle } from "../context/embedder.ts";
 import { FetchFailureError, fetchUrl } from "../context/fetcher.ts";
 import {
@@ -19,9 +22,12 @@ import { isUrl, urlToContextPath } from "../context/url-utils.ts";
 import type { DbConnection } from "../db/connection.ts";
 import {
   type ContextItem,
+  createContextItemStrict,
   deleteContextItemByPath,
+  getContextItemByPath,
   listContextItems,
   listContextItemsByPrefix,
+  PathConflictError,
   resolveContextItem,
   upsertContextItem,
 } from "../db/context.ts";
@@ -95,16 +101,41 @@ export function registerContextCommand(program: Command) {
   ctx
     .command("add <paths...>")
     .description("Add files, directories, or URLs to context")
-    .option("--prefix <prefix>", "virtual path prefix", "/")
+    .option(
+      "--prefix <prefix>",
+      "virtual path prefix (if omitted, an LLM suggests a folder for each file)",
+    )
     .option("--name <path>", "custom context path (single URL only)")
+    .option(
+      "--on-conflict <policy>",
+      "collision policy: error | overwrite | skip",
+      "error",
+    )
+    .option(
+      "--auto-place",
+      "accept all LLM-suggested paths without confirmation",
+    )
     .option(
       "--prompt-addition <text>",
       "extra guidance for the URL fetcher agent (e.g., auth notes, tool hints)",
     )
     .action((paths: string[], opts) =>
       withDb(program, async (conn, dir) => {
+        type ConflictPolicy = "error" | "overwrite" | "skip";
+        const policy = opts.onConflict as ConflictPolicy;
+        if (!["error", "overwrite", "skip"].includes(policy)) {
+          logger.error(
+            `Invalid --on-conflict value: ${policy} (must be error, overwrite, or skip)`,
+          );
+          process.exit(1);
+        }
+
         // Phase 1: Scan all paths — separate URLs from local files
-        const filesToAdd: { filePath: string; contextPath: string }[] = [];
+        type FileToAdd = {
+          filePath: string;
+          contextPath: string | null; // null = defer to LLM placement
+        };
+        const filesToAdd: FileToAdd[] = [];
         const urlsToAdd: { url: string; contextPath: string }[] = [];
         const spinner = createSpinner("Scanning paths...").start();
 
@@ -116,10 +147,14 @@ export function registerContextCommand(program: Command) {
           process.exit(1);
         }
 
+        // Explicit placement: user passed --prefix (or --name for URLs).
+        // Implicit placement: LLM decides per-file.
+        const explicitPlacement = typeof opts.prefix === "string";
+        const urlPrefix = opts.prefix ?? "/";
+
         for (const path of paths) {
           if (isUrl(path)) {
-            const contextPath =
-              opts.name || urlToContextPath(path, opts.prefix);
+            const contextPath = opts.name || urlToContextPath(path, urlPrefix);
             urlsToAdd.push({ url: path, contextPath });
           } else {
             const resolvedPath = resolve(path);
@@ -137,13 +172,17 @@ export function registerContextCommand(program: Command) {
                 const relativePath = filePath.slice(resolvedPath.length);
                 filesToAdd.push({
                   filePath,
-                  contextPath: join(opts.prefix, relativePath),
+                  contextPath: explicitPlacement
+                    ? join(opts.prefix, relativePath)
+                    : null,
                 });
               }
             } else {
               filesToAdd.push({
                 filePath: resolvedPath,
-                contextPath: join(opts.prefix, basename(resolvedPath)),
+                contextPath: explicitPlacement
+                  ? join(opts.prefix, basename(resolvedPath))
+                  : null,
               });
             }
           }
@@ -154,11 +193,78 @@ export function registerContextCommand(program: Command) {
           text: `Found ${totalCount} item(s) to add (${filesToAdd.length} file(s), ${urlsToAdd.length} URL(s)).`,
         });
 
-        // Phase 2: Load config and upsert DB records (batched, parallel LLM descriptions)
+        // Phase 1.5: LLM placement for files without an explicit path
         const config = await loadConfig(dir);
         const CONCURRENCY = 10;
+        const needsPlacement = filesToAdd.filter((f) => f.contextPath === null);
+        // description cache keyed by filePath — populated when LLM placement runs,
+        // reused in addFile to avoid a second describe call.
+        const descriptionCache = new Map<string, string>();
+
+        if (needsPlacement.length > 0) {
+          if (!config.anthropic_api_key) {
+            logger.error(
+              "No anthropic_api_key configured — cannot auto-place files. Pass --prefix to specify a folder.",
+            );
+            process.exit(1);
+          }
+
+          const existingTree = await renderExistingTree(conn);
+          const placeSpinner = createSpinner(
+            `Choosing paths for 0/${needsPlacement.length} file(s)...`,
+          ).start();
+          let placed = 0;
+
+          for (let i = 0; i < needsPlacement.length; i += CONCURRENCY) {
+            const batch = needsPlacement.slice(i, i + CONCURRENCY);
+            await Promise.all(
+              batch.map(async (entry) => {
+                const suggestion = await suggestPathForFile(
+                  entry.filePath,
+                  config,
+                  existingTree,
+                );
+                entry.contextPath =
+                  suggestion?.suggested_path ?? `/${basename(entry.filePath)}`;
+                if (suggestion?.description) {
+                  descriptionCache.set(entry.filePath, suggestion.description);
+                }
+                placed++;
+                placeSpinner.update({
+                  text: `Choosing paths for ${placed}/${needsPlacement.length} file(s)...`,
+                });
+              }),
+            );
+          }
+          placeSpinner.success({
+            text: `Chose paths for ${placed} file(s).`,
+          });
+
+          // Confirm in TTY unless --auto-place
+          const isTTY = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+          if (isTTY && !opts.autoPlace) {
+            console.log("");
+            console.log(ansis.bold("Suggested paths:"));
+            for (const entry of needsPlacement) {
+              console.log(
+                `  ${ansis.dim(entry.filePath)} → ${ansis.cyan(entry.contextPath ?? "")}`,
+              );
+            }
+            const accepted = await confirmYesNo("Accept these paths? (Y/n): ");
+            if (!accepted) {
+              logger.warn(
+                "Aborted. Re-run with --prefix to place files manually, or --auto-place to skip this prompt.",
+              );
+              process.exit(1);
+            }
+          }
+        }
+
+        // Phase 2: Upsert DB records (batched, parallel LLM descriptions)
         let addCompleted = 0;
         const itemIds: { id: string; contextPath: string }[] = [];
+        const conflicts: { contextPath: string; existingId: string }[] = [];
+        const skipped: string[] = [];
 
         // Process local files (with spinner — these are quick, no chatty logs)
         if (filesToAdd.length > 0) {
@@ -170,21 +276,34 @@ export function registerContextCommand(program: Command) {
             const batch = filesToAdd.slice(i, i + CONCURRENCY);
             const results = await Promise.all(
               batch.map(async ({ filePath, contextPath }) => {
+                if (contextPath === null) return null; // unreachable — placement filled it
                 const result = await addFile(
                   conn,
                   filePath,
                   contextPath,
                   config,
+                  policy,
+                  descriptionCache.get(filePath),
                 );
                 addCompleted++;
                 fileSpinner.update({
                   text: `Adding and describing ${addCompleted}/${filesToAdd.length} file(s)...`,
                 });
-                return result ? { id: result, contextPath } : null;
+                return result;
               }),
             );
             for (const r of results) {
-              if (r) itemIds.push(r);
+              if (!r) continue;
+              if (r.kind === "added") {
+                itemIds.push({ id: r.id, contextPath: r.contextPath });
+              } else if (r.kind === "conflict") {
+                conflicts.push({
+                  contextPath: r.contextPath,
+                  existingId: r.existingId,
+                });
+              } else if (r.kind === "skipped") {
+                skipped.push(r.contextPath);
+              }
             }
           }
 
@@ -216,11 +335,25 @@ export function registerContextCommand(program: Command) {
               contextPath,
               mcpxClient,
               opts.promptAddition,
+              policy,
             );
             if (result.ok) {
               urlAdded++;
               itemIds.push({ id: result.id, contextPath });
               console.log(`  ${ansis.green("✔")} stored at ${contextPath}`);
+            } else if (result.kind === "conflict") {
+              conflicts.push({
+                contextPath,
+                existingId: result.existingId,
+              });
+              console.log(
+                `  ${ansis.red("✗")} path already exists: ${contextPath}`,
+              );
+            } else if (result.kind === "skipped") {
+              skipped.push(contextPath);
+              console.log(
+                `  ${ansis.yellow("⊘")} skipped (path exists): ${contextPath}`,
+              );
             } else if (result.actionable) {
               console.log(
                 `  ${ansis.red("✗")} ${ansis.bold("action required:")}`,
@@ -245,13 +378,32 @@ export function registerContextCommand(program: Command) {
           }
         }
 
+        // Report conflicts before embeddings so the user sees them prominently
+        if (conflicts.length > 0) {
+          logger.error(
+            `${conflicts.length} path collision(s) — nothing written for these items:`,
+          );
+          for (const c of conflicts) {
+            console.log(
+              `  ${ansis.red("✗")} ${c.contextPath} (existing id: ${c.existingId})`,
+            );
+          }
+          logger.dim(
+            "Re-run with --on-conflict=overwrite to replace, --on-conflict=skip to ignore, or --name / --prefix to place elsewhere.",
+          );
+        }
+
         // Phase 3: Chunk + embed in parallel (network I/O)
         if (itemIds.length === 0 || !config.openai_api_key) {
           if (!config.openai_api_key) {
             logger.dim("Skipping embeddings (no OpenAI API key configured).");
           }
           const msg = `Added ${itemIds.length}/${totalCount} item(s), 0 chunks indexed.`;
-          if (itemIds.length === totalCount) {
+          if (conflicts.length > 0) {
+            logger.error(msg);
+            process.exit(1);
+          }
+          if (itemIds.length === totalCount - skipped.length) {
             logger.success(msg);
             process.exit(0);
           } else if (itemIds.length === 0) {
@@ -304,7 +456,11 @@ export function registerContextCommand(program: Command) {
         if (filesAdded > 0) parts.push(`${filesAdded} added`);
         if (filesUpdated > 0) parts.push(`${filesUpdated} updated`);
         const summary = `${parts.join(", ")} — ${chunks} chunk(s) indexed (${itemIds.length}/${totalCount} item(s)).`;
-        if (itemIds.length === totalCount) {
+        if (conflicts.length > 0) {
+          logger.error(summary);
+          process.exit(1);
+        }
+        if (itemIds.length === totalCount - skipped.length) {
           logger.success(summary);
           process.exit(0);
         } else {
@@ -517,28 +673,56 @@ async function resolveItems(
   return listContextItemsByPrefix(conn, p, { recursive: true });
 }
 
-/** Upsert a file into context. Returns the item ID if textual, null otherwise. */
+type ConflictPolicy = "error" | "overwrite" | "skip";
+
+type AddFileResult =
+  | { kind: "added"; id: string; contextPath: string }
+  | { kind: "skipped"; contextPath: string }
+  | { kind: "conflict"; contextPath: string; existingId: string }
+  | { kind: "failed"; contextPath: string; error: string };
+
+/** Upsert a file into context honoring the collision policy. */
 async function addFile(
   conn: DbConnection,
   filePath: string,
   contextPath: string,
   config: Required<BotholomewConfig>,
-): Promise<string | null> {
+  policy: ConflictPolicy,
+  cachedDescription?: string,
+): Promise<AddFileResult | null> {
   try {
+    // Pre-flight conflict check so we don't waste a describe call.
+    if (policy !== "overwrite") {
+      const existing = await getContextItemByPath(conn, contextPath);
+      if (existing) {
+        if (policy === "skip") {
+          logger.dim(`  ⊘ skipped (path exists): ${contextPath}`);
+          return { kind: "skipped", contextPath };
+        }
+        return {
+          kind: "conflict",
+          contextPath,
+          existingId: existing.id,
+        };
+      }
+    }
+
     const bunFile = Bun.file(filePath);
     const mimeType = bunFile.type.split(";")[0] || "application/octet-stream";
     const filename = basename(filePath);
     const textual = isText(filename) !== false;
     const content = textual ? await bunFile.text() : null;
 
-    const description = await generateDescription(config, {
-      filename,
-      mimeType,
-      content,
-      filePath,
-    });
+    const description =
+      cachedDescription ??
+      (await generateDescription(config, {
+        filename,
+        mimeType,
+        content,
+        filePath,
+      }));
 
-    const item = await upsertContextItem(conn, {
+    const itemParams = {
       title: filename,
       description,
       content: content ?? undefined,
@@ -546,19 +730,36 @@ async function addFile(
       sourcePath: filePath,
       contextPath,
       isTextual: textual,
-    });
+    } as const;
 
-    return textual && content ? item.id : null;
+    const item =
+      policy === "overwrite"
+        ? await upsertContextItem(conn, itemParams)
+        : await createContextItemStrict(conn, itemParams);
+
+    return textual && content
+      ? { kind: "added", id: item.id, contextPath: item.context_path }
+      : null;
   } catch (err) {
+    if (err instanceof PathConflictError) {
+      // Race between pre-flight check and insert — still a conflict.
+      return {
+        kind: "conflict",
+        contextPath,
+        existingId: err.existingId,
+      };
+    }
     logger.warn(`  ! ${contextPath}: ${err}`);
-    return null;
+    return { kind: "failed", contextPath, error: String(err) };
   }
 }
 
-/** Fetch a URL and upsert into context. Returns the item ID, or null on failure. */
+/** Fetch a URL and upsert into context. */
 type AddUrlResult =
   | { ok: true; id: string }
-  | { ok: false; error: string; actionable: boolean };
+  | { ok: false; kind: "conflict"; existingId: string }
+  | { ok: false; kind: "skipped" }
+  | { ok: false; kind: "fetch-failed"; error: string; actionable: boolean };
 
 async function addUrl(
   conn: DbConnection,
@@ -566,8 +767,18 @@ async function addUrl(
   url: string,
   contextPath: string,
   mcpxClient: Awaited<ReturnType<typeof createMcpxClient>>,
-  promptAddition?: string,
+  promptAddition: string | undefined,
+  policy: ConflictPolicy,
 ): Promise<AddUrlResult> {
+  // Pre-flight conflict check — skip the expensive fetch if we'd collide.
+  if (policy !== "overwrite") {
+    const existing = await getContextItemByPath(conn, contextPath);
+    if (existing) {
+      if (policy === "skip") return { ok: false, kind: "skipped" };
+      return { ok: false, kind: "conflict", existingId: existing.id };
+    }
+  }
+
   try {
     const fetched = await fetchUrl(url, config, mcpxClient, promptAddition);
 
@@ -577,24 +788,115 @@ async function addUrl(
       content: fetched.content,
     });
 
-    const item = await upsertContextItem(conn, {
+    const itemParams = {
       title: fetched.title,
       description,
       content: fetched.content,
       mimeType: fetched.mimeType,
-      sourceType: "url",
+      sourceType: "url" as const,
       sourcePath: url,
       contextPath,
       isTextual: true,
-    });
+    };
+
+    const item =
+      policy === "overwrite"
+        ? await upsertContextItem(conn, itemParams)
+        : await createContextItemStrict(conn, itemParams);
 
     return { ok: true, id: item.id };
   } catch (err) {
-    if (err instanceof FetchFailureError) {
-      return { ok: false, error: err.userMessage, actionable: true };
+    if (err instanceof PathConflictError) {
+      return { ok: false, kind: "conflict", existingId: err.existingId };
     }
-    return { ok: false, error: String(err), actionable: false };
+    if (err instanceof FetchFailureError) {
+      return {
+        ok: false,
+        kind: "fetch-failed",
+        error: err.userMessage,
+        actionable: true,
+      };
+    }
+    return {
+      ok: false,
+      kind: "fetch-failed",
+      error: String(err),
+      actionable: false,
+    };
   }
+}
+
+/**
+ * Build a listing of every existing path (folders + files) to feed the LLM
+ * placer. Seeing actual files in each folder helps the LLM place new content
+ * alongside similar documents instead of inventing parallel folder names.
+ */
+async function renderExistingTree(conn: DbConnection): Promise<string> {
+  const items = await listContextItems(conn);
+  if (items.length === 0) return "";
+
+  // Every implicit ancestor folder of every item.
+  const folders = new Set<string>();
+  for (const item of items) {
+    const parts = item.context_path.split("/").filter(Boolean);
+    const isExplicitDir = item.mime_type === "inode/directory";
+    const folderDepth = isExplicitDir ? parts.length : parts.length - 1;
+    for (let i = 1; i <= folderDepth; i++) {
+      folders.add(`/${parts.slice(0, i).join("/")}/`);
+    }
+  }
+
+  const files = items
+    .filter((i) => i.mime_type !== "inode/directory")
+    .map((i) => i.context_path);
+
+  const all = [...folders, ...files].sort();
+  const cap = 500;
+  const truncated = all.slice(0, cap);
+  const suffix =
+    all.length > cap ? `\n  (+${all.length - cap} more entries)` : "";
+  return truncated.map((p) => `  ${p}`).join("\n") + suffix;
+}
+
+/** Call the describer LLM to suggest a path + description for a file. */
+async function suggestPathForFile(
+  filePath: string,
+  config: Required<BotholomewConfig>,
+  existingTree: string,
+): Promise<{ description: string; suggested_path: string } | null> {
+  try {
+    const bunFile = Bun.file(filePath);
+    const mimeType = bunFile.type.split(";")[0] || "application/octet-stream";
+    const filename = basename(filePath);
+    const textual = isText(filename) !== false;
+    const content = textual ? await bunFile.text() : null;
+    return await generateDescriptionAndPath(config, {
+      filename,
+      mimeType,
+      content,
+      filePath,
+      sourcePath: filePath,
+      existingTree,
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Minimal stdin-based yes/no prompt, defaults to yes (empty input accepts). */
+async function confirmYesNo(prompt: string): Promise<boolean> {
+  process.stdout.write(prompt);
+  return new Promise((resolvePromise) => {
+    const onData = (chunk: Buffer) => {
+      const line = chunk.toString().trim().toLowerCase();
+      process.stdin.off("data", onData);
+      process.stdin.pause();
+      // Empty input (just Enter) or y/yes → accept; only n/no rejects.
+      resolvePromise(line !== "n" && line !== "no");
+    };
+    process.stdin.resume();
+    process.stdin.once("data", onData);
+  });
 }
 
 async function walkDirectory(dirPath: string): Promise<string[]> {
