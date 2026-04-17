@@ -132,8 +132,8 @@ export async function updateTaskStatus(
   db: DbConnection,
   id: string,
   status: Task["status"],
-  reason?: string,
-  output?: string,
+  reason?: string | null,
+  output?: string | null,
 ): Promise<void> {
   await db.queryRun(
     `UPDATE tasks

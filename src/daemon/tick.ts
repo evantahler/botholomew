@@ -86,13 +86,13 @@ export async function tick(
       callbacks,
     });
 
-    // Update task status and store output
+    const isComplete = result.status === "complete";
     await updateTaskStatus(
       conn,
       task.id,
       result.status,
-      result.reason,
-      result.reason,
+      isComplete ? null : result.reason,
+      isComplete ? result.reason : null,
     );
 
     // Log the status change
@@ -112,7 +112,7 @@ export async function tick(
       `Task: ${task.name}\nDescription: ${task.description}\nOutcome: ${result.status}${result.reason ? ` — ${result.reason}` : ""}`,
     );
   } catch (err) {
-    await updateTaskStatus(conn, task.id, "failed", String(err), String(err));
+    await updateTaskStatus(conn, task.id, "failed", String(err), null);
 
     await logInteraction(conn, threadId, {
       role: "system",
