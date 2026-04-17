@@ -66,7 +66,7 @@ type TreeEntry = DirNode | FileNode;
 export const contextTreeTool = {
   name: "context_tree",
   description:
-    "Render a directory as a markdown-style tree. Use max_depth and items_per_dir to bound output; drill in by passing a deeper path.",
+    "Explore your context filesystem with a bird's-eye view — shows many paths across nested directories in one call. Reach for this first when you need to discover what content exists before reading a specific file (context_read) or running a keyword search (context_search). Returns a markdown-style tree; tune max_depth and items_per_dir to bound output, or pass a deeper path to drill into a subtree.",
   group: "context",
   inputSchema,
   outputSchema,
