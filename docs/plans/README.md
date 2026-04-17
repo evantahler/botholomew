@@ -9,7 +9,7 @@
 | 5 | [Chat TUI](milestone-5-chat-tui.md) | **Done** | Interactive Ink/React terminal UI for conversational interaction |
 | 6 | [Daemon Watchdog & Distribution](milestone-6-daemon-watchdog-and-distribution.md) | **Done** | OS-level watchdog, agent self-modification |
 | 7 | [Skills (Slash-Commands)](milestone-7-skills.md) | **Done** | User-defined slash-commands loaded from `.botholomew/skills/` markdown files |
-| 8 | [Remote Context](milestone-8-remote-context.md) | Planned | Ingest context from URLs via LLM-driven MCPX tool selection |
+| 8 | [Remote Context](milestone-8-remote-context.md) | **Done** | Ingest context from URLs via LLM-driven MCPX tool selection |
 
 ## Stub/TODO Coverage
 

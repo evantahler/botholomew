@@ -9,6 +9,7 @@ export interface ContextItem {
   content: string | null;
   mime_type: string;
   is_textual: boolean;
+  source_type: "file" | "url";
   source_path: string | null;
   context_path: string;
   indexed_at: Date | null;
@@ -30,6 +31,7 @@ interface ContextItemRow {
   content_blob: unknown;
   mime_type: string;
   is_textual: boolean;
+  source_type: string;
   source_path: string | null;
   context_path: string;
   indexed_at: string | null;
@@ -45,6 +47,7 @@ function rowToContextItem(row: ContextItemRow): ContextItem {
     content: row.content,
     mime_type: row.mime_type,
     is_textual: !!row.is_textual,
+    source_type: row.source_type as "file" | "url",
     source_path: row.source_path,
     context_path: row.context_path,
     indexed_at: row.indexed_at ? new Date(row.indexed_at) : null,
@@ -61,6 +64,7 @@ export async function createContextItem(
     title: string;
     content?: string;
     mimeType?: string;
+    sourceType?: "file" | "url";
     sourcePath?: string;
     contextPath: string;
     description?: string;
@@ -69,8 +73,8 @@ export async function createContextItem(
 ): Promise<ContextItem> {
   const id = uuidv7();
   const row = await db.queryGet<ContextItemRow>(
-    `INSERT INTO context_items (id, title, description, content, mime_type, is_textual, source_path, context_path)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+    `INSERT INTO context_items (id, title, description, content, mime_type, is_textual, source_type, source_path, context_path)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
      RETURNING *`,
     id,
     params.title,
@@ -78,6 +82,7 @@ export async function createContextItem(
     params.content ?? null,
     params.mimeType ?? "text/plain",
     params.isTextual !== false,
+    params.sourceType ?? "file",
     params.sourcePath ?? null,
     params.contextPath,
   );
@@ -99,6 +104,7 @@ export async function upsertContextItem(
     title: string;
     content?: string;
     mimeType?: string;
+    sourceType?: "file" | "url";
     sourcePath?: string;
     contextPath: string;
     description?: string;

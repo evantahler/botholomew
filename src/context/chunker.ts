@@ -9,6 +9,13 @@ export interface Chunk {
 const SHORT_CONTENT_THRESHOLD = 200;
 const LLM_TIMEOUT_MS = 10_000;
 const DEFAULT_OVERLAP_LINES = 2;
+// OpenAI's embedding endpoint caps inputs at 8192 tokens. The cl100k_base
+// tokenizer averages ~4 chars/token on plain English but can drop to ~2
+// chars/token on dense/code/non-ASCII content. We cap at 15k chars so even
+// at the worst-case ~2.5 chars/token (~6k tokens) we stay well under the
+// 8192-token limit, leaving headroom for the title/description prefix
+// prepended at embed time.
+const MAX_CHUNK_CHARS = 15_000;
 
 const CHUNKER_TOOL_NAME = "return_chunks";
 const CHUNKER_TOOL = {
@@ -40,6 +47,90 @@ const CHUNKER_TOOL = {
     required: ["chunks"],
   },
 };
+
+/**
+ * Split text into pieces no larger than `maxChars`, preferring paragraph,
+ * line, and finally hard-character boundaries.
+ */
+function splitText(text: string, maxChars: number): string[] {
+  if (text.length <= maxChars) return [text];
+
+  // Try paragraph splits first.
+  const paragraphs = text.split(/\n\n+/);
+  if (paragraphs.length > 1) {
+    const out: string[] = [];
+    let buf = "";
+    for (const p of paragraphs) {
+      const candidate = buf ? `${buf}\n\n${p}` : p;
+      if (candidate.length <= maxChars) {
+        buf = candidate;
+      } else {
+        if (buf) out.push(buf);
+        if (p.length <= maxChars) {
+          buf = p;
+        } else {
+          out.push(...splitText(p, maxChars));
+          buf = "";
+        }
+      }
+    }
+    if (buf) out.push(buf);
+    return out;
+  }
+
+  // Fall back to line splits.
+  const lines = text.split("\n");
+  if (lines.length > 1) {
+    const out: string[] = [];
+    let buf = "";
+    for (const line of lines) {
+      const candidate = buf ? `${buf}\n${line}` : line;
+      if (candidate.length <= maxChars) {
+        buf = candidate;
+      } else {
+        if (buf) out.push(buf);
+        if (line.length <= maxChars) {
+          buf = line;
+        } else {
+          // Single line longer than maxChars — slice it.
+          for (let i = 0; i < line.length; i += maxChars) {
+            out.push(line.slice(i, i + maxChars));
+          }
+          buf = "";
+        }
+      }
+    }
+    if (buf) out.push(buf);
+    return out;
+  }
+
+  // Last resort: hard slice.
+  const out: string[] = [];
+  for (let i = 0; i < text.length; i += maxChars) {
+    out.push(text.slice(i, i + maxChars));
+  }
+  return out;
+}
+
+/**
+ * Re-chunk any chunks larger than `maxChars`, preserving order and reindexing.
+ */
+export function enforceMaxChunkSize(
+  chunks: Chunk[],
+  maxChars = MAX_CHUNK_CHARS,
+): Chunk[] {
+  const out: Chunk[] = [];
+  for (const c of chunks) {
+    if (c.content.length <= maxChars) {
+      out.push({ index: out.length, content: c.content });
+      continue;
+    }
+    for (const piece of splitText(c.content, maxChars)) {
+      out.push({ index: out.length, content: piece });
+    }
+  }
+  return out;
+}
 
 /**
  * Add overlapping lines from the end of each chunk to the start of the next.
@@ -137,5 +228,11 @@ export async function chunk(
   }
 
   const chunks = await chunkWithLLM(content, mimeType, config);
-  return addOverlapToChunks(chunks);
+  // Enforce a hard size cap before AND after overlap. The first pass handles
+  // oversize chunks from the LLM (common for docs with very long lines); the
+  // second pass handles the rare case where added overlap pushes a near-limit
+  // chunk over.
+  const sized = enforceMaxChunkSize(chunks);
+  const withOverlap = addOverlapToChunks(sized);
+  return enforceMaxChunkSize(withOverlap);
 }

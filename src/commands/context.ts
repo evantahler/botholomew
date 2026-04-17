@@ -8,11 +8,13 @@ import { loadConfig } from "../config/loader.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { generateDescription } from "../context/describer.ts";
 import { embedSingle } from "../context/embedder.ts";
+import { FetchFailureError, fetchUrl } from "../context/fetcher.ts";
 import {
   type PreparedIngestion,
   prepareIngestion,
   storeIngestion,
 } from "../context/ingest.ts";
+import { isUrl, urlToContextPath } from "../context/url-utils.ts";
 import type { DbConnection } from "../db/connection.ts";
 import {
   type ContextItem,
@@ -24,6 +26,7 @@ import {
   upsertContextItem,
 } from "../db/context.ts";
 import { getEmbeddingsForItem, hybridSearch } from "../db/embeddings.ts";
+import { createMcpxClient } from "../mcpx/client.ts";
 import { logger } from "../utils/logger.ts";
 import {
   registerContextToolSubcommands,
@@ -63,7 +66,7 @@ export function registerContextCommand(program: Command) {
           return;
         }
 
-        const header = `${ansis.bold("Path".padEnd(35))} ${"Title".padEnd(20)} ${"Description".padEnd(30)} ${"Type".padEnd(15)} ${"Updated".padEnd(18)} Indexed`;
+        const header = `${ansis.bold("Path".padEnd(35))} ${"Title".padEnd(20)} ${"Description".padEnd(30)} ${"Source".padEnd(6)} ${"Type".padEnd(15)} ${"Updated".padEnd(18)} Indexed`;
         console.log(header);
         console.log("-".repeat(header.length));
 
@@ -75,8 +78,12 @@ export function registerContextCommand(program: Command) {
           const desc = item.description
             ? ansis.dim(item.description.slice(0, 29).padEnd(30))
             : ansis.dim("".padEnd(30));
+          const source =
+            item.source_type === "url"
+              ? ansis.cyan("url".padEnd(6))
+              : ansis.dim("file".padEnd(6));
           console.log(
-            `${item.context_path.slice(0, 34).padEnd(35)} ${item.title.slice(0, 19).padEnd(20)} ${desc} ${item.mime_type.slice(0, 14).padEnd(15)} ${updated} ${indexed}`,
+            `${item.context_path.slice(0, 34).padEnd(35)} ${item.title.slice(0, 19).padEnd(20)} ${desc} ${source} ${item.mime_type.slice(0, 14).padEnd(15)} ${updated} ${indexed}`,
           );
         }
 
@@ -117,87 +124,178 @@ export function registerContextCommand(program: Command) {
 
   ctx
     .command("add <paths...>")
-    .description("Add files or directories to context")
+    .description("Add files, directories, or URLs to context")
     .option("--prefix <prefix>", "virtual path prefix", "/")
+    .option("--name <path>", "custom context path (single URL only)")
+    .option(
+      "--prompt-addition <text>",
+      "extra guidance for the URL fetcher agent (e.g., auth notes, tool hints)",
+    )
     .action((paths: string[], opts) =>
       withDb(program, async (conn, dir) => {
-        // Phase 1: Scan all paths and validate they exist
+        // Phase 1: Scan all paths — separate URLs from local files
         const filesToAdd: { filePath: string; contextPath: string }[] = [];
-        const spinner = createSpinner("Scanning files...").start();
+        const urlsToAdd: { url: string; contextPath: string }[] = [];
+        const spinner = createSpinner("Scanning paths...").start();
+
+        // Validate --name: only valid with a single URL
+        if (opts.name && (paths.length > 1 || !paths[0] || !isUrl(paths[0]))) {
+          spinner.error({
+            text: "--name can only be used with a single URL",
+          });
+          process.exit(1);
+        }
 
         for (const path of paths) {
-          const resolvedPath = resolve(path);
-          let info: Awaited<ReturnType<typeof stat>>;
-          try {
-            info = await stat(resolvedPath);
-          } catch {
-            spinner.error({ text: `Path not found: ${resolvedPath}` });
-            process.exit(1);
-          }
+          if (isUrl(path)) {
+            const contextPath =
+              opts.name || urlToContextPath(path, opts.prefix);
+            urlsToAdd.push({ url: path, contextPath });
+          } else {
+            const resolvedPath = resolve(path);
+            let info: Awaited<ReturnType<typeof stat>>;
+            try {
+              info = await stat(resolvedPath);
+            } catch {
+              spinner.error({ text: `Path not found: ${resolvedPath}` });
+              process.exit(1);
+            }
 
-          if (info.isDirectory()) {
-            const entries = await walkDirectory(resolvedPath);
-            for (const filePath of entries) {
-              const relativePath = filePath.slice(resolvedPath.length);
+            if (info.isDirectory()) {
+              const entries = await walkDirectory(resolvedPath);
+              for (const filePath of entries) {
+                const relativePath = filePath.slice(resolvedPath.length);
+                filesToAdd.push({
+                  filePath,
+                  contextPath: join(opts.prefix, relativePath),
+                });
+              }
+            } else {
               filesToAdd.push({
-                filePath,
-                contextPath: join(opts.prefix, relativePath),
+                filePath: resolvedPath,
+                contextPath: join(opts.prefix, basename(resolvedPath)),
               });
             }
-          } else {
-            filesToAdd.push({
-              filePath: resolvedPath,
-              contextPath: join(opts.prefix, basename(resolvedPath)),
-            });
           }
         }
 
+        const totalCount = filesToAdd.length + urlsToAdd.length;
         spinner.success({
-          text: `Found ${filesToAdd.length} file(s) to add.`,
+          text: `Found ${totalCount} item(s) to add (${filesToAdd.length} file(s), ${urlsToAdd.length} URL(s)).`,
         });
 
         // Phase 2: Load config and upsert DB records (batched, parallel LLM descriptions)
         const config = await loadConfig(dir);
         const CONCURRENCY = 10;
         let addCompleted = 0;
-        const upsertSpinner = createSpinner(
-          `Adding and describing 0/${filesToAdd.length} files...`,
-        ).start();
         const itemIds: { id: string; contextPath: string }[] = [];
 
-        for (let i = 0; i < filesToAdd.length; i += CONCURRENCY) {
-          const batch = filesToAdd.slice(i, i + CONCURRENCY);
-          const results = await Promise.all(
-            batch.map(async ({ filePath, contextPath }) => {
-              const result = await addFile(conn, filePath, contextPath, config);
-              addCompleted++;
-              upsertSpinner.update({
-                text: `Adding and describing ${addCompleted}/${filesToAdd.length} files...`,
-              });
-              return result ? { id: result, contextPath } : null;
-            }),
-          );
-          for (const r of results) {
-            if (r) itemIds.push(r);
+        // Process local files (with spinner — these are quick, no chatty logs)
+        if (filesToAdd.length > 0) {
+          const fileSpinner = createSpinner(
+            `Adding and describing 0/${filesToAdd.length} file(s)...`,
+          ).start();
+
+          for (let i = 0; i < filesToAdd.length; i += CONCURRENCY) {
+            const batch = filesToAdd.slice(i, i + CONCURRENCY);
+            const results = await Promise.all(
+              batch.map(async ({ filePath, contextPath }) => {
+                const result = await addFile(
+                  conn,
+                  filePath,
+                  contextPath,
+                  config,
+                );
+                addCompleted++;
+                fileSpinner.update({
+                  text: `Adding and describing ${addCompleted}/${filesToAdd.length} file(s)...`,
+                });
+                return result ? { id: result, contextPath } : null;
+              }),
+            );
+            for (const r of results) {
+              if (r) itemIds.push(r);
+            }
           }
+
+          fileSpinner.success({
+            text: `Added and described ${addCompleted} file(s).`,
+          });
         }
 
-        upsertSpinner.success({
-          text: `Added and described ${itemIds.length} file(s).`,
-        });
+        // Process URLs (no spinner — agent logs would interleave; render cleanly instead)
+        if (urlsToAdd.length > 0) {
+          const mcpxClient = await createMcpxClient(dir);
+          if (!mcpxClient) {
+            logger.dim(
+              "No MCP servers configured — remote fetches will use basic HTTP.",
+            );
+          }
+
+          let urlIdx = 0;
+          let urlAdded = 0;
+          for (const { url, contextPath } of urlsToAdd) {
+            urlIdx++;
+            console.log(
+              `\n${ansis.bold(`[${urlIdx}/${urlsToAdd.length}]`)} ${ansis.cyan(url)}`,
+            );
+            const result = await addUrl(
+              conn,
+              config,
+              url,
+              contextPath,
+              mcpxClient,
+              opts.promptAddition,
+            );
+            if (result.ok) {
+              urlAdded++;
+              itemIds.push({ id: result.id, contextPath });
+              console.log(`  ${ansis.green("✔")} stored at ${contextPath}`);
+            } else if (result.actionable) {
+              console.log(
+                `  ${ansis.red("✗")} ${ansis.bold("action required:")}`,
+              );
+              for (const line of result.error.split("\n")) {
+                console.log(`      ${ansis.yellow(line)}`);
+              }
+            } else {
+              console.log(
+                `  ${ansis.red("✗")} failed to fetch: ${result.error}`,
+              );
+            }
+          }
+
+          const urlSummary = `Added ${urlAdded}/${urlsToAdd.length} URL(s).`;
+          if (urlAdded === urlsToAdd.length) {
+            console.log(`\n${ansis.green("✔")} ${urlSummary}`);
+          } else if (urlAdded === 0) {
+            console.log(`\n${ansis.red("✗")} ${urlSummary}`);
+          } else {
+            console.log(`\n${ansis.yellow("⚠")} ${urlSummary}`);
+          }
+        }
 
         // Phase 3: Chunk + embed in parallel (network I/O)
         if (itemIds.length === 0 || !config.openai_api_key) {
           if (!config.openai_api_key) {
             logger.dim("Skipping embeddings (no OpenAI API key configured).");
           }
-          logger.success(`Added ${itemIds.length} file(s), 0 chunks indexed.`);
-          process.exit(0);
+          const msg = `Added ${itemIds.length}/${totalCount} item(s), 0 chunks indexed.`;
+          if (itemIds.length === totalCount) {
+            logger.success(msg);
+            process.exit(0);
+          } else if (itemIds.length === 0) {
+            logger.error(msg);
+            process.exit(1);
+          } else {
+            logger.warn(msg);
+            process.exit(1);
+          }
         }
 
         let completed = 0;
         const embedSpinner = createSpinner(
-          `Embedding 0/${itemIds.length} files...`,
+          `Embedding 0/${itemIds.length} items...`,
         ).start();
 
         const prepared: PreparedIngestion[] = [];
@@ -208,7 +306,7 @@ export function registerContextCommand(program: Command) {
               const result = await prepareIngestion(conn, id, config);
               completed++;
               embedSpinner.update({
-                text: `Embedding ${completed}/${itemIds.length} files...`,
+                text: `Embedding ${completed}/${itemIds.length} items...`,
               });
               return result;
             }),
@@ -218,7 +316,7 @@ export function registerContextCommand(program: Command) {
           }
         }
         embedSpinner.success({
-          text: `Embedded ${prepared.length} file(s).`,
+          text: `Embedded ${prepared.length} item(s).`,
         });
 
         // Phase 4: Store embeddings (sequential, fast DB writes)
@@ -235,8 +333,14 @@ export function registerContextCommand(program: Command) {
         const parts: string[] = [];
         if (filesAdded > 0) parts.push(`${filesAdded} added`);
         if (filesUpdated > 0) parts.push(`${filesUpdated} updated`);
-        logger.success(`${parts.join(", ")} — ${chunks} chunk(s) indexed.`);
-        process.exit(0);
+        const summary = `${parts.join(", ")} — ${chunks} chunk(s) indexed (${itemIds.length}/${totalCount} item(s)).`;
+        if (itemIds.length === totalCount) {
+          logger.success(summary);
+          process.exit(0);
+        } else {
+          logger.warn(summary);
+          process.exit(1);
+        }
       }),
     );
 
@@ -341,7 +445,9 @@ export function registerContextCommand(program: Command) {
 
   ctx
     .command("refresh [path]")
-    .description("Re-import files from disk and re-embed if content changed")
+    .description(
+      "Re-import files from disk / re-fetch URLs and re-embed if content changed",
+    )
     .option("--all", "refresh all items with a source path")
     .action((path: string | undefined, opts: { all?: boolean }) =>
       withDb(program, async (conn, dir) => {
@@ -364,7 +470,11 @@ export function registerContextCommand(program: Command) {
 
         const config = await loadConfig(dir);
 
-        // Phase 1: Read files from disk, compare, and update DB
+        // Init MCPX client if any URL items need refreshing
+        const hasUrls = sourced.some((i) => i.source_type === "url");
+        const mcpxClient = hasUrls ? await createMcpxClient(dir) : null;
+
+        // Phase 1: Read files / fetch URLs, compare, and update DB
         const spinner = createSpinner(
           `Refreshing 0/${sourced.length} items...`,
         ).start();
@@ -379,13 +489,21 @@ export function registerContextCommand(program: Command) {
           });
           try {
             const sourcePath = item.source_path as string;
-            const bunFile = Bun.file(sourcePath);
-            if (!(await bunFile.exists())) {
-              missing++;
-              logger.warn(`  Missing: ${item.source_path}`);
-              continue;
+            let content: string;
+
+            if (item.source_type === "url") {
+              const fetched = await fetchUrl(sourcePath, config, mcpxClient);
+              content = fetched.content;
+            } else {
+              const bunFile = Bun.file(sourcePath);
+              if (!(await bunFile.exists())) {
+                missing++;
+                logger.warn(`  Missing: ${item.source_path}`);
+                continue;
+              }
+              content = await bunFile.text();
             }
-            const content = await bunFile.text();
+
             if (content === item.content) {
               unchanged++;
               continue;
@@ -394,11 +512,11 @@ export function registerContextCommand(program: Command) {
             updated++;
             toReembed.push(item.id);
           } catch (err) {
-            logger.warn(`  Error reading ${item.source_path}: ${err}`);
+            logger.warn(`  Error refreshing ${item.source_path}: ${err}`);
           }
         }
         spinner.success({
-          text: `Checked ${sourced.length} file(s): ${updated} updated, ${unchanged} unchanged, ${missing} missing.`,
+          text: `Checked ${sourced.length} item(s): ${updated} updated, ${unchanged} unchanged, ${missing} missing.`,
         });
 
         // Phase 2: Re-embed changed items
@@ -412,7 +530,7 @@ export function registerContextCommand(program: Command) {
         const CONCURRENCY = 10;
         let completed = 0;
         const embedSpinner = createSpinner(
-          `Embedding 0/${toReembed.length} files...`,
+          `Embedding 0/${toReembed.length} item(s)...`,
         ).start();
 
         const prepared: PreparedIngestion[] = [];
@@ -423,7 +541,7 @@ export function registerContextCommand(program: Command) {
               const result = await prepareIngestion(conn, id, config);
               completed++;
               embedSpinner.update({
-                text: `Embedding ${completed}/${toReembed.length} files...`,
+                text: `Embedding ${completed}/${toReembed.length} item(s)...`,
               });
               return result;
             }),
@@ -433,7 +551,7 @@ export function registerContextCommand(program: Command) {
           }
         }
         embedSpinner.success({
-          text: `Embedded ${prepared.length} file(s).`,
+          text: `Embedded ${prepared.length} item(s).`,
         });
 
         let chunks = 0;
@@ -443,7 +561,7 @@ export function registerContextCommand(program: Command) {
         }
 
         logger.success(
-          `Refreshed ${updated} file(s), ${chunks} chunk(s) re-indexed.`,
+          `Refreshed ${updated} item(s), ${chunks} chunk(s) re-indexed.`,
         );
       }),
     );
@@ -504,6 +622,48 @@ async function addFile(
   } catch (err) {
     logger.warn(`  ! ${contextPath}: ${err}`);
     return null;
+  }
+}
+
+/** Fetch a URL and upsert into context. Returns the item ID, or null on failure. */
+type AddUrlResult =
+  | { ok: true; id: string }
+  | { ok: false; error: string; actionable: boolean };
+
+async function addUrl(
+  conn: DbConnection,
+  config: Required<BotholomewConfig>,
+  url: string,
+  contextPath: string,
+  mcpxClient: Awaited<ReturnType<typeof createMcpxClient>>,
+  promptAddition?: string,
+): Promise<AddUrlResult> {
+  try {
+    const fetched = await fetchUrl(url, config, mcpxClient, promptAddition);
+
+    const description = await generateDescription(config, {
+      filename: new URL(url).hostname,
+      mimeType: fetched.mimeType,
+      content: fetched.content,
+    });
+
+    const item = await upsertContextItem(conn, {
+      title: fetched.title,
+      description,
+      content: fetched.content,
+      mimeType: fetched.mimeType,
+      sourceType: "url",
+      sourcePath: url,
+      contextPath,
+      isTextual: true,
+    });
+
+    return { ok: true, id: item.id };
+  } catch (err) {
+    if (err instanceof FetchFailureError) {
+      return { ok: false, error: err.userMessage, actionable: true };
+    }
+    return { ok: false, error: String(err), actionable: false };
   }
 }
 
