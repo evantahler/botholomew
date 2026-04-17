@@ -57,13 +57,6 @@ const summarizeSkill: SkillDefinition = {
 };
 
 describe("handleSlashCommand", () => {
-  test("/quit calls exit", () => {
-    const ctx = makeCtx();
-    const result = handleSlashCommand("/quit", ctx);
-    expect(result).toBe(true);
-    expect(ctx.exited).toBe(true);
-  });
-
   test("/exit calls exit", () => {
     const ctx = makeCtx();
     const result = handleSlashCommand("/exit", ctx);

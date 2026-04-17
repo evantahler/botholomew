@@ -9,7 +9,11 @@ import {
 import { MAX_INLINE_CHARS, PAGE_SIZE_CHARS } from "../daemon/large-results.ts";
 import type { Interaction } from "../db/threads.ts";
 import { getThread } from "../db/threads.ts";
-import { handleSlashCommand } from "../skills/commands.ts";
+import {
+  BUILTIN_SLASH_COMMANDS,
+  handleSlashCommand,
+  type SlashCommand,
+} from "../skills/commands.ts";
 import { ContextPanel } from "./components/ContextPanel.tsx";
 import { HelpPanel } from "./components/HelpPanel.tsx";
 import { InputBar } from "./components/InputBar.tsx";
@@ -27,6 +31,7 @@ import { TaskPanel } from "./components/TaskPanel.tsx";
 import { ThreadPanel } from "./components/ThreadPanel.tsx";
 import type { ToolCallData } from "./components/ToolCall.tsx";
 import { ToolPanel } from "./components/ToolPanel.tsx";
+import { buildSlashCommands, getSlashMatches } from "./slashCompletion.ts";
 import { ansi } from "./theme.ts";
 
 interface AppProps {
@@ -210,10 +215,8 @@ export function App({
   queuedMessagesRef.current = queuedMessages;
   selectedQueueIndexRef.current = selectedQueueIndex;
 
-  const tabConsumedRef = useRef(false);
-  const handleTabConsumed = useCallback(() => {
-    tabConsumedRef.current = true;
-  }, []);
+  const slashCommandsRef = useRef<SlashCommand[]>([]);
+  const inputValueRef = useRef("");
 
   const stableAppHandler = useCallback(
     // biome-ignore lint/suspicious/noExplicitAny: Ink's Key type is not exported
@@ -224,11 +227,15 @@ export function App({
         return;
       }
 
-      // Tab key cycles tabs — unless InputBar consumed it for completion
+      // Tab key cycles tabs — but on the Chat tab, let InputBar consume it
+      // whenever the slash autocomplete popup would be open.
       if (key.tab && !key.shift) {
-        if (tabConsumedRef.current) {
-          tabConsumedRef.current = false;
-          return;
+        if (activeTabRef.current === 1) {
+          const popupOpen = getSlashMatches(
+            inputValueRef.current,
+            slashCommandsRef.current,
+          );
+          if (popupOpen) return;
         }
         setActiveTab((t) => ((t % 7) + 1) as TabId);
         return;
@@ -454,6 +461,10 @@ export function App({
             "  Enter          Send message",
             "  ⌥+Enter        Insert newline",
             "  ↑/↓            Browse input history",
+            "  /              Open slash-command autocomplete",
+            "  Tab/Enter      Accept highlighted command (popup open)",
+            "  ↑/↓            Move highlight (popup open)",
+            "  Esc            Close popup",
             "",
             "Tools (Tab 2):",
             "  ↑/↓            Select tool call",
@@ -495,7 +506,7 @@ export function App({
             "Commands:",
             "  /help           Show this help",
             "  /skills         List available skills",
-            "  /quit, /exit    End the chat session",
+            "  /exit           End the chat session",
             ...skillLines,
           ].join("\n"),
           timestamp: new Date(),
@@ -551,13 +562,18 @@ export function App({
   );
 
   const sessionSkills = ready ? sessionRef.current?.skills : undefined;
-  const skillCompletions = useMemo(() => {
-    const builtins = ["/help", "/quit", "/exit", "/skills"];
-    const skillNames = Array.from(sessionSkills?.keys() ?? []).map(
-      (name) => `/${name}`,
-    );
-    return [...builtins, ...skillNames];
+  const slashCommands = useMemo<SlashCommand[]>(() => {
+    const skillList = sessionSkills
+      ? Array.from(sessionSkills.values()).map((s) => ({
+          name: s.name,
+          description: s.description,
+        }))
+      : [];
+    return buildSlashCommands(BUILTIN_SLASH_COMMANDS, skillList);
   }, [sessionSkills]);
+
+  slashCommandsRef.current = slashCommands;
+  inputValueRef.current = inputValue;
 
   const allToolCalls = useMemo(
     () => messages.flatMap((m) => m.toolCalls ?? []),
@@ -681,8 +697,7 @@ export function App({
         disabled={activeTab !== 1}
         history={inputHistory}
         header={inputBarHeader}
-        completions={skillCompletions}
-        onTabConsumed={handleTabConsumed}
+        slashCommands={slashCommands}
       />
       <TabBar activeTab={activeTab} />
     </Box>

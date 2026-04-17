@@ -12,7 +12,7 @@ export function registerChatCommand(program: Command) {
         "  Commands:\n" +
         "    /help           Show keyboard shortcuts\n" +
         "    /tools          Open tool call inspector\n" +
-        "    /quit, /exit    End the chat session",
+        "    /exit           End the chat session",
     )
     .option("--thread-id <id>", "Resume an existing chat thread")
     .option("-p, --prompt <text>", "Start chat with an initial prompt")

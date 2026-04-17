@@ -136,7 +136,7 @@ export const HelpPanel = memo(function HelpPanel({
           {"  "}/help{"          "}Show help in chat
         </Text>
         <Text>
-          {"  "}/quit, /exit{"   "}End the chat session
+          {"  "}/exit{"          "}End the chat session
         </Text>
       </Box>
 
