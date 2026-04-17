@@ -172,17 +172,27 @@ virtual filesystem:
 
 ### Collision handling
 
-Every context item is keyed by a unique `context_path`. When a write
-targets an existing path, the policy is controlled by `--on-conflict`:
+Before doing anything expensive, `context add` checks each input's
+`source_path` (absolute file path for local files, URL for remote items)
+against what's already in context. If the same source was ingested
+before — whether under the same or a different `context_path` — the
+item is routed by `--on-conflict` **before** any LLM placement call, so
+re-runs don't burn tokens re-picking paths for files the database
+already knows about.
+
+The same `--on-conflict` policy also governs the rarer case where a
+newly-placed item's target `context_path` happens to collide with an
+unrelated existing item (e.g. two different source files with the same
+basename the LLM placed in the same folder).
 
 | Policy      | Behavior                                                                 |
 | ----------- | ------------------------------------------------------------------------ |
-| `error` *(default)* | Skip the colliding item, keep going through the batch, and exit with a non-zero status listing every collision. |
-| `overwrite` | Replace the existing item and re-embed (the original pre-0.7.7 default). |
+| `error` *(default)* | Fast-fail before LLM placement if any source is already in context. For target-path collisions encountered mid-run, exit with a non-zero status listing every collision. |
+| `overwrite` | For already-ingested sources, refresh content from disk/URL (diff + selective re-embed) while preserving the original `context_path`. For target-path collisions, replace and re-embed. |
 | `skip`      | Log and move on — no write, no error.                                    |
 
-Re-running `context add` on the same path with the default policy is
-now a loud error rather than a silent overwrite. Use
+Re-running `context add` on already-ingested files with the default
+policy is a loud error rather than a silent overwrite. Use
 `--on-conflict=overwrite` when you genuinely want to refresh stored
 content (or `botholomew context refresh` for the idiomatic flow).
 
