@@ -14,6 +14,21 @@ const pkg = await Bun.file(
 ).json();
 
 /**
+ * Extract keyword set from free-form text: lowercase, split on whitespace,
+ * keep words longer than 3 chars. Used to match `loading: contextual` files
+ * against the agent's current intent (task text for the daemon, latest user
+ * message for the chat).
+ */
+export function extractKeywords(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 3),
+  );
+}
+
+/**
  * Load persistent context files from .botholomew/ directory.
  * Returns an array of formatted string sections for "always" loaded files.
  * If taskKeywords are provided, also includes "contextual" files that match.
@@ -85,12 +100,7 @@ export async function buildSystemPrompt(
 
   // Build keyword set from task for contextual loading
   const taskKeywords = task
-    ? new Set(
-        `${task.name} ${task.description}`
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((w) => w.length > 3),
-      )
+    ? extractKeywords(`${task.name} ${task.description}`)
     : null;
 
   // Load context files from .botholomew/

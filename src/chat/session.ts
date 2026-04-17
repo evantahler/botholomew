@@ -17,11 +17,7 @@ import { loadSkills } from "../skills/loader.ts";
 import type { SkillDefinition } from "../skills/parser.ts";
 import type { ToolContext } from "../tools/tool.ts";
 import { generateThreadTitle } from "../utils/title.ts";
-import {
-  buildChatSystemPrompt,
-  type ChatTurnCallbacks,
-  runChatTurn,
-} from "./agent.ts";
+import { type ChatTurnCallbacks, runChatTurn } from "./agent.ts";
 
 export interface ChatSession {
   conn: DbConnection;
@@ -29,7 +25,6 @@ export interface ChatSession {
   projectDir: string;
   config: Required<BotholomewConfig>;
   messages: MessageParam[];
-  systemPrompt: string;
   toolCtx: ToolContext;
   skills: Map<string, SkillDefinition>;
   cleanup: () => Promise<void>;
@@ -83,8 +78,6 @@ export async function startChatSession(
     threadId = await createThread(conn, "chat_session", undefined, "New chat");
   }
 
-  const systemPrompt = await buildChatSystemPrompt(projectDir);
-
   const mcpxClient = await createMcpxClient(projectDir);
   const skills = await loadSkills(projectDir);
 
@@ -105,7 +98,6 @@ export async function startChatSession(
     projectDir,
     config,
     messages,
-    systemPrompt,
     toolCtx,
     skills,
     cleanup,
@@ -138,7 +130,7 @@ export async function sendMessage(
 
   await runChatTurn({
     messages: session.messages,
-    systemPrompt: session.systemPrompt,
+    projectDir: session.projectDir,
     config: session.config,
     conn: session.conn,
     threadId: session.threadId,

@@ -5,10 +5,16 @@ import type {
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import { embedSingle } from "../context/embedder.ts";
 import { fitToContextWindow, getMaxInputTokens } from "../daemon/context.ts";
 import { maybeStoreResult } from "../daemon/large-results.ts";
-import { buildMetaHeader, loadPersistentContext } from "../daemon/prompt.ts";
+import {
+  buildMetaHeader,
+  extractKeywords,
+  loadPersistentContext,
+} from "../daemon/prompt.ts";
 import type { DbConnection } from "../db/connection.ts";
+import { hybridSearch } from "../db/embeddings.ts";
 import { logInteraction } from "../db/threads.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
@@ -17,6 +23,7 @@ import {
   type ToolContext,
   toAnthropicTool,
 } from "../tools/tool.ts";
+import { logger } from "../utils/logger.ts";
 
 registerAllTools();
 
@@ -49,11 +56,44 @@ export function getChatTools() {
 
 export async function buildChatSystemPrompt(
   projectDir: string,
+  options?: {
+    keywordSource?: string;
+    conn?: DbConnection;
+    config?: Required<BotholomewConfig>;
+  },
 ): Promise<string> {
   const parts: string[] = [];
 
   parts.push(...buildMetaHeader(projectDir));
-  parts.push(...(await loadPersistentContext(projectDir)));
+
+  const keywordSource = options?.keywordSource?.trim();
+  const taskKeywords = keywordSource ? extractKeywords(keywordSource) : null;
+
+  parts.push(...(await loadPersistentContext(projectDir, taskKeywords)));
+
+  // Relevant context from embeddings search
+  const conn = options?.conn;
+  const config = options?.config;
+  if (conn && config?.openai_api_key && keywordSource) {
+    try {
+      const queryVec = await embedSingle(keywordSource, config);
+      const results = await hybridSearch(conn, keywordSource, queryVec, 5);
+
+      if (results.length > 0) {
+        parts.push("## Relevant Context");
+        for (const r of results) {
+          const path = r.source_path || r.context_item_id;
+          parts.push(`### ${r.title} (${path})`);
+          if (r.chunk_content) {
+            parts.push(r.chunk_content.slice(0, 1000));
+          }
+          parts.push("");
+        }
+      }
+    } catch (err) {
+      logger.debug(`Failed to load contextual embeddings: ${err}`);
+    }
+  }
 
   parts.push("## Instructions");
   parts.push(
@@ -96,20 +136,34 @@ export interface ChatTurnCallbacks {
 }
 
 /**
+ * Walk messages backward to find the most recent human-authored user message.
+ * After tool turns, `messages[messages.length - 1]` is a user entry whose
+ * content is a `ToolResultBlockParam[]` — we want the string content from the
+ * actual user, not tool output, as the keyword source.
+ */
+function findLastUserText(messages: MessageParam[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m?.role === "user" && typeof m.content === "string") return m.content;
+  }
+  return "";
+}
+
+/**
  * Run a single chat turn: stream the assistant response, execute any tool calls,
  * and loop until the model produces end_turn with no tool calls.
  * Mutates `messages` in-place by appending assistant/tool messages.
  */
 export async function runChatTurn(input: {
   messages: MessageParam[];
-  systemPrompt: string;
+  projectDir: string;
   config: Required<BotholomewConfig>;
   conn: DbConnection;
   threadId: string;
   toolCtx: ToolContext;
   callbacks: ChatTurnCallbacks;
 }): Promise<void> {
-  const { messages, systemPrompt, config, conn, threadId, toolCtx, callbacks } =
+  const { messages, projectDir, config, conn, threadId, toolCtx, callbacks } =
     input;
 
   const client = new Anthropic({
@@ -125,6 +179,18 @@ export async function runChatTurn(input: {
 
   for (let turn = 0; !maxTurns || turn < maxTurns; turn++) {
     const startTime = Date.now();
+
+    // Rebuild the system prompt every iteration so that:
+    //   (1) `loading: contextual` files get matched against the latest user
+    //       message, and
+    //   (2) any update_beliefs / update_goals tool call in the previous
+    //       iteration is reflected in the next LLM call.
+    const keywordSource = findLastUserText(messages);
+    const systemPrompt = await buildChatSystemPrompt(projectDir, {
+      keywordSource,
+      conn,
+      config,
+    });
 
     fitToContextWindow(messages, systemPrompt, maxInputTokens);
     const stream = client.messages.stream({

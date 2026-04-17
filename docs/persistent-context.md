@@ -39,11 +39,14 @@ prompt, verbatim. Use sparingly. `soul.md`, `beliefs.md`, and `goals.md`
 are always-loaded.
 
 **`loading: contextual`** — the file is included only if its content
-shares keywords with the current task's name/description. Use this for
+shares keywords with the caller's current intent. The daemon derives
+keywords from the running task's name and description; the chat agent
+derives them from your most recent message. Use this for
 topic-specific notes ("Everything I know about our invoicing system")
 that shouldn't pollute the prompt on unrelated tasks.
 
-See `loadPersistentContext()` in `src/daemon/prompt.ts`.
+See `loadPersistentContext()` and `extractKeywords()` in
+`src/daemon/prompt.ts`.
 
 ---
 
@@ -128,11 +131,13 @@ agent-modification: false
 3. ...
 ```
 
-Tasks mentioning "deploy", "release", or "version" will now include this
-file in the system prompt automatically. You didn't have to register it
-anywhere — on every tick the daemon reads every `.md` file in
-`.botholomew/`, extracts words longer than three characters from the
-task's name and description, and includes any `loading: contextual`
-file whose content contains at least one of those words. See
+Tasks mentioning "deploy", "release", or "version" — and chat messages
+mentioning the same — will now include this file in the system prompt
+automatically. You didn't have to register it anywhere. On every tick
+the daemon reads every `.md` file in `.botholomew/`, extracts words
+longer than three characters from the current task's name and
+description, and includes any `loading: contextual` file whose content
+contains at least one of those words. The chat agent does the same on
+every turn, using your most recent message as the keyword source. See
 `loadPersistentContext()` in `src/daemon/prompt.ts` for the exact
 logic.
