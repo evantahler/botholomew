@@ -202,14 +202,22 @@ cases it compares the new content against what's stored, updates only
 when they differ, and re-embeds only the changed items. Missing files
 are reported, not silently dropped.
 
-To run it automatically, create a schedule — the daemon will evaluate
-it on its next tick and enqueue the refresh as a task:
+Today `refresh` lives on the CLI only — the daemon has no registered
+tool for it, so a schedule that says "run `context refresh`" will
+enqueue a task the agent can't actually work. Until
+[#105](https://github.com/evantahler/botholomew/issues/105) lands, the
+right way to run it on a schedule is an external timer:
 
 ```bash
-botholomew schedule add "Refresh remote context" \
-  --frequency "every morning" \
-  --description "Run context refresh --all and report any items that changed"
+# cron — every morning at 7
+0 7 * * * cd ~/my-project && botholomew context refresh --all
+
+# launchd / systemd — point the user-level service at the same command
 ```
+
+Once the daemon-accessible tool from #105 exists, you'll be able to
+drive it entirely from Botholomew schedules without an external
+scheduler.
 
 ---
 

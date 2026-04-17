@@ -39,19 +39,22 @@ format:
       "env": {}
     },
     "arcade": {
-      "type": "http",
-      "url": "https://api.arcade.dev/v1/mcp",
-      "env": {
-        "ARCADE_API_KEY": "${ARCADE_API_KEY}"
+      "url": "https://api.arcade.dev/mcp/engineering",
+      "headers": {
+        "Authorization": "Bearer arc_xxxxxxx",
+        "Arcade-User-ID": "you@example.com"
       }
     }
   }
 }
 ```
 
-`type: "stdio"` launches a subprocess and speaks MCP over pipes;
-`type: "http"` connects to a remote MCP server (like an Arcade gateway).
-MCPX handles both.
+Stdio entries launch a subprocess and speak MCP over pipes. Entries
+with a `url` connect to a remote MCP server — this is the shape Arcade
+(and most hosted MCP gateways) expect: a gateway endpoint plus
+`headers` for auth. See [Arcade's docs](https://docs.arcade.dev/mcp-servers)
+for the list of gateway URLs and how `Arcade-User-ID` scopes tool
+access per user. MCPX accepts both shapes.
 
 ---
 
