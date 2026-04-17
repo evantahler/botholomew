@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
-import { addOverlapToChunks, chunk } from "../../src/context/chunker.ts";
+import {
+  addOverlapToChunks,
+  chunk,
+  enforceMaxChunkSize,
+} from "../../src/context/chunker.ts";
 
 describe("chunk", () => {
   test("returns single chunk for short content", async () => {
@@ -70,5 +74,72 @@ describe("addOverlapToChunks", () => {
     ];
     const result = addOverlapToChunks(chunks, 0);
     expect(result[1]?.content).toBe("c\nd");
+  });
+});
+
+describe("enforceMaxChunkSize", () => {
+  test("leaves small chunks alone", () => {
+    const chunks = [
+      { index: 0, content: "small" },
+      { index: 1, content: "also small" },
+    ];
+    const result = enforceMaxChunkSize(chunks, 100);
+    expect(result).toHaveLength(2);
+    expect(result[0]?.content).toBe("small");
+    expect(result[1]?.content).toBe("also small");
+  });
+
+  test("splits oversized chunk on paragraph boundaries", () => {
+    const para = "x".repeat(40);
+    const chunks = [
+      { index: 0, content: `${para}\n\n${para}\n\n${para}\n\n${para}` },
+    ];
+    const result = enforceMaxChunkSize(chunks, 90);
+    expect(result.length).toBeGreaterThan(1);
+    for (const c of result) {
+      expect(c.content.length).toBeLessThanOrEqual(90);
+    }
+  });
+
+  test("splits oversized chunk on line boundaries when no paragraphs", () => {
+    const line = "x".repeat(40);
+    const chunks = [
+      { index: 0, content: `${line}\n${line}\n${line}\n${line}` },
+    ];
+    const result = enforceMaxChunkSize(chunks, 90);
+    expect(result.length).toBeGreaterThan(1);
+    for (const c of result) {
+      expect(c.content.length).toBeLessThanOrEqual(90);
+    }
+  });
+
+  test("hard-slices a single oversized line", () => {
+    const giant = "x".repeat(1000);
+    const result = enforceMaxChunkSize([{ index: 0, content: giant }], 100);
+    expect(result.length).toBe(10);
+    for (const c of result) {
+      expect(c.content.length).toBeLessThanOrEqual(100);
+    }
+  });
+
+  test("reindexes chunks after splitting", () => {
+    const chunks = [
+      { index: 0, content: "small" },
+      { index: 1, content: "x".repeat(300) },
+      { index: 2, content: "tiny" },
+    ];
+    const result = enforceMaxChunkSize(chunks, 100);
+    for (const [i, c] of result.entries()) {
+      expect(c.index).toBe(i);
+    }
+  });
+
+  test("real-world: 50k char single line is split into safe chunks", () => {
+    const giant = "abcdefghij".repeat(5000); // 50k chars, single line
+    const result = enforceMaxChunkSize([{ index: 0, content: giant }], 15_000);
+    expect(result.length).toBeGreaterThanOrEqual(4);
+    for (const c of result) {
+      expect(c.content.length).toBeLessThanOrEqual(15_000);
+    }
   });
 });
