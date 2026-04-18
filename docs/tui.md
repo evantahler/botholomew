@@ -1,5 +1,7 @@
 # The TUI (`botholomew chat`)
 
+![Tour of every tab in the chat TUI](./assets/full-tour.gif)
+
 Botholomew ships with an interactive terminal UI for talking to the
 agent, inspecting its work, and managing the local database. It's built
 on [Ink 6](https://github.com/vadimdemedes/ink) + React 19 — a real

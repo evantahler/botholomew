@@ -113,6 +113,8 @@ Everything the agent can touch is here. No surprises.
 
 ## The CLI
 
+![CLI walkthrough: task list, task add, schedule list, context list](docs/assets/cli-tour.gif)
+
 | Command | Purpose |
 |---|---|
 | `botholomew init` | Create `.botholomew/` with templates and a fresh database |

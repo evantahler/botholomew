@@ -61,7 +61,11 @@ bun run capture chat-happy-path
    ```
 
    Turns without a `match` are consumed in order. Add `toolCalls` if the
-   capture needs to show tool use.
+   capture needs to show tool use. An optional top-level `env` object is
+   merged into the VHS process env — handy for enabling capture-only hooks
+   like `BOTHOLOMEW_CAPTURE_TAB_CYCLE` (see *Capture-only hooks* below).
+   Fixtures are optional: a tape that doesn't invoke `botholomew chat`
+   (e.g. a CLI demo) can skip the fixture file entirely.
 
 2. **Write a tape** at `docs/tapes/<name>.tape`:
 
@@ -138,6 +142,22 @@ knowing before you write a new tape.
 - **`Hide` … `Show` hides keystrokes from the recording.** If you want
   viewers to see the command being typed out, just don't use `Hide` — start
   the tape with the shell prompt visible and let the typing animation play.
+
+## Capture-only hooks
+
+The TUI has one env-var-gated affordance that exists purely for captures,
+because VHS can't keystroke its way through the tab bar:
+
+- **`BOTHOLOMEW_CAPTURE_TAB_CYCLE=<dwell-ms>`** (default `2500`) — when set,
+  `src/tui/App.tsx` schedules timers that walk `activeTab` through
+  2 → 3 → 4 → 5 → 6 → 7 → 1 with the given dwell between tabs. The hook is a
+  no-op unless the env var is defined, so it doesn't affect normal use.
+  `docs/tapes/full-tour.tape` enables this via its fixture's `env` block.
+
+Seeded capture data (one task, one high-priority task, one schedule, one
+context file) is added to every capture's ephemeral project directory by
+`scripts/capture.ts`, so Tasks / Schedules / Context panels have visible
+rows from the first frame.
 
 ## Keybinding reference (for the real TUI — not for tapes)
 
