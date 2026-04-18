@@ -179,6 +179,19 @@ export async function getContextItemByPath(
   return row ? rowToContextItem(row) : null;
 }
 
+export async function getContextItemBySourcePath(
+  db: DbConnection,
+  sourcePath: string,
+  sourceType: "file" | "url",
+): Promise<ContextItem | null> {
+  const row = await db.queryGet<ContextItemRow>(
+    "SELECT * FROM context_items WHERE source_path = ?1 AND source_type = ?2 LIMIT 1",
+    sourcePath,
+    sourceType,
+  );
+  return row ? rowToContextItem(row) : null;
+}
+
 /**
  * Look up a context item by UUID (if the value looks like one) or by context_path.
  */

@@ -11,6 +11,7 @@ import {
   deleteContextItemsByPrefix,
   getContextItem,
   getContextItemByPath,
+  getContextItemBySourcePath,
   getDistinctDirectories,
   listContextItems,
   listContextItemsByPrefix,
@@ -204,6 +205,52 @@ describe("context CRUD", () => {
 
     const missing = await getContextItemByPath(conn, "/nonexistent");
     expect(missing).toBeNull();
+  });
+
+  test("get by source_path scoped to source_type", async () => {
+    await createContextItem(conn, {
+      title: "mcpx",
+      content: "mcpx docs",
+      sourceType: "file",
+      sourcePath: "/Users/me/docs/mcpx.md",
+      contextPath: "/user-guides/mcpx.md",
+    });
+    await createContextItem(conn, {
+      title: "Example",
+      content: "remote",
+      sourceType: "url",
+      sourcePath: "https://example.com",
+      contextPath: "/example.com.md",
+    });
+
+    const byFile = await getContextItemBySourcePath(
+      conn,
+      "/Users/me/docs/mcpx.md",
+      "file",
+    );
+    expect(byFile?.context_path).toBe("/user-guides/mcpx.md");
+
+    const byUrl = await getContextItemBySourcePath(
+      conn,
+      "https://example.com",
+      "url",
+    );
+    expect(byUrl?.context_path).toBe("/example.com.md");
+
+    // source_type discriminates — looking up a URL string under "file" misses.
+    const miss = await getContextItemBySourcePath(
+      conn,
+      "https://example.com",
+      "file",
+    );
+    expect(miss).toBeNull();
+
+    const unknown = await getContextItemBySourcePath(
+      conn,
+      "/not/ingested.md",
+      "file",
+    );
+    expect(unknown).toBeNull();
   });
 
   test("list with filters", async () => {

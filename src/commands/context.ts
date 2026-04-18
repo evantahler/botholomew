@@ -25,6 +25,7 @@ import {
   createContextItemStrict,
   deleteContextItemByPath,
   getContextItemByPath,
+  getContextItemBySourcePath,
   listContextItems,
   listContextItemsByPrefix,
   PathConflictError,
@@ -193,9 +194,126 @@ export function registerContextCommand(program: Command) {
           text: `Found ${totalCount} item(s) to add (${filesToAdd.length} file(s), ${urlsToAdd.length} URL(s)).`,
         });
 
-        // Phase 1.5: LLM placement for files without an explicit path
         const config = await loadConfig(dir);
         const CONCURRENCY = 10;
+
+        // Phase 0: Source-path dedup — items whose source_path is already in
+        // context are routed per --on-conflict before we pay for LLM placement.
+        type AlreadyInContext = {
+          sourcePath: string;
+          sourceType: "file" | "url";
+          existing: ContextItem;
+        };
+        const alreadyInContext: AlreadyInContext[] = [];
+        const remainingFiles: FileToAdd[] = [];
+        const remainingUrls: { url: string; contextPath: string }[] = [];
+
+        for (const f of filesToAdd) {
+          const existing = await getContextItemBySourcePath(
+            conn,
+            f.filePath,
+            "file",
+          );
+          if (existing) {
+            alreadyInContext.push({
+              sourcePath: f.filePath,
+              sourceType: "file",
+              existing,
+            });
+          } else {
+            remainingFiles.push(f);
+          }
+        }
+        for (const u of urlsToAdd) {
+          const existing = await getContextItemBySourcePath(conn, u.url, "url");
+          if (existing) {
+            alreadyInContext.push({
+              sourcePath: u.url,
+              sourceType: "url",
+              existing,
+            });
+          } else {
+            remainingUrls.push(u);
+          }
+        }
+
+        let refreshedCount = 0;
+        let refreshedChunks = 0;
+        const dedupSkipped: string[] = [];
+
+        if (alreadyInContext.length > 0) {
+          if (policy === "error") {
+            logger.error(
+              `${alreadyInContext.length} item(s) already in context (matched by source path):`,
+            );
+            for (const a of alreadyInContext) {
+              console.log(
+                `  ${ansis.red("✗")} ${a.sourcePath} → ${a.existing.context_path} (id: ${a.existing.id})`,
+              );
+            }
+            logger.dim(
+              "Re-run with --on-conflict=skip to ignore these items or --on-conflict=overwrite to refresh them from disk.",
+            );
+            process.exit(1);
+          }
+
+          if (policy === "skip") {
+            for (const a of alreadyInContext) {
+              logger.dim(
+                `⊘ already in context: ${a.sourcePath} → ${a.existing.context_path}`,
+              );
+              dedupSkipped.push(a.existing.context_path);
+            }
+          } else {
+            // overwrite: refresh existing items (diff + selective re-embed),
+            // preserving their original context_path.
+            const itemsToRefresh = alreadyInContext.map((a) => a.existing);
+            const hasUrls = itemsToRefresh.some((i) => i.source_type === "url");
+            const mcpxClient = hasUrls ? await createMcpxClient(dir) : null;
+
+            const refreshSpinner = createSpinner(
+              `Refreshing 0/${itemsToRefresh.length} existing item(s)...`,
+            ).start();
+            const refreshResult = await refreshContextItems(
+              conn,
+              itemsToRefresh,
+              config,
+              mcpxClient,
+              {
+                onItemProgress: (done, total) => {
+                  refreshSpinner.update({
+                    text: `Refreshing ${done}/${total} existing item(s)...`,
+                  });
+                },
+              },
+            );
+            refreshSpinner.success({
+              text: `Refreshed ${refreshResult.checked} existing item(s): ${refreshResult.updated} updated, ${refreshResult.unchanged} unchanged, ${refreshResult.missing} missing.`,
+            });
+
+            // Count everything we processed OK (updated + unchanged) as
+            // "refreshed" for the summary. Missing/error items are reported
+            // inline below and don't count toward success.
+            refreshedCount = refreshResult.updated + refreshResult.unchanged;
+            refreshedChunks = refreshResult.chunks;
+            for (const item of refreshResult.items) {
+              if (item.status === "missing") {
+                logger.warn(`  Missing: ${item.source_path}`);
+              } else if (item.status === "error") {
+                logger.warn(
+                  `  Error refreshing ${item.source_path}: ${item.error}`,
+                );
+              }
+            }
+          }
+        }
+
+        // Drop already-handled items from the work lists so downstream phases
+        // (LLM placement, description, insert, embed) see only truly-new items.
+        filesToAdd.splice(0, filesToAdd.length, ...remainingFiles);
+        urlsToAdd.splice(0, urlsToAdd.length, ...remainingUrls);
+
+        // Phase 1.5: LLM placement for files without an explicit path
         const needsPlacement = filesToAdd.filter((f) => f.contextPath === null);
         // description cache keyed by filePath — populated when LLM placement runs,
         // reused in addFile to avoid a second describe call.
@@ -378,10 +496,13 @@ export function registerContextCommand(program: Command) {
           }
         }
 
-        // Report conflicts before embeddings so the user sees them prominently
+        // Report conflicts before embeddings so the user sees them prominently.
+        // Phase 0 already handled source-path matches, so anything here is a
+        // target-path collision — an LLM-suggested (or explicit) path that
+        // another unrelated item already occupies.
         if (conflicts.length > 0) {
           logger.error(
-            `${conflicts.length} path collision(s) — nothing written for these items:`,
+            `${conflicts.length} target-path collision(s) — nothing written for these items:`,
           );
           for (const c of conflicts) {
             console.log(
@@ -389,24 +510,34 @@ export function registerContextCommand(program: Command) {
             );
           }
           logger.dim(
-            "Re-run with --on-conflict=overwrite to replace, --on-conflict=skip to ignore, or --name / --prefix to place elsewhere.",
+            "The suggested path is already in use by a different source. Re-run with --prefix to place these items elsewhere, or delete the existing item first.",
           );
         }
+
+        // Merge Phase 0 skips into the skip list used by the final summary.
+        skipped.push(...dedupSkipped);
 
         // Phase 3: Chunk + embed in parallel (network I/O)
         if (itemIds.length === 0 || !config.openai_api_key) {
           if (!config.openai_api_key) {
             logger.dim("Skipping embeddings (no OpenAI API key configured).");
           }
-          const msg = `Added ${itemIds.length}/${totalCount} item(s), 0 chunks indexed.`;
+          const msg = buildSummary({
+            added: itemIds.length,
+            refreshed: refreshedCount,
+            skipped: skipped.length,
+            chunks: refreshedChunks,
+            totalCount,
+            handled: itemIds.length + refreshedCount + skipped.length,
+          });
           if (conflicts.length > 0) {
             logger.error(msg);
             process.exit(1);
           }
-          if (itemIds.length === totalCount - skipped.length) {
+          if (itemIds.length + skipped.length + refreshedCount >= totalCount) {
             logger.success(msg);
             process.exit(0);
-          } else if (itemIds.length === 0) {
+          } else if (itemIds.length === 0 && refreshedCount === 0) {
             logger.error(msg);
             process.exit(1);
           } else {
@@ -452,15 +583,20 @@ export function registerContextCommand(program: Command) {
           else filesAdded++;
         }
 
-        const parts: string[] = [];
-        if (filesAdded > 0) parts.push(`${filesAdded} added`);
-        if (filesUpdated > 0) parts.push(`${filesUpdated} updated`);
-        const summary = `${parts.join(", ")} — ${chunks} chunk(s) indexed (${itemIds.length}/${totalCount} item(s)).`;
+        const summary = buildSummary({
+          added: filesAdded,
+          updated: filesUpdated,
+          refreshed: refreshedCount,
+          skipped: skipped.length,
+          chunks: chunks + refreshedChunks,
+          totalCount,
+          handled: itemIds.length + refreshedCount + skipped.length,
+        });
         if (conflicts.length > 0) {
           logger.error(summary);
           process.exit(1);
         }
-        if (itemIds.length === totalCount - skipped.length) {
+        if (itemIds.length + skipped.length + refreshedCount >= totalCount) {
           logger.success(summary);
           process.exit(0);
         } else {
@@ -674,6 +810,26 @@ async function resolveItems(
 }
 
 type ConflictPolicy = "error" | "overwrite" | "skip";
+
+/** Format the final "X added, Y refreshed, Z skipped — N chunks" line. */
+function buildSummary(args: {
+  added: number;
+  updated?: number;
+  refreshed: number;
+  skipped: number;
+  chunks: number;
+  totalCount: number;
+  handled?: number;
+}): string {
+  const parts: string[] = [];
+  if (args.added > 0) parts.push(`${args.added} added`);
+  if (args.updated && args.updated > 0) parts.push(`${args.updated} updated`);
+  if (args.refreshed > 0) parts.push(`${args.refreshed} refreshed`);
+  if (args.skipped > 0) parts.push(`${args.skipped} skipped`);
+  const body = parts.length > 0 ? parts.join(", ") : "0 added";
+  const handled = args.handled ?? args.added + args.refreshed + args.skipped;
+  return `${body} — ${args.chunks} chunk(s) indexed (${handled}/${args.totalCount} item(s)).`;
+}
 
 type AddFileResult =
   | { kind: "added"; id: string; contextPath: string }
