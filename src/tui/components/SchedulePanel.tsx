@@ -1,6 +1,6 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import type { DbConnection } from "../../db/connection.ts";
+import { withDb } from "../../db/connection.ts";
 import {
   deleteSchedule,
   listSchedules,
@@ -10,7 +10,7 @@ import {
 import { ansi, theme } from "../theme.ts";
 
 interface SchedulePanelProps {
-  conn: DbConnection;
+  dbPath: string;
   isActive: boolean;
 }
 
@@ -108,7 +108,7 @@ function cycleFilter<T>(current: T | null, values: readonly T[]): T | null {
 }
 
 export const SchedulePanel = memo(function SchedulePanel({
-  conn,
+  dbPath,
   isActive,
 }: SchedulePanelProps) {
   const { stdout } = useStdout();
@@ -127,7 +127,9 @@ export const SchedulePanel = memo(function SchedulePanel({
     const refresh = async () => {
       const filters: { enabled?: boolean } = {};
       if (enabledFilter !== null) filters.enabled = enabledFilter;
-      const result = await listSchedules(conn, filters);
+      const result = await withDb(dbPath, (conn) =>
+        listSchedules(conn, filters),
+      );
       if (mounted) {
         setSchedules(result);
         setSelectedIndex((prev) =>
@@ -142,7 +144,7 @@ export const SchedulePanel = memo(function SchedulePanel({
       mounted = false;
       clearInterval(interval);
     };
-  }, [conn, enabledFilter, refreshTick]);
+  }, [dbPath, enabledFilter, refreshTick]);
 
   const selectedSchedule = schedules[selectedIndex];
 
@@ -182,7 +184,9 @@ export const SchedulePanel = memo(function SchedulePanel({
       if (confirmDelete) {
         if (input === "y" || input === "d") {
           if (selectedSchedule) {
-            deleteSchedule(conn, selectedSchedule.id).then(() => {
+            withDb(dbPath, (conn) =>
+              deleteSchedule(conn, selectedSchedule.id),
+            ).then(() => {
               forceRefresh();
             });
           }
@@ -242,9 +246,11 @@ export const SchedulePanel = memo(function SchedulePanel({
         return;
       }
       if (input === "e" && selectedSchedule) {
-        updateSchedule(conn, selectedSchedule.id, {
-          enabled: !selectedSchedule.enabled,
-        }).then(() => {
+        withDb(dbPath, (conn) =>
+          updateSchedule(conn, selectedSchedule.id, {
+            enabled: !selectedSchedule.enabled,
+          }),
+        ).then(() => {
           forceRefresh();
         });
         return;

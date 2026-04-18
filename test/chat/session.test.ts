@@ -7,6 +7,7 @@ import {
   endChatSession,
   startChatSession,
 } from "../../src/chat/session.ts";
+import { withDb } from "../../src/db/connection.ts";
 import { listThreads } from "../../src/db/threads.ts";
 
 let projectDir: string;
@@ -35,33 +36,36 @@ describe("startChatSession", () => {
   test("creates a session with a thread", async () => {
     session = await startChatSession(projectDir);
     expect(session.threadId).toBeTruthy();
-    expect(session.conn).toBeTruthy();
+    expect(session.dbPath).toBeTruthy();
     expect(session.messages).toEqual([]);
   });
 
   test("creates a chat_session thread in the database", async () => {
     session = await startChatSession(projectDir);
-    const threads = await listThreads(session.conn, {
-      type: "chat_session",
-    });
+    const threads = await withDb(session.dbPath, (conn) =>
+      listThreads(conn, { type: "chat_session" }),
+    );
     expect(threads.length).toBe(1);
     expect(threads[0]?.id).toBe(session.threadId);
   });
 });
 
 describe("endChatSession", () => {
-  test("closes the thread and connection", async () => {
+  test("marks the thread ended", async () => {
     session = await startChatSession(projectDir);
-    const conn = session.conn;
+    const dbPath = session.dbPath;
 
-    // Verify thread exists and is open
-    const threads = await listThreads(conn, { type: "chat_session" });
-    expect(threads[0]?.ended_at).toBeNull();
+    const before = await withDb(dbPath, (conn) =>
+      listThreads(conn, { type: "chat_session" }),
+    );
+    expect(before[0]?.ended_at).toBeNull();
 
     await endChatSession(session);
     session = null;
 
-    // Connection is closed, so we can't query it anymore
-    // But we verified the thread was open before closing
+    const after = await withDb(dbPath, (conn) =>
+      listThreads(conn, { type: "chat_session" }),
+    );
+    expect(after[0]?.ended_at).not.toBeNull();
   });
 });

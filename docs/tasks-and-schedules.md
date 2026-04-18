@@ -139,6 +139,11 @@ Trade-offs:
 - **Drift.** The model's idea of "morning" might not match yours.
   Tighten the frequency text if you see misfires.
 
+`botholomew schedule trigger <id>` runs the same evaluation loop on
+demand and creates the task(s) immediately — handy for verifying that
+a new schedule produces the tasks you expect without waiting for the
+next tick.
+
 ---
 
 ## Running the queue by hand
@@ -147,8 +152,9 @@ Trade-offs:
 # Add work
 botholomew task add "Draft Q4 retro" --priority high
 
-# Inspect
+# Inspect (newest first; supports --status, --priority, --limit, --offset)
 botholomew task list --status pending
+botholomew task list --limit 20 --offset 20
 botholomew task view <id>
 
 # Force the daemon to pick up

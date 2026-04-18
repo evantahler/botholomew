@@ -217,6 +217,18 @@ describe("listThreads", () => {
     const threads = await listThreads(conn, { limit: 2 });
     expect(threads).toHaveLength(2);
   });
+
+  test("list threads with limit and offset", async () => {
+    await createThread(conn, "daemon_tick", undefined, "Tick 1");
+    await createThread(conn, "daemon_tick", undefined, "Tick 2");
+    await createThread(conn, "daemon_tick", undefined, "Tick 3");
+    await createThread(conn, "daemon_tick", undefined, "Tick 4");
+
+    const page = await listThreads(conn, { limit: 2, offset: 1 });
+    expect(page).toHaveLength(2);
+    expect(page[0]?.title).toBe("Tick 3");
+    expect(page[1]?.title).toBe("Tick 2");
+  });
 });
 
 describe("follow queries", () => {

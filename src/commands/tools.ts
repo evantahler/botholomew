@@ -2,6 +2,7 @@ import ansis from "ansis";
 import type { Command } from "commander";
 import { z } from "zod";
 import { loadConfig } from "../config/loader.ts";
+import { getDbPath } from "../constants.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
   type AnyToolDefinition,
@@ -112,6 +113,7 @@ function registerToolAsCLI(parent: Command, tool: AnyToolDefinition) {
 
         const ctx: ToolContext = {
           conn,
+          dbPath: getDbPath(dir),
           projectDir: dir,
           config: await loadConfig(dir),
           mcpxClient: null,

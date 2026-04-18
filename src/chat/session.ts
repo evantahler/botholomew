@@ -2,8 +2,7 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { loadConfig } from "../config/loader.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { getDbPath } from "../constants.ts";
-import type { DbConnection } from "../db/connection.ts";
-import { getConnection } from "../db/connection.ts";
+import { withDb } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
 import {
   createThread,
@@ -15,18 +14,18 @@ import {
 import { createMcpxClient } from "../mcpx/client.ts";
 import { loadSkills } from "../skills/loader.ts";
 import type { SkillDefinition } from "../skills/parser.ts";
-import type { ToolContext } from "../tools/tool.ts";
 import { generateThreadTitle } from "../utils/title.ts";
 import { type ChatTurnCallbacks, runChatTurn } from "./agent.ts";
 
 export interface ChatSession {
-  conn: DbConnection;
+  dbPath: string;
   threadId: string;
   projectDir: string;
   config: Required<BotholomewConfig>;
   messages: MessageParam[];
-  toolCtx: ToolContext;
   skills: Map<string, SkillDefinition>;
+  // biome-ignore lint/suspicious/noExplicitAny: mcpx client
+  mcpxClient: any;
   cleanup: () => Promise<void>;
 }
 
@@ -42,21 +41,22 @@ export async function startChatSession(
     );
   }
 
-  const conn = await getConnection(getDbPath(projectDir));
-  await migrate(conn);
+  const dbPath = getDbPath(projectDir);
+  await withDb(dbPath, (conn) => migrate(conn));
 
   let threadId: string;
   const messages: MessageParam[] = [];
 
   if (existingThreadId) {
     // Resume existing thread
-    const result = await getThread(conn, existingThreadId);
+    const result = await withDb(dbPath, (conn) =>
+      getThread(conn, existingThreadId),
+    );
     if (!result) {
-      conn.close();
       throw new Error(`Thread not found: ${existingThreadId}`);
     }
     threadId = existingThreadId;
-    await reopenThread(conn, threadId);
+    await withDb(dbPath, (conn) => reopenThread(conn, threadId));
 
     // Rebuild message history from interactions
     let firstUserMessage: string | undefined;
@@ -72,34 +72,29 @@ export async function startChatSession(
 
     // Backfill title for threads that still have the default
     if (result.thread.title === "New chat" && firstUserMessage) {
-      void generateThreadTitle(config, conn, threadId, firstUserMessage);
+      void generateThreadTitle(config, dbPath, threadId, firstUserMessage);
     }
   } else {
-    threadId = await createThread(conn, "chat_session", undefined, "New chat");
+    threadId = await withDb(dbPath, (conn) =>
+      createThread(conn, "chat_session", undefined, "New chat"),
+    );
   }
 
   const mcpxClient = await createMcpxClient(projectDir);
   const skills = await loadSkills(projectDir);
-
-  const toolCtx: ToolContext = {
-    conn,
-    projectDir,
-    config,
-    mcpxClient,
-  };
 
   const cleanup = async () => {
     await mcpxClient?.close();
   };
 
   return {
-    conn,
+    dbPath,
     threadId,
     projectDir,
     config,
     messages,
-    toolCtx,
     skills,
+    mcpxClient,
     cleanup,
   };
 }
@@ -110,11 +105,13 @@ export async function sendMessage(
   callbacks: ChatTurnCallbacks,
 ): Promise<void> {
   // Log and append user message
-  await logInteraction(session.conn, session.threadId, {
-    role: "user",
-    kind: "message",
-    content: userMessage,
-  });
+  await withDb(session.dbPath, (conn) =>
+    logInteraction(conn, session.threadId, {
+      role: "user",
+      kind: "message",
+      content: userMessage,
+    }),
+  );
 
   session.messages.push({ role: "user", content: userMessage });
 
@@ -122,7 +119,7 @@ export async function sendMessage(
   if (session.messages.length === 1) {
     void generateThreadTitle(
       session.config,
-      session.conn,
+      session.dbPath,
       session.threadId,
       userMessage,
     );
@@ -132,15 +129,14 @@ export async function sendMessage(
     messages: session.messages,
     projectDir: session.projectDir,
     config: session.config,
-    conn: session.conn,
+    dbPath: session.dbPath,
     threadId: session.threadId,
-    toolCtx: session.toolCtx,
+    mcpxClient: session.mcpxClient,
     callbacks,
   });
 }
 
 export async function endChatSession(session: ChatSession): Promise<void> {
-  await endThread(session.conn, session.threadId);
+  await withDb(session.dbPath, (conn) => endThread(conn, session.threadId));
   await session.cleanup();
-  session.conn.close();
 }

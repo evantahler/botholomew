@@ -6,7 +6,7 @@ import type {
 } from "@anthropic-ai/sdk/resources/messages";
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import type { DbConnection } from "../db/connection.ts";
+import { withDb } from "../db/connection.ts";
 import { getTask, type Task } from "../db/tasks.ts";
 import { logInteraction } from "../db/threads.ts";
 import { registerAllTools } from "../tools/registry.ts";
@@ -44,30 +44,30 @@ export async function runAgentLoop(input: {
   systemPrompt: string;
   task: Task;
   config: Required<BotholomewConfig>;
-  conn: DbConnection;
+  dbPath: string;
   threadId: string;
   projectDir: string;
   mcpxClient?: McpxClient | null;
   callbacks?: DaemonStreamCallbacks;
 }): Promise<AgentLoopResult> {
-  const { systemPrompt, task, config, conn, threadId, projectDir, callbacks } =
-    input;
+  const {
+    systemPrompt,
+    task,
+    config,
+    dbPath,
+    threadId,
+    projectDir,
+    callbacks,
+  } = input;
 
   const client = createLlmClient(config);
-
-  const toolCtx: ToolContext = {
-    conn,
-    projectDir,
-    config,
-    mcpxClient: input.mcpxClient ?? null,
-  };
 
   // Build predecessor context from completed blocking tasks
   let predecessorContext = "";
   if (task.blocked_by.length > 0) {
     const predecessorOutputs: string[] = [];
     for (const blockerId of task.blocked_by) {
-      const blocker = await getTask(conn, blockerId);
+      const blocker = await withDb(dbPath, (conn) => getTask(conn, blockerId));
       if (blocker?.output) {
         predecessorOutputs.push(
           `### ${blocker.name} (${blocker.id})\n${blocker.output}`,
@@ -84,11 +84,13 @@ export async function runAgentLoop(input: {
   const messages: MessageParam[] = [{ role: "user", content: userMessage }];
 
   // Log the initial user message
-  await logInteraction(conn, threadId, {
-    role: "user",
-    kind: "message",
-    content: userMessage,
-  });
+  await withDb(dbPath, (conn) =>
+    logInteraction(conn, threadId, {
+      role: "user",
+      kind: "message",
+      content: userMessage,
+    }),
+  );
 
   clearLargeResults();
   const daemonTools = toAnthropicTools();
@@ -142,13 +144,15 @@ export async function runAgentLoop(input: {
     // Log assistant text blocks
     for (const block of response.content) {
       if (block.type === "text" && block.text) {
-        await logInteraction(conn, threadId, {
-          role: "assistant",
-          kind: "message",
-          content: block.text,
-          durationMs,
-          tokenCount,
-        });
+        await withDb(dbPath, (conn) =>
+          logInteraction(conn, threadId, {
+            role: "assistant",
+            kind: "message",
+            content: block.text,
+            durationMs,
+            tokenCount,
+          }),
+        );
       }
     }
 
@@ -171,20 +175,30 @@ export async function runAgentLoop(input: {
     for (const toolUse of toolUseBlocks) {
       const toolInput = JSON.stringify(toolUse.input);
       callbacks?.onToolStart(toolUse.name, toolInput);
-      await logInteraction(conn, threadId, {
-        role: "assistant",
-        kind: "tool_use",
-        content: `Calling ${toolUse.name}`,
-        toolName: toolUse.name,
-        toolInput,
-      });
+      await withDb(dbPath, (conn) =>
+        logInteraction(conn, threadId, {
+          role: "assistant",
+          kind: "tool_use",
+          content: `Calling ${toolUse.name}`,
+          toolName: toolUse.name,
+          toolInput,
+        }),
+      );
     }
 
-    // Execute all tools in parallel
+    // Execute all tools in parallel. Each tool call opens its own short-lived
+    // connection (or none, if the tool uses dbPath internally) via
+    // executeToolCall — so parallel tool calls share the process-local
+    // DuckDB instance and release the file lock as soon as they finish.
     const execResults = await Promise.all(
       toolUseBlocks.map(async (toolUse) => {
         const start = Date.now();
-        const result = await executeToolCall(toolUse, toolCtx);
+        const result = await executeToolCall(toolUse, {
+          dbPath,
+          projectDir,
+          config,
+          mcpxClient: input.mcpxClient ?? null,
+        });
         const elapsed = Date.now() - start;
         callbacks?.onToolEnd(
           toolUse.name,
@@ -199,13 +213,15 @@ export async function runAgentLoop(input: {
     // Log results and collect tool_result messages
     const toolResults: ToolResultBlockParam[] = [];
     for (const { toolUse, result, durationMs } of execResults) {
-      await logInteraction(conn, threadId, {
-        role: "tool",
-        kind: "tool_result",
-        content: result.output,
-        toolName: toolUse.name,
-        durationMs,
-      });
+      await withDb(dbPath, (conn) =>
+        logInteraction(conn, threadId, {
+          role: "tool",
+          kind: "tool_result",
+          content: result.output,
+          toolName: toolUse.name,
+          durationMs,
+        }),
+      );
 
       if (result.terminal && result.agentResult) {
         return result.agentResult;
@@ -232,9 +248,16 @@ interface ToolCallResult {
   agentResult?: AgentLoopResult;
 }
 
+interface ToolCallCtx {
+  dbPath: string;
+  projectDir: string;
+  config: Required<BotholomewConfig>;
+  mcpxClient: McpxClient | null;
+}
+
 async function executeToolCall(
   toolUse: ToolUseBlock,
-  ctx: ToolContext,
+  baseCtx: ToolCallCtx,
 ): Promise<ToolCallResult> {
   const tool = getTool(toolUse.name);
   if (!tool) {
@@ -259,7 +282,10 @@ async function executeToolCall(
 
   let result: unknown;
   try {
-    result = await tool.execute(parsed.data, ctx);
+    result = await withDb(baseCtx.dbPath, (conn) => {
+      const ctx: ToolContext = { ...baseCtx, conn };
+      return tool.execute(parsed.data, ctx);
+    });
   } catch (err) {
     return {
       output: `Tool ${toolUse.name} threw an error: ${err}. You may retry with different parameters or try an alternative approach.`,

@@ -20,6 +20,7 @@ beforeEach(async () => {
   tempDir = await mkdtemp(join(tmpdir(), "bth-self-modify-"));
   ctx = {
     conn: await setupTestDb(),
+    dbPath: ":memory:",
     projectDir: tempDir,
     config: { ...DEFAULT_CONFIG },
     mcpxClient: null,

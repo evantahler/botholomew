@@ -10,7 +10,7 @@ calling out to a vector DB service.
 ## The pipeline
 
 When you add a document (`botholomew context add ./report.pdf` or the
-agent writes via `file_write`), this happens:
+agent writes via `context_write`), this happens:
 
 ```
  content ─► create context_item row
@@ -33,19 +33,22 @@ fragments. Botholomew instead asks a **small, fast** model (Haiku by
 default) to propose chunk boundaries for each document:
 
 ```json
-[
-  { "start": 0,   "end": 412, "title": "Q4 Overview",     "description": "..." },
-  { "start": 413, "end": 980, "title": "Revenue by region", "description": "..." },
-  ...
-]
+{
+  "chunks": [
+    { "start_line": 1,   "end_line": 42  },
+    { "start_line": 43,  "end_line": 98  }
+  ]
+}
 ```
 
-The chunker has a sliding-window fallback (500 tokens, 50 overlap) if the
-LLM call fails, so ingestion never blocks on model availability.
+The chunker only returns line ranges (1-based, inclusive) — see
+`CHUNKER_TOOL` in `src/context/chunker.ts`.
 
-Each chunk is embedded separately; the `title` and `description` are
-stored alongside the embedding and surface in search results as the
-snippet.
+Each chunk is embedded separately; the `title` and `description` come
+from the parent `context_item` (set at ingestion time), are prepended
+to the chunk's text at embed time, and surface in search results as
+the snippet. If the chunker fails, ingestion fails — there is no
+sliding-window fallback today.
 
 ---
 
@@ -131,8 +134,11 @@ LLM-driven loading agent that handles URLs.
 ### Local files and folders
 
 ```bash
+# LLM picks a folder for each file based on content + existing structure
 botholomew context add ./notes
 botholomew context add ./report.pdf
+
+# Explicit placement under a prefix (no LLM call)
 botholomew context add ~/Documents/strategy --prefix /strategy
 ```
 
@@ -140,10 +146,60 @@ botholomew context add ~/Documents/strategy --prefix /strategy
 feeds every file through the ingestion pipeline (item → chunks →
 embeddings). Binary files (PDFs, images) are stored in `content_blob`
 with `is_textual = false`; textual files are indexed for hybrid search.
-Re-running `context add` on the same path upserts — it replaces the
-stored content and re-embeds, so running it on a cron keeps a folder
-mirrored. Items are stored with `source_type = 'file'` and their
-original absolute path in `source_path`.
+Items are stored with `source_type = 'file'` and their original
+absolute path in `source_path`.
+
+### Path placement
+
+There are two ways `context add` decides where a file lives in the
+virtual filesystem:
+
+- **Explicit** — pass `--prefix <prefix>` (or `--name <path>` for a
+  single URL) and the path is derived mechanically (`{prefix}/{basename}`
+  for single files, `{prefix}/{relative-path}` for directory walks).
+  Same behavior as before.
+- **LLM-suggested** (default when `--prefix`/`--name` aren't passed) —
+  a single `return_description_and_path` tool-use call produces both a
+  description and an absolute folder path per file. The LLM is primed
+  with the file's basename, a content excerpt, its source filesystem
+  path (for disambiguation when basenames collide — e.g. two projects
+  each with a `README.md`), and a summary of existing folders so it
+  classifies into the current structure instead of inventing new ones.
+
+  In a TTY, the suggestions are printed and you confirm with `Y`/`n`
+  (default accepts — just hit Enter). Pass `--auto-place` to skip the
+  prompt; non-TTY invocations (pipes, scripts) accept automatically.
+
+### Collision handling
+
+Before doing anything expensive, `context add` checks each input's
+`source_path` (absolute file path for local files, URL for remote items)
+against what's already in context. If the same source was ingested
+before — whether under the same or a different `context_path` — the
+item is routed by `--on-conflict` **before** any LLM placement call, so
+re-runs don't burn tokens re-picking paths for files the database
+already knows about.
+
+The same `--on-conflict` policy also governs the rarer case where a
+newly-placed item's target `context_path` happens to collide with an
+unrelated existing item (e.g. two different source files with the same
+basename the LLM placed in the same folder).
+
+| Policy      | Behavior                                                                 |
+| ----------- | ------------------------------------------------------------------------ |
+| `error` *(default)* | Fast-fail before LLM placement if any source is already in context. For target-path collisions encountered mid-run, exit with a non-zero status listing every collision. |
+| `overwrite` | For already-ingested sources, refresh content from disk/URL (diff + selective re-embed) while preserving the original `context_path`. For target-path collisions, replace and re-embed. |
+| `skip`      | Log and move on — no write, no error.                                    |
+
+Re-running `context add` on already-ingested files with the default
+policy is a loud error rather than a silent overwrite. Use
+`--on-conflict=overwrite` when you genuinely want to refresh stored
+content (or `botholomew context refresh` for the idiomatic flow).
+
+The agent-side `context_write` tool follows the same convention:
+defaults to `on_conflict='error'` and returns a PATs-style
+`error_type: "path_conflict"` with a `next_action_hint` that guides the
+agent to `context_read` first or pass `on_conflict='overwrite'`.
 
 ### Remote content via a loading agent
 
@@ -202,22 +258,19 @@ cases it compares the new content against what's stored, updates only
 when they differ, and re-embeds only the changed items. Missing files
 are reported, not silently dropped.
 
-Today `refresh` lives on the CLI only — the daemon has no registered
-tool for it, so a schedule that says "run `context refresh`" will
-enqueue a task the agent can't actually work. Until
-[#105](https://github.com/evantahler/botholomew/issues/105) lands, the
-right way to run it on a schedule is an external timer:
+The same logic is exposed to the daemon as the `context_refresh`
+tool, so schedules like "every morning at 7, refresh remote context"
+work end-to-end without an external scheduler. The tool takes the
+same arguments as the CLI (`path` for a single item or subtree,
+`all: true` for every sourced item) and returns a structured summary
+(`checked`, `updated`, `unchanged`, `missing`, `reembedded`,
+`chunks`, per-item statuses) so the agent can report back or feed a
+downstream task via `complete_task`.
 
-```bash
-# cron — every morning at 7
-0 7 * * * cd ~/my-project && botholomew context refresh --all
-
-# launchd / systemd — point the user-level service at the same command
-```
-
-Once the daemon-accessible tool from #105 exists, you'll be able to
-drive it entirely from Botholomew schedules without an external
-scheduler.
+Under the hood, URL fetches from the daemon open a nested fetcher
+loop with the project's MCPX client — the same path the CLI uses.
+`all: true` across many URLs is serial (each URL runs its own
+Anthropic agent loop), so prefer narrowing with `path` when you can.
 
 ---
 

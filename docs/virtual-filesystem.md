@@ -1,7 +1,7 @@
 # The virtual filesystem
 
 Botholomew's agent has no access to your real filesystem. When it calls
-`file_read /notes/meeting.md`, there is no `/notes/meeting.md` on disk —
+`context_read /notes/meeting.md`, there is no `/notes/meeting.md` on disk —
 it's a row in the `context_items` table with `context_path =
 '/notes/meeting.md'`.
 
@@ -48,36 +48,36 @@ instances in `src/tools/dir/` and `src/tools/file/`.
 
 | Tool | What it does |
 |---|---|
-| `dir_create` | Create a directory placeholder row |
-| `dir_list`   | List entries under a path (files + subdirs, with sizes) |
-| `dir_tree`   | Render a markdown tree of everything under a prefix |
-| `dir_size`   | Sum `length(content)` for items under a prefix |
+| `context_create_dir` | Create a directory placeholder row |
+| `context_list_dir`   | List entries under a path (files + subdirs, with sizes) |
+| `context_tree`       | Render a markdown tree of everything under a prefix — the agent's bird's-eye view for discovering what exists before reading or searching |
+| `context_dir_size`   | Sum `length(content)` for items under a prefix |
 
 **File operations:**
 
 | Tool | What it does |
 |---|---|
-| `file_read`        | `getContextItemByPath(path)` → slice lines (`offset`/`limit`) |
-| `file_write`       | Upsert a row, trigger re-chunk + re-embed |
-| `file_edit`        | Apply git-style line-range patches |
-| `file_delete`      | Remove by path (or recursively by prefix) |
-| `file_copy`        | Duplicate a row with a new `context_path` |
-| `file_move`        | Rename a row |
-| `file_info`        | Return metadata (size, lines, mime, indexed_at) |
-| `file_exists`      | Path existence check |
-| `file_count_lines` | Count `\n` in content |
+| `context_read`        | `getContextItemByPath(path)` → slice lines (`offset`/`limit`) |
+| `context_write`       | Upsert a row, trigger re-chunk + re-embed |
+| `context_edit`        | Apply git-style line-range patches |
+| `context_delete`      | Remove by path (or recursively by prefix) |
+| `context_copy`        | Duplicate a row with a new `context_path` |
+| `context_move`        | Rename a row |
+| `context_info`        | Return metadata (size, lines, mime, indexed_at) |
+| `context_exists`      | Path existence check |
+| `context_count_lines` | Count `\n` in content |
 
 These are also exposed from the host CLI via Commander:
 
 ```bash
-botholomew file write /notes/meeting.md "# Q4 Planning"
-botholomew file read /notes/meeting.md
-botholomew dir tree /
+botholomew context write /notes/meeting.md "# Q4 Planning"
+botholomew context read /notes/meeting.md
+botholomew context tree /
 ```
 
 ---
 
-## Patch format for `file_edit`
+## Patch format for `context_edit`
 
 ```ts
 { start_line: number, end_line: number, content: string }
@@ -104,10 +104,10 @@ Example — replace lines 5–7 and append at line 20:
 
 Every mutation cascades into the embeddings table:
 
-- `file_write` → delete old chunks, re-chunk via LLM, re-embed, insert.
-- `file_edit` → same.
-- `file_move` → update `source_path` on embedding rows.
-- `file_delete` → cascade delete embedding rows.
+- `context_write` → delete old chunks, re-chunk via LLM, re-embed, insert.
+- `context_edit` → same.
+- `context_move` → update `source_path` on embedding rows.
+- `context_delete` → cascade delete embedding rows.
 
 The HNSW index on `embeddings.embedding` stays in sync automatically (it
 is maintained by DuckDB VSS on INSERT/DELETE, and persisted with
@@ -126,7 +126,7 @@ A real filesystem would require:
 A DuckDB row is already all of those things at once — transactional,
 searchable, and backed by a single file you can `cp` or `sqlite3` (well,
 `duckdb`) into. The trade-off: you can't `cat` a note from the shell.
-That's what `botholomew file read` is for.
+That's what `botholomew context read` is for.
 
 And the biggest reason: **safety**. A filesystem abstraction that
 happens to be a database is a filesystem the agent cannot escape.

@@ -35,16 +35,28 @@ describe("task CRUD", () => {
     expect(fetched?.name).toBe("Test task");
   });
 
-  test("list tasks ordered by priority", async () => {
-    await createTask(conn, { name: "Low", priority: "low" });
-    await createTask(conn, { name: "High", priority: "high" });
-    await createTask(conn, { name: "Medium", priority: "medium" });
+  test("list tasks ordered by created_at desc", async () => {
+    await createTask(conn, { name: "First", priority: "low" });
+    await createTask(conn, { name: "Second", priority: "high" });
+    await createTask(conn, { name: "Third", priority: "medium" });
 
     const tasks = await listTasks(conn);
     expect(tasks.length).toBe(3);
-    expect(tasks[0]?.name).toBe("High");
-    expect(tasks[1]?.name).toBe("Medium");
-    expect(tasks[2]?.name).toBe("Low");
+    expect(tasks[0]?.name).toBe("Third");
+    expect(tasks[1]?.name).toBe("Second");
+    expect(tasks[2]?.name).toBe("First");
+  });
+
+  test("list tasks supports limit and offset", async () => {
+    await createTask(conn, { name: "First" });
+    await createTask(conn, { name: "Second" });
+    await createTask(conn, { name: "Third" });
+    await createTask(conn, { name: "Fourth" });
+
+    const page = await listTasks(conn, { limit: 2, offset: 1 });
+    expect(page.length).toBe(2);
+    expect(page[0]?.name).toBe("Third");
+    expect(page[1]?.name).toBe("Second");
   });
 
   test("list tasks with status filter", async () => {

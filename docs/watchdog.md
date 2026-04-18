@@ -28,7 +28,7 @@ This detects the platform, writes a `.plist` (macOS) or `.service` +
 later.
 
 ```bash
-botholomew daemon list         # all projects with watchdogs installed
+botholomew daemon list         # all projects with watchdogs installed (supports --limit / --offset)
 botholomew daemon uninstall    # remove the watchdog
 ```
 
@@ -46,6 +46,14 @@ botholomew daemon uninstall    # remove the watchdog
 
 A separate watchdog log (`.botholomew/watchdog.log`) records every
 invocation so you can see exactly when restarts happened.
+
+Every `daemon.log` line is prefixed with a local `HH:MM:SS` timestamp, and
+lifecycle phases are rendered as `[[phase-name]]` (e.g. `[[tick-start]]`,
+`[[claiming-task]]`, `[[sleeping]]`). To jump straight to phase boundaries:
+
+```
+grep '\[\[' .botholomew/daemon.log
+```
 
 ---
 

@@ -1,6 +1,6 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DbConnection } from "../../db/connection.ts";
+import { withDb } from "../../db/connection.ts";
 import {
   deleteThread,
   getInteractionsAfter,
@@ -13,7 +13,7 @@ import {
 import { ansi, theme } from "../theme.ts";
 
 interface ThreadPanelProps {
-  conn: DbConnection;
+  dbPath: string;
   activeThreadId: string;
   isActive: boolean;
 }
@@ -181,7 +181,7 @@ function cycleFilter<T>(current: T | null, values: readonly T[]): T | null {
 }
 
 export const ThreadPanel = memo(function ThreadPanel({
-  conn,
+  dbPath,
   activeThreadId,
   isActive,
 }: ThreadPanelProps) {
@@ -210,7 +210,7 @@ export const ThreadPanel = memo(function ThreadPanel({
     const refresh = async () => {
       const filters: { type?: Thread["type"] } = {};
       if (typeFilter) filters.type = typeFilter;
-      const result = await listThreads(conn, filters);
+      const result = await withDb(dbPath, (conn) => listThreads(conn, filters));
       if (mounted) {
         setThreads(result);
         setSelectedIndex((prev) =>
@@ -225,7 +225,7 @@ export const ThreadPanel = memo(function ThreadPanel({
       mounted = false;
       clearInterval(interval);
     };
-  }, [conn, typeFilter, refreshTick]);
+  }, [dbPath, typeFilter, refreshTick]);
 
   // Filter threads by search query
   const filteredThreads = useMemo(() => {
@@ -245,16 +245,18 @@ export const ThreadPanel = memo(function ThreadPanel({
       return;
     }
 
-    getThread(conn, selectedThread.id).then((result) => {
-      if (mounted && result) {
-        setSelectedDetail(result);
-      }
-    });
+    withDb(dbPath, (conn) => getThread(conn, selectedThread.id)).then(
+      (result) => {
+        if (mounted && result) {
+          setSelectedDetail(result);
+        }
+      },
+    );
 
     return () => {
       mounted = false;
     };
-  }, [conn, selectedThread?.id, following]);
+  }, [dbPath, selectedThread?.id, following]);
 
   // Follow mode: poll for new interactions every 1s
   // biome-ignore lint/correctness/useExhaustiveDependencies: following and selectedThread?.id are the intentional triggers
@@ -264,10 +266,12 @@ export const ThreadPanel = memo(function ThreadPanel({
 
     const poll = async () => {
       try {
-        const newInteractions = await getInteractionsAfter(
-          conn,
-          selectedThread.id,
-          lastSeenSequenceRef.current,
+        const newInteractions = await withDb(dbPath, (conn) =>
+          getInteractionsAfter(
+            conn,
+            selectedThread.id,
+            lastSeenSequenceRef.current,
+          ),
         );
         if (!mounted || newInteractions.length === 0) return;
 
@@ -286,11 +290,15 @@ export const ThreadPanel = memo(function ThreadPanel({
         // Auto-scroll will be handled by the detailLines/maxDetailScroll recalc
         setDetailScroll(Number.MAX_SAFE_INTEGER);
 
-        const ended = await isThreadEnded(conn, selectedThread.id);
+        const ended = await withDb(dbPath, (conn) =>
+          isThreadEnded(conn, selectedThread.id),
+        );
         if (mounted && ended) {
           setFollowing(false);
           // Refresh the thread to get the ended_at timestamp
-          const result = await getThread(conn, selectedThread.id);
+          const result = await withDb(dbPath, (conn) =>
+            getThread(conn, selectedThread.id),
+          );
           if (mounted && result) {
             setSelectedDetail(result);
           }
@@ -306,7 +314,7 @@ export const ThreadPanel = memo(function ThreadPanel({
       mounted = false;
       clearInterval(interval);
     };
-  }, [conn, following, selectedThread?.id]);
+  }, [dbPath, following, selectedThread?.id]);
 
   const isActiveSelected = selectedThread?.id === activeThreadId;
 
@@ -375,7 +383,9 @@ export const ThreadPanel = memo(function ThreadPanel({
       if (confirmDelete) {
         if (input === "y" || input === "d") {
           if (selectedThread && !isActiveSelected) {
-            deleteThread(conn, selectedThread.id).then(() => {
+            withDb(dbPath, (conn) =>
+              deleteThread(conn, selectedThread.id),
+            ).then(() => {
               forceRefresh();
             });
           }

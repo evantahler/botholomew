@@ -11,12 +11,20 @@ export class DbConnection {
   // biome-ignore lint/suspicious/noExplicitAny: DuckDB internal types
   private conn: any;
   // biome-ignore lint/suspicious/noExplicitAny: DuckDB internal types
-  private instance: any;
+  private readonly ownedInstance: any;
+  private readonly dbPath: string;
+  private closed = false;
 
-  // biome-ignore lint/suspicious/noExplicitAny: DuckDB internal types
-  constructor(conn: any, instance: any) {
+  constructor(
+    // biome-ignore lint/suspicious/noExplicitAny: DuckDB internal types
+    conn: any,
+    // biome-ignore lint/suspicious/noExplicitAny: DuckDB internal types
+    ownedInstance: any,
+    dbPath: string,
+  ) {
     this.conn = conn;
-    this.instance = instance;
+    this.ownedInstance = ownedInstance;
+    this.dbPath = dbPath;
   }
 
   /** Execute raw SQL with no return value. */
@@ -62,10 +70,22 @@ export class DbConnection {
     return { changes: result.rowsChanged };
   }
 
-  /** Close the connection and dispose of the instance. */
+  /**
+   * Disconnect and release this connection's share of the DuckDB instance.
+   * For file-backed DBs, the instance is closed (and the OS file lock
+   * released) once every overlapping connection in this process has closed.
+   * For `:memory:` DBs, the instance is owned by this connection and closed
+   * immediately.
+   */
   close(): void {
+    if (this.closed) return;
+    this.closed = true;
     this.conn.disconnectSync();
-    this.instance.closeSync();
+    if (this.ownedInstance) {
+      this.ownedInstance.closeSync();
+    } else {
+      releaseInstance(this.dbPath);
+    }
   }
 }
 
@@ -98,31 +118,140 @@ function flattenParams(params: SqlParam[]): SqlParam[] {
   return params.map((p) => (Array.isArray(p) ? JSON.stringify(p) : p));
 }
 
-export async function getConnection(dbPath?: string): Promise<DbConnection> {
-  const instance = await DuckDBInstance.create(dbPath ?? ":memory:");
-  const conn = await instance.connect();
+/**
+ * Refcounted, process-local cache of open DuckDB instances keyed by dbPath.
+ *
+ * DuckDB's file lock is held at the instance level, so we must close the
+ * instance — not just the connection — to let another process acquire the
+ * writer lock. At the same time, opening two instances for the same file
+ * from one process is unsafe. This cache resolves both: overlapping
+ * `getConnection` calls in the same process share a single instance; once
+ * every connection has closed, the instance is closed and evicted, which
+ * releases the OS file lock.
+ *
+ * `:memory:` paths bypass the cache so each test/caller gets its own
+ * isolated in-memory database.
+ */
+interface CachedInstance {
+  // biome-ignore lint/suspicious/noExplicitAny: DuckDB internal types
+  instance: any;
+  refCount: number;
+}
+const instanceCache = new Map<string, CachedInstance>();
+const pendingInstance = new Map<string, Promise<CachedInstance>>();
 
-  // Load VSS extension for vector similarity search
-  await conn.run("INSTALL vss; LOAD vss;");
-  // Enable HNSW index persistence for file-backed databases
-  await conn.run("SET hnsw_enable_experimental_persistence = true;");
-
-  return new DbConnection(conn, instance);
+function isMemoryPath(path: string): boolean {
+  return path === ":memory:" || path.startsWith(":memory:");
 }
 
+async function acquireSharedInstance(dbPath: string): Promise<CachedInstance> {
+  const existing = instanceCache.get(dbPath);
+  if (existing) {
+    existing.refCount += 1;
+    return existing;
+  }
+  const inFlight = pendingInstance.get(dbPath);
+  if (inFlight) {
+    const cached = await inFlight;
+    cached.refCount += 1;
+    return cached;
+  }
+  const creation = (async () => {
+    const instance = await DuckDBInstance.create(dbPath);
+    const cached: CachedInstance = { instance, refCount: 1 };
+    instanceCache.set(dbPath, cached);
+    return cached;
+  })();
+  pendingInstance.set(dbPath, creation);
+  try {
+    return await creation;
+  } finally {
+    pendingInstance.delete(dbPath);
+  }
+}
+
+function releaseInstance(dbPath: string): void {
+  const cached = instanceCache.get(dbPath);
+  if (!cached) return;
+  cached.refCount -= 1;
+  if (cached.refCount <= 0) {
+    instanceCache.delete(dbPath);
+    cached.instance.closeSync();
+  }
+}
+
+export async function getConnection(dbPath?: string): Promise<DbConnection> {
+  const path = dbPath ?? ":memory:";
+
+  if (isMemoryPath(path)) {
+    const instance = await DuckDBInstance.create(path);
+    const conn = await instance.connect();
+    await conn.run("INSTALL vss; LOAD vss;");
+    await conn.run("SET hnsw_enable_experimental_persistence = true;");
+    return new DbConnection(conn, instance, path);
+  }
+
+  const cached = await acquireSharedInstance(path);
+  try {
+    const conn = await cached.instance.connect();
+    // INSTALL is a no-op after the first successful install (the extension
+    // is persisted to the user's DuckDB extension directory). LOAD is
+    // cheap per connection.
+    await conn.run("INSTALL vss; LOAD vss;");
+    await conn.run("SET hnsw_enable_experimental_persistence = true;");
+    return new DbConnection(conn, null, path);
+  } catch (err) {
+    releaseInstance(path);
+    throw err;
+  }
+}
+
+/**
+ * Open a DuckDB connection for a single logical unit of work and guarantee
+ * it is closed afterward. Retries on lock conflicts so two processes that
+ * race on the file lock cooperate instead of failing hard.
+ *
+ * Prefer one `withDb` per logical operation. The file lock is only released
+ * when every connection (across this process's overlapping callers) has
+ * been closed, so holding the connection across non-DB work (LLM calls,
+ * network I/O, filesystem walks) keeps other processes blocked.
+ */
+export async function withDb<T>(
+  dbPath: string,
+  fn: (conn: DbConnection) => Promise<T>,
+): Promise<T> {
+  const conn = await withRetry(() => getConnection(dbPath));
+  try {
+    return await fn(conn);
+  } finally {
+    conn.close();
+  }
+}
+
+/**
+ * Retry `fn` with exponential backoff when it fails with a DuckDB file-lock
+ * conflict ("Conflicting lock is held…"). Other errors propagate immediately.
+ */
 export async function withRetry<T>(
   fn: () => Promise<T>,
-  maxRetries = 5,
+  maxRetries = 8,
 ): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await fn();
     } catch (err) {
+      if (!isLockConflict(err)) throw err;
       lastError = err;
       if (attempt === maxRetries - 1) throw err;
+      // 100, 200, 400, 800, 1600, 3200, 6400, 12800 — up to ~25s total
       await Bun.sleep(100 * 2 ** attempt);
     }
   }
   throw lastError;
+}
+
+function isLockConflict(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.includes("Conflicting lock") || msg.includes("could not be set");
 }

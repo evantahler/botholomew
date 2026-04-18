@@ -1,7 +1,7 @@
 {
   "name": "botholomew",
-  "version": "0.7.2",
-  "description": "An AI agent for knowledge work",
+  "version": "0.7.11",
+  "description": "Local, autonomous AI agent for knowledge work — works your task queue while you sleep.",
   "type": "module",
   "bin": {
     "botholomew": "./src/cli.ts"

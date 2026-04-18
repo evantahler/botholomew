@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { getBotholomewDir } from "../constants.ts";
 import { embedSingle } from "../context/embedder.ts";
-import type { DbConnection } from "../db/connection.ts";
+import { withDb } from "../db/connection.ts";
 import { hybridSearch } from "../db/embeddings.ts";
 import type { Task } from "../db/tasks.ts";
 import { parseContextFile } from "../utils/frontmatter.ts";
@@ -89,7 +89,7 @@ export function buildMetaHeader(projectDir: string): string[] {
 export async function buildSystemPrompt(
   projectDir: string,
   task?: Task,
-  conn?: DbConnection,
+  dbPath?: string,
   _config?: Required<BotholomewConfig>,
   options?: { hasMcpTools?: boolean },
 ): Promise<string> {
@@ -107,11 +107,13 @@ export async function buildSystemPrompt(
   parts.push(...(await loadPersistentContext(projectDir, taskKeywords)));
 
   // Relevant context from embeddings search
-  if (task && conn && _config?.openai_api_key) {
+  if (task && dbPath && _config?.openai_api_key) {
     try {
       const query = `${task.name} ${task.description}`;
       const queryVec = await embedSingle(query, _config);
-      const results = await hybridSearch(conn, query, queryVec, 5);
+      const results = await withDb(dbPath, (conn) =>
+        hybridSearch(conn, query, queryVec, 5),
+      );
 
       if (results.length > 0) {
         parts.push("## Relevant Context");

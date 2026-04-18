@@ -3,6 +3,7 @@ import type {
   ToolResultBlockParam,
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
+import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { embedSingle } from "../context/embedder.ts";
 import { fitToContextWindow, getMaxInputTokens } from "../daemon/context.ts";
@@ -13,7 +14,7 @@ import {
   extractKeywords,
   loadPersistentContext,
 } from "../daemon/prompt.ts";
-import type { DbConnection } from "../db/connection.ts";
+import { withDb } from "../db/connection.ts";
 import { hybridSearch } from "../db/embeddings.ts";
 import { logInteraction } from "../db/threads.ts";
 import { registerAllTools } from "../tools/registry.ts";
@@ -33,6 +34,8 @@ const CHAT_TOOL_NAMES = new Set([
   "list_tasks",
   "view_task",
   "context_search",
+  "context_info",
+  "context_refresh",
   "search_grep",
   "search_semantic",
   "list_threads",
@@ -58,7 +61,7 @@ export async function buildChatSystemPrompt(
   projectDir: string,
   options?: {
     keywordSource?: string;
-    conn?: DbConnection;
+    dbPath?: string;
     config?: Required<BotholomewConfig>;
   },
 ): Promise<string> {
@@ -72,12 +75,14 @@ export async function buildChatSystemPrompt(
   parts.push(...(await loadPersistentContext(projectDir, taskKeywords)));
 
   // Relevant context from embeddings search
-  const conn = options?.conn;
+  const dbPath = options?.dbPath;
   const config = options?.config;
-  if (conn && config?.openai_api_key && keywordSource) {
+  if (dbPath && config?.openai_api_key && keywordSource) {
     try {
       const queryVec = await embedSingle(keywordSource, config);
-      const results = await hybridSearch(conn, keywordSource, queryVec, 5);
+      const results = await withDb(dbPath, (conn) =>
+        hybridSearch(conn, keywordSource, queryVec, 5),
+      );
 
       if (results.length > 0) {
         parts.push("## Relevant Context");
@@ -103,7 +108,7 @@ export async function buildChatSystemPrompt(
     "You do NOT execute long-running work directly — enqueue tasks for the daemon instead using create_task.",
   );
   parts.push(
-    "Use the available tools to look up tasks, threads, schedules, and context when the user asks about them.",
+    "Use the available tools to look up tasks, threads, schedules, and context when the user asks about them. Context items can be looked up by virtual path or by UUID via `context_info` and refreshed via `context_refresh`.",
   );
   parts.push(
     "When multiple tool calls are independent of each other (i.e., one does not depend on the result of another), call them all in a single response. They will be executed in parallel, which is faster than calling them one at a time.",
@@ -158,13 +163,20 @@ export async function runChatTurn(input: {
   messages: MessageParam[];
   projectDir: string;
   config: Required<BotholomewConfig>;
-  conn: DbConnection;
+  dbPath: string;
   threadId: string;
-  toolCtx: ToolContext;
+  mcpxClient: McpxClient | null;
   callbacks: ChatTurnCallbacks;
 }): Promise<void> {
-  const { messages, projectDir, config, conn, threadId, toolCtx, callbacks } =
-    input;
+  const {
+    messages,
+    projectDir,
+    config,
+    dbPath,
+    threadId,
+    mcpxClient,
+    callbacks,
+  } = input;
 
   const client = createLlmClient(config);
 
@@ -186,7 +198,7 @@ export async function runChatTurn(input: {
     const keywordSource = findLastUserText(messages);
     const systemPrompt = await buildChatSystemPrompt(projectDir, {
       keywordSource,
-      conn,
+      dbPath,
       config,
     });
 
@@ -226,13 +238,15 @@ export async function runChatTurn(input: {
 
     // Log assistant text
     if (assistantText) {
-      await logInteraction(conn, threadId, {
-        role: "assistant",
-        kind: "message",
-        content: assistantText,
-        durationMs,
-        tokenCount,
-      });
+      await withDb(dbPath, (conn) =>
+        logInteraction(conn, threadId, {
+          role: "assistant",
+          kind: "message",
+          content: assistantText,
+          durationMs,
+          tokenCount,
+        }),
+      );
     }
 
     // Check for tool calls
@@ -256,20 +270,29 @@ export async function runChatTurn(input: {
         callbacks.onToolStart(toolUse.id, toolUse.name, toolInput);
       }
 
-      await logInteraction(conn, threadId, {
-        role: "assistant",
-        kind: "tool_use",
-        content: `Calling ${toolUse.name}`,
-        toolName: toolUse.name,
-        toolInput,
-      });
+      await withDb(dbPath, (conn) =>
+        logInteraction(conn, threadId, {
+          role: "assistant",
+          kind: "tool_use",
+          content: `Calling ${toolUse.name}`,
+          toolName: toolUse.name,
+          toolInput,
+        }),
+      );
     }
 
-    // Execute all tools in parallel
+    // Execute all tools in parallel. Each tool call opens its own short-lived
+    // connection; parallel calls share the process-local DuckDB instance and
+    // release the file lock as soon as the last one finishes.
     const execResults = await Promise.all(
       toolUseBlocks.map(async (toolUse) => {
         const start = Date.now();
-        const result = await executeChatToolCall(toolUse, toolCtx);
+        const result = await executeChatToolCall(toolUse, {
+          dbPath,
+          projectDir,
+          config,
+          mcpxClient,
+        });
         const durationMs = Date.now() - start;
         const stored = maybeStoreResult(toolUse.name, result.output);
         const meta: ToolEndMeta | undefined = stored.stored
@@ -289,13 +312,15 @@ export async function runChatTurn(input: {
     // Log results and collect tool_result messages
     const toolResults: ToolResultBlockParam[] = [];
     for (const { toolUse, result, durationMs, stored } of execResults) {
-      await logInteraction(conn, threadId, {
-        role: "tool",
-        kind: "tool_result",
-        content: result.output,
-        toolName: toolUse.name,
-        durationMs,
-      });
+      await withDb(dbPath, (conn) =>
+        logInteraction(conn, threadId, {
+          role: "tool",
+          kind: "tool_result",
+          content: result.output,
+          toolName: toolUse.name,
+          durationMs,
+        }),
+      );
 
       toolResults.push({
         type: "tool_result",
@@ -310,9 +335,16 @@ export async function runChatTurn(input: {
   }
 }
 
+interface ChatToolCallCtx {
+  dbPath: string;
+  projectDir: string;
+  config: Required<BotholomewConfig>;
+  mcpxClient: McpxClient | null;
+}
+
 async function executeChatToolCall(
   toolUse: ToolUseBlock,
-  ctx: ToolContext,
+  baseCtx: ChatToolCallCtx,
 ): Promise<{ output: string; isError: boolean }> {
   const tool = getTool(toolUse.name);
   if (!tool) return { output: `Unknown tool: ${toolUse.name}`, isError: true };
@@ -331,7 +363,10 @@ async function executeChatToolCall(
   }
 
   try {
-    const result = await tool.execute(parsed.data, ctx);
+    const result = await withDb(baseCtx.dbPath, (conn) => {
+      const ctx: ToolContext = { ...baseCtx, conn };
+      return tool.execute(parsed.data, ctx);
+    });
     const isError =
       typeof result === "object" && result !== null && "is_error" in result
         ? (result as { is_error: boolean }).is_error

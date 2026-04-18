@@ -34,16 +34,37 @@ describe("context_write", () => {
     expect(read.content).toBe("hello world");
   });
 
-  test("overwrites existing file", async () => {
+  test("overwrites existing file when on_conflict='overwrite'", async () => {
     await seedFile(conn, "/overwrite.txt", "original");
     const result = await contextWriteTool.execute(
-      { path: "/overwrite.txt", content: "updated" },
+      {
+        path: "/overwrite.txt",
+        content: "updated",
+        on_conflict: "overwrite",
+      },
       ctx,
     );
     expect(result.path).toBe("/overwrite.txt");
+    expect(result.is_error).toBe(false);
 
     const read = await contextReadTool.execute({ path: "/overwrite.txt" }, ctx);
     expect(read.content).toBe("updated");
+  });
+
+  test("returns path_conflict error by default when file exists", async () => {
+    await seedFile(conn, "/collision.txt", "original");
+    const result = await contextWriteTool.execute(
+      { path: "/collision.txt", content: "second" },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("path_conflict");
+    expect(result.id).toBeNull();
+    expect(result.next_action_hint).toContain("on_conflict='overwrite'");
+
+    // Original content preserved
+    const read = await contextReadTool.execute({ path: "/collision.txt" }, ctx);
+    expect(read.content).toBe("original");
   });
 
   test("sets title and description", async () => {

@@ -5,15 +5,18 @@ import {
   contextPathExists,
   copyContextItem,
   createContextItem,
+  createContextItemStrict,
   deleteContextItem,
   deleteContextItemByPath,
   deleteContextItemsByPrefix,
   getContextItem,
   getContextItemByPath,
+  getContextItemBySourcePath,
   getDistinctDirectories,
   listContextItems,
   listContextItemsByPrefix,
   moveContextItem,
+  PathConflictError,
   searchContextByKeyword,
   updateContextItem,
   updateContextItemContent,
@@ -95,6 +98,47 @@ describe("context CRUD", () => {
     expect(items.length).toBe(1);
   });
 
+  test("createContextItemStrict: inserts when new", async () => {
+    const item = await createContextItemStrict(conn, {
+      title: "Strict",
+      content: "hello",
+      contextPath: "/strict/new.md",
+    });
+    expect(item.title).toBe("Strict");
+    expect(item.content).toBe("hello");
+    expect(item.context_path).toBe("/strict/new.md");
+  });
+
+  test("createContextItemStrict: throws PathConflictError on collision", async () => {
+    const first = await createContextItemStrict(conn, {
+      title: "Original",
+      content: "v1",
+      contextPath: "/strict/conflict.md",
+    });
+
+    let caught: unknown;
+    try {
+      await createContextItemStrict(conn, {
+        title: "Second",
+        content: "v2",
+        contextPath: "/strict/conflict.md",
+      });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(PathConflictError);
+    if (caught instanceof PathConflictError) {
+      expect(caught.existingId).toBe(first.id);
+      expect(caught.contextPath).toBe("/strict/conflict.md");
+    }
+
+    // Original content preserved; no new row
+    const items = await listContextItems(conn);
+    expect(items.length).toBe(1);
+    expect(items[0]?.content).toBe("v1");
+  });
+
   test("upsertContextItem: insert when new", async () => {
     const item = await upsertContextItem(conn, {
       title: "New File",
@@ -161,6 +205,52 @@ describe("context CRUD", () => {
 
     const missing = await getContextItemByPath(conn, "/nonexistent");
     expect(missing).toBeNull();
+  });
+
+  test("get by source_path scoped to source_type", async () => {
+    await createContextItem(conn, {
+      title: "mcpx",
+      content: "mcpx docs",
+      sourceType: "file",
+      sourcePath: "/Users/me/docs/mcpx.md",
+      contextPath: "/user-guides/mcpx.md",
+    });
+    await createContextItem(conn, {
+      title: "Example",
+      content: "remote",
+      sourceType: "url",
+      sourcePath: "https://example.com",
+      contextPath: "/example.com.md",
+    });
+
+    const byFile = await getContextItemBySourcePath(
+      conn,
+      "/Users/me/docs/mcpx.md",
+      "file",
+    );
+    expect(byFile?.context_path).toBe("/user-guides/mcpx.md");
+
+    const byUrl = await getContextItemBySourcePath(
+      conn,
+      "https://example.com",
+      "url",
+    );
+    expect(byUrl?.context_path).toBe("/example.com.md");
+
+    // source_type discriminates — looking up a URL string under "file" misses.
+    const miss = await getContextItemBySourcePath(
+      conn,
+      "https://example.com",
+      "file",
+    );
+    expect(miss).toBeNull();
+
+    const unknown = await getContextItemBySourcePath(
+      conn,
+      "/not/ingested.md",
+      "file",
+    );
+    expect(unknown).toBeNull();
   });
 
   test("list with filters", async () => {

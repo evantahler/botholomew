@@ -35,7 +35,65 @@ describe("schema migrations", () => {
     )) as {
       count: number;
     };
-    expect(row.count).toBe(9);
+    expect(row.count).toBe(11);
+
+    db.close();
+  });
+
+  test("migration 10 rebuilds unique index on context_path", async () => {
+    const db = await getConnection();
+    await migrate(db);
+
+    // Inserting two rows with the same context_path must be blocked
+    await db.queryRun(
+      "INSERT INTO context_items (id, title, context_path) VALUES (?1, ?2, ?3)",
+      "a",
+      "first",
+      "/dup/path",
+    );
+
+    await expect(
+      db.queryRun(
+        "INSERT INTO context_items (id, title, context_path) VALUES (?1, ?2, ?3)",
+        "b",
+        "second",
+        "/dup/path",
+      ),
+    ).rejects.toThrow(/[Uu]nique/);
+
+    db.close();
+  });
+
+  test("migration 10 dedupes existing rows when re-applied", async () => {
+    const db = await getConnection();
+    await migrate(db);
+
+    // Force the broken state: drop the unique index, insert duplicates,
+    // remove the migration record so migrate() re-runs migration 10.
+    await db.exec("DROP INDEX IF EXISTS idx_context_items_context_path");
+    await db.queryRun(
+      "INSERT INTO context_items (id, title, context_path, updated_at) VALUES (?1, ?2, ?3, ?4)",
+      "older",
+      "old",
+      "/dup/x",
+      "2026-01-01 00:00:00",
+    );
+    await db.queryRun(
+      "INSERT INTO context_items (id, title, context_path, updated_at) VALUES (?1, ?2, ?3, ?4)",
+      "newer",
+      "new",
+      "/dup/x",
+      "2026-01-02 00:00:00",
+    );
+    await db.queryRun("DELETE FROM _migrations WHERE id = 10");
+
+    await migrate(db);
+
+    const rows = await db.queryAll<{ id: string }>(
+      "SELECT id FROM context_items WHERE context_path = ?1",
+      "/dup/x",
+    );
+    expect(rows.map((r) => r.id)).toEqual(["newer"]);
 
     db.close();
   });

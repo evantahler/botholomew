@@ -56,6 +56,17 @@ function rowToContextItem(row: ContextItemRow): ContextItem {
   };
 }
 
+export class PathConflictError extends Error {
+  existingId: string;
+  contextPath: string;
+  constructor(existingId: string, contextPath: string) {
+    super(`context_path already exists: ${contextPath}`);
+    this.name = "PathConflictError";
+    this.existingId = existingId;
+    this.contextPath = contextPath;
+  }
+}
+
 // --- Basic CRUD ---
 
 export async function createContextItem(
@@ -124,6 +135,28 @@ export async function upsertContextItem(
   return createContextItem(db, params);
 }
 
+/**
+ * Strict creator: throws PathConflictError if context_path already exists.
+ * Use when callers want to surface collisions instead of silently overwriting.
+ */
+export async function createContextItemStrict(
+  db: DbConnection,
+  params: {
+    title: string;
+    content?: string;
+    mimeType?: string;
+    sourceType?: "file" | "url";
+    sourcePath?: string;
+    contextPath: string;
+    description?: string;
+    isTextual?: boolean;
+  },
+): Promise<ContextItem> {
+  const existing = await getContextItemByPath(db, params.contextPath);
+  if (existing) throw new PathConflictError(existing.id, params.contextPath);
+  return createContextItem(db, params);
+}
+
 export async function getContextItem(
   db: DbConnection,
   id: string,
@@ -142,6 +175,19 @@ export async function getContextItemByPath(
   const row = await db.queryGet<ContextItemRow>(
     "SELECT * FROM context_items WHERE context_path = ?1",
     contextPath,
+  );
+  return row ? rowToContextItem(row) : null;
+}
+
+export async function getContextItemBySourcePath(
+  db: DbConnection,
+  sourcePath: string,
+  sourceType: "file" | "url",
+): Promise<ContextItem | null> {
+  const row = await db.queryGet<ContextItemRow>(
+    "SELECT * FROM context_items WHERE source_path = ?1 AND source_type = ?2 LIMIT 1",
+    sourcePath,
+    sourceType,
   );
   return row ? rowToContextItem(row) : null;
 }
@@ -290,6 +336,10 @@ export async function getDistinctDirectories(
 
 // --- Mutations ---
 
+// `UPDATE context_items ... RETURNING *` can crash @duckdb/node-api via a C++
+// exception when the table's unique index is in a violated state. Update +
+// separate SELECT is equivalent here (single-connection, no concurrent writers)
+// and avoids the crash entirely.
 export async function updateContextItem(
   db: DbConnection,
   id: string,
@@ -307,14 +357,13 @@ export async function updateContextItem(
   setClauses.push("updated_at = current_timestamp::VARCHAR");
   params.push(id);
 
-  const row = await db.queryGet<ContextItemRow>(
+  await db.queryRun(
     `UPDATE context_items
      SET ${setClauses.join(", ")}
-     WHERE id = ?${params.length}
-     RETURNING *`,
+     WHERE id = ?${params.length}`,
     ...params,
   );
-  return row ? rowToContextItem(row) : null;
+  return getContextItem(db, id);
 }
 
 export async function updateContextItemContent(
@@ -322,15 +371,14 @@ export async function updateContextItemContent(
   contextPath: string,
   content: string,
 ): Promise<ContextItem | null> {
-  const row = await db.queryGet<ContextItemRow>(
+  await db.queryRun(
     `UPDATE context_items
      SET content = ?1, updated_at = current_timestamp::VARCHAR
-     WHERE context_path = ?2
-     RETURNING *`,
+     WHERE context_path = ?2`,
     content,
     contextPath,
   );
-  return row ? rowToContextItem(row) : null;
+  return getContextItemByPath(db, contextPath);
 }
 
 export async function applyPatchesToContextItem(
@@ -426,6 +474,17 @@ export async function deleteContextItemByPath(
   const item = await getContextItemByPath(db, contextPath);
   if (!item) return false;
   return deleteContextItem(db, item.id);
+}
+
+export async function deleteAllContextItems(
+  db: DbConnection,
+): Promise<{ contextItems: number; embeddings: number }> {
+  const embeddings = await db.queryRun("DELETE FROM embeddings");
+  const contextItems = await db.queryRun("DELETE FROM context_items");
+  return {
+    contextItems: contextItems.changes,
+    embeddings: embeddings.changes,
+  };
 }
 
 export async function deleteContextItemsByPrefix(

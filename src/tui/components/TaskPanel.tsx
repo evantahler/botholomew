@@ -1,6 +1,6 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import type { DbConnection } from "../../db/connection.ts";
+import { withDb } from "../../db/connection.ts";
 import {
   deleteTask,
   listTasks,
@@ -11,7 +11,7 @@ import {
 import { ansi, theme } from "../theme.ts";
 
 interface TaskPanelProps {
-  conn: DbConnection;
+  dbPath: string;
   isActive: boolean;
 }
 
@@ -145,7 +145,7 @@ function cycleFilter<T>(current: T | null, values: readonly T[]): T | null {
 }
 
 export const TaskPanel = memo(function TaskPanel({
-  conn,
+  dbPath,
   isActive,
 }: TaskPanelProps) {
   const { stdout } = useStdout();
@@ -171,7 +171,7 @@ export const TaskPanel = memo(function TaskPanel({
       } = {};
       if (statusFilter) filters.status = statusFilter;
       if (priorityFilter) filters.priority = priorityFilter;
-      const result = await listTasks(conn, filters);
+      const result = await withDb(dbPath, (conn) => listTasks(conn, filters));
       if (mounted) {
         setTasks(result);
         setSelectedIndex((prev) =>
@@ -186,7 +186,7 @@ export const TaskPanel = memo(function TaskPanel({
       mounted = false;
       clearInterval(interval);
     };
-  }, [conn, statusFilter, priorityFilter, refreshTick]);
+  }, [dbPath, statusFilter, priorityFilter, refreshTick]);
 
   const selectedTask = tasks[selectedIndex];
 
@@ -275,7 +275,7 @@ export const TaskPanel = memo(function TaskPanel({
         return;
       }
       if (input === "d" && selectedTask) {
-        deleteTask(conn, selectedTask.id).then(() => {
+        withDb(dbPath, (conn) => deleteTask(conn, selectedTask.id)).then(() => {
           forceRefresh();
         });
         return;
