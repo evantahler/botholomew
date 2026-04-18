@@ -1,6 +1,6 @@
 {
   "name": "botholomew",
-  "version": "0.7.10",
+  "version": "0.7.11",
   "description": "Local, autonomous AI agent for knowledge work — works your task queue while you sleep.",
   "type": "module",
   "bin": {
@@ -19,7 +19,8 @@
     "dev": "bun run src/cli.ts",
     "dev:demo": "bun run src/cli.ts chat -p 'learn everything you can about me from the connected MCP services and then save what you'\\''ve learned about me to context'",
     "test": "bun test",
-    "lint": "tsc --noEmit && biome check ."
+    "lint": "tsc --noEmit && biome check .",
+    "capture": "bun run scripts/capture.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",

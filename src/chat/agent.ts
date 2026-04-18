@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type {
   MessageParam,
   ToolResultBlockParam,
@@ -9,6 +8,7 @@ import type { BotholomewConfig } from "../config/schemas.ts";
 import { embedSingle } from "../context/embedder.ts";
 import { fitToContextWindow, getMaxInputTokens } from "../daemon/context.ts";
 import { maybeStoreResult } from "../daemon/large-results.ts";
+import { createLlmClient } from "../daemon/llm-client.ts";
 import {
   buildMetaHeader,
   extractKeywords,
@@ -178,9 +178,7 @@ export async function runChatTurn(input: {
     callbacks,
   } = input;
 
-  const client = new Anthropic({
-    apiKey: config.anthropic_api_key || undefined,
-  });
+  const client = createLlmClient(config);
 
   const chatTools = getChatTools();
   const maxInputTokens = await getMaxInputTokens(

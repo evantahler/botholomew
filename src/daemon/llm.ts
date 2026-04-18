@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type {
   Message,
   MessageParam,
@@ -14,6 +13,7 @@ import { registerAllTools } from "../tools/registry.ts";
 import { getTool, type ToolContext, toAnthropicTools } from "../tools/tool.ts";
 import { fitToContextWindow, getMaxInputTokens } from "./context.ts";
 import { clearLargeResults, maybeStoreResult } from "./large-results.ts";
+import { createLlmClient } from "./llm-client.ts";
 
 registerAllTools();
 
@@ -60,9 +60,7 @@ export async function runAgentLoop(input: {
     callbacks,
   } = input;
 
-  const client = new Anthropic({
-    apiKey: config.anthropic_api_key || undefined,
-  });
+  const client = createLlmClient(config);
 
   // Build predecessor context from completed blocking tasks
   let predecessorContext = "";

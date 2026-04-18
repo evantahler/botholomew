@@ -6,6 +6,8 @@
   " "
 ```
 
+![Botholomew chat TUI](docs/assets/chat-happy-path.gif)
+
 **A local-first AI agent for knowledge work.** Botholomew is a long-running
 autonomous agent that works its way through a task queue — reading email,
 summarizing documents, researching topics, organizing notes, and maintaining
@@ -111,6 +113,8 @@ Everything the agent can touch is here. No surprises.
 
 ## The CLI
 
+![CLI walkthrough: task list, task add, schedule list, context list](docs/assets/cli-tour.gif)
+
 | Command | Purpose |
 |---|---|
 | `botholomew init` | Create `.botholomew/` with templates and a fresh database |
@@ -193,6 +197,8 @@ Topics worth understanding in detail:
   multi-project service naming.
 - **[Configuration](docs/configuration.md)** — every key in `config.json`
   and its default.
+- **[Doc captures](docs/captures.md)** — how the screenshots and GIFs in
+  these docs are regenerated programmatically via VHS and a fake-LLM mode.
 
 ---
 

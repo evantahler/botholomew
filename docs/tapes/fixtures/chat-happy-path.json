@@ -1,0 +1,36 @@
+{
+  "turns": [
+    {
+      "match": "schedule|calendar|event|meeting",
+      "text": "Let me check what calendar tools you have available.\n\n",
+      "chunkSize": 5,
+      "delayMs": 22,
+      "toolCalls": [
+        {
+          "name": "mcp_search",
+          "input": { "query": "calendar events" }
+        }
+      ]
+    },
+    {
+      "text": "Found `google-calendar / ListEvents`. Fetching today's events…\n\n",
+      "chunkSize": 5,
+      "delayMs": 22,
+      "toolCalls": [
+        {
+          "name": "mcp_exec",
+          "input": {
+            "server": "google-calendar",
+            "tool": "ListEvents",
+            "args": { "date": "today" }
+          }
+        }
+      ]
+    },
+    {
+      "text": "Here's what's on your calendar today:\n\n- **9:00 AM** — Sprint planning\n- **11:30 AM** — Design review with Pascal\n- **2:00 PM** — Focus block: v0.8 roadmap\n- **4:30 PM** — 1:1 with Sterling\n\nLet me know if you'd like to move anything.",
+      "chunkSize": 5,
+      "delayMs": 22
+    }
+  ]
+}
