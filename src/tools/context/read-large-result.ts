@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { readLargeResultPage } from "../../daemon/large-results.ts";
+import { readLargeResultPage } from "../../worker/large-results.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({

@@ -6,7 +6,6 @@ import {
   sendMessage,
   startChatSession,
 } from "../chat/session.ts";
-import { MAX_INLINE_CHARS, PAGE_SIZE_CHARS } from "../daemon/large-results.ts";
 import { withDb } from "../db/connection.ts";
 import type { Interaction } from "../db/threads.ts";
 import { getThread } from "../db/threads.ts";
@@ -15,6 +14,7 @@ import {
   handleSlashCommand,
   type SlashCommand,
 } from "../skills/commands.ts";
+import { MAX_INLINE_CHARS, PAGE_SIZE_CHARS } from "../worker/large-results.ts";
 import { ContextPanel } from "./components/ContextPanel.tsx";
 import { HelpPanel } from "./components/HelpPanel.tsx";
 import { InputBar } from "./components/InputBar.tsx";
@@ -32,6 +32,7 @@ import { TaskPanel } from "./components/TaskPanel.tsx";
 import { ThreadPanel } from "./components/ThreadPanel.tsx";
 import type { ToolCallData } from "./components/ToolCall.tsx";
 import { ToolPanel } from "./components/ToolPanel.tsx";
+import { WorkerPanel } from "./components/WorkerPanel.tsx";
 import { buildSlashCommands, getSlashMatches } from "./slashCompletion.ts";
 import { ansi } from "./theme.ts";
 
@@ -136,7 +137,7 @@ export function App({
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<ChatSession | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>(1);
-  const [daemonRunning, setDaemonRunning] = useState(false);
+  const [workerRunning, setWorkerRunning] = useState(false);
   const [chatTitle, setChatTitle] = useState<string | undefined>(undefined);
   const queueRef = useRef<string[]>([]);
   const processingRef = useRef(false);
@@ -222,7 +223,7 @@ export function App({
     const [dwellRaw, delayRaw] = spec.split(":");
     const dwellMs = Number.parseInt(dwellRaw ?? "", 10) || 2500;
     const startDelayMs = Number.parseInt(delayRaw ?? "", 10) || 0;
-    const sequence: TabId[] = [2, 3, 4, 5, 6, 7, 1];
+    const sequence: TabId[] = [2, 3, 4, 5, 6, 7, 8, 1];
     const timers = sequence.map((tab, i) =>
       setTimeout(() => setActiveTab(tab), startDelayMs + dwellMs * (i + 1)),
     );
@@ -262,7 +263,7 @@ export function App({
           );
           if (popupOpen) return;
         }
-        setActiveTab((t) => ((t % 7) + 1) as TabId);
+        setActiveTab((t) => ((t % 8) + 1) as TabId);
         return;
       }
 
@@ -299,7 +300,7 @@ export function App({
       if (tab !== 1) {
         // Number keys jump to tab on non-chat tabs
         const num = Number.parseInt(input, 10);
-        if (num >= 1 && num <= 7) {
+        if (num >= 1 && num <= 8) {
           setActiveTab(num as TabId);
           return;
         }
@@ -582,7 +583,7 @@ export function App({
           projectDir={projectDir}
           dbPath={sessionDbPath}
           chatTitle={chatTitle}
-          onDaemonStatusChange={setDaemonRunning}
+          onWorkerStatusChange={setWorkerRunning}
         />
       ) : null,
     [projectDir, sessionDbPath, chatTitle],
@@ -701,10 +702,17 @@ export function App({
         flexDirection="column"
         flexGrow={1}
       >
+        <WorkerPanel dbPath={dbPath} isActive={activeTab === 7} />
+      </Box>
+      <Box
+        display={activeTab === 8 ? "flex" : "none"}
+        flexDirection="column"
+        flexGrow={1}
+      >
         <HelpPanel
           projectDir={projectDir}
           threadId={threadId}
-          daemonRunning={daemonRunning}
+          workerRunning={workerRunning}
         />
       </Box>
 

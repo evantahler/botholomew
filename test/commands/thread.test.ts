@@ -55,7 +55,7 @@ describe("thread list", () => {
     const conn = await getConnection(getDbPath(tempDir));
     await migrate(conn);
     const id1 = await createThread(conn, "chat_session", undefined, "Chat A");
-    const id2 = await createThread(conn, "daemon_tick", undefined, "Tick B");
+    const id2 = await createThread(conn, "worker_tick", undefined, "Tick B");
     conn.close();
 
     const result = await run(["thread", "list"]);
@@ -74,7 +74,7 @@ describe("thread list", () => {
     const conn = await getConnection(getDbPath(tempDir));
     await migrate(conn);
     await createThread(conn, "chat_session", undefined, "Chat");
-    await createThread(conn, "daemon_tick", undefined, "Tick");
+    await createThread(conn, "worker_tick", undefined, "Tick");
     conn.close();
 
     const result = await run(["thread", "list", "-t", "chat_session"]);

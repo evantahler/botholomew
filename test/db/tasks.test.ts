@@ -103,15 +103,15 @@ describe("claimNextTask", () => {
     await createTask(conn, { name: "Low", priority: "low" });
     await createTask(conn, { name: "High", priority: "high" });
 
-    const claimed = await claimNextTask(conn);
+    const claimed = await claimNextTask(conn, "test-worker");
     expect(claimed).not.toBeNull();
     expect(claimed?.name).toBe("High");
     expect(claimed?.status).toBe("in_progress");
-    expect(claimed?.claimed_by).toBe("daemon");
+    expect(claimed?.claimed_by).toBe("test-worker");
   });
 
   test("returns null when no tasks available", async () => {
-    const claimed = await claimNextTask(conn);
+    const claimed = await claimNextTask(conn, "test-worker");
     expect(claimed).toBeNull();
   });
 
@@ -119,7 +119,7 @@ describe("claimNextTask", () => {
     const task = await createTask(conn, { name: "Already claimed" });
     await updateTaskStatus(conn, task.id, "in_progress");
 
-    const claimed = await claimNextTask(conn);
+    const claimed = await claimNextTask(conn, "test-worker");
     expect(claimed).toBeNull();
   });
 
@@ -132,7 +132,7 @@ describe("claimNextTask", () => {
     });
 
     // Should not claim the blocked task even though it's higher priority
-    const claimed = await claimNextTask(conn);
+    const claimed = await claimNextTask(conn, "test-worker");
     expect(claimed).not.toBeNull();
     expect(claimed?.name).toBe("Blocker");
   });
@@ -149,7 +149,7 @@ describe("claimNextTask", () => {
     await updateTaskStatus(conn, blocker.id, "complete");
 
     // Now claim — should get the previously blocked task
-    const claimed = await claimNextTask(conn);
+    const claimed = await claimNextTask(conn, "test-worker");
     expect(claimed).not.toBeNull();
     expect(claimed?.name).toBe("Blocked");
   });

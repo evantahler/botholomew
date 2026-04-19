@@ -22,7 +22,7 @@ mock.module("@anthropic-ai/sdk", () => {
 });
 
 const { evaluateSchedule, processSchedules } = await import(
-  "../../src/daemon/schedules.ts"
+  "../../src/worker/schedules.ts"
 );
 
 let conn: DbConnection;
@@ -92,7 +92,7 @@ describe("evaluateSchedule", () => {
 
     // Re-import to get the new mock
     const { evaluateSchedule: evalFresh } = await import(
-      "../../src/daemon/schedules.ts"
+      "../../src/worker/schedules.ts"
     );
 
     const schedule = await createSchedule(conn, {
@@ -146,7 +146,7 @@ describe("evaluateSchedule", () => {
     }));
 
     const { evaluateSchedule: evalFenced } = await import(
-      "../../src/daemon/schedules.ts"
+      "../../src/worker/schedules.ts"
     );
 
     const schedule = await createSchedule(conn, {
@@ -214,7 +214,7 @@ describe("processSchedules", () => {
       frequency: "every morning",
     });
 
-    await processSchedules(dbPath, TEST_CONFIG);
+    await processSchedules(dbPath, TEST_CONFIG, "test-worker");
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(1);
@@ -233,7 +233,7 @@ describe("processSchedules", () => {
       frequency: "daily",
     });
 
-    await processSchedules(dbPath, TEST_CONFIG);
+    await processSchedules(dbPath, TEST_CONFIG, "test-worker");
 
     const updated = await getSchedule(conn, schedule.id);
     expect(updated?.last_run_at).not.toBeNull();
@@ -251,7 +251,7 @@ describe("processSchedules", () => {
       frequency: "weekly",
     });
 
-    await processSchedules(dbPath, TEST_CONFIG);
+    await processSchedules(dbPath, TEST_CONFIG, "test-worker");
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(0);
@@ -272,7 +272,7 @@ describe("processSchedules", () => {
     const { updateSchedule } = await import("../../src/db/schedules.ts");
     await updateSchedule(conn, schedule.id, { enabled: false });
 
-    await processSchedules(dbPath, TEST_CONFIG);
+    await processSchedules(dbPath, TEST_CONFIG, "test-worker");
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(0);
@@ -298,7 +298,7 @@ describe("processSchedules", () => {
       frequency: "daily",
     });
 
-    await processSchedules(dbPath, TEST_CONFIG);
+    await processSchedules(dbPath, TEST_CONFIG, "test-worker");
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(2);
@@ -313,7 +313,7 @@ describe("processSchedules", () => {
 
   test("does nothing with no enabled schedules", async () => {
     // No schedules at all — should return immediately
-    await processSchedules(dbPath, TEST_CONFIG);
+    await processSchedules(dbPath, TEST_CONFIG, "test-worker");
 
     const tasks = await listTasks(conn);
     expect(tasks).toHaveLength(0);

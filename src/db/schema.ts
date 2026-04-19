@@ -11,11 +11,9 @@ interface Migration {
 const sqlDir = join(import.meta.dir, "sql");
 
 function loadMigrations(): Migration[] {
-  const files = readdirSync(sqlDir)
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
+  const files = readdirSync(sqlDir).filter((f) => f.endsWith(".sql"));
 
-  return files.map((file) => {
+  const migrations = files.map((file) => {
     const match = file.match(/^(\d+)-(.+)\.sql$/);
     if (!match) throw new Error(`Invalid migration filename: ${file}`);
     const id = match[1];
@@ -27,6 +25,9 @@ function loadMigrations(): Migration[] {
       sql: readFileSync(join(sqlDir, file), "utf-8"),
     };
   });
+
+  // Sort by numeric id so `12-` runs after `2-`, not between `11-` and `2-`.
+  return migrations.sort((a, b) => a.id - b.id);
 }
 
 export async function migrate(db: DbConnection): Promise<void> {

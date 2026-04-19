@@ -8,10 +8,10 @@
 
 ![Botholomew chat TUI](docs/assets/chat-happy-path.gif)
 
-**A local-first AI agent for knowledge work.** Botholomew is a long-running
-autonomous agent that works its way through a task queue — reading email,
-summarizing documents, researching topics, organizing notes, and maintaining
-context over time — while you sleep, work, or chat with it.
+**A local AI agent for knowledge work.** Botholomew is an autonomous agent
+that works its way through a task queue — reading email, summarizing
+documents, researching topics, organizing notes, and maintaining context
+over time — while you sleep, work, or chat with it.
 
 Unlike coding agents, Botholomew has **no shell, no filesystem, and no network
 tools** by default. Everything it touches lives inside a single DuckDB database
@@ -22,12 +22,12 @@ is granted deliberately, per project, through MCP servers.
 
 ## Why Botholomew?
 
-- **Autonomous.** A background daemon ticks on a schedule, claims tasks,
-  works them with Claude, and logs every interaction. You can close the
-  terminal and come back later.
+- **Autonomous.** Background **workers** claim tasks, work them with Claude,
+  and log every interaction. You can spawn one-shot workers on demand, a
+  long-running `--persist` worker, or point cron at `botholomew worker run`.
 - **Portable.** Each project is a `.botholomew/` directory — markdown +
   DuckDB. Copy it, share it, check it in (or `.gitignore` it).
-- **Local-first.** All data stays on your machine. Embeddings are indexed in
+- **Local.** All data stays on your machine. Embeddings are indexed in
   DuckDB's native vector store with HNSW. Model calls go direct to Anthropic
   and OpenAI.
 - **Extensible.** External tools come from MCP servers via
@@ -40,8 +40,9 @@ is granted deliberately, per project, through MCP servers.
   filesystem access of its own. Everything it can touch lives in
   `.botholomew/` — and every external capability is something you
   explicitly add.
-- **Self-healing.** An OS-level watchdog (launchd on macOS, systemd on Linux)
-  restarts the daemon if it dies, rotates logs, and runs on boot.
+- **Concurrent.** Many workers can run at once. Each registers itself in
+  the DB and heartbeats; crashed workers get reaped and their tasks go
+  back into the queue automatically.
 - **Self-modifying.** The agent maintains its own `beliefs.md` and
   `goals.md` — it learns, updates its priors, and revises its goals as it
   works.
@@ -80,12 +81,16 @@ export OPENAI_API_KEY=sk-...     # used for embeddings
 # 3. Queue some work
 botholomew task add "Summarize every markdown file in ~/notes"
 
-# 4. Start the daemon (foreground — watch it work)
-botholomew daemon start --foreground
+# 4. Run a worker to process the queue
+botholomew worker run                  # one-shot: claim and run one task
+botholomew worker run --persist        # long-running: loop until you stop it
 
 # 5. Or chat with the agent interactively
 botholomew chat
 ```
+
+See [docs/automation.md](docs/automation.md) for cron-based setups if you
+want Botholomew to advance on its own.
 
 ---
 
@@ -103,8 +108,7 @@ my-project/
     skills/               # user-defined slash commands
       summarize.md
       standup.md
-    daemon.pid            # PID file for the running daemon
-    daemon.log            # rotating daemon logs
+    worker.log            # stdout/stderr from spawned workers
 ```
 
 Everything the agent can touch is here. No surprises.
@@ -118,9 +122,8 @@ Everything the agent can touch is here. No surprises.
 | Command | Purpose |
 |---|---|
 | `botholomew init` | Create `.botholomew/` with templates and a fresh database |
-| `botholomew daemon start\|stop\|status` | Run, stop, or inspect the daemon |
-| `botholomew daemon install\|uninstall` | Register/remove the OS watchdog |
-| `botholomew daemon list` | List all Botholomew projects on this machine |
+| `botholomew worker run\|start` | Run a worker (foreground or background); `--persist` for long-running, `--task-id <id>` to target one task |
+| `botholomew worker list\|status\|stop\|kill\|reap` | Inspect and manage running workers |
 | `botholomew chat` | Interactive Ink/React TUI |
 | `botholomew task list\|add\|view\|update\|reset\|delete` | Manage the task queue |
 | `botholomew schedule list\|add\|enable\|trigger\|delete` | Recurring work |
@@ -140,16 +143,16 @@ All `list` subcommands support `-l, --limit <n>` and `-o, --offset <n>` for pagi
 
 ```
  ┌──────────────┐         ┌──────────────┐         ┌──────────────┐
- │    Chat      │         │   Daemon     │         │  Watchdog    │
- │   (Ink TUI)  │         │  (tick loop) │         │ launchd/     │
- │              │         │              │         │ systemd      │
+ │    Chat      │         │  Worker(s)   │         │    cron /    │
+ │   (Ink TUI)  │         │  (tick loop) │         │    tmux      │
+ │              │         │              │         │    (optional)│
  └──────┬───────┘         └──────┬───────┘         └──────┬───────┘
         │                        │                        │
-        │ enqueue tasks          │ claims tasks           │ every 60s:
-        │ browse history         │ runs LLM tool loops    │ check PID
-        │ invoke skills          │ updates status         │ restart if
-        │                        │ logs to threads        │ dead
-        │                        │                        │
+        │ enqueue tasks          │ register + heartbeat   │ fire
+        │ browse history         │ claim tasks            │ `worker run`
+        │ spawn_worker tool      │ run LLM tool loops     │ on a
+        │ invoke skills          │ reap dead peers        │ schedule
+        │                        │ log to threads         │
         └────────────┬───────────┴────────────┬───────────┘
                      │                        │
                ┌─────▼────────────────────────▼─────┐
@@ -157,7 +160,8 @@ All `list` subcommands support `-l, --limit <n>` and `-o, --offset <n>` for pagi
                │  ┌───────────┐ ┌──────────────┐    │
                │  │  tasks    │ │ context_items│    │
                │  │ schedules │ │  embeddings  │    │
-               │  │  threads  │ │   (HNSW)     │    │
+               │  │  workers  │ │   (HNSW)     │    │
+               │  │  threads  │ │              │    │
                │  └───────────┘ └──────────────┘    │
                └─────┬───────────────────────────────┘
                      │
@@ -173,11 +177,14 @@ See [docs/architecture.md](docs/architecture.md) for a deeper tour.
 
 Topics worth understanding in detail:
 
-- **[Architecture](docs/architecture.md)** — daemon, chat, watchdog, and how
-  they share a database.
+- **[Architecture](docs/architecture.md)** — workers, chat, and how
+  they share a database. Registration, heartbeat, and reaping.
+- **[Automation](docs/automation.md)** — cron recipes and optional
+  launchd/systemd samples for running workers on a schedule without a
+  shipped watchdog.
 - **[The TUI](docs/tui.md)** — the `botholomew chat` Ink/React terminal UI:
-  seven tabs, slash-command autocomplete, message queue, and tool-call
-  visualization.
+  eight tabs, slash-command autocomplete, message queue, tool-call
+  visualization, and a live workers panel.
 - **[The virtual filesystem](docs/virtual-filesystem.md)** — why the agent's
   "files" are actually DuckDB rows, and how `context_read`/`context_write` work.
 - **[Context & hybrid search](docs/context-and-search.md)** — LLM-driven
@@ -193,8 +200,6 @@ Topics worth understanding in detail:
   with positional arguments and tab completion.
 - **[MCPX integration](docs/mcpx.md)** — configuring external servers and
   how MCP tools are merged into the agent's toolset.
-- **[The watchdog](docs/watchdog.md)** — launchd plists, systemd units, and
-  multi-project service naming.
 - **[Configuration](docs/configuration.md)** — every key in `config.json`
   and its default.
 - **[Doc captures](docs/captures.md)** — how the screenshots and GIFs in

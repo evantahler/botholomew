@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { fakeMcpSearch, isCaptureMode } from "../../daemon/fake-mcp.ts";
+import { fakeMcpSearch, isCaptureMode } from "../../worker/fake-mcp.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({

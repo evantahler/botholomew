@@ -7,7 +7,7 @@ import { migrate } from "../db/schema.ts";
 /**
  * Open a migrated DB connection from the CLI --dir flag, run the callback,
  * and guarantee the connection is closed afterward. Retries on lock
- * conflicts so CLI invocations cooperate with a running daemon/chat.
+ * conflicts so CLI invocations cooperate with running workers or chat.
  */
 export async function withDb<T>(
   program: Command,

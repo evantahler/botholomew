@@ -29,11 +29,11 @@ describe("claimNextTask race condition", () => {
     await updateTaskStatus(conn, high.id, "in_progress");
 
     // claimNextTask should skip the already-claimed high and claim the low
-    const claimed = await claimNextTask(conn);
+    const claimed = await claimNextTask(conn, "test-worker");
     expect(claimed).not.toBeNull();
     expect(claimed?.name).toBe("Low priority");
     expect(claimed?.status).toBe("in_progress");
-    expect(claimed?.claimed_by).toBe("daemon");
+    expect(claimed?.claimed_by).toBe("test-worker");
   });
 
   test("returns null when all candidates are already claimed", async () => {
@@ -42,7 +42,7 @@ describe("claimNextTask race condition", () => {
     // Claim it externally before claimNextTask runs
     await updateTaskStatus(conn, task.id, "in_progress");
 
-    const claimed = await claimNextTask(conn);
+    const claimed = await claimNextTask(conn, "test-worker");
     expect(claimed).toBeNull();
   });
 
@@ -55,7 +55,7 @@ describe("claimNextTask race condition", () => {
     await updateTaskStatus(conn, t1.id, "in_progress");
     await updateTaskStatus(conn, t2.id, "in_progress");
 
-    const claimed = await claimNextTask(conn);
+    const claimed = await claimNextTask(conn, "test-worker");
     expect(claimed).not.toBeNull();
     expect(claimed?.name).toBe("T3");
   });

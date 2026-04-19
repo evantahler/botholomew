@@ -6,14 +6,6 @@ import type {
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { embedSingle } from "../context/embedder.ts";
-import { fitToContextWindow, getMaxInputTokens } from "../daemon/context.ts";
-import { maybeStoreResult } from "../daemon/large-results.ts";
-import { createLlmClient } from "../daemon/llm-client.ts";
-import {
-  buildMetaHeader,
-  extractKeywords,
-  loadPersistentContext,
-} from "../daemon/prompt.ts";
 import { withDb } from "../db/connection.ts";
 import { hybridSearch } from "../db/embeddings.ts";
 import { logInteraction } from "../db/threads.ts";
@@ -25,10 +17,18 @@ import {
   toAnthropicTool,
 } from "../tools/tool.ts";
 import { logger } from "../utils/logger.ts";
+import { fitToContextWindow, getMaxInputTokens } from "../worker/context.ts";
+import { maybeStoreResult } from "../worker/large-results.ts";
+import { createLlmClient } from "../worker/llm-client.ts";
+import {
+  buildMetaHeader,
+  extractKeywords,
+  loadPersistentContext,
+} from "../worker/prompt.ts";
 
 registerAllTools();
 
-/** Tools available in chat mode — no daemon terminal tools, no destructive file tools */
+/** Tools available in chat mode — no worker terminal tools, no destructive file tools */
 const CHAT_TOOL_NAMES = new Set([
   "create_task",
   "list_tasks",
@@ -49,6 +49,7 @@ const CHAT_TOOL_NAMES = new Set([
   "mcp_info",
   "mcp_exec",
   "read_large_result",
+  "spawn_worker",
 ]);
 
 export function getChatTools() {
@@ -102,10 +103,10 @@ export async function buildChatSystemPrompt(
 
   parts.push("## Instructions");
   parts.push(
-    "You are Botholomew, an AI agent personified by a wise owl. This is your interactive chat interface. Help the user manage tasks, review results from daemon activity, search context, and answer questions.",
+    "You are Botholomew, an AI agent personified by a wise owl. This is your interactive chat interface. Help the user manage tasks, review results from background worker activity, search context, and answer questions.",
   );
   parts.push(
-    "You do NOT execute long-running work directly — enqueue tasks for the daemon instead using create_task.",
+    "You do NOT execute long-running work directly — enqueue tasks for a background worker instead using create_task, and spawn a worker via spawn_worker when the user wants the task run now.",
   );
   parts.push(
     "Use the available tools to look up tasks, threads, schedules, and context when the user asks about them. Context items can be looked up by virtual path or by UUID via `context_info` and refreshed via `context_refresh`.",

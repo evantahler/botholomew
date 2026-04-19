@@ -13,7 +13,7 @@ mock.module("../../src/context/embedder.ts", () => ({
 // Mock the logger to suppress output
 mock.module("../../src/utils/logger.ts", () => silentLogger);
 
-const { buildSystemPrompt } = await import("../../src/daemon/prompt.ts");
+const { buildSystemPrompt } = await import("../../src/worker/prompt.ts");
 
 let projectDir: string;
 

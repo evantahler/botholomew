@@ -270,7 +270,7 @@ export async function resetStaleTasks(
 
 export async function claimNextTask(
   db: DbConnection,
-  claimedBy = "daemon",
+  claimedBy: string,
 ): Promise<Task | null> {
   // Find highest-priority unblocked pending task
   // Use application-level filtering for blocked_by since DuckDB doesn't have json_each
@@ -320,4 +320,28 @@ export async function claimNextTask(
   }
 
   return null;
+}
+
+/**
+ * Atomically claim a specific task by id. Returns the task if successfully
+ * claimed, or null if the task doesn't exist, is already claimed, or isn't
+ * in `pending` state.
+ */
+export async function claimSpecificTask(
+  db: DbConnection,
+  taskId: string,
+  claimedBy: string,
+): Promise<Task | null> {
+  const row = await db.queryGet<TaskRow>(
+    `UPDATE tasks
+     SET status = 'in_progress',
+         claimed_by = ?1,
+         claimed_at = current_timestamp::VARCHAR,
+         updated_at = current_timestamp::VARCHAR
+     WHERE id = ?2 AND status = 'pending'
+     RETURNING *`,
+    claimedBy,
+    taskId,
+  );
+  return row ? rowToTask(row) : null;
 }

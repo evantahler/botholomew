@@ -4,13 +4,13 @@ import { memo } from "react";
 interface HelpPanelProps {
   projectDir: string;
   threadId: string;
-  daemonRunning: boolean;
+  workerRunning: boolean;
 }
 
 export const HelpPanel = memo(function HelpPanel({
   projectDir,
   threadId,
-  daemonRunning,
+  workerRunning,
 }: HelpPanelProps) {
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
@@ -153,11 +153,11 @@ export const HelpPanel = memo(function HelpPanel({
           {threadId}
         </Text>
         <Text>
-          {"  "}Daemon{"    "}
-          {daemonRunning ? (
+          {"  "}Workers{"   "}
+          {workerRunning ? (
             <Text color="green">running</Text>
           ) : (
-            <Text color="red">off</Text>
+            <Text color="red">none</Text>
           )}
         </Text>
       </Box>

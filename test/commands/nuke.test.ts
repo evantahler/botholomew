@@ -10,8 +10,8 @@ import { createSchedule } from "../../src/db/schedules.ts";
 import { migrate } from "../../src/db/schema.ts";
 import { createTask } from "../../src/db/tasks.ts";
 import { createThread, logInteraction } from "../../src/db/threads.ts";
+import { registerWorker } from "../../src/db/workers.ts";
 import { initProject } from "../../src/init/index.ts";
-import { writePidFile } from "../../src/utils/pid.ts";
 
 let tempDir: string;
 
@@ -193,15 +193,22 @@ describe("nuke CLI", () => {
     expect(after.tasks).toBe(1);
   });
 
-  test("refuses when daemon is running", async () => {
+  test("refuses when a worker is running", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    // Point the pid file at our own process — guaranteed to be alive
-    writePidFile(tempDir, process.pid);
+    const conn = await getConnection(getDbPath(tempDir));
+    await migrate(conn);
+    await registerWorker(conn, {
+      id: "00000000-0000-0000-0000-000000000001",
+      pid: process.pid,
+      hostname: "testhost",
+      mode: "persist",
+    });
+    conn.close();
 
     const result = await run(["nuke", "all", "--yes"]);
     expect(result.code).toBe(1);
-    expect(result.stdout + result.stderr).toContain("Daemon is running");
+    expect(result.stdout + result.stderr).toContain("worker(s) running");
   });
 });

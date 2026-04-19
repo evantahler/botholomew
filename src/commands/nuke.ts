@@ -6,8 +6,8 @@ import { deleteAllDaemonState } from "../db/daemon-state.ts";
 import { deleteAllSchedules } from "../db/schedules.ts";
 import { deleteAllTasks } from "../db/tasks.ts";
 import { deleteAllThreads } from "../db/threads.ts";
+import { listWorkers } from "../db/workers.ts";
 import { logger } from "../utils/logger.ts";
-import { getDaemonStatus } from "../utils/pid.ts";
 import { withDb } from "./with-db.ts";
 
 type NukeScope = "context" | "tasks" | "schedules" | "threads" | "all";
@@ -49,12 +49,15 @@ function printDryRun(scope: NukeScope, counts: Record<string, number>) {
   );
 }
 
-async function ensureDaemonStopped(dir: string): Promise<boolean> {
-  const status = await getDaemonStatus(dir);
-  if (status) {
+async function ensureNoRunningWorkers(conn: DbConnection): Promise<boolean> {
+  const running = await listWorkers(conn, { status: "running" });
+  if (running.length > 0) {
     logger.error(
-      `Daemon is running (PID ${status.pid}). Stop it first: botholomew daemon stop`,
+      `${running.length} worker(s) running. Stop them first: botholomew worker stop <id>`,
     );
+    for (const w of running) {
+      logger.dim(`  ${w.id} (pid ${w.pid}, mode=${w.mode})`);
+    }
     return false;
   }
   return true;
@@ -101,8 +104,8 @@ function registerScope(
     .description(description)
     .option("-y, --yes", "confirm the deletion (required)")
     .action((opts) =>
-      withDb(program, async (conn, dir) => {
-        if (!(await ensureDaemonStopped(dir))) {
+      withDb(program, async (conn) => {
+        if (!(await ensureNoRunningWorkers(conn))) {
           process.exit(1);
         }
         const tables = TABLES_BY_SCOPE[scope];
@@ -138,7 +141,7 @@ export function registerNukeCommand(program: Command) {
     program,
     nuke,
     "threads",
-    "Erase all threads and interactions (daemon + chat history)",
+    "Erase all threads and interactions (worker + chat history)",
   );
   registerScope(
     program,

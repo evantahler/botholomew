@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { fakeMcpExec, isCaptureMode } from "../../daemon/fake-mcp.ts";
 import { formatCallToolResult } from "../../mcpx/client.ts";
+import { fakeMcpExec, isCaptureMode } from "../../worker/fake-mcp.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({

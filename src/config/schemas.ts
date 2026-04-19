@@ -9,6 +9,11 @@ export interface BotholomewConfig {
   max_tick_duration_seconds?: number;
   system_prompt_override?: string;
   max_turns?: number;
+  worker_heartbeat_interval_seconds?: number;
+  worker_dead_after_seconds?: number;
+  worker_reap_interval_seconds?: number;
+  schedule_min_interval_seconds?: number;
+  schedule_claim_stale_seconds?: number;
 }
 
 export const DEFAULT_CONFIG: Required<BotholomewConfig> = {
@@ -22,4 +27,9 @@ export const DEFAULT_CONFIG: Required<BotholomewConfig> = {
   max_tick_duration_seconds: 120,
   system_prompt_override: "",
   max_turns: 0,
+  worker_heartbeat_interval_seconds: 15,
+  worker_dead_after_seconds: 60,
+  worker_reap_interval_seconds: 30,
+  schedule_min_interval_seconds: 60,
+  schedule_claim_stale_seconds: 300,
 };

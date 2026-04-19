@@ -4,7 +4,7 @@ import { uuidv7 } from "./uuid.ts";
 
 export interface Thread {
   id: string;
-  type: "daemon_tick" | "chat_session";
+  type: "worker_tick" | "chat_session";
   task_id: string | null;
   title: string;
   started_at: Date;

@@ -17,7 +17,7 @@ import { createLlmClient } from "./llm-client.ts";
 
 registerAllTools();
 
-export interface DaemonStreamCallbacks {
+export interface WorkerStreamCallbacks {
   onToken: (text: string) => void;
   onToolStart: (name: string, input: string) => void;
   onToolEnd: (
@@ -48,7 +48,7 @@ export async function runAgentLoop(input: {
   threadId: string;
   projectDir: string;
   mcpxClient?: McpxClient | null;
-  callbacks?: DaemonStreamCallbacks;
+  callbacks?: WorkerStreamCallbacks;
 }): Promise<AgentLoopResult> {
   const {
     systemPrompt,
@@ -93,7 +93,7 @@ export async function runAgentLoop(input: {
   );
 
   clearLargeResults();
-  const daemonTools = toAnthropicTools();
+  const workerTools = toAnthropicTools();
   const maxInputTokens = await getMaxInputTokens(
     config.anthropic_api_key,
     config.model,
@@ -113,7 +113,7 @@ export async function runAgentLoop(input: {
         max_tokens: 4096,
         system: systemPrompt,
         messages,
-        tools: daemonTools,
+        tools: workerTools,
       });
 
       stream.on("text", (text) => {
@@ -133,7 +133,7 @@ export async function runAgentLoop(input: {
         max_tokens: 4096,
         system: systemPrompt,
         messages,
-        tools: daemonTools,
+        tools: workerTools,
       });
     }
 

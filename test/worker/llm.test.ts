@@ -21,7 +21,7 @@ mock.module("@anthropic-ai/sdk", () => {
   };
 });
 
-const { runAgentLoop } = await import("../../src/daemon/llm.ts");
+const { runAgentLoop } = await import("../../src/worker/llm.ts");
 
 let conn: DbConnection;
 let dbPath: string;
@@ -44,7 +44,7 @@ describe("runAgentLoop", () => {
       name: "Test task",
       description: "Do something",
     });
-    const threadId = await createThread(conn, "daemon_tick", task.id);
+    const threadId = await createThread(conn, "worker_tick", task.id);
 
     mockCreate.mockImplementation(async () => ({
       content: [
@@ -78,7 +78,7 @@ describe("runAgentLoop", () => {
       name: "Failing task",
       description: "This will fail",
     });
-    const threadId = await createThread(conn, "daemon_tick", task.id);
+    const threadId = await createThread(conn, "worker_tick", task.id);
 
     mockCreate.mockImplementation(async () => ({
       content: [
@@ -111,7 +111,7 @@ describe("runAgentLoop", () => {
       name: "Waiting task",
       description: "Needs to wait",
     });
-    const threadId = await createThread(conn, "daemon_tick", task.id);
+    const threadId = await createThread(conn, "worker_tick", task.id);
 
     mockCreate.mockImplementation(async () => ({
       content: [
@@ -144,7 +144,7 @@ describe("runAgentLoop", () => {
       name: "Simple task",
       description: "Just text response",
     });
-    const threadId = await createThread(conn, "daemon_tick", task.id);
+    const threadId = await createThread(conn, "worker_tick", task.id);
 
     mockCreate.mockImplementation(async () => ({
       content: [{ type: "text", text: "I completed the task implicitly." }],
@@ -170,7 +170,7 @@ describe("runAgentLoop", () => {
       name: "Infinite task",
       description: "Never completes",
     });
-    const threadId = await createThread(conn, "daemon_tick", task.id);
+    const threadId = await createThread(conn, "worker_tick", task.id);
 
     // Always return a non-terminal tool use so the loop continues.
     // Use context_exists which never throws (always returns a result).
@@ -206,7 +206,7 @@ describe("runAgentLoop", () => {
       name: "Unknown tool task",
       description: "Calls a non-existent tool",
     });
-    const threadId = await createThread(conn, "daemon_tick", task.id);
+    const threadId = await createThread(conn, "worker_tick", task.id);
 
     let callCount = 0;
     mockCreate.mockImplementation(async () => {
@@ -272,7 +272,7 @@ describe("runAgentLoop", () => {
       name: "Tool throws task",
       description: "A tool will throw an exception",
     });
-    const threadId = await createThread(conn, "daemon_tick", task.id);
+    const threadId = await createThread(conn, "worker_tick", task.id);
 
     let callCount = 0;
     mockCreate.mockImplementation(async () => {
@@ -332,7 +332,7 @@ describe("runAgentLoop", () => {
       name: "Parallel task",
       description: "Uses multiple tools at once",
     });
-    const threadId = await createThread(conn, "daemon_tick", task.id);
+    const threadId = await createThread(conn, "worker_tick", task.id);
 
     let callCount = 0;
     mockCreate.mockImplementation(async () => {
@@ -404,7 +404,7 @@ describe("runAgentLoop", () => {
       name: "Logged task",
       description: "Should log interactions",
     });
-    const threadId = await createThread(conn, "daemon_tick", task.id);
+    const threadId = await createThread(conn, "worker_tick", task.id);
 
     mockCreate.mockImplementation(async () => ({
       content: [

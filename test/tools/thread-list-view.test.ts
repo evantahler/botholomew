@@ -25,14 +25,14 @@ describe("list_threads", () => {
   });
 
   test("returns all threads", async () => {
-    await createThread(ctx.conn, "daemon_tick", undefined, "Tick 1");
+    await createThread(ctx.conn, "worker_tick", undefined, "Tick 1");
     await createThread(ctx.conn, "chat_session", undefined, "Chat 1");
     const result = await listThreadsTool.execute({}, ctx);
     expect(result.count).toBe(2);
   });
 
   test("filters by type", async () => {
-    await createThread(ctx.conn, "daemon_tick", undefined, "Tick");
+    await createThread(ctx.conn, "worker_tick", undefined, "Tick");
     await createThread(ctx.conn, "chat_session", undefined, "Chat");
     const result = await listThreadsTool.execute({ type: "chat_session" }, ctx);
     expect(result.count).toBe(1);
@@ -40,9 +40,9 @@ describe("list_threads", () => {
   });
 
   test("respects limit", async () => {
-    await createThread(ctx.conn, "daemon_tick", undefined, "A");
-    await createThread(ctx.conn, "daemon_tick", undefined, "B");
-    await createThread(ctx.conn, "daemon_tick", undefined, "C");
+    await createThread(ctx.conn, "worker_tick", undefined, "A");
+    await createThread(ctx.conn, "worker_tick", undefined, "B");
+    await createThread(ctx.conn, "worker_tick", undefined, "C");
     const result = await listThreadsTool.execute({ limit: 2 }, ctx);
     expect(result.count).toBe(2);
   });
@@ -54,7 +54,7 @@ describe("view_thread", () => {
   test("returns thread with interactions", async () => {
     const threadId = await createThread(
       ctx.conn,
-      "daemon_tick",
+      "worker_tick",
       undefined,
       "Test Thread",
     );
