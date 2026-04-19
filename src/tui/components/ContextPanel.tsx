@@ -9,6 +9,7 @@ import {
   listContextItemsByPrefix,
   searchContextByKeyword,
 } from "../../db/context.ts";
+import { isMarkdownItem, renderMarkdown } from "../markdown.ts";
 
 interface ContextPanelProps {
   dbPath: string;
@@ -118,10 +119,15 @@ export const ContextPanel = memo(function ContextPanel({
     [items, scrollOffset, visibleRows],
   );
 
-  // Preview content split into lines for scrolling
+  // Preview content split into lines for scrolling. Markdown files are
+  // rendered through Bun.markdown.ansi so headers/emphasis/code display
+  // with ANSI formatting in the terminal.
   const previewLines = useMemo(() => {
     if (!preview?.content) return [];
-    return preview.content.split("\n");
+    const body = isMarkdownItem(preview)
+      ? renderMarkdown(preview.content)
+      : preview.content;
+    return body.split("\n");
   }, [preview]);
 
   useInput(
