@@ -36,6 +36,7 @@ const CHAT_TOOL_NAMES = new Set([
   "context_search",
   "context_info",
   "context_refresh",
+  "context_tree",
   "search_grep",
   "search_semantic",
   "list_threads",
