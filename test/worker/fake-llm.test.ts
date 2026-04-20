@@ -28,9 +28,9 @@ describe("createFakeAnthropicClient", () => {
     });
 
     // Re-import so the module re-loads the fixture for this test.
-    delete require.cache?.[require.resolve("../../src/daemon/fake-llm.ts")];
+    delete require.cache?.[require.resolve("../../src/worker/fake-llm.ts")];
     const { createFakeAnthropicClient } = await import(
-      `../../src/daemon/fake-llm.ts?cachebust=${Date.now()}`
+      `../../src/worker/fake-llm.ts?cachebust=${Date.now()}`
     );
     const client = createFakeAnthropicClient();
 
@@ -61,7 +61,7 @@ describe("createFakeAnthropicClient", () => {
     });
 
     const { createFakeAnthropicClient } = await import(
-      `../../src/daemon/fake-llm.ts?cachebust=${Date.now()}`
+      `../../src/worker/fake-llm.ts?cachebust=${Date.now()}`
     );
     const client = createFakeAnthropicClient();
 
@@ -84,7 +84,7 @@ describe("createFakeAnthropicClient", () => {
     });
 
     const { createFakeAnthropicClient } = await import(
-      `../../src/daemon/fake-llm.ts?cachebust=${Date.now()}`
+      `../../src/worker/fake-llm.ts?cachebust=${Date.now()}`
     );
     const client = createFakeAnthropicClient();
 

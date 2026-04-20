@@ -43,6 +43,8 @@ import { waitTaskTool } from "./task/wait.ts";
 import { listThreadsTool } from "./thread/list.ts";
 import { viewThreadTool } from "./thread/view.ts";
 import { registerTool } from "./tool.ts";
+// Worker tools
+import { spawnWorkerTool } from "./worker/spawn.ts";
 
 export function registerAllTools(): void {
   // Task
@@ -91,4 +93,7 @@ export function registerAllTools(): void {
   registerTool(mcpSearchTool);
   registerTool(mcpInfoTool);
   registerTool(mcpExecTool);
+
+  // Worker
+  registerTool(spawnWorkerTool);
 }

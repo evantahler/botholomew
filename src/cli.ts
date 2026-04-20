@@ -5,7 +5,6 @@ import { program } from "commander";
 import { registerChatCommand } from "./commands/chat.ts";
 import { registerCheckUpdateCommand } from "./commands/check-update.ts";
 import { registerContextCommand } from "./commands/context.ts";
-import { registerDaemonCommand } from "./commands/daemon.ts";
 import { registerInitCommand } from "./commands/init.ts";
 import { registerMcpxCommand } from "./commands/mcpx.ts";
 import { registerNukeCommand } from "./commands/nuke.ts";
@@ -15,6 +14,7 @@ import { registerSkillCommand } from "./commands/skill.ts";
 import { registerTaskCommand } from "./commands/task.ts";
 import { registerThreadCommand } from "./commands/thread.ts";
 import { registerUpgradeCommand } from "./commands/upgrade.ts";
+import { registerWorkerCommand } from "./commands/worker.ts";
 import { maybeCheckForUpdate } from "./update/background.ts";
 
 const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
@@ -33,7 +33,7 @@ program
   });
 
 registerInitCommand(program);
-registerDaemonCommand(program);
+registerWorkerCommand(program);
 registerTaskCommand(program);
 registerThreadCommand(program);
 registerScheduleCommand(program);

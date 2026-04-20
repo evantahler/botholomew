@@ -2,8 +2,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { withDb } from "../db/connection.ts";
 import {
+  claimSchedule,
   listSchedules,
   markScheduleRun,
+  releaseSchedule,
   type Schedule,
 } from "../db/schedules.ts";
 import { createTask } from "../db/tasks.ts";
@@ -107,16 +109,35 @@ Is this schedule due to run? If yes, what tasks should be created?`;
 export async function processSchedules(
   dbPath: string,
   config: Required<BotholomewConfig>,
+  workerId: string,
 ): Promise<void> {
   const schedules = await withDb(dbPath, (conn) =>
     listSchedules(conn, { enabled: true }),
   );
   if (schedules.length === 0) return;
 
+  logger.phase("evaluating-schedules", `${schedules.length} enabled`);
+
   for (const schedule of schedules) {
+    // Only one worker evaluates a schedule per window. claimSchedule is an
+    // atomic UPDATE ... RETURNING guarded by both a claim-stale window and
+    // a minimum-interval-since-last-run window; if it returns null, another
+    // worker already holds the claim or the schedule ran too recently.
+    const claimed = await withDb(dbPath, (conn) =>
+      claimSchedule(conn, schedule.id, workerId, {
+        staleAfterSeconds: config.schedule_claim_stale_seconds,
+        minIntervalSeconds: config.schedule_min_interval_seconds,
+      }),
+    );
+    if (!claimed) {
+      logger.debug(
+        `Schedule "${schedule.name}" skipped: claimed by another worker or too recent`,
+      );
+      continue;
+    }
+
     try {
-      // LLM evaluation does no DB work — no connection held here.
-      const evaluation = await evaluateSchedule(config, schedule);
+      const evaluation = await evaluateSchedule(config, claimed);
 
       if (!evaluation.isDue) {
         logger.debug(
@@ -148,6 +169,13 @@ export async function processSchedules(
       );
     } catch (err) {
       logger.error(`Error processing schedule "${schedule.name}": ${err}`);
+    } finally {
+      // Release the claim so other workers (or the next tick) can re-evaluate
+      // once the min-interval window has elapsed. markScheduleRun above
+      // updates last_run_at, which is the actual cooldown.
+      await withDb(dbPath, (conn) =>
+        releaseSchedule(conn, schedule.id, workerId),
+      );
     }
   }
 }

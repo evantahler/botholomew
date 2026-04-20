@@ -1,7 +1,7 @@
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { createLlmClient } from "../daemon/llm-client.ts";
 import { withDb } from "../db/connection.ts";
 import { updateThreadTitle } from "../db/threads.ts";
+import { createLlmClient } from "../worker/llm-client.ts";
 import { logger } from "./logger.ts";
 
 /**

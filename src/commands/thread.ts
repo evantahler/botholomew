@@ -18,7 +18,7 @@ export function registerThreadCommand(program: Command) {
   thread
     .command("list")
     .description("List threads")
-    .option("-t, --type <type>", "filter by type (daemon_tick, chat_session)")
+    .option("-t, --type <type>", "filter by type (worker_tick, chat_session)")
     .option("-l, --limit <n>", "max number of threads", Number.parseInt)
     .option("-o, --offset <n>", "skip first N threads", Number.parseInt)
     .action((opts) =>
@@ -156,7 +156,7 @@ export function registerThreadCommand(program: Command) {
 
 function typeColor(type: Thread["type"]): string {
   switch (type) {
-    case "daemon_tick":
+    case "worker_tick":
       return ansis.magenta(type);
     case "chat_session":
       return ansis.cyan(type);

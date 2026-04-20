@@ -4,7 +4,7 @@ import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
   type: z
-    .enum(["daemon_tick", "chat_session"])
+    .enum(["worker_tick", "chat_session"])
     .optional()
     .describe("Filter by thread type"),
   limit: z.number().optional().describe("Max number of threads to return"),
@@ -27,7 +27,7 @@ const outputSchema = z.object({
 
 export const listThreadsTool = {
   name: "list_threads",
-  description: "List conversation threads (daemon ticks or chat sessions).",
+  description: "List conversation threads (worker ticks or chat sessions).",
   group: "thread",
   inputSchema,
   outputSchema,

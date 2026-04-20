@@ -24,14 +24,14 @@ describe("thread CRUD", () => {
   test("create and get a thread", async () => {
     const threadId = await createThread(
       conn,
-      "daemon_tick",
+      "worker_tick",
       undefined,
       "Test tick",
     );
 
     const result = await getThread(conn, threadId);
     expect(result).not.toBeNull();
-    expect(result?.thread.type).toBe("daemon_tick");
+    expect(result?.thread.type).toBe("worker_tick");
     expect(result?.thread.title).toBe("Test tick");
     expect(result?.thread.ended_at).toBeNull();
     expect(result?.interactions).toHaveLength(0);
@@ -40,7 +40,7 @@ describe("thread CRUD", () => {
   test("create thread with task_id", async () => {
     const threadId = await createThread(
       conn,
-      "daemon_tick",
+      "worker_tick",
       "task-123",
       "Working task",
     );
@@ -79,7 +79,7 @@ describe("thread CRUD", () => {
 
 describe("interaction logging", () => {
   test("log and retrieve interactions in order", async () => {
-    const threadId = await createThread(conn, "daemon_tick");
+    const threadId = await createThread(conn, "worker_tick");
 
     await logInteraction(conn, threadId, {
       role: "user",
@@ -184,7 +184,7 @@ describe("deleteThread", () => {
   test("deletes thread with no interactions", async () => {
     const threadId = await createThread(
       conn,
-      "daemon_tick",
+      "worker_tick",
       undefined,
       "Empty",
     );
@@ -198,11 +198,11 @@ describe("deleteThread", () => {
 
 describe("listThreads", () => {
   test("list threads with type filter", async () => {
-    await createThread(conn, "daemon_tick", undefined, "Tick 1");
+    await createThread(conn, "worker_tick", undefined, "Tick 1");
     await createThread(conn, "chat_session", undefined, "Chat 1");
-    await createThread(conn, "daemon_tick", undefined, "Tick 2");
+    await createThread(conn, "worker_tick", undefined, "Tick 2");
 
-    const daemonThreads = await listThreads(conn, { type: "daemon_tick" });
+    const daemonThreads = await listThreads(conn, { type: "worker_tick" });
     expect(daemonThreads).toHaveLength(2);
 
     const chatThreads = await listThreads(conn, { type: "chat_session" });
@@ -210,19 +210,19 @@ describe("listThreads", () => {
   });
 
   test("list threads with limit", async () => {
-    await createThread(conn, "daemon_tick", undefined, "Tick 1");
-    await createThread(conn, "daemon_tick", undefined, "Tick 2");
-    await createThread(conn, "daemon_tick", undefined, "Tick 3");
+    await createThread(conn, "worker_tick", undefined, "Tick 1");
+    await createThread(conn, "worker_tick", undefined, "Tick 2");
+    await createThread(conn, "worker_tick", undefined, "Tick 3");
 
     const threads = await listThreads(conn, { limit: 2 });
     expect(threads).toHaveLength(2);
   });
 
   test("list threads with limit and offset", async () => {
-    await createThread(conn, "daemon_tick", undefined, "Tick 1");
-    await createThread(conn, "daemon_tick", undefined, "Tick 2");
-    await createThread(conn, "daemon_tick", undefined, "Tick 3");
-    await createThread(conn, "daemon_tick", undefined, "Tick 4");
+    await createThread(conn, "worker_tick", undefined, "Tick 1");
+    await createThread(conn, "worker_tick", undefined, "Tick 2");
+    await createThread(conn, "worker_tick", undefined, "Tick 3");
+    await createThread(conn, "worker_tick", undefined, "Tick 4");
 
     const page = await listThreads(conn, { limit: 2, offset: 1 });
     expect(page).toHaveLength(2);
@@ -233,7 +233,7 @@ describe("listThreads", () => {
 
 describe("follow queries", () => {
   test("getInteractionsAfter returns only interactions after given sequence", async () => {
-    const threadId = await createThread(conn, "daemon_tick");
+    const threadId = await createThread(conn, "worker_tick");
     for (let i = 0; i < 5; i++) {
       await logInteraction(conn, threadId, {
         role: "assistant",
@@ -249,7 +249,7 @@ describe("follow queries", () => {
   });
 
   test("getInteractionsAfter returns empty when caught up", async () => {
-    const threadId = await createThread(conn, "daemon_tick");
+    const threadId = await createThread(conn, "worker_tick");
     await logInteraction(conn, threadId, {
       role: "assistant",
       kind: "message",
@@ -263,14 +263,14 @@ describe("follow queries", () => {
   test("getActiveThread returns most recent active thread", async () => {
     const id1 = await createThread(
       conn,
-      "daemon_tick",
+      "worker_tick",
       undefined,
       "First tick",
     );
     await endThread(conn, id1);
     const id2 = await createThread(
       conn,
-      "daemon_tick",
+      "worker_tick",
       undefined,
       "Second tick",
     );
@@ -282,7 +282,7 @@ describe("follow queries", () => {
   });
 
   test("getActiveThread returns null when all threads ended", async () => {
-    const id = await createThread(conn, "daemon_tick");
+    const id = await createThread(conn, "worker_tick");
     await endThread(conn, id);
 
     const active = await getActiveThread(conn);
@@ -290,12 +290,12 @@ describe("follow queries", () => {
   });
 
   test("isThreadEnded returns false for active thread", async () => {
-    const id = await createThread(conn, "daemon_tick");
+    const id = await createThread(conn, "worker_tick");
     expect(await isThreadEnded(conn, id)).toBe(false);
   });
 
   test("isThreadEnded returns true for ended thread", async () => {
-    const id = await createThread(conn, "daemon_tick");
+    const id = await createThread(conn, "worker_tick");
     await endThread(conn, id);
     expect(await isThreadEnded(conn, id)).toBe(true);
   });

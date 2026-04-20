@@ -134,7 +134,7 @@ export function registerScheduleCommand(program: Command) {
         }
 
         // Lazy import to avoid loading LLM deps for non-trigger commands
-        const { evaluateSchedule } = await import("../daemon/schedules.ts");
+        const { evaluateSchedule } = await import("../worker/schedules.ts");
         const { loadConfig } = await import("../config/loader.ts");
         const { createTask } = await import("../db/tasks.ts");
         const { markScheduleRun } = await import("../db/schedules.ts");

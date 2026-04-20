@@ -99,6 +99,16 @@ Add daemon tools:
 5. Daemon modifies beliefs.md during a tick — file updated correctly, frontmatter preserved
 6. `botholomew daemon list` — shows all registered projects on this machine
 
-## Status: **Done**
+## Status: **Superseded by Milestone 9**
 
-Binary compilation was dropped (native deps like DuckDB can't be bundled). All other items are implemented and tested.
+Binary compilation was dropped (native deps like DuckDB can't be bundled).
+The OS watchdog install (launchd/systemd, PID file, `daemon install` CLI
+subcommand, project registry) was **removed** in
+[Milestone 9](milestone-9-worker-agents.md). Users found the install too
+heavy and too opaque; it's been replaced by explicit worker spawning
+(`botholomew worker run|start`), in-DB worker registration + heartbeats,
+and an [automation guide](../automation.md) showing how to wire up cron,
+tmux, launchd, or systemd on your own terms.
+
+Agent self-modification tools (`update_beliefs`, `update_goals`) remain
+in place.

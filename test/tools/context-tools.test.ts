@@ -2,14 +2,14 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  clearLargeResults,
-  storeLargeResult,
-} from "../../src/daemon/large-results.ts";
 import { readLargeResultTool } from "../../src/tools/context/read-large-result.ts";
 import { updateBeliefsTool } from "../../src/tools/context/update-beliefs.ts";
 import { updateGoalsTool } from "../../src/tools/context/update-goals.ts";
 import type { ToolContext } from "../../src/tools/tool.ts";
+import {
+  clearLargeResults,
+  storeLargeResult,
+} from "../../src/worker/large-results.ts";
 import { setupToolContext } from "../helpers.ts";
 
 let ctx: ToolContext;

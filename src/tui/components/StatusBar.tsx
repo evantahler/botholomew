@@ -2,30 +2,30 @@ import { Box, Text } from "ink";
 import { useEffect, useState } from "react";
 import { withDb } from "../../db/connection.ts";
 import { listTasks } from "../../db/tasks.ts";
-import { getDaemonStatus } from "../../utils/pid.ts";
+import { listWorkers } from "../../db/workers.ts";
 import { LogoChar } from "./Logo.tsx";
 
 interface StatusBarProps {
   projectDir: string;
   dbPath: string;
   chatTitle?: string;
-  onDaemonStatusChange?: (running: boolean) => void;
+  onWorkerStatusChange?: (running: boolean) => void;
 }
 
 interface Status {
-  daemonRunning: boolean;
+  workerCount: number;
   pendingCount: number;
   inProgressCount: number;
 }
 
 export function StatusBar({
-  projectDir,
+  projectDir: _projectDir,
   dbPath,
   chatTitle,
-  onDaemonStatusChange,
+  onWorkerStatusChange,
 }: StatusBarProps) {
   const [status, setStatus] = useState<Status>({
-    daemonRunning: false,
+    workerCount: 0,
     pendingCount: 0,
     inProgressCount: 0,
   });
@@ -34,19 +34,21 @@ export function StatusBar({
     let mounted = true;
 
     const refresh = async () => {
-      const daemon = await getDaemonStatus(projectDir);
-      const [pending, inProgress] = await withDb(dbPath, async (conn) => [
-        await listTasks(conn, { status: "pending" }),
-        await listTasks(conn, { status: "in_progress" }),
-      ]);
+      const [pending, inProgress, workers] = await withDb(
+        dbPath,
+        async (conn) => [
+          await listTasks(conn, { status: "pending" }),
+          await listTasks(conn, { status: "in_progress" }),
+          await listWorkers(conn, { status: "running" }),
+        ],
+      );
       if (mounted) {
-        const daemonRunning = daemon !== null;
         setStatus({
-          daemonRunning,
+          workerCount: workers.length,
           pendingCount: pending.length,
           inProgressCount: inProgress.length,
         });
-        onDaemonStatusChange?.(daemonRunning);
+        onWorkerStatusChange?.(workers.length > 0);
       }
     };
 
@@ -56,7 +58,7 @@ export function StatusBar({
       mounted = false;
       clearInterval(interval);
     };
-  }, [projectDir, dbPath, onDaemonStatusChange]);
+  }, [dbPath, onWorkerStatusChange]);
 
   return (
     <Box paddingX={0}>
@@ -73,10 +75,12 @@ export function StatusBar({
         </>
       )}
       <Text dimColor> | </Text>
-      {status.daemonRunning ? (
-        <Text color="green">Daemon</Text>
+      {status.workerCount > 0 ? (
+        <Text color="green">
+          {status.workerCount} worker{status.workerCount === 1 ? "" : "s"}
+        </Text>
       ) : (
-        <Text color="red">Daemon (off)</Text>
+        <Text color="yellow">no workers</Text>
       )}
       <Text dimColor> | </Text>
       <Text>

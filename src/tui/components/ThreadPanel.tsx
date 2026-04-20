@@ -22,27 +22,27 @@ const SIDEBAR_WIDTH = 42;
 const PAGE_SCROLL_LINES = 10;
 
 const THREAD_TYPES: readonly Thread["type"][] = [
-  "daemon_tick",
+  "worker_tick",
   "chat_session",
 ] as const;
 
 const TYPE_LABELS: Record<Thread["type"], string> = {
-  daemon_tick: "daemon",
-  chat_session: "agent",
+  worker_tick: "worker",
+  chat_session: "chat",
 };
 
 const TYPE_ICONS: Record<Thread["type"], string> = {
-  daemon_tick: "⚙",
+  worker_tick: "⚙",
   chat_session: "💬",
 };
 
 const TYPE_COLORS: Record<Thread["type"], string> = {
-  daemon_tick: theme.accent,
+  worker_tick: theme.accent,
   chat_session: theme.info,
 };
 
 const TYPE_ANSI: Record<Thread["type"], string> = {
-  daemon_tick: ansi.accent,
+  worker_tick: ansi.accent,
   chat_session: ansi.info,
 };
 
@@ -481,7 +481,7 @@ export const ThreadPanel = memo(function ThreadPanel({
             ? `No threads match "${searchQuery}". Press Escape to clear search.`
             : typeFilter
               ? "No threads match the current filter. Press f to change filter."
-              : "No threads found. Threads will appear as chat sessions and daemon ticks occur."}
+              : "No threads found. Threads will appear as chat sessions and worker ticks occur."}
         </Text>
         {typeFilter && (
           <Box marginTop={1}>

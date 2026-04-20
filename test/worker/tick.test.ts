@@ -20,7 +20,7 @@ mock.module("@anthropic-ai/sdk", () => {
 });
 
 // Import tick after mocking
-const { tick } = await import("../../src/daemon/tick.ts");
+const { tick } = await import("../../src/worker/tick.ts");
 
 let conn: DbConnection;
 let dbPath: string;
@@ -34,14 +34,19 @@ afterEach(async () => {
   await cleanup();
 });
 
-describe("daemon tick", () => {
+describe("worker tick", () => {
   test("claims and completes a task", async () => {
     const task = await createTask(conn, {
       name: "Test task",
       description: "Do a thing",
     });
 
-    const didWork = await tick("/tmp/test-project", dbPath, TEST_CONFIG);
+    const didWork = await tick({
+      projectDir: "/tmp/test-project",
+      dbPath,
+      config: TEST_CONFIG,
+      workerId: "test-worker",
+    });
 
     // Task should be completed
     const updated = await getTask(conn, task.id);
@@ -60,10 +65,15 @@ describe("daemon tick", () => {
       description: "Do a thing",
     });
 
-    await tick("/tmp/test-project", dbPath, TEST_CONFIG);
+    await tick({
+      projectDir: "/tmp/test-project",
+      dbPath,
+      config: TEST_CONFIG,
+      workerId: "test-worker",
+    });
 
     // Should have created a thread
-    const threads = await listThreads(conn, { type: "daemon_tick" });
+    const threads = await listThreads(conn, { type: "worker_tick" });
     expect(threads).toHaveLength(1);
     expect(threads[0]?.ended_at).not.toBeNull();
 
@@ -82,7 +92,12 @@ describe("daemon tick", () => {
   });
 
   test("does nothing when no tasks available", async () => {
-    const didWork = await tick("/tmp/test-project", dbPath, TEST_CONFIG);
+    const didWork = await tick({
+      projectDir: "/tmp/test-project",
+      dbPath,
+      config: TEST_CONFIG,
+      workerId: "test-worker",
+    });
 
     // No threads created
     const threads = await listThreads(conn);
@@ -104,14 +119,19 @@ describe("daemon tick", () => {
       },
     }));
 
-    const { tick: tickFresh } = await import("../../src/daemon/tick.ts");
+    const { tick: tickFresh } = await import("../../src/worker/tick.ts");
 
     const task = await createTask(conn, {
       name: "Will fail",
       description: "LLM will error",
     });
 
-    await tickFresh("/tmp/test-project", dbPath, TEST_CONFIG);
+    await tickFresh({
+      projectDir: "/tmp/test-project",
+      dbPath,
+      config: TEST_CONFIG,
+      workerId: "test-worker",
+    });
 
     const updated = await getTask(conn, task.id);
     expect(updated?.status).toBe("failed");
@@ -121,7 +141,7 @@ describe("daemon tick", () => {
     expect(updated?.output).toBeNull();
 
     // Thread should still be created and ended
-    const threads = await listThreads(conn, { type: "daemon_tick" });
+    const threads = await listThreads(conn, { type: "worker_tick" });
     expect(threads.length).toBeGreaterThanOrEqual(1);
     const thread = threads.find((t) => t.task_id === task.id);
     expect(thread?.ended_at).not.toBeNull();
@@ -157,14 +177,19 @@ describe("daemon tick", () => {
       },
     }));
 
-    const { tick: tickFresh } = await import("../../src/daemon/tick.ts");
+    const { tick: tickFresh } = await import("../../src/worker/tick.ts");
 
     const task = await createTask(conn, {
       name: "Will wait",
       description: "Agent will call wait_task",
     });
 
-    await tickFresh("/tmp/test-project", dbPath, TEST_CONFIG);
+    await tickFresh({
+      projectDir: "/tmp/test-project",
+      dbPath,
+      config: TEST_CONFIG,
+      workerId: "test-worker",
+    });
 
     const updated = await getTask(conn, task.id);
     expect(updated?.status).toBe("waiting");
@@ -194,7 +219,12 @@ describe("daemon tick", () => {
       priority: "high",
     });
 
-    await tick("/tmp/test-project", dbPath, TEST_CONFIG);
+    await tick({
+      projectDir: "/tmp/test-project",
+      dbPath,
+      config: TEST_CONFIG,
+      workerId: "test-worker",
+    });
 
     // High priority task should be completed
     const updatedHigh = await getTask(conn, highTask.id);

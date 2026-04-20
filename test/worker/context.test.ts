@@ -1,11 +1,11 @@
 import { describe, expect, it, mock } from "bun:test";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
-import { fitToContextWindow } from "../../src/daemon/context.ts";
+import { fitToContextWindow } from "../../src/worker/context.ts";
 import { MockAnthropicModels } from "../helpers.ts";
 
 mock.module("@anthropic-ai/sdk", () => ({ default: MockAnthropicModels }));
 
-const { getMaxInputTokens } = await import("../../src/daemon/context.ts");
+const { getMaxInputTokens } = await import("../../src/worker/context.ts");
 
 describe("fitToContextWindow", () => {
   const defaultLimit = 200_000;

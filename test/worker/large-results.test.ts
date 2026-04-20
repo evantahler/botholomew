@@ -6,7 +6,7 @@ import {
   PAGE_SIZE_CHARS,
   readLargeResultPage,
   storeLargeResult,
-} from "../../src/daemon/large-results.ts";
+} from "../../src/worker/large-results.ts";
 
 describe("large-results store", () => {
   beforeEach(() => {

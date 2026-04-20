@@ -14,7 +14,13 @@ schema lives in `src/config/schemas.ts`.
   "tick_interval_seconds": 300,
   "max_tick_duration_seconds": 120,
   "system_prompt_override": "",
-  "max_turns": 0
+  "max_turns": 0,
+  "worker_heartbeat_interval_seconds": 15,
+  "worker_dead_after_seconds": 60,
+  "worker_reap_interval_seconds": 30,
+  "worker_stopped_retention_seconds": 3600,
+  "schedule_min_interval_seconds": 60,
+  "schedule_claim_stale_seconds": 300
 }
 ```
 
@@ -26,14 +32,20 @@ schema lives in `src/config/schemas.ts`.
 |---|---|---|
 | `anthropic_api_key` | `""` | Anthropic key. `ANTHROPIC_API_KEY` env var overrides. |
 | `openai_api_key` | `""` | OpenAI key for embeddings. `OPENAI_API_KEY` env var overrides. |
-| `model` | `claude-opus-4-20250514` | Claude model for the main agent loop (daemon + chat). |
-| `chunker_model` | `claude-haiku-4-5-20251001` | Smaller/cheaper model used to propose chunk boundaries during ingestion. |
+| `model` | `claude-opus-4-20250514` | Claude model for the main agent loop (workers + chat). |
+| `chunker_model` | `claude-haiku-4-5-20251001` | Smaller/cheaper model used to propose chunk boundaries during ingestion and evaluate schedules. |
 | `embedding_model` | `text-embedding-3-small` | OpenAI embedding model. |
 | `embedding_dimension` | `1536` | Vector dimension. Must match the model; changes require re-indexing (migration 5 did this once for the switch from 384-dim local embeddings). |
-| `tick_interval_seconds` | `300` | Seconds the daemon sleeps between ticks **when there's no work**. It ticks back-to-back while a backlog exists. |
+| `tick_interval_seconds` | `300` | Seconds a `--persist` worker sleeps between ticks **when there's no work**. It ticks back-to-back while a backlog exists. |
 | `max_tick_duration_seconds` | `120` | Soft cap per tick. Stale-task reset fires at `3×` this value. |
 | `system_prompt_override` | `""` | Appended to the built-in system prompt. Use this for project-specific instructions that should be always-loaded without editing `soul.md`. |
 | `max_turns` | `0` | Maximum tool-use turns per agent loop (0 = unlimited). Safety net against runaway loops. |
+| `worker_heartbeat_interval_seconds` | `15` | How often a running worker writes to `workers.last_heartbeat_at`. Runs on its own `setInterval`, independent of the tick loop, so long LLM calls don't starve the heartbeat. |
+| `worker_dead_after_seconds` | `60` | A worker whose heartbeat is older than this is considered dead. The reaper flips its status to `dead` and releases every task/schedule claim it held. |
+| `worker_reap_interval_seconds` | `30` | How often a `--persist` worker scans for dead peers to reap and prunes old cleanly-stopped workers. One-shot workers don't run the reaper. |
+| `worker_stopped_retention_seconds` | `3600` | Cleanly-stopped workers older than this are deleted from the `workers` table. Dead workers are kept as forensic evidence and not auto-pruned. |
+| `schedule_min_interval_seconds` | `60` | Minimum gap between successive evaluations of the same schedule. A schedule that ran less than this many seconds ago is skipped. |
+| `schedule_claim_stale_seconds` | `300` | If a worker claimed a schedule but never released it (crash), another worker may steal the claim after this many seconds. |
 
 ---
 
@@ -53,9 +65,17 @@ schema lives in `src/config/schemas.ts`.
 minutes is plenty when tasks are mostly "every morning, summarize my
 email".
 
-**For bursty workloads:** lower `tick_interval_seconds` to 30–60. The
-daemon only sleeps when the queue is empty, so this is safe — it just
-reduces latency between the last item landing and the next tick firing.
+**For bursty workloads:** lower `tick_interval_seconds` to 30–60. A
+persist worker only sleeps when the queue is empty, so this is safe — it
+just reduces latency between the last item landing and the next tick
+firing. Alternatively, spawn more one-shot workers (via cron or chat)
+and leave the interval alone.
+
+**For multi-worker setups:** if you routinely run more than a handful of
+workers, consider lowering `worker_reap_interval_seconds` (so dead ones
+are cleaned quickly) and raising `worker_dead_after_seconds` (so a
+temporary DB-lock hiccup doesn't flip a live worker to dead). The
+defaults (30s reap, 60s threshold) are conservative.
 
 **For model-cost sensitivity:**
 
@@ -80,7 +100,3 @@ There is no global config — everything is per-project. This is
 deliberate: different projects have different goals, different MCP
 servers, different beliefs. One Botholomew project's config shouldn't
 leak into another's.
-
-`~/.botholomew/` (the home-dir sibling of the project dir) is used for
-*registry* data — the list of projects with watchdogs installed — not
-for configuration.

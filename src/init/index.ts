@@ -77,7 +77,9 @@ export async function initProject(
   logger.dim("Next steps:");
   logger.dim("  1. Set ANTHROPIC_API_KEY or add it to .botholomew/config.json");
   logger.dim("  2. Run 'botholomew task add' to create your first task");
-  logger.dim("  3. Run 'botholomew daemon start' to start the daemon");
+  logger.dim(
+    "  3. Run 'botholomew worker start --persist' to start a background worker",
+  );
 }
 
 async function updateGitignore(projectDir: string): Promise<void> {

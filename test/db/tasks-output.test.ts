@@ -103,7 +103,7 @@ describe("task output", () => {
 
     // Verify taskB can be claimed (predecessor is complete)
     // First set taskB to pending state (it already is)
-    const claimed = await claimNextTask(conn);
+    const claimed = await claimNextTask(conn, "test-worker");
     expect(claimed?.id).toBe(taskB.id);
   });
 });
