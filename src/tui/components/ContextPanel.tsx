@@ -272,13 +272,17 @@ export const ContextPanel = memo(function ContextPanel({
           {visibleItems.map((item, vi) => {
             const i = vi + scrollOffset;
             const ci = item as ContextItem;
+            const slashIdx = ci.context_path.lastIndexOf("/");
+            const dir =
+              slashIdx >= 0 ? ci.context_path.slice(0, slashIdx + 1) : "";
             return (
               <Box key={ci.id}>
                 <Text
                   backgroundColor={i === cursor ? "#333" : undefined}
                   color={i === cursor ? "cyan" : undefined}
                 >
-                  {"  "}📄 {ci.context_path}
+                  {"  "}📄 <Text dimColor>{dir}</Text>
+                  {ci.title}
                   <Text dimColor> ({ci.mime_type})</Text>
                 </Text>
               </Box>
