@@ -1,6 +1,7 @@
 import { Box, Text, useStdout } from "ink";
 import Spinner from "ink-spinner";
 import { memo, useMemo } from "react";
+import { renderMarkdown } from "../markdown.ts";
 import { theme } from "../theme.ts";
 import { ToolCall, type ToolCallData } from "./ToolCall.tsx";
 
@@ -46,11 +47,6 @@ function wrapAndPad(text: string, width: number): string {
     }
   }
   return lines.join("\n");
-}
-
-function renderMarkdown(text: string): string {
-  if (!text) return "";
-  return Bun.markdown.ansi(text).trimEnd();
 }
 
 export const MessageBubble = memo(function MessageBubble({

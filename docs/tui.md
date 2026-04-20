@@ -93,6 +93,11 @@ filesystem" — see [virtual-filesystem.md](virtual-filesystem.md) and
 - `/` opens a hybrid (keyword + vector) search across all context.
 - `d` deletes the selected item.
 
+Markdown files (detected by `mime_type === "text/markdown"` or a `.md`
+extension on `source_path` / `context_path`) are rendered through
+`Bun.markdown.ansi` so headers, emphasis, lists, and fenced code blocks
+show with terminal formatting. Other file types render as plain text.
+
 ### 4. Tasks
 
 The task queue, with filters for status (pending / in_progress /
