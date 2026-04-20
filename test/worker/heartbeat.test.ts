@@ -72,7 +72,7 @@ describe("startReaper", () => {
       ),
     );
 
-    const stop = startReaper(dbPath, 1, 60);
+    const stop = startReaper(dbPath, 1, 60, 3600);
     await Bun.sleep(1200);
     stop();
 

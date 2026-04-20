@@ -18,6 +18,7 @@ schema lives in `src/config/schemas.ts`.
   "worker_heartbeat_interval_seconds": 15,
   "worker_dead_after_seconds": 60,
   "worker_reap_interval_seconds": 30,
+  "worker_stopped_retention_seconds": 3600,
   "schedule_min_interval_seconds": 60,
   "schedule_claim_stale_seconds": 300
 }
@@ -41,7 +42,8 @@ schema lives in `src/config/schemas.ts`.
 | `max_turns` | `0` | Maximum tool-use turns per agent loop (0 = unlimited). Safety net against runaway loops. |
 | `worker_heartbeat_interval_seconds` | `15` | How often a running worker writes to `workers.last_heartbeat_at`. Runs on its own `setInterval`, independent of the tick loop, so long LLM calls don't starve the heartbeat. |
 | `worker_dead_after_seconds` | `60` | A worker whose heartbeat is older than this is considered dead. The reaper flips its status to `dead` and releases every task/schedule claim it held. |
-| `worker_reap_interval_seconds` | `30` | How often a `--persist` worker scans for dead peers to reap. One-shot workers don't run the reaper. |
+| `worker_reap_interval_seconds` | `30` | How often a `--persist` worker scans for dead peers to reap and prunes old cleanly-stopped workers. One-shot workers don't run the reaper. |
+| `worker_stopped_retention_seconds` | `3600` | Cleanly-stopped workers older than this are deleted from the `workers` table. Dead workers are kept as forensic evidence and not auto-pruned. |
 | `schedule_min_interval_seconds` | `60` | Minimum gap between successive evaluations of the same schedule. A schedule that ran less than this many seconds ago is skipped. |
 | `schedule_claim_stale_seconds` | `300` | If a worker claimed a schedule but never released it (crash), another worker may steal the claim after this many seconds. |
 

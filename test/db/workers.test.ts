@@ -7,6 +7,7 @@ import {
   listWorkers,
   markWorkerDead,
   markWorkerStopped,
+  pruneStoppedWorkers,
   reapDeadWorkers,
   registerWorker,
 } from "../../src/db/workers.ts";
@@ -160,6 +161,53 @@ describe("reapDeadWorkers", () => {
     expect(reaped).toEqual([]);
     const w = await getWorker(conn, "fresh-1");
     expect(w?.status).toBe("running");
+  });
+
+  test("pruneStoppedWorkers removes only cleanly-stopped workers past the retention window", async () => {
+    await registerWorker(conn, {
+      id: "old-stopped",
+      pid: 1,
+      hostname: "h",
+      mode: "once",
+    });
+    await registerWorker(conn, {
+      id: "recent-stopped",
+      pid: 2,
+      hostname: "h",
+      mode: "once",
+    });
+    await registerWorker(conn, {
+      id: "still-running",
+      pid: 3,
+      hostname: "h",
+      mode: "persist",
+    });
+    await registerWorker(conn, {
+      id: "old-dead",
+      pid: 4,
+      hostname: "h",
+      mode: "persist",
+    });
+
+    await markWorkerStopped(conn, "old-stopped");
+    await markWorkerStopped(conn, "recent-stopped");
+    await markWorkerDead(conn, "old-dead");
+
+    // Age out the two "old-*" workers
+    await conn.queryRun(
+      `UPDATE workers SET stopped_at='2000-01-01 00:00:00' WHERE id=?1 OR id=?2`,
+      "old-stopped",
+      "old-dead",
+    );
+
+    const pruned = await pruneStoppedWorkers(conn, 3600);
+    expect(pruned).toEqual(["old-stopped"]);
+
+    // Recent stopped stays, dead stays (forensics), running untouched
+    expect(await getWorker(conn, "old-stopped")).toBeNull();
+    expect((await getWorker(conn, "recent-stopped"))?.status).toBe("stopped");
+    expect((await getWorker(conn, "still-running"))?.status).toBe("running");
+    expect((await getWorker(conn, "old-dead"))?.status).toBe("dead");
   });
 
   test("clears schedule claims held by reaped workers", async () => {

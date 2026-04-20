@@ -108,6 +108,7 @@ export async function startWorker(
           dbPath,
           config.worker_reap_interval_seconds,
           config.worker_dead_after_seconds,
+          config.worker_stopped_retention_seconds,
         )
       : () => {};
 

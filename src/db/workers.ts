@@ -144,6 +144,28 @@ export async function reapDeadWorkers(
   return reapedIds;
 }
 
+/**
+ * Delete cleanly-stopped workers (status='stopped') whose `stopped_at` is
+ * older than `afterSeconds`. Dead workers are intentionally left alone —
+ * they're forensic evidence that something crashed.
+ * Returns the ids that were pruned.
+ */
+export async function pruneStoppedWorkers(
+  db: DbConnection,
+  afterSeconds: number,
+): Promise<string[]> {
+  const rows = await db.queryAll<{ id: string }>(
+    `DELETE FROM workers
+     WHERE status = 'stopped'
+       AND stopped_at IS NOT NULL
+       AND stopped_at::TIMESTAMP
+           < current_timestamp - to_seconds(CAST(?1 AS BIGINT))
+     RETURNING id`,
+    afterSeconds,
+  );
+  return rows.map((r) => r.id);
+}
+
 export async function listWorkers(
   db: DbConnection,
   filters?: {

@@ -91,12 +91,17 @@ bumps `last_heartbeat_at` every
 tick loop, so a worker mid-LLM-call still heartbeats reliably.
 
 Persist workers also run a reaper interval
-(`worker_reap_interval_seconds`, default 30s) that flips any worker
-whose heartbeat is older than `worker_dead_after_seconds` (default 60s)
-to `status='dead'` and releases every task and schedule claim held by
-that worker back into the pool. This is the failure-recovery path:
-anything from a terminal crash to a `kill -9` ends with the work
-reclaimable by another worker.
+(`worker_reap_interval_seconds`, default 30s) that does two things:
+
+1. Flips any worker whose heartbeat is older than
+   `worker_dead_after_seconds` (default 60s) to `status='dead'` and
+   releases every task and schedule claim it held. This is the
+   failure-recovery path: anything from a terminal crash to a `kill -9`
+   ends with the work reclaimable by another worker.
+2. Deletes cleanly-stopped workers whose `stopped_at` is older than
+   `worker_stopped_retention_seconds` (default 3600s). Dead workers are
+   kept as forensic evidence; only the clean exits get auto-pruned so
+   the `workers` table doesn't grow unbounded.
 
 ---
 

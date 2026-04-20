@@ -1,5 +1,9 @@
 import { withDb } from "../db/connection.ts";
-import { heartbeat, reapDeadWorkers } from "../db/workers.ts";
+import {
+  heartbeat,
+  pruneStoppedWorkers,
+  reapDeadWorkers,
+} from "../db/workers.ts";
 import { logger } from "../utils/logger.ts";
 
 /**
@@ -40,6 +44,7 @@ export function startReaper(
   dbPath: string,
   intervalSeconds: number,
   staleAfterSeconds: number,
+  stoppedRetentionSeconds: number,
 ): () => void {
   const ms = Math.max(1_000, intervalSeconds * 1_000);
   const handle = setInterval(async () => {
@@ -54,6 +59,18 @@ export function startReaper(
       }
     } catch (err) {
       logger.warn(`worker reap failed: ${err}`);
+    }
+    try {
+      const pruned = await withDb(dbPath, (conn) =>
+        pruneStoppedWorkers(conn, stoppedRetentionSeconds),
+      );
+      if (pruned.length > 0) {
+        logger.debug(
+          `pruned ${pruned.length} old stopped worker(s): ${pruned.join(", ")}`,
+        );
+      }
+    } catch (err) {
+      logger.warn(`worker prune failed: ${err}`);
     }
   }, ms);
   handle.unref?.();

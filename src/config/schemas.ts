@@ -12,6 +12,7 @@ export interface BotholomewConfig {
   worker_heartbeat_interval_seconds?: number;
   worker_dead_after_seconds?: number;
   worker_reap_interval_seconds?: number;
+  worker_stopped_retention_seconds?: number;
   schedule_min_interval_seconds?: number;
   schedule_claim_stale_seconds?: number;
 }
@@ -30,6 +31,7 @@ export const DEFAULT_CONFIG: Required<BotholomewConfig> = {
   worker_heartbeat_interval_seconds: 15,
   worker_dead_after_seconds: 60,
   worker_reap_interval_seconds: 30,
+  worker_stopped_retention_seconds: 3600,
   schedule_min_interval_seconds: 60,
   schedule_claim_stale_seconds: 300,
 };

@@ -6,6 +6,7 @@ import {
   listWorkers,
   markWorkerDead,
   markWorkerStopped,
+  pruneStoppedWorkers,
   reapDeadWorkers,
   WORKER_STATUSES,
   type Worker,
@@ -185,7 +186,7 @@ export function registerWorkerCommand(program: Command) {
   worker
     .command("reap")
     .description(
-      "Mark workers that haven't heartbeated recently as dead, releasing their tasks and schedule claims",
+      "Mark stale workers dead (releasing their tasks/schedule claims) and prune cleanly-stopped workers older than the retention window",
     )
     .action(() =>
       withDb(program, async (conn, dir) => {
@@ -196,11 +197,20 @@ export function registerWorkerCommand(program: Command) {
         );
         if (reaped.length === 0) {
           logger.dim("No stale workers to reap.");
-          return;
+        } else {
+          logger.success(
+            `Reaped ${reaped.length} worker(s): ${reaped.join(", ")}`,
+          );
         }
-        logger.success(
-          `Reaped ${reaped.length} worker(s): ${reaped.join(", ")}`,
+        const pruned = await pruneStoppedWorkers(
+          conn,
+          config.worker_stopped_retention_seconds,
         );
+        if (pruned.length > 0) {
+          logger.success(
+            `Pruned ${pruned.length} stopped worker(s) older than retention window.`,
+          );
+        }
       }),
     );
 }

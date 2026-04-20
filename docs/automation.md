@@ -179,11 +179,11 @@ Same concurrency story as cron: each fire is one task at most.
   the DB has ever seen. Filter with `--status running` to see who's alive
   right now. If you see zero running and a non-empty queue, spawn one:
   `botholomew worker start --persist`.
-- **"I see dead workers piling up."** Normal — reaped crashes stay in the
-  table for forensic reasons. `botholomew worker list --status dead` shows
-  them. There's no auto-delete; if you want to clean, use
-  `DELETE FROM workers WHERE status='dead'` against the DB or wait for a
-  future `worker prune` command.
+- **"I see dead workers piling up."** Reaped crashes stay in the table as
+  forensic evidence; only clean exits (`status='stopped'`) get auto-pruned
+  (after `worker_stopped_retention_seconds`, default 1 hour). If dead rows
+  are bothering you, `DELETE FROM workers WHERE status='dead'` clears them
+  safely. `botholomew worker list --status dead` shows the list first.
 - **"Cron runs aren't firing."** Check `grep CRON /var/log/syslog`
   (Linux) or `log show --predicate 'process == "cron"'` (macOS). Common
   causes: minimal `PATH`, or a relative path to `botholomew`.
