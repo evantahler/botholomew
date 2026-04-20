@@ -80,7 +80,7 @@ export function StatusBar({
           {status.workerCount} worker{status.workerCount === 1 ? "" : "s"}
         </Text>
       ) : (
-        <Text color="red">no workers</Text>
+        <Text color="yellow">no workers</Text>
       )}
       <Text dimColor> | </Text>
       <Text>

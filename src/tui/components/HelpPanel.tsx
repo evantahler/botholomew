@@ -157,7 +157,7 @@ export const HelpPanel = memo(function HelpPanel({
           {workerRunning ? (
             <Text color="green">running</Text>
           ) : (
-            <Text color="red">none</Text>
+            <Text color="yellow">none</Text>
           )}
         </Text>
       </Box>
