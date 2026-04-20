@@ -43,6 +43,7 @@ describe("getChatTools", () => {
     expect(names).toContain("context_search");
     expect(names).toContain("context_info");
     expect(names).toContain("context_refresh");
+    expect(names).toContain("context_tree");
     expect(names).toContain("update_beliefs");
     expect(names).toContain("update_goals");
     expect(names).toContain("list_schedules");
