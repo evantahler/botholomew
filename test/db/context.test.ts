@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import { resolve as resolvePath } from "node:path";
 import type { DbConnection } from "../../src/db/connection.ts";
 import {
   applyPatchesToContextItem,
@@ -17,6 +18,7 @@ import {
   listContextItemsByPrefix,
   moveContextItem,
   PathConflictError,
+  resolveContextItem,
   searchContextByKeyword,
   updateContextItem,
   updateContextItemContent,
@@ -251,6 +253,47 @@ describe("context CRUD", () => {
       "file",
     );
     expect(unknown).toBeNull();
+  });
+
+  test("resolveContextItem: by UUID, context_path, and source_path", async () => {
+    const relFile = "fixtures/readme.md";
+    const absFile = resolvePath(relFile);
+
+    const file = await createContextItem(conn, {
+      title: "Readme",
+      content: "hi",
+      sourceType: "file",
+      sourcePath: absFile,
+      contextPath: "/projects/demo/readme.md",
+    });
+    const url = await createContextItem(conn, {
+      title: "Example",
+      content: "remote",
+      sourceType: "url",
+      sourcePath: "https://example.com",
+      contextPath: "/example.com.md",
+    });
+
+    const byId = await resolveContextItem(conn, file.id);
+    expect(byId?.id).toBe(file.id);
+
+    const byContextPath = await resolveContextItem(
+      conn,
+      "/projects/demo/readme.md",
+    );
+    expect(byContextPath?.id).toBe(file.id);
+
+    const byRelativeSource = await resolveContextItem(conn, relFile);
+    expect(byRelativeSource?.id).toBe(file.id);
+
+    const byAbsoluteSource = await resolveContextItem(conn, absFile);
+    expect(byAbsoluteSource?.id).toBe(file.id);
+
+    const byUrlSource = await resolveContextItem(conn, "https://example.com");
+    expect(byUrlSource?.id).toBe(url.id);
+
+    const miss = await resolveContextItem(conn, "nope/does-not-exist.md");
+    expect(miss).toBeNull();
   });
 
   test("list with filters", async () => {
