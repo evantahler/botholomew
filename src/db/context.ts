@@ -1,3 +1,4 @@
+import { resolve as resolvePath } from "node:path";
 import type { DbConnection } from "./connection.ts";
 import { buildSetClauses, buildWhereClause, sanitizeInt } from "./query.ts";
 import { isUuid, uuidv7 } from "./uuid.ts";
@@ -193,15 +194,26 @@ export async function getContextItemBySourcePath(
 }
 
 /**
- * Look up a context item by UUID (if the value looks like one) or by context_path.
+ * Look up a context item by UUID, `context_path`, or `source_path`.
+ *
+ * `source_path` fallbacks let users pass the same argument they used for
+ * `context add` (e.g. a bare `README.md`) to management commands like
+ * `context refresh` / `context chunks`. Relative file paths are resolved
+ * against `process.cwd()` to match the absolute `source_path` stored on add.
  */
 export async function resolveContextItem(
   db: DbConnection,
   pathOrId: string,
 ): Promise<ContextItem | null> {
-  return isUuid(pathOrId)
-    ? getContextItem(db, pathOrId)
-    : getContextItemByPath(db, pathOrId);
+  if (isUuid(pathOrId)) return getContextItem(db, pathOrId);
+
+  const byContextPath = await getContextItemByPath(db, pathOrId);
+  if (byContextPath) return byContextPath;
+
+  const byUrl = await getContextItemBySourcePath(db, pathOrId, "url");
+  if (byUrl) return byUrl;
+
+  return getContextItemBySourcePath(db, resolvePath(pathOrId), "file");
 }
 
 /**

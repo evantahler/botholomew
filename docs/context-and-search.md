@@ -248,9 +248,16 @@ distinguishing file-backed vs. URL-backed items.
 ### Refreshing stale content
 
 ```bash
-botholomew context refresh /docs/strategy.md   # refresh one item
+botholomew context refresh /docs/strategy.md   # by virtual context_path
+botholomew context refresh README.md           # by on-disk source_path (relative or absolute)
+botholomew context refresh https://example.com # by URL source_path
 botholomew context refresh --all               # refresh every sourced item
 ```
+
+The `path` argument matches, in order, a UUID, a `context_path`, a URL
+`source_path`, or (after resolving against the current working
+directory) a file `source_path` — so the same argument you used for
+`context add` works here too.
 
 `refresh` works for both `file` and `url` source types: for files it
 re-reads from disk, for URLs it re-runs the loading agent. In both
