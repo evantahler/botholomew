@@ -45,6 +45,7 @@ export async function migrate(db: DbConnection): Promise<void> {
   const applied = new Set(rows.map((row) => row.id));
 
   // Run pending migrations in order
+  let appliedAny = false;
   for (const migration of loadMigrations()) {
     if (applied.has(migration.id)) continue;
 
@@ -63,5 +64,15 @@ export async function migrate(db: DbConnection): Promise<void> {
       migration.id,
       migration.name,
     );
+    appliedAny = true;
+  }
+
+  // Flush the WAL so the next open has no schema entries to replay. DuckDB's
+  // WAL replay of ALTER TABLE re-binds all column defaults on the target
+  // table, and our CREATE TABLE defaults use `current_timestamp::VARCHAR` —
+  // which cannot be resolved during replay (no default database attached yet),
+  // crashing the process on reopen.
+  if (appliedAny) {
+    await db.exec("CHECKPOINT");
   }
 }

@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { getConnection } from "../../src/db/connection.ts";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { getConnection, withDb } from "../../src/db/connection.ts";
 import { migrate } from "../../src/db/schema.ts";
 
 describe("schema migrations", () => {
@@ -23,6 +26,33 @@ describe("schema migrations", () => {
     expect(tables).toContain("daemon_state");
 
     db.close();
+  });
+
+  test("reopening a freshly migrated file-backed DB does not crash on WAL replay", async () => {
+    // Regression: migration 9 (ALTER TABLE context_items ADD COLUMN ...)
+    // used to leave an ALTER entry in the WAL. On reopen, DuckDB replayed
+    // the ALTER and re-bound *all* existing column defaults — including
+    // `created_at DEFAULT (current_timestamp::VARCHAR)` — which it can't
+    // resolve during replay (no default database attached), crashing the
+    // process. `migrate()` now CHECKPOINTs after applying migrations.
+    const dir = await mkdtemp(join(tmpdir(), "both-schema-wal-"));
+    const dbPath = join(dir, "test.duckdb");
+    try {
+      await withDb(dbPath, async (conn) => {
+        await migrate(conn);
+      });
+
+      // Re-open; this would crash before the fix.
+      await withDb(dbPath, async (conn) => {
+        await migrate(conn);
+        const row = await conn.queryGet<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM context_items",
+        );
+        expect(row?.count).toBe(0);
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   test("migrate is idempotent", async () => {
