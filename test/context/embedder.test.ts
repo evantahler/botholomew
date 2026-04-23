@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
-import { embed, embedSingle } from "../../src/context/embedder.ts";
+import { embed, embedSingle } from "../../src/context/embedder-impl.ts";
 
 const config = {
   ...DEFAULT_CONFIG,
