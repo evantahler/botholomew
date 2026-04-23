@@ -15,6 +15,7 @@ export interface BotholomewConfig {
   worker_stopped_retention_seconds?: number;
   schedule_min_interval_seconds?: number;
   schedule_claim_stale_seconds?: number;
+  log_level?: string;
 }
 
 export const DEFAULT_CONFIG: Required<BotholomewConfig> = {
@@ -34,4 +35,5 @@ export const DEFAULT_CONFIG: Required<BotholomewConfig> = {
   worker_stopped_retention_seconds: 3600,
   schedule_min_interval_seconds: 60,
   schedule_claim_stale_seconds: 300,
+  log_level: "",
 };
