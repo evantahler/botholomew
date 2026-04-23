@@ -25,11 +25,31 @@ describe("initProject", () => {
     expect(await Bun.file(join(dotDir, "soul.md")).exists()).toBe(true);
     expect(await Bun.file(join(dotDir, "beliefs.md")).exists()).toBe(true);
     expect(await Bun.file(join(dotDir, "goals.md")).exists()).toBe(true);
+    expect(await Bun.file(join(dotDir, "capabilities.md")).exists()).toBe(true);
     expect(await Bun.file(join(dotDir, "config.json")).exists()).toBe(true);
     expect(await Bun.file(join(dotDir, "mcpx", "servers.json")).exists()).toBe(
       true,
     );
     expect(await Bun.file(join(dotDir, "data.duckdb")).exists()).toBe(true);
+  });
+
+  test("capabilities.md is populated with the built-in tool inventory", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
+    await initProject(tempDir);
+
+    const raw = await Bun.file(
+      join(tempDir, ".botholomew", "capabilities.md"),
+    ).text();
+    const { meta, content } = parseContextFile(raw);
+
+    expect(meta.loading).toBe("always");
+    expect(meta["agent-modification"]).toBe(true);
+    expect(content).toContain("# Capabilities");
+    expect(content).toContain("## Internal tools");
+    expect(content).toContain("`complete_task`");
+    expect(content).toContain("`capabilities_refresh`");
+    // seeded servers.json has no servers, so MCPX section announces that
+    expect(content).toContain("No MCPX servers configured");
   });
 
   test("soul.md has correct frontmatter", async () => {
@@ -86,7 +106,7 @@ describe("initProject", () => {
     await initProject(tempDir);
 
     const skillsDir = join(tempDir, ".botholomew", "skills");
-    const expectedSkills = ["summarize.md", "standup.md"];
+    const expectedSkills = ["summarize.md", "standup.md", "context.md"];
 
     for (const filename of expectedSkills) {
       const file = Bun.file(join(skillsDir, filename));
@@ -98,6 +118,18 @@ describe("initProject", () => {
       expect(skill.description).toBeTruthy();
       expect(skill.body).toBeTruthy();
     }
+  });
+
+  test("context skill invokes capabilities_refresh", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
+    await initProject(tempDir);
+
+    const raw = await Bun.file(
+      join(tempDir, ".botholomew", "skills", "context.md"),
+    ).text();
+    const skill = parseSkillFile(raw, "context.md");
+    expect(skill.name).toBe("context");
+    expect(skill.body).toContain("capabilities_refresh");
   });
 
   test("creates .gitignore entries", async () => {

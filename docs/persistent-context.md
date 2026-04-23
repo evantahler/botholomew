@@ -6,7 +6,7 @@ Every one is versioned by frontmatter.
 
 ---
 
-## The three default files
+## The default files
 
 `botholomew init` creates:
 
@@ -15,6 +15,7 @@ Every one is versioned by frontmatter.
 | `soul.md` | `always` | **no** | Identity — who the agent is, how it behaves |
 | `beliefs.md` | `always` | yes | Priors the agent has learned about the world/project |
 | `goals.md` | `always` | yes | Current goals; updated as goals complete or change |
+| `capabilities.md` | `always` | yes | Auto-generated inventory of every tool the agent can call (built-in + MCPX) |
 
 Each uses YAML frontmatter to declare its behavior:
 
@@ -67,6 +68,31 @@ The flow:
 Files without `agent-modification: true` are read-only to the agent,
 even if the tool is called — the tool checks the frontmatter and
 refuses.
+
+---
+
+## `capabilities.md` — pre-scanned tool inventory
+
+`capabilities.md` is the same shape as `beliefs.md` / `goals.md`
+(always-loaded, agent-editable), but its body is machine-generated
+rather than hand-written. It lists every built-in tool grouped by
+namespace (task, context, search, thread, MCP, worker, …) and every
+tool exposed by the configured MCPX servers, one line per tool with a
+short description. Because it's loaded into every system prompt, the
+agent can pick a tool without first calling `mcp_list_tools`.
+
+It's seeded at `botholomew init` with the built-in tools already
+populated. Regenerate it any time via:
+
+- `botholomew context capabilities` — CLI refresh (honors `--no-mcp`)
+- `capabilities_refresh` — the agent calls this tool itself when it
+  suspects the inventory has drifted (new MCPX servers added, tools
+  renamed, file deleted)
+- `/context` — the matching slash command in chat
+
+Frontmatter is preserved on regeneration, so you can safely flip
+`loading` to `contextual` if you'd rather only surface the file when
+the task mentions tools.
 
 ---
 

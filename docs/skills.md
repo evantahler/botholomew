@@ -70,12 +70,16 @@ security"`.
 
 ## Built-in defaults
 
-`botholomew init` ships two skills out of the box:
+`botholomew init` ships three skills out of the box:
 
 **`summarize.md`** — summarize the current chat conversation.
 
 **`standup.md`** — generate a standup update from recent tasks (completed
 in the last 24h + in progress).
+
+**`context.md`** — rescan every built-in and MCPX tool and rewrite
+`.botholomew/capabilities.md` (see
+[persistent-context.md](persistent-context.md#capabilitiesmd--pre-scanned-tool-inventory)).
 
 More are easy to add; see the quickstart below.
 

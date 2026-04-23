@@ -6,11 +6,16 @@ import {
   getMcpxDir,
   getSkillsDir,
 } from "../constants.ts";
+import { writeCapabilitiesFile } from "../context/capabilities.ts";
 import { getConnection } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
+import { createMcpxClient } from "../mcpx/client.ts";
+import { registerAllTools } from "../tools/registry.ts";
 import { logger } from "../utils/logger.ts";
 import {
   BELIEFS_MD,
+  CAPABILITIES_MD,
+  CONTEXT_SKILL,
   DEFAULT_CONFIG,
   DEFAULT_MCPX_SERVERS,
   GOALS_MD,
@@ -44,10 +49,12 @@ export async function initProject(
   await Bun.write(join(dotDir, "soul.md"), SOUL_MD);
   await Bun.write(join(dotDir, "beliefs.md"), BELIEFS_MD);
   await Bun.write(join(dotDir, "goals.md"), GOALS_MD);
+  await Bun.write(join(dotDir, "capabilities.md"), CAPABILITIES_MD);
 
   // Write default skills
   await Bun.write(join(skillsDir, "summarize.md"), SUMMARIZE_SKILL);
   await Bun.write(join(skillsDir, "standup.md"), STANDUP_SKILL);
+  await Bun.write(join(skillsDir, "context.md"), CONTEXT_SKILL);
 
   // Write config (with placeholder API key)
   await Bun.write(
@@ -66,6 +73,14 @@ export async function initProject(
   const conn = await getConnection(dbPath);
   await migrate(conn);
   conn.close();
+
+  // Populate capabilities.md with the real tool inventory. Seeded mcpx
+  // servers.json has no entries on first init, so this lists only the
+  // built-in tools; running `botholomew context capabilities` later after
+  // adding MCPX servers picks those up.
+  registerAllTools();
+  const mcpxClient = await createMcpxClient(projectDir);
+  await writeCapabilitiesFile(projectDir, mcpxClient);
 
   // Update .gitignore
   await updateGitignore(projectDir);

@@ -20,7 +20,13 @@ registerAllTools();
  * collides with an already-registered subcommand on the parent.
  */
 /** Context tools that are agent-only (not exposed as CLI subcommands) */
-const AGENT_ONLY_TOOLS = new Set(["update_beliefs", "update_goals"]);
+const AGENT_ONLY_TOOLS = new Set([
+  "update_beliefs",
+  "update_goals",
+  // `context capabilities` is hand-wired in src/commands/context.ts so it
+  // can construct an McpxClient; the auto-generated CLI path can't.
+  "capabilities_refresh",
+]);
 
 export function registerContextToolSubcommands(parent: Command) {
   const existing = new Set(parent.commands.map((c: Command) => c.name()));

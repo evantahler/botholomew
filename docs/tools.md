@@ -163,6 +163,21 @@ command to wire. The Zod schema is the source of truth.
 
 ---
 
+## `capabilities_refresh` — the meta-tool
+
+One context-group tool, `capabilities_refresh`, exists so the agent can
+keep its own tool inventory fresh. It walks `getAllTools()` and
+`mcpxClient.listTools()`, renders a grouped markdown summary, and
+writes it to `.botholomew/capabilities.md` (preserving frontmatter).
+Because that file is loaded into every system prompt, the next boot
+picks up the new inventory without another round-trip. See
+[persistent-context.md](persistent-context.md#capabilitiesmd--pre-scanned-tool-inventory)
+for when the agent should call it. The matching CLI surface is
+`botholomew context capabilities`, and the slash command is
+`/context`.
+
+---
+
 ## Why Zod for the schema?
 
 Zod gives us three things at once:
