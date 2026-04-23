@@ -27,7 +27,7 @@ const outputSchema = z.object({
 export const contextEditTool = {
   name: "context_edit",
   description:
-    "Apply git-style patches to a context item. Each patch specifies a line range to replace.",
+    "[[ bash equivalent command: patch ]] Apply git-style patches to a context item. Each patch specifies a line range to replace.",
   group: "context",
   inputSchema,
   outputSchema,

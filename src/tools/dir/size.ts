@@ -26,7 +26,8 @@ const outputSchema = z.object({
 
 export const contextDirSizeTool = {
   name: "context_dir_size",
-  description: "Get the total size of context items in a directory.",
+  description:
+    "[[ bash equivalent command: du -s ]] Get the total size of context items in a directory.",
   group: "context",
   inputSchema,
   outputSchema,

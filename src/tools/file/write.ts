@@ -54,7 +54,7 @@ const outputSchema = z.object({
 export const contextWriteTool = {
   name: "context_write",
   description:
-    "Write content to a context item. By default, fails if the path already exists — pass on_conflict='overwrite' to replace.",
+    "[[ bash equivalent command: tee ]] Write content to a context item. By default, fails if the path already exists — pass on_conflict='overwrite' to replace.",
   group: "context",
   inputSchema,
   outputSchema,

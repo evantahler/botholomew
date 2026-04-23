@@ -19,7 +19,8 @@ const outputSchema = z.object({
 
 export const contextMoveTool = {
   name: "context_move",
-  description: "Move or rename a context item.",
+  description:
+    "[[ bash equivalent command: mv ]] Move or rename a context item.",
   group: "context",
   inputSchema,
   outputSchema,

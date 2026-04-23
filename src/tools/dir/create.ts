@@ -18,7 +18,8 @@ const outputSchema = z.object({
 
 export const contextCreateDirTool = {
   name: "context_create_dir",
-  description: "Create a directory in context.",
+  description:
+    "[[ bash equivalent command: mkdir -p ]] Create a directory in context.",
   group: "context",
   inputSchema,
   outputSchema,

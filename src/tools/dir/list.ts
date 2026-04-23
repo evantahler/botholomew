@@ -38,7 +38,8 @@ const outputSchema = z.object({
 
 export const contextListDirTool = {
   name: "context_list_dir",
-  description: "List directory contents in context.",
+  description:
+    "[[ bash equivalent command: ls ]] List directory contents in context.",
   group: "context",
   inputSchema,
   outputSchema,

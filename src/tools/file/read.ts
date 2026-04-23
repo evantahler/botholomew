@@ -18,7 +18,8 @@ const outputSchema = z.object({
 
 export const contextReadTool = {
   name: "context_read",
-  description: "Read a context item's contents.",
+  description:
+    "[[ bash equivalent command: cat ]] Read a context item's contents.",
   group: "context",
   inputSchema,
   outputSchema,

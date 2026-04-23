@@ -25,7 +25,7 @@ const outputSchema = z.object({
 export const contextInfoTool = {
   name: "context_info",
   description:
-    "Show context item metadata (size, MIME type, line count, etc.).",
+    "[[ bash equivalent command: stat ]] Show context item metadata: size, MIME type, line count, etc.",
   group: "context",
   inputSchema,
   outputSchema,

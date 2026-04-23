@@ -13,7 +13,8 @@ const outputSchema = z.object({
 
 export const contextExistsTool = {
   name: "context_exists",
-  description: "Check if a context item exists.",
+  description:
+    "[[ bash equivalent command: test -e ]] Check if a context item exists.",
   group: "context",
   inputSchema,
   outputSchema,
