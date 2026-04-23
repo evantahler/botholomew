@@ -13,7 +13,8 @@ const outputSchema = z.object({
 
 export const contextCountLinesTool = {
   name: "context_count_lines",
-  description: "Count the number of lines in a text context item.",
+  description:
+    "[[ bash equivalent command: wc -l ]] Count the number of lines in a text context item.",
   group: "context",
   inputSchema,
   outputSchema,

@@ -24,7 +24,8 @@ const outputSchema = z.object({
 
 export const contextDeleteTool = {
   name: "context_delete",
-  description: "Delete a context item or directory.",
+  description:
+    "[[ bash equivalent command: rm -r ]] Delete a context item or directory.",
   group: "context",
   inputSchema,
   outputSchema,

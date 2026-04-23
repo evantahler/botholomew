@@ -42,6 +42,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - **List operations always support `-l, --limit <n>` and `-o, --offset <n>`** — applies to every CLI `list` subcommand and the corresponding `src/db/` list function. Use `sanitizeInt` on both when interpolating into SQL, and pick a stable `ORDER BY` (with an `id` tiebreaker) so pagination is deterministic.
 - No filesystem tools for the agent — FS access is abstracted through CRUD modules scoped to `.botholomew/`
 - When designing or modifying agent tools, follow PATs (Patterns for Agentic Tools): https://arcade.dev/patterns/llm.txt — key principles: error-guided recovery, next-action hints, token-efficient outputs, error classification
+- **Tool descriptions mirror bash when applicable** — if an LLM tool behaves like a familiar CLI command (e.g., `cat`, `ls`, `mv`, `grep`), prefix its `description` with `[[ bash equivalent command: <cmd> ]] ` followed by the short description. This anchors the tool for the model and keeps the tag machine-parseable. Omit the tag for tools with no natural bash analog (e.g., `update_beliefs`, `read_large_result`).
 
 ## Database Patterns
 

@@ -59,7 +59,7 @@ const empty = {
 export const contextRefreshTool = {
   name: "context_refresh",
   description:
-    "Re-read source files from disk / re-fetch source URLs, update stored content if it changed, and re-embed only changed items. Use `path` for a single item or subtree, or `all: true` for every sourced item. Items without a source_path are skipped. URL fetches use the project's MCPX client when available and fall back to plain HTTP.",
+    "[[ bash equivalent command: curl ]] Re-read source files from disk / re-fetch source URLs, update stored content if it changed, and re-embed only changed items. Use `path` for a single item or subtree, or `all: true` for every sourced item. Items without a source_path are skipped. URL fetches use the project's MCPX client when available and fall back to plain HTTP.",
   group: "context",
   inputSchema,
   outputSchema,

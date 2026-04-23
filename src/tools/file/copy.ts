@@ -20,7 +20,7 @@ const outputSchema = z.object({
 
 export const contextCopyTool = {
   name: "context_copy",
-  description: "Copy a context item.",
+  description: "[[ bash equivalent command: cp ]] Copy a context item.",
   group: "context",
   inputSchema,
   outputSchema,

@@ -24,7 +24,8 @@ const outputSchema = z.object({
 
 export const contextSearchTool = {
   name: "context_search",
-  description: "Search context by keyword.",
+  description:
+    "[[ bash equivalent command: grep -r ]] Search context by keyword.",
   group: "context",
   inputSchema,
   outputSchema,
