@@ -8,15 +8,17 @@
 
 ![Botholomew chat TUI](docs/assets/chat-happy-path.gif)
 
-**A local AI agent for knowledge work.** Botholomew is an autonomous agent
+**An AI agent for knowledge work.** Botholomew is an autonomous agent
 that works its way through a task queue — reading email, summarizing
 documents, researching topics, organizing notes, and maintaining context
 over time — while you sleep, work, or chat with it.
 
-Unlike coding agents, Botholomew has **no shell, no filesystem, and no network
-tools** by default. Everything it touches lives inside a single DuckDB database
-at `.botholomew/data.duckdb` and a handful of markdown files. External access
-is granted deliberately, per project, through MCP servers.
+Unlike coding agents, Botholomew has **no shell and no direct access to
+your filesystem**. It can't edit files on disk — instead, it ingests local
+files, folders, and URLs into a DuckDB-backed context store that it can
+read, search, and summarize. External capabilities (email, Slack, the web,
+and hundreds of other services) are granted deliberately, per project,
+through MCP servers wired up via [MCPX](https://github.com/evantahler/mcpx).
 
 ---
 
@@ -27,25 +29,34 @@ is granted deliberately, per project, through MCP servers.
   long-running `--persist` worker, or point cron at `botholomew worker run`.
 - **Portable.** Each project is a `.botholomew/` directory — markdown +
   DuckDB. Copy it, share it, check it in (or `.gitignore` it).
-- **Local.** All data stays on your machine. Embeddings are indexed in
-  DuckDB's native vector store with HNSW. Model calls go direct to Anthropic
-  and OpenAI.
+- **Your data, your disk.** Project state — tasks, threads, ingested
+  context, embeddings — lives in `.botholomew/`, indexed in DuckDB with
+  HNSW for vector search. Model calls go direct to Anthropic and OpenAI;
+  any further reach is scoped to the MCP servers you add.
 - **Extensible.** External tools come from MCP servers via
   [MCPX](https://github.com/evantahler/mcpx) — run them locally (Gmail,
   Slack, GitHub) or connect through an MCP gateway like
   [Arcade.dev](https://www.arcade.dev/) to reach hundreds of
   authenticated services without managing each server yourself.
   Reusable workflows are defined as markdown "skills" (slash commands).
-- **Safe by default.** The agent has no shell, no network, and no
-  filesystem access of its own. Everything it can touch lives in
-  `.botholomew/` — and every external capability is something you
-  explicitly add.
+- **Safe by default.** The agent has no shell and no direct filesystem
+  access. Out of the box, everything it can touch lives in `.botholomew/`;
+  every external capability is a MCP server you explicitly add.
 - **Concurrent.** Many workers can run at once. Each registers itself in
   the DB and heartbeats; crashed workers get reaped and their tasks go
   back into the queue automatically.
 - **Self-modifying.** The agent maintains its own `beliefs.md` and
   `goals.md` — it learns, updates its priors, and revises its goals as it
   works.
+
+---
+
+## Demo
+
+A full tour of the chat TUI — every tab, slash-command autocomplete,
+the message queue, tool-call visualization, and the live workers panel:
+
+![Tour of every tab in the chat TUI](docs/assets/full-tour.gif)
 
 ---
 
