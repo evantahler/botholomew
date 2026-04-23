@@ -62,11 +62,13 @@ access per user. MCPX accepts both shapes.
 
 ```bash
 botholomew mcpx servers                                      # list configured server names
+botholomew mcpx list                                         # every tool / resource / prompt across all configured servers
 botholomew mcpx ping                                         # check connectivity to all servers (or pass names to filter)
-botholomew mcpx add gmail --command npx --args -y @modelcontextprotocol/server-gmail
+botholomew mcpx add gmail --command npx --args "-y,@modelcontextprotocol/server-gmail"
 botholomew mcpx add arcade --url https://api.arcade.dev/mcp/engineering
-botholomew mcpx remove gmail
+botholomew mcpx remove gmail                                 # --dry-run to preview, --keep-auth to keep stored tokens
 botholomew mcpx auth arcade                                  # OAuth / token flow for HTTP servers
+botholomew mcpx deauth arcade                                # clear stored OAuth tokens for a server
 botholomew mcpx search "read email"                          # keyword + semantic search over all tools
 botholomew mcpx info gmail                                   # server overview
 botholomew mcpx info gmail list_messages                     # input schema for one tool
@@ -78,11 +80,18 @@ botholomew mcpx prompt arcade                                # list prompts for 
 botholomew mcpx task <action> <server> [taskId]              # list/get/result/cancel async tool tasks
 ```
 
+Every subcommand is a thin passthrough to the `mcpx` CLI, so
+`botholomew mcpx <cmd> --help` shows the upstream reference — including
+every option and argument for that command. The only exception is
+`import-global`, which is Botholomew-specific.
+
 `mcpx exec` is the fastest way to confirm a server is wired up before
 handing it to the agent. `mcpx auth` runs the OAuth flow for HTTP
 servers that need it (most Arcade gateways do), and `mcpx
 import-global` is the usual way to bootstrap a new project from your
-global `~/.mcpx/` configuration.
+global `~/.mcpx/` configuration. Note that `--args` and `--env` take
+**comma-separated** values — quote them so your shell doesn't split
+them (e.g. `--args "-y,@scope/pkg"`).
 
 ---
 
