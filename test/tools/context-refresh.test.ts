@@ -133,4 +133,13 @@ describe("context_refresh tool", () => {
     expect(result.embeddings_skipped).toBe(true);
     expect(result.message).toContain("embeddings skipped");
   });
+
+  test("returns a tree snapshot on successful refresh", async () => {
+    await seedFileBackedItem("drift.md", "new disk content", "old stored");
+    const result = await contextRefreshTool.execute({ all: true }, ctx);
+    expect(result.is_error).toBe(false);
+    expect(result.tree).toBeTruthy();
+    expect(result.tree).toContain("docs/");
+    expect(result.tree).toContain("drift.md");
+  });
 });

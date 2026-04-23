@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { DbConnection } from "../../db/connection.ts";
 import {
   countContextItemsByPrefix,
   listContextItemsByPrefix,
@@ -8,6 +9,185 @@ import type { ToolDefinition } from "../tool.ts";
 const DEFAULT_MAX_DEPTH = 3;
 const DEFAULT_ITEMS_PER_DIR = 15;
 const HARD_FETCH_CAP = 1000;
+
+export interface BuildContextTreeOptions {
+  path?: string;
+  maxDepth?: number;
+  itemsPerDir?: number;
+}
+
+export interface BuildContextTreeResult {
+  tree: string;
+  total_items: number;
+  truncated_dirs: Array<{ path: string; shown: number; total: number }>;
+  hint: string;
+}
+
+interface DirNode {
+  name: string;
+  fullPath: string;
+  isDir: true;
+  children: TreeEntry[];
+}
+
+interface FileNode {
+  name: string;
+  fullPath: string;
+  isDir: false;
+}
+
+type TreeEntry = DirNode | FileNode;
+
+export async function buildContextTree(
+  conn: DbConnection,
+  options: BuildContextTreeOptions = {},
+): Promise<BuildContextTreeResult> {
+  const path = options.path ?? "/";
+  const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
+  const itemsPerDir = options.itemsPerDir ?? DEFAULT_ITEMS_PER_DIR;
+  const normalizedPath = path.endsWith("/") ? path : `${path}/`;
+
+  const totalItems = await countContextItemsByPrefix(conn, path, {
+    recursive: true,
+  });
+
+  if (totalItems === 0) {
+    return {
+      tree: `${path}\n  (empty)`,
+      total_items: 0,
+      truncated_dirs: [],
+      hint: "Directory is empty.",
+    };
+  }
+
+  const items = await listContextItemsByPrefix(conn, path, {
+    recursive: true,
+    limit: HARD_FETCH_CAP,
+  });
+
+  // Build tree structure: dirs map child name -> child node
+  const root: DirNode = {
+    name: path,
+    fullPath: path,
+    isDir: true,
+    children: [],
+  };
+  const dirIndex = new Map<string, DirNode>();
+  dirIndex.set(stripTrailingSlash(path), root);
+
+  for (const item of items) {
+    const relative = item.context_path.slice(normalizedPath.length);
+    if (relative.length === 0) continue; // root itself, skip
+    const parts = relative.split("/").filter((p) => p.length > 0);
+    const isExplicitDir = item.mime_type === "inode/directory";
+
+    // Walk segments, creating intermediate directories as needed
+    let parentDir = root;
+    let currentRel = "";
+    for (let i = 0; i < parts.length; i++) {
+      const segment = parts[i];
+      if (!segment) continue;
+      currentRel = currentRel ? `${currentRel}/${segment}` : segment;
+      const fullPath = `${normalizedPath}${currentRel}`;
+      const isLeaf = i === parts.length - 1;
+      const isDirHere = !isLeaf || isExplicitDir;
+
+      if (isDirHere) {
+        const key = stripTrailingSlash(fullPath);
+        let dir = dirIndex.get(key);
+        if (!dir) {
+          dir = {
+            name: segment,
+            fullPath,
+            isDir: true,
+            children: [],
+          };
+          dirIndex.set(key, dir);
+          parentDir.children.push(dir);
+        }
+        parentDir = dir;
+      } else {
+        parentDir.children.push({
+          name: segment,
+          fullPath,
+          isDir: false,
+        });
+      }
+    }
+  }
+
+  // Sort each directory's children: dirs first, then alphabetical
+  for (const dir of dirIndex.values()) {
+    dir.children.sort((a, b) => {
+      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  const truncatedDirs: Array<{
+    path: string;
+    shown: number;
+    total: number;
+  }> = [];
+  const depthLimitedDirs: string[] = [];
+
+  const lines: string[] = [path];
+
+  const render = (dir: DirNode, indent: string, currentDepth: number): void => {
+    const children = dir.children;
+    const total = children.length;
+    const shown = Math.min(total, itemsPerDir);
+    const visible = children.slice(0, shown);
+    const overflow = total - shown;
+
+    if (overflow > 0) {
+      truncatedDirs.push({
+        path: stripTrailingSlash(dir.fullPath),
+        shown,
+        total,
+      });
+    }
+
+    for (let i = 0; i < visible.length; i++) {
+      const child = visible[i];
+      if (!child) continue;
+      const isLastVisible = i === visible.length - 1 && overflow === 0;
+      const connector = isLastVisible ? "└── " : "├── ";
+      const childIndent = isLastVisible ? "    " : "│   ";
+
+      if (child.isDir) {
+        const atDepthLimit = currentDepth + 1 >= maxDepth;
+        if (atDepthLimit && child.children.length > 0) {
+          depthLimitedDirs.push(stripTrailingSlash(child.fullPath));
+          const subCount = countDescendants(child);
+          lines.push(
+            `${indent}${connector}${child.name}/ (${subCount} ${
+              subCount === 1 ? "item" : "items"
+            }, drill in)`,
+          );
+        } else {
+          lines.push(`${indent}${connector}${child.name}/`);
+          render(child, indent + childIndent, currentDepth + 1);
+        }
+      } else {
+        lines.push(`${indent}${connector}${child.name}`);
+      }
+    }
+
+    if (overflow > 0) {
+      lines.push(`${indent}└── ... (+${overflow} more)`);
+    }
+  };
+
+  render(root, "", 0);
+
+  return {
+    tree: lines.join("\n"),
+    total_items: totalItems,
+    truncated_dirs: truncatedDirs,
+    hint: buildHint({ truncatedDirs, depthLimitedDirs, totalItems }),
+  };
+}
 
 const inputSchema = z.object({
   path: z
@@ -48,21 +228,6 @@ const outputSchema = z.object({
   hint: z.string(),
 });
 
-interface DirNode {
-  name: string;
-  fullPath: string;
-  isDir: true;
-  children: TreeEntry[];
-}
-
-interface FileNode {
-  name: string;
-  fullPath: string;
-  isDir: false;
-}
-
-type TreeEntry = DirNode | FileNode;
-
 export const contextTreeTool = {
   name: "context_tree",
   description:
@@ -71,163 +236,12 @@ export const contextTreeTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const path = input.path ?? "/";
-    const maxDepth = input.max_depth ?? DEFAULT_MAX_DEPTH;
-    const itemsPerDir = input.items_per_dir ?? DEFAULT_ITEMS_PER_DIR;
-    const normalizedPath = path.endsWith("/") ? path : `${path}/`;
-
-    const totalItems = await countContextItemsByPrefix(ctx.conn, path, {
-      recursive: true,
+    const result = await buildContextTree(ctx.conn, {
+      path: input.path,
+      maxDepth: input.max_depth,
+      itemsPerDir: input.items_per_dir,
     });
-
-    if (totalItems === 0) {
-      return {
-        tree: `${path}\n  (empty)`,
-        is_error: false,
-        total_items: 0,
-        truncated_dirs: [],
-        hint: "Directory is empty.",
-      };
-    }
-
-    const items = await listContextItemsByPrefix(ctx.conn, path, {
-      recursive: true,
-      limit: HARD_FETCH_CAP,
-    });
-
-    // Build tree structure: dirs map child name -> child node
-    const root: DirNode = {
-      name: path,
-      fullPath: path,
-      isDir: true,
-      children: [],
-    };
-    const dirIndex = new Map<string, DirNode>();
-    dirIndex.set(stripTrailingSlash(path), root);
-
-    for (const item of items) {
-      const relative = item.context_path.slice(normalizedPath.length);
-      if (relative.length === 0) continue; // root itself, skip
-      const parts = relative.split("/").filter((p) => p.length > 0);
-      const isExplicitDir = item.mime_type === "inode/directory";
-
-      // Walk segments, creating intermediate directories as needed
-      let parentDir = root;
-      let currentRel = "";
-      for (let i = 0; i < parts.length; i++) {
-        const segment = parts[i];
-        if (!segment) continue;
-        currentRel = currentRel ? `${currentRel}/${segment}` : segment;
-        const fullPath = `${normalizedPath}${currentRel}`;
-        const isLeaf = i === parts.length - 1;
-        const isDirHere = !isLeaf || isExplicitDir;
-
-        if (isDirHere) {
-          const key = stripTrailingSlash(fullPath);
-          let dir = dirIndex.get(key);
-          if (!dir) {
-            dir = {
-              name: segment,
-              fullPath,
-              isDir: true,
-              children: [],
-            };
-            dirIndex.set(key, dir);
-            parentDir.children.push(dir);
-          }
-          parentDir = dir;
-        } else {
-          parentDir.children.push({
-            name: segment,
-            fullPath,
-            isDir: false,
-          });
-        }
-      }
-    }
-
-    // Sort each directory's children: dirs first, then alphabetical
-    for (const dir of dirIndex.values()) {
-      dir.children.sort((a, b) => {
-        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
-    }
-
-    const truncatedDirs: Array<{
-      path: string;
-      shown: number;
-      total: number;
-    }> = [];
-    const depthLimitedDirs: string[] = [];
-
-    const lines: string[] = [path];
-
-    const render = (
-      dir: DirNode,
-      indent: string,
-      currentDepth: number,
-    ): void => {
-      const children = dir.children;
-      const total = children.length;
-      const shown = Math.min(total, itemsPerDir);
-      const visible = children.slice(0, shown);
-      const overflow = total - shown;
-
-      if (overflow > 0) {
-        truncatedDirs.push({
-          path: stripTrailingSlash(dir.fullPath),
-          shown,
-          total,
-        });
-      }
-
-      for (let i = 0; i < visible.length; i++) {
-        const child = visible[i];
-        if (!child) continue;
-        const isLastVisible = i === visible.length - 1 && overflow === 0;
-        const connector = isLastVisible ? "└── " : "├── ";
-        const childIndent = isLastVisible ? "    " : "│   ";
-
-        if (child.isDir) {
-          const atDepthLimit = currentDepth + 1 >= maxDepth;
-          if (atDepthLimit && child.children.length > 0) {
-            depthLimitedDirs.push(stripTrailingSlash(child.fullPath));
-            const subCount = countDescendants(child);
-            lines.push(
-              `${indent}${connector}${child.name}/ (${subCount} ${
-                subCount === 1 ? "item" : "items"
-              }, drill in)`,
-            );
-          } else {
-            lines.push(`${indent}${connector}${child.name}/`);
-            render(child, indent + childIndent, currentDepth + 1);
-          }
-        } else {
-          lines.push(`${indent}${connector}${child.name}`);
-        }
-      }
-
-      if (overflow > 0) {
-        lines.push(`${indent}└── ... (+${overflow} more)`);
-      }
-    };
-
-    render(root, "", 0);
-
-    const hint = buildHint({
-      truncatedDirs,
-      depthLimitedDirs,
-      totalItems,
-    });
-
-    return {
-      tree: lines.join("\n"),
-      is_error: false,
-      total_items: totalItems,
-      truncated_dirs: truncatedDirs,
-      hint,
-    };
+    return { ...result, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;
 
