@@ -27,7 +27,7 @@ async function run(
   const proc = Bun.spawn(["bun", CLI, "--dir", tempDir, ...args], {
     stdout: "pipe",
     stderr: "pipe",
-    env: { ...process.env, NO_COLOR: "1" },
+    env: { ...process.env, NO_COLOR: "1", BOTHOLOMEW_LOG_LEVEL: "info" },
   });
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),

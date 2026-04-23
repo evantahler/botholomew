@@ -1,4 +1,5 @@
 import { getConfigPath } from "../constants.ts";
+import { setLogLevel } from "../utils/logger.ts";
 import { type BotholomewConfig, DEFAULT_CONFIG } from "./schemas.ts";
 
 export async function loadConfig(
@@ -21,6 +22,8 @@ export async function loadConfig(
   if (process.env.OPENAI_API_KEY) {
     config.openai_api_key = process.env.OPENAI_API_KEY;
   }
+
+  setLogLevel(config.log_level);
 
   return config;
 }

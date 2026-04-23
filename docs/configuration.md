@@ -20,7 +20,8 @@ schema lives in `src/config/schemas.ts`.
   "worker_reap_interval_seconds": 30,
   "worker_stopped_retention_seconds": 3600,
   "schedule_min_interval_seconds": 60,
-  "schedule_claim_stale_seconds": 300
+  "schedule_claim_stale_seconds": 300,
+  "log_level": ""
 }
 ```
 
@@ -46,6 +47,7 @@ schema lives in `src/config/schemas.ts`.
 | `worker_stopped_retention_seconds` | `3600` | Cleanly-stopped workers older than this are deleted from the `workers` table. Dead workers are kept as forensic evidence and not auto-pruned. |
 | `schedule_min_interval_seconds` | `60` | Minimum gap between successive evaluations of the same schedule. A schedule that ran less than this many seconds ago is skipped. |
 | `schedule_claim_stale_seconds` | `300` | If a worker claimed a schedule but never released it (crash), another worker may steal the claim after this many seconds. |
+| `log_level` | `""` | Verbosity for `botholomew` CLI logs. One of `silent`, `error`, `warn`, `info`, `debug`. Empty string falls back to the runtime default (`info` normally, `error` under `NODE_ENV=test`). `BOTHOLOMEW_LOG_LEVEL` env var overrides this. |
 
 ---
 
@@ -55,6 +57,7 @@ schema lives in `src/config/schemas.ts`.
 |---|---|
 | `ANTHROPIC_API_KEY` | Overrides `anthropic_api_key` in config. |
 | `OPENAI_API_KEY` | Overrides `openai_api_key` in config. |
+| `BOTHOLOMEW_LOG_LEVEL` | Overrides `log_level` in config. One of `silent`, `error`, `warn`, `info`, `debug`. |
 | `BOTHOLOMEW_NO_UPDATE_CHECK` | Disable the background "new version available" check. |
 
 ---
