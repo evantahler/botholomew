@@ -1,23 +1,9 @@
-import {
-  afterAll,
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  mock,
-  test,
-} from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serializeContextFile } from "../../src/utils/frontmatter.ts";
 import { mockEmbedSingle, silentLogger } from "../helpers.ts";
-
-// Capture the real modules before mocking so we can restore them after this
-// file's tests finish — Bun's mock.module() is process-wide, so without this
-// the mocks leak into later test files like test/context/embedder.test.ts.
-const realEmbedder = await import("../../src/context/embedder.ts");
-const realLogger = await import("../../src/utils/logger.ts");
 
 // Mock the embedder to avoid loading the real model
 mock.module("../../src/context/embedder.ts", () => ({
@@ -26,11 +12,6 @@ mock.module("../../src/context/embedder.ts", () => ({
 
 // Mock the logger to suppress output
 mock.module("../../src/utils/logger.ts", () => silentLogger);
-
-afterAll(() => {
-  mock.module("../../src/context/embedder.ts", () => realEmbedder);
-  mock.module("../../src/utils/logger.ts", () => realLogger);
-});
 
 const { buildSystemPrompt } = await import("../../src/worker/prompt.ts");
 
