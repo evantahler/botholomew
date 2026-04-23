@@ -90,6 +90,19 @@ describe("context_write", () => {
     );
     expect(result.path).toBe("/data.bin");
   });
+
+  test("returns a tree snapshot on success", async () => {
+    await seedFile(conn, "/notes/existing.md", "already here");
+    const result = await contextWriteTool.execute(
+      { path: "/notes/new.md", content: "fresh" },
+      ctx,
+    );
+    expect(result.is_error).toBe(false);
+    expect(result.tree).toBeTruthy();
+    expect(result.tree).toContain("notes/");
+    expect(result.tree).toContain("new.md");
+    expect(result.tree).toContain("existing.md");
+  });
 });
 
 // ── context_read ───────────────────────────────────────────────

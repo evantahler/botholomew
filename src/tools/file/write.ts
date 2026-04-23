@@ -6,6 +6,7 @@ import {
   PathConflictError,
   upsertContextItem,
 } from "../../db/context.ts";
+import { buildContextTree } from "../dir/tree.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 function mimeFromPath(path: string): string {
@@ -49,6 +50,12 @@ const outputSchema = z.object({
   error_type: z.string().optional(),
   message: z.string().optional(),
   next_action_hint: z.string().optional(),
+  tree: z
+    .string()
+    .optional()
+    .describe(
+      "Snapshot of the context filesystem after the write so you can see the surrounding files.",
+    ),
 });
 
 export const contextWriteTool = {
@@ -86,7 +93,13 @@ export const contextWriteTool = {
             });
 
       await ingestByPath(ctx.conn, input.path, ctx.config);
-      return { id: item.id, path: item.context_path, is_error: false };
+      const { tree } = await buildContextTree(ctx.conn);
+      return {
+        id: item.id,
+        path: item.context_path,
+        is_error: false,
+        tree,
+      };
     } catch (err) {
       if (err instanceof PathConflictError) {
         return {

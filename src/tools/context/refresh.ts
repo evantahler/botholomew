@@ -6,6 +6,7 @@ import {
   listContextItemsByPrefix,
   resolveContextItem,
 } from "../../db/context.ts";
+import { buildContextTree } from "../dir/tree.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
@@ -43,6 +44,12 @@ const outputSchema = z.object({
   ),
   message: z.string(),
   is_error: z.boolean(),
+  tree: z
+    .string()
+    .optional()
+    .describe(
+      "Snapshot of the context filesystem after the refresh so you can see what's currently stored.",
+    ),
 });
 
 const empty = {
@@ -54,6 +61,7 @@ const empty = {
   chunks: 0,
   embeddings_skipped: false,
   items: [],
+  tree: undefined as string | undefined,
 };
 
 export const contextRefreshTool = {
@@ -127,10 +135,13 @@ export const contextRefreshTool = {
       parts.push("embeddings skipped (no OpenAI API key configured)");
     }
 
+    const { tree } = await buildContextTree(ctx.conn);
+
     return {
       ...result,
       message: parts.join(", "),
       is_error: false,
+      tree,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;
