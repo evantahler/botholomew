@@ -58,7 +58,7 @@ instances in `src/tools/dir/` and `src/tools/file/`.
 | Tool | What it does |
 |---|---|
 | `context_read`        | `getContextItemByPath(path)` → slice lines (`offset`/`limit`) |
-| `context_write`       | Upsert a row, trigger re-chunk + re-embed |
+| `context_write`       | Upsert a row, trigger re-chunk + re-embed, return a tree snapshot |
 | `context_edit`        | Apply git-style line-range patches |
 | `context_delete`      | Remove by path (or recursively by prefix) |
 | `context_copy`        | Duplicate a row with a new `context_path` |
