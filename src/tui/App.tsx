@@ -2,6 +2,7 @@ import { Box, Static, Text, useApp, useInput } from "ink";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type ChatSession,
+  clearChatSession,
   endChatSession,
   sendMessage,
   startChatSession,
@@ -534,6 +535,7 @@ export function App({
             "Commands:",
             "  /help           Show this help",
             "  /skills         List available skills",
+            "  /clear          End current thread and start a new one",
             "  /exit           End the chat session",
             ...skillLines,
           ].join("\n"),
@@ -563,6 +565,36 @@ export function App({
             processQueue();
           },
           exit,
+          clearChat: () => {
+            const session = sessionRef.current;
+            if (!session) return;
+            // Drain any queued messages so they don't leak into the new thread.
+            queueRef.current.length = 0;
+            syncQueue();
+            clearChatSession(session)
+              .then(({ previousThreadId, newThreadId }) => {
+                setMessages([
+                  {
+                    id: msgId(),
+                    role: "system",
+                    content: `Started a new chat thread (${newThreadId}). Previous thread saved — resume with: botholomew chat --thread-id ${previousThreadId}`,
+                    timestamp: new Date(),
+                  },
+                ]);
+                setChatTitle(undefined);
+              })
+              .catch((err) => {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: msgId(),
+                    role: "system",
+                    content: `Failed to clear chat: ${err}`,
+                    timestamp: new Date(),
+                  },
+                ]);
+              });
+          },
         });
         if (handled) return;
       }

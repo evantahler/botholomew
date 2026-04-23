@@ -94,7 +94,7 @@ From inside `botholomew chat`:
 ### Autocomplete popup
 
 Typing `/` at the start of the input pops up a menu of matching
-commands (built-ins `/help`, `/skills`, `/exit` plus every
+commands (built-ins `/help`, `/skills`, `/clear`, `/exit` plus every
 skill loaded from `.botholomew/skills/`). Each row shows the command
 name and its description.
 

@@ -9,6 +9,7 @@ export interface SlashCommand {
 export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
   { name: "help", description: "Show command reference and shortcuts" },
   { name: "skills", description: "List available skills" },
+  { name: "clear", description: "End current thread and start a new one" },
   { name: "exit", description: "End the chat session" },
 ];
 
@@ -17,6 +18,7 @@ export interface SlashCommandContext {
   addSystemMessage: (content: string) => void;
   queueUserMessage: (content: string) => void;
   exit: () => void;
+  clearChat?: () => void;
 }
 
 /**
@@ -35,6 +37,15 @@ export function handleSlashCommand(
   // Built-in commands
   if (name === "exit") {
     ctx.exit();
+    return true;
+  }
+
+  if (name === "clear") {
+    if (ctx.clearChat) {
+      ctx.clearChat();
+    } else {
+      ctx.addSystemMessage("/clear is only available in the chat TUI.");
+    }
     return true;
   }
 

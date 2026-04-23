@@ -140,3 +140,22 @@ export async function endChatSession(session: ChatSession): Promise<void> {
   await withDb(session.dbPath, (conn) => endThread(conn, session.threadId));
   await session.cleanup();
 }
+
+/**
+ * End the current thread and start a fresh one on the same session.
+ * The old thread is persisted (marked ended) and can still be resumed
+ * via `botholomew chat --thread-id <id>`. Returns the previous thread
+ * ID so callers can display it to the user.
+ */
+export async function clearChatSession(
+  session: ChatSession,
+): Promise<{ previousThreadId: string; newThreadId: string }> {
+  const previousThreadId = session.threadId;
+  const newThreadId = await withDb(session.dbPath, async (conn) => {
+    await endThread(conn, previousThreadId);
+    return createThread(conn, "chat_session", undefined, "New chat");
+  });
+  session.threadId = newThreadId;
+  session.messages.length = 0;
+  return { previousThreadId, newThreadId };
+}

@@ -4,11 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type ChatSession,
+  clearChatSession,
   endChatSession,
   startChatSession,
 } from "../../src/chat/session.ts";
 import { withDb } from "../../src/db/connection.ts";
-import { listThreads } from "../../src/db/threads.ts";
+import { getThread, listThreads } from "../../src/db/threads.ts";
 
 let projectDir: string;
 let session: ChatSession | null = null;
@@ -67,5 +68,32 @@ describe("endChatSession", () => {
       listThreads(conn, { type: "chat_session" }),
     );
     expect(after[0]?.ended_at).not.toBeNull();
+  });
+});
+
+describe("clearChatSession", () => {
+  test("ends current thread and starts a new one", async () => {
+    session = await startChatSession(projectDir);
+    const dbPath = session.dbPath;
+    const originalThreadId = session.threadId;
+    session.messages.push({ role: "user", content: "hello" });
+
+    const { previousThreadId, newThreadId } = await clearChatSession(session);
+
+    expect(previousThreadId).toBe(originalThreadId);
+    expect(newThreadId).not.toBe(originalThreadId);
+    expect(session.threadId).toBe(newThreadId);
+    expect(session.messages).toEqual([]);
+
+    const oldThread = await withDb(dbPath, (conn) =>
+      getThread(conn, previousThreadId),
+    );
+    expect(oldThread?.thread.ended_at).not.toBeNull();
+
+    const newThread = await withDb(dbPath, (conn) =>
+      getThread(conn, newThreadId),
+    );
+    expect(newThread?.thread.ended_at).toBeNull();
+    expect(newThread?.thread.type).toBe("chat_session");
   });
 });

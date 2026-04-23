@@ -170,9 +170,12 @@ Typing `/` with nothing before it opens the autocomplete popup.
 | `Tab` or `Return` | Accept the highlighted command |
 | `Esc` | Close the popup (keeps what you typed) |
 
-Built-in commands are `/help`, `/skills`, and `/exit`. Every file in
-`.botholomew/skills/` is also surfaced in the popup with its
-description. See [skills.md](skills.md) for the file format and how
+Built-in commands are `/help`, `/skills`, `/clear`, and `/exit`.
+`/clear` ends the current chat thread (persisted, still resumable via
+`botholomew chat --thread-id <id>`) and starts a fresh one on the same
+session, so you can reset context without losing the conversation.
+Every file in `.botholomew/skills/` is also surfaced in the popup with
+its description. See [skills.md](skills.md) for the file format and how
 skills are invoked with positional arguments.
 
 The popup disappears as soon as you type a space — so a second
