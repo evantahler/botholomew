@@ -10,7 +10,7 @@
 | 6 | [Daemon Watchdog & Distribution](milestone-6-daemon-watchdog-and-distribution.md) | **Superseded (→M9)** | OS-level watchdog replaced; agent self-modification retained |
 | 7 | [Skills (Slash-Commands)](milestone-7-skills.md) | **Done** | User-defined slash-commands loaded from `.botholomew/skills/` markdown files |
 | 8 | [Remote Context](milestone-8-remote-context.md) | **Done** | Ingest context from URLs via LLM-driven MCPX tool selection |
-| 9 | [Worker Agents](milestone-9-worker-agents.md) | **In Progress** | Replace OS watchdog with in-DB worker registration + heartbeats; multi-worker support; chat-dispatched one-shot workers |
+| 9 | [Worker Agents](milestone-9-worker-agents.md) | **Done** | Replace OS watchdog with in-DB worker registration + heartbeats; multi-worker support; chat-dispatched one-shot workers |
 
 ## Stub/TODO Coverage
 
