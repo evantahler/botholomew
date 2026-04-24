@@ -36,10 +36,11 @@ export function registerCapabilitiesCommand(program: Command) {
           });
         } catch (err) {
           spinner.error({ text: `Failed: ${(err as Error).message}` });
-          process.exit(1);
-        } finally {
           await mcpxClient?.close();
+          process.exit(1);
         }
+        await mcpxClient?.close();
+        process.exit(0);
       }),
     );
 }
