@@ -89,15 +89,26 @@ describe("search_grep", () => {
     expect(result.matches).toHaveLength(0);
   });
 
-  test("searches only within specified path", async () => {
+  test("searches only within specified drive and path", async () => {
     await seedFile(conn, "/a/file.txt", "target");
     await seedFile(conn, "/b/file.txt", "target");
     const result = await searchGrepTool.execute(
-      { pattern: "target", path: "/a" },
+      { pattern: "target", drive: "agent", path: "/a" },
       ctx,
     );
     expect(result.matches.length).toBe(1);
     expect(result.matches[0]?.path).toBe("/a/file.txt");
+  });
+
+  test("errors when `path` is passed without `drive`", async () => {
+    await seedFile(conn, "/a/file.txt", "target");
+    const result = await searchGrepTool.execute(
+      { pattern: "target", path: "/a" },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("invalid_arguments");
+    expect(result.matches).toHaveLength(0);
   });
 
   test("throws on invalid regex", async () => {

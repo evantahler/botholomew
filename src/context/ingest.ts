@@ -1,9 +1,10 @@
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
-import { getContextItem, getContextItemByPath } from "../db/context.ts";
+import { getContextItem, getContextItemById } from "../db/context.ts";
 import { createEmbedding, deleteEmbeddingsForItem } from "../db/embeddings.ts";
 import { logger } from "../utils/logger.ts";
 import { chunk } from "./chunker.ts";
+import { type DriveTarget, formatDriveRef } from "./drives.ts";
 import { embed as defaultEmbed } from "./embedder.ts";
 
 type IngestEmbedFn = (texts: string[]) => Promise<number[][]>;
@@ -12,7 +13,8 @@ export interface PreparedIngestion {
   itemId: string;
   title: string;
   description: string;
-  sourcePath: string | null;
+  drive: string;
+  path: string;
   chunks: { index: number; content: string }[];
   vectors: number[][];
 }
@@ -27,7 +29,7 @@ export async function prepareIngestion(
   config: Required<BotholomewConfig>,
   embedFn?: IngestEmbedFn,
 ): Promise<PreparedIngestion | null> {
-  const item = await getContextItem(conn, itemId);
+  const item = await getContextItemById(conn, itemId);
   if (!item) {
     logger.warn(`ingest: context item ${itemId} not found`);
     return null;
@@ -52,11 +54,12 @@ export async function prepareIngestion(
   const chunks = await chunk(item.content, item.mime_type, config);
   if (chunks.length === 0) return null;
 
+  const ref = formatDriveRef(item);
   const textsForEmbedding = chunks.map((c) => {
     const parts: string[] = [];
     if (item.title) parts.push(`Title: ${item.title}`);
     if (item.description) parts.push(`Description: ${item.description}`);
-    if (item.source_path) parts.push(`Source: ${item.source_path}`);
+    parts.push(`Source: ${ref}`);
     parts.push(c.content);
     return parts.join("\n");
   });
@@ -66,7 +69,8 @@ export async function prepareIngestion(
     itemId,
     title: item.title,
     description: item.description,
-    sourcePath: item.source_path,
+    drive: item.drive,
+    path: item.path,
     chunks,
     vectors,
   };
@@ -102,7 +106,6 @@ export async function storeIngestion(
         chunkContent: c.content,
         title: prepared.title,
         description: prepared.description,
-        sourcePath: prepared.sourcePath,
         embedding: v,
       });
     }
@@ -144,17 +147,17 @@ export async function ingestContextItem(
 }
 
 /**
- * Ingest a context item by its virtual path.
+ * Ingest a context item by its (drive, path) pair.
  */
 export async function ingestByPath(
   conn: DbConnection,
-  contextPath: string,
+  target: DriveTarget,
   config: Required<BotholomewConfig>,
   embedFn?: IngestEmbedFn,
 ): Promise<number> {
-  const item = await getContextItemByPath(conn, contextPath);
+  const item = await getContextItem(conn, target);
   if (!item) {
-    logger.warn(`ingest: no item at path ${contextPath}`);
+    logger.warn(`ingest: no item at ${formatDriveRef(target)}`);
     return 0;
   }
   return ingestContextItem(conn, item.id, config, embedFn);

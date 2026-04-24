@@ -22,7 +22,8 @@ afterEach(async () => {
   await rm(tmpBase, { recursive: true, force: true });
 });
 
-async function seedFileBackedItem(
+/** Seed a disk-backed item: file on disk + row with drive='disk' path=<abs>. */
+async function seedDiskItem(
   filename: string,
   diskContent: string,
   storedContent: string,
@@ -33,58 +34,57 @@ async function seedFileBackedItem(
   return createContextItem(ctx.conn, {
     title: filename,
     content: storedContent,
-    contextPath: `/docs/${filename}`,
+    drive: "disk",
+    path: filePath,
     mimeType: "text/plain",
     isTextual: true,
-    sourceType: "file",
-    sourcePath: filePath,
   });
 }
 
 describe("context_refresh tool", () => {
-  test("errors when neither path nor all is provided", async () => {
+  test("errors when neither ref nor all is provided", async () => {
     const result = await contextRefreshTool.execute({}, ctx);
     expect(result.is_error).toBe(true);
-    expect(result.message).toContain("path");
+    expect(result.message).toContain("ref");
     expect(result.message).toContain("all");
   });
 
-  test("errors when both path and all are provided", async () => {
+  test("errors when both ref and all are provided", async () => {
     const result = await contextRefreshTool.execute(
-      { path: "/x", all: true },
+      { ref: "disk:/x", all: true },
       ctx,
     );
     expect(result.is_error).toBe(true);
     expect(result.message).toContain("mutually exclusive");
   });
 
-  test("errors when path matches nothing", async () => {
+  test("errors when ref matches nothing", async () => {
     const result = await contextRefreshTool.execute(
-      { path: "/no/such/thing" },
+      { ref: "disk:/no/such/thing" },
       ctx,
     );
     expect(result.is_error).toBe(true);
     expect(result.message).toContain("No context items");
   });
 
-  test("returns informational success when matches have no source_path", async () => {
+  test("returns informational success when matches are on drive=agent", async () => {
     await seedFile(ctx.conn, "/hand-written.md", "written in virtual fs");
     const result = await contextRefreshTool.execute(
-      { path: "/hand-written.md" },
+      { ref: "agent:/hand-written.md" },
       ctx,
     );
     expect(result.is_error).toBe(false);
     expect(result.checked).toBe(0);
-    expect(result.message).toContain("No matching items have a source_path");
+    expect(result.message).toContain("drive=agent");
   });
 
-  test("updates a drifted file-backed item by path", async () => {
-    const item = await seedFileBackedItem(
+  test("updates a drifted disk item by id", async () => {
+    const item = await seedDiskItem(
       "drift.md",
       "new disk content",
       "old stored content",
     );
-    const result = await contextRefreshTool.execute({ path: item.id }, ctx);
+    const result = await contextRefreshTool.execute({ ref: item.id }, ctx);
 
     expect(result.is_error).toBe(false);
     expect(result.checked).toBe(1);
@@ -93,17 +93,17 @@ describe("context_refresh tool", () => {
   });
 
   test("reports unchanged when disk matches stored content", async () => {
-    const item = await seedFileBackedItem("same.md", "identical", "identical");
-    const result = await contextRefreshTool.execute({ path: item.id }, ctx);
+    const item = await seedDiskItem("same.md", "identical", "identical");
+    const result = await contextRefreshTool.execute({ ref: item.id }, ctx);
 
     expect(result.is_error).toBe(false);
     expect(result.unchanged).toBe(1);
     expect(result.updated).toBe(0);
   });
 
-  test("all: true refreshes every sourced item", async () => {
-    await seedFileBackedItem("a.md", "new a", "old a");
-    await seedFileBackedItem("b.md", "same b", "same b");
+  test("all: true refreshes every non-agent item", async () => {
+    await seedDiskItem("a.md", "new a", "old a");
+    await seedDiskItem("b.md", "same b", "same b");
     await seedFile(ctx.conn, "/no-source.md", "virtual fs only");
 
     const result = await contextRefreshTool.execute({ all: true }, ctx);
@@ -113,18 +113,21 @@ describe("context_refresh tool", () => {
     expect(result.unchanged).toBe(1);
   });
 
-  test("path prefix matches a subtree of sourced items", async () => {
-    await seedFileBackedItem("a.md", "new a", "old a");
-    await seedFileBackedItem("b.md", "new b", "old b");
+  test("drive:/prefix matches a subtree of disk items", async () => {
+    await seedDiskItem("a.md", "new a", "old a");
+    await seedDiskItem("b.md", "new b", "old b");
 
-    const result = await contextRefreshTool.execute({ path: "/docs" }, ctx);
+    const result = await contextRefreshTool.execute(
+      { ref: `disk:${tmpBase}` },
+      ctx,
+    );
     expect(result.is_error).toBe(false);
     expect(result.checked).toBe(2);
     expect(result.updated).toBe(2);
   });
 
   test("message surfaces embeddings_skipped when no OpenAI key", async () => {
-    await seedFileBackedItem("drift2.md", "new", "old");
+    await seedDiskItem("drift2.md", "new", "old");
 
     const result = await contextRefreshTool.execute({ all: true }, ctx);
     expect(result.is_error).toBe(false);
@@ -135,11 +138,20 @@ describe("context_refresh tool", () => {
   });
 
   test("returns a tree snapshot on successful refresh", async () => {
-    await seedFileBackedItem("drift.md", "new disk content", "old stored");
+    await seedDiskItem("drift.md", "new disk content", "old stored");
     const result = await contextRefreshTool.execute({ all: true }, ctx);
     expect(result.is_error).toBe(false);
     expect(result.tree).toBeTruthy();
-    expect(result.tree).toContain("docs/");
-    expect(result.tree).toContain("drift.md");
+  });
+
+  test("all: true renders the top-level drive summary, not a single drive", async () => {
+    await seedDiskItem("doc.md", "new disk content", "old stored");
+    await seedFile(ctx.conn, { drive: "agent", path: "/scratch.md" }, "s");
+    const result = await contextRefreshTool.execute({ all: true }, ctx);
+    expect(result.is_error).toBe(false);
+    // The summary tree lists both drives that have content, not just `disk:/`.
+    expect(result.tree).toContain("Drives:");
+    expect(result.tree).toContain("disk:/");
+    expect(result.tree).toContain("agent:/");
   });
 });

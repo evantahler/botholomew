@@ -4,10 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getDbPath } from "../../src/constants.ts";
 import { getConnection } from "../../src/db/connection.ts";
-import {
-  createContextItem,
-  getContextItemByPath,
-} from "../../src/db/context.ts";
+import { createContextItem, getContextItem } from "../../src/db/context.ts";
 import { migrate } from "../../src/db/schema.ts";
 import { initProject } from "../../src/init/index.ts";
 
@@ -37,48 +34,69 @@ async function run(
   return { code, stdout, stderr };
 }
 
-/**
- * Seed a context item with an explicit source_path so the Phase 0 dedup sees
- * it. Mirrors what a previous `context add` would have stored.
- */
-async function seedFile(
-  sourcePath: string,
-  contextPath: string,
-  content: string,
-): Promise<void> {
-  await writeFile(sourcePath, content);
+/** Seed a disk-drive item at the same absolute path a real `context add` would use. */
+async function seedFile(filePath: string, content: string): Promise<void> {
+  await writeFile(filePath, content);
   const conn = await getConnection(getDbPath(tempDir));
   try {
     await migrate(conn);
     await createContextItem(conn, {
       title: "seeded",
       content,
-      sourceType: "file",
-      sourcePath,
-      contextPath,
+      drive: "disk",
+      path: filePath,
     });
   } finally {
     conn.close();
   }
 }
 
-describe("context add source-path dedup", () => {
-  test("default policy errors fast when source is already in context", async () => {
+describe("context add (drive, path) dedup", () => {
+  test("default policy skips when (disk, path) is already in context", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
     const filePath = join(tempDir, "already.md");
-    await seedFile(filePath, "/user-guides/already.md", "content");
+    await seedFile(filePath, "original");
 
     const result = await run(["context", "add", filePath]);
+
+    expect(result.code).toBe(0);
+    const output = result.stdout + result.stderr;
+    expect(output).toContain("already in context");
+    expect(output).toContain("1 skipped");
+
+    const conn = await getConnection(getDbPath(tempDir));
+    try {
+      await migrate(conn);
+      const item = await getContextItem(conn, {
+        drive: "disk",
+        path: filePath,
+      });
+      expect(item?.content).toBe("original");
+    } finally {
+      conn.close();
+    }
+  });
+
+  test("--on-conflict=error fails fast when (disk, path) is already in context", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
+    await initProject(tempDir);
+
+    const filePath = join(tempDir, "already.md");
+    await seedFile(filePath, "content");
+
+    const result = await run([
+      "context",
+      "add",
+      filePath,
+      "--on-conflict=error",
+    ]);
 
     expect(result.code).toBe(1);
     const output = result.stdout + result.stderr;
     expect(output).toContain("already in context");
-    expect(output).toContain(filePath);
-    expect(output).toContain("/user-guides/already.md");
-    // No LLM placement happened — the "Choosing paths" spinner shouldn't fire.
-    expect(output).not.toContain("Choosing paths");
+    expect(output).toContain(`disk:${filePath}`);
   });
 
   test("--on-conflict=skip exits cleanly and does not re-add", async () => {
@@ -86,7 +104,7 @@ describe("context add source-path dedup", () => {
     await initProject(tempDir);
 
     const filePath = join(tempDir, "skip-me.md");
-    await seedFile(filePath, "/notes/skip-me.md", "original");
+    await seedFile(filePath, "original");
 
     const result = await run([
       "context",
@@ -100,25 +118,25 @@ describe("context add source-path dedup", () => {
     expect(output).toContain("already in context");
     expect(output).toContain("1 skipped");
 
-    // Still exactly one row with that context_path.
     const conn = await getConnection(getDbPath(tempDir));
     try {
       await migrate(conn);
-      const item = await getContextItemByPath(conn, "/notes/skip-me.md");
+      const item = await getContextItem(conn, {
+        drive: "disk",
+        path: filePath,
+      });
       expect(item?.content).toBe("original");
     } finally {
       conn.close();
     }
   });
 
-  test("--on-conflict=overwrite reuses existing context_path and refreshes", async () => {
+  test("--on-conflict=overwrite reuses existing (drive, path) and refreshes", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
     const filePath = join(tempDir, "refresh-me.md");
-    await seedFile(filePath, "/notes/refresh-me.md", "v1");
-
-    // Simulate on-disk edit so refresh detects a content change.
+    await seedFile(filePath, "v1");
     await writeFile(filePath, "v2");
 
     const result = await run([
@@ -135,8 +153,10 @@ describe("context add source-path dedup", () => {
     const conn = await getConnection(getDbPath(tempDir));
     try {
       await migrate(conn);
-      // Original context_path preserved, content updated.
-      const item = await getContextItemByPath(conn, "/notes/refresh-me.md");
+      const item = await getContextItem(conn, {
+        drive: "disk",
+        path: filePath,
+      });
       expect(item?.content).toBe("v2");
     } finally {
       conn.close();

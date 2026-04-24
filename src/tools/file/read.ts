@@ -1,12 +1,25 @@
 import { z } from "zod";
+import { formatDriveRef, parseDriveRef } from "../../context/drives.ts";
 import {
   findNearbyContextPaths,
-  resolveContextItem,
+  getContextItem,
+  getContextItemById,
 } from "../../db/context.ts";
+import { isUuid } from "../../db/uuid.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
-  path: z.string().describe("File path or context item ID"),
+  drive: z
+    .string()
+    .optional()
+    .describe(
+      "Drive name (e.g. 'disk', 'url', 'agent', 'google-docs', 'github'). Use context_list_drives to see what's available. Optional when `path` is a UUID or already in `drive:/...` form.",
+    ),
+  path: z
+    .string()
+    .describe(
+      "Path within the drive (starts with /), or a bare UUID / 'drive:/path' ref (in which case `drive` is ignored).",
+    ),
   offset: z
     .number()
     .optional()
@@ -30,20 +43,50 @@ export const contextReadTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const item = await resolveContextItem(ctx.conn, input.path);
+    // Accept either (drive, path) or a bare UUID / drive:/path ref in `path`.
+    let drive = input.drive;
+    let path = input.path;
+    if (isUuid(input.path)) {
+      const byId = await getContextItemById(ctx.conn, input.path);
+      if (byId) {
+        drive = byId.drive;
+        path = byId.path;
+      }
+    } else {
+      const parsed = parseDriveRef(input.path);
+      if (parsed) {
+        drive = parsed.drive;
+        path = parsed.path;
+      }
+    }
+
+    if (!drive) {
+      return {
+        is_error: true,
+        error_type: "missing_drive",
+        message: `Cannot resolve context item: no drive provided and \`${input.path}\` is not a UUID or \`drive:/path\` ref.`,
+        next_action_hint:
+          "Pass `drive` explicitly, or use a `drive:/path` ref. Call context_list_drives to see which drives exist.",
+      };
+    }
+
+    if (!path.startsWith("/")) path = `/${path}`;
+
+    const item = await getContextItem(ctx.conn, { drive, path });
     if (!item) {
       const { parent, siblings, walkedUp } = await findNearbyContextPaths(
         ctx.conn,
-        input.path,
+        drive,
+        path,
       );
       const hint =
         siblings.length > 0
-          ? `${walkedUp ? `Parent ${parent} has no direct entries; ` : ""}Nearby paths under ${parent}: ${siblings.join(", ")}. Call context_tree({path:"${parent}"}) to see more.`
-          : `No items found under ${parent}. Call context_tree({path:"/"}) to discover what exists.`;
+          ? `${walkedUp ? `Parent ${parent} has no direct entries; ` : ""}Nearby items under ${parent}: ${siblings.join(", ")}. Call context_tree({drive:"${drive}",path:"${parent.replace(/^[^:]*:/, "")}"}) to see more.`
+          : `No items found under ${parent}. Call context_list_drives to see which drives exist.`;
       return {
         is_error: true,
         error_type: "not_found",
-        message: `No context item at ${input.path}`,
+        message: `No context item at ${formatDriveRef({ drive, path })}`,
         next_action_hint: hint,
       };
     }
@@ -52,7 +95,7 @@ export const contextReadTool = {
       return {
         is_error: true,
         error_type: "no_text_content",
-        message: `Context item ${item.context_path} has no text content (mime: ${item.mime_type})`,
+        message: `Context item ${formatDriveRef(item)} has no text content (mime: ${item.mime_type})`,
         next_action_hint:
           "Binary items can't be read as text. Call context_info to inspect metadata, or pick a textual sibling.",
       };

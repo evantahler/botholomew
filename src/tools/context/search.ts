@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatDriveRef } from "../../context/drives.ts";
 import { searchContextByKeyword } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
@@ -14,7 +15,9 @@ const outputSchema = z.object({
     z.object({
       id: z.string(),
       title: z.string(),
-      context_path: z.string(),
+      drive: z.string(),
+      path: z.string(),
+      ref: z.string(),
       content_preview: z.string(),
     }),
   ),
@@ -25,7 +28,7 @@ const outputSchema = z.object({
 export const contextSearchTool = {
   name: "context_search",
   description:
-    "[[ bash equivalent command: grep -r ]] Search context by keyword.",
+    "[[ bash equivalent command: grep -r ]] Search context by keyword across all drives.",
   group: "context",
   inputSchema,
   outputSchema,
@@ -39,7 +42,9 @@ export const contextSearchTool = {
       results: items.map((item) => ({
         id: item.id,
         title: item.title,
-        context_path: item.context_path,
+        drive: item.drive,
+        path: item.path,
+        ref: formatDriveRef(item),
         content_preview: (item.content ?? "").slice(0, 500),
       })),
       count: items.length,

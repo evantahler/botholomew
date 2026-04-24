@@ -1,5 +1,6 @@
 import { isText } from "istextorbinary";
 import { z } from "zod";
+import { formatDriveRef } from "../../context/drives.ts";
 import { ingestByPath } from "../../context/ingest.ts";
 import {
   createContextItemStrict,
@@ -17,12 +18,17 @@ function mimeFromPath(path: string): string {
 function isTextualPath(path: string): boolean {
   const filename = path.split("/").pop() ?? path;
   const result = isText(filename);
-  // isText returns null if it can't determine from filename alone — default to true
   return result !== false;
 }
 
 const inputSchema = z.object({
-  path: z.string().describe("File path to write"),
+  drive: z
+    .string()
+    .default("agent")
+    .describe(
+      "Drive to write to (defaults to 'agent', which is the agent's scratch drive). Only 'agent' and drives mirroring an external system you can write back to make sense here.",
+    ),
+  path: z.string().describe("Path within the drive (starts with /)"),
   content: z.string().describe("Text content to write"),
   content_base64: z
     .string()
@@ -39,13 +45,15 @@ const inputSchema = z.object({
     .enum(["error", "overwrite"])
     .optional()
     .describe(
-      "What to do if a file already exists at this path. Defaults to 'error'. Pass 'overwrite' to replace.",
+      "What to do if a file already exists at this (drive, path). Defaults to 'error'. Pass 'overwrite' to replace.",
     ),
 });
 
 const outputSchema = z.object({
   id: z.string().nullable(),
+  drive: z.string(),
   path: z.string(),
+  ref: z.string(),
   is_error: z.boolean(),
   error_type: z.string().optional(),
   message: z.string().optional(),
@@ -54,14 +62,14 @@ const outputSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Snapshot of the context filesystem after the write so you can see the surrounding files.",
+      "Snapshot of the drive's tree after the write so you can see the surrounding files.",
     ),
 });
 
 export const contextWriteTool = {
   name: "context_write",
   description:
-    "[[ bash equivalent command: tee ]] Write content to a context item. By default, fails if the path already exists — pass on_conflict='overwrite' to replace.",
+    "[[ bash equivalent command: tee ]] Write content to a context item. By default writes to drive='agent' (the agent's scratch drive). Fails if the (drive, path) already exists — pass on_conflict='overwrite' to replace.",
   group: "context",
   inputSchema,
   outputSchema,
@@ -71,6 +79,7 @@ export const contextWriteTool = {
     const title =
       input.title ?? input.path.split("/").filter(Boolean).pop() ?? input.path;
     const onConflict = input.on_conflict ?? "error";
+    const target = { drive: input.drive, path: input.path };
 
     try {
       const item =
@@ -79,7 +88,8 @@ export const contextWriteTool = {
               title,
               description: input.description,
               content: input.content_base64 ?? input.content,
-              contextPath: input.path,
+              drive: target.drive,
+              path: target.path,
               mimeType,
               isTextual,
             })
@@ -87,16 +97,21 @@ export const contextWriteTool = {
               title,
               description: input.description,
               content: input.content_base64 ?? input.content,
-              contextPath: input.path,
+              drive: target.drive,
+              path: target.path,
               mimeType,
               isTextual,
             });
 
-      await ingestByPath(ctx.conn, input.path, ctx.config);
-      const { tree } = await buildContextTree(ctx.conn);
+      await ingestByPath(ctx.conn, target, ctx.config);
+      const { tree } = await buildContextTree(ctx.conn, {
+        drive: target.drive,
+      });
       return {
         id: item.id,
-        path: item.context_path,
+        drive: item.drive,
+        path: item.path,
+        ref: formatDriveRef(item),
         is_error: false,
         tree,
       };
@@ -104,10 +119,12 @@ export const contextWriteTool = {
       if (err instanceof PathConflictError) {
         return {
           id: null,
-          path: input.path,
+          drive: err.drive,
+          path: err.path,
+          ref: formatDriveRef({ drive: err.drive, path: err.path }),
           is_error: true,
           error_type: "path_conflict",
-          message: `A file already exists at ${input.path} (id: ${err.existingId}).`,
+          message: `A file already exists at ${formatDriveRef({ drive: err.drive, path: err.path })} (id: ${err.existingId}).`,
           next_action_hint:
             "Call context_read to inspect the existing file, or retry with on_conflict='overwrite' to replace it.",
         };

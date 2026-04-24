@@ -27,7 +27,9 @@ describe("context_search", () => {
     );
     const result = await contextSearchTool.execute({ query: "revenue" }, ctx);
     expect(result.count).toBe(1);
-    expect(result.results[0]?.context_path).toBe("/notes/meeting.md");
+    expect(result.results[0]?.path).toBe("/notes/meeting.md");
+    expect(result.results[0]?.drive).toBe("agent");
+    expect(result.results[0]?.ref).toBe("agent:/notes/meeting.md");
   });
 
   test("finds items by title", async () => {

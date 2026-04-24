@@ -14,7 +14,8 @@ const PatchSchema = z.object({
 });
 
 const inputSchema = z.object({
-  path: z.string().describe("File path to edit"),
+  drive: z.string().describe("Drive name (e.g. 'agent', 'disk')"),
+  path: z.string().describe("Path within the drive (starts with /)"),
   patches: z.array(PatchSchema).describe("Patches to apply"),
 });
 
@@ -32,13 +33,14 @@ export const contextEditTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
+    const target = { drive: input.drive, path: input.path };
     const { item, applied } = await applyPatchesToContextItem(
       ctx.conn,
-      input.path,
+      target,
       input.patches,
     );
 
-    await ingestByPath(ctx.conn, input.path, ctx.config);
+    await ingestByPath(ctx.conn, target, ctx.config);
     return { applied, content: item.content ?? "", is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

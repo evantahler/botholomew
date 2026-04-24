@@ -15,6 +15,7 @@ import { mcpSearchTool } from "../tools/mcp/search.ts";
 import type { ToolContext } from "../tools/tool.ts";
 import { type AnyToolDefinition, toAnthropicTool } from "../tools/tool.ts";
 import { logger } from "../utils/logger.ts";
+import { detectDriveFromUrl } from "./drives.ts";
 import { stripHtmlTags } from "./url-utils.ts";
 
 const MAX_CONTENT_BYTES = 500_000;
@@ -28,6 +29,8 @@ export interface FetchedContent {
   content: string;
   mimeType: string;
   sourceUrl: string;
+  drive: string;
+  path: string;
 }
 
 export class FetchFailureError extends Error {
@@ -176,7 +179,8 @@ async function runFetcherLoop(
 
   // Cache of full mcp_exec results keyed by tool_use_id.
   // The LLM only sees a truncated preview; on accept_content it references
-  // the id and the harness saves the captured content.
+  // the id and the harness saves the captured content. `server` is retained so
+  // we can attribute the save to a specific MCP service when routing to a drive.
   const execResults = new Map<
     string,
     { server: string; tool: string; content: string; mimeType: string }
@@ -289,11 +293,14 @@ async function runFetcherLoop(
       logger.dim(
         `  turn ${turn + 1}: accept_content: "${input.title}" (${cached.content.length} chars, ${mimeType}, from ${cached.server}/${cached.tool})`,
       );
+      const { drive, path } = detectDriveFromUrl(url, cached.server);
       return {
         title: input.title,
         content: cached.content.slice(0, MAX_CONTENT_BYTES),
         mimeType,
         sourceUrl: url,
+        drive,
+        path,
       };
     }
 
@@ -428,10 +435,13 @@ export async function httpFallback(url: string): Promise<FetchedContent> {
     ? "text/markdown"
     : contentType.split(";")[0] || "text/plain";
 
+  const { drive, path } = detectDriveFromUrl(url);
   return {
     title,
     content: text,
     mimeType,
     sourceUrl: url,
+    drive,
+    path,
   };
 }

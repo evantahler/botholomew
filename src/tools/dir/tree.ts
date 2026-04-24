@@ -1,16 +1,19 @@
 import { z } from "zod";
+import { formatDriveRef } from "../../context/drives.ts";
 import type { DbConnection } from "../../db/connection.ts";
 import {
   countContextItemsByPrefix,
   listContextItemsByPrefix,
+  listDriveSummaries,
 } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
-const DEFAULT_MAX_DEPTH = 3;
+const DEFAULT_MAX_DEPTH = 10;
 const DEFAULT_ITEMS_PER_DIR = 15;
 const HARD_FETCH_CAP = 1000;
 
 export interface BuildContextTreeOptions {
+  drive?: string;
   path?: string;
   maxDepth?: number;
   itemsPerDir?: number;
@@ -38,36 +41,67 @@ interface FileNode {
 
 type TreeEntry = DirNode | FileNode;
 
+/**
+ * Build a markdown tree for a single drive, or — when no drive is given — a
+ * top-level summary listing every drive with its item count.
+ */
 export async function buildContextTree(
   conn: DbConnection,
   options: BuildContextTreeOptions = {},
 ): Promise<BuildContextTreeResult> {
+  if (!options.drive) {
+    const summaries = await listDriveSummaries(conn);
+    if (summaries.length === 0) {
+      return {
+        tree: "(no drives — context is empty)",
+        total_items: 0,
+        truncated_dirs: [],
+        hint: "No context has been ingested yet. Use `context add` from the CLI to ingest files or URLs.",
+      };
+    }
+    const lines = [
+      "Drives:",
+      ...summaries.map(
+        (s) =>
+          `  ${s.drive}:/  (${s.count} ${s.count === 1 ? "item" : "items"})`,
+      ),
+    ];
+    const total = summaries.reduce((sum, s) => sum + s.count, 0);
+    return {
+      tree: lines.join("\n"),
+      total_items: total,
+      truncated_dirs: [],
+      hint: `Call context_tree with drive="<name>" to drill into a drive.`,
+    };
+  }
+
+  const drive = options.drive;
   const path = options.path ?? "/";
   const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
   const itemsPerDir = options.itemsPerDir ?? DEFAULT_ITEMS_PER_DIR;
   const normalizedPath = path.endsWith("/") ? path : `${path}/`;
+  const rootLabel = formatDriveRef({ drive, path });
 
-  const totalItems = await countContextItemsByPrefix(conn, path, {
+  const totalItems = await countContextItemsByPrefix(conn, drive, path, {
     recursive: true,
   });
 
   if (totalItems === 0) {
     return {
-      tree: `${path}\n  (empty)`,
+      tree: `${rootLabel}\n  (empty)`,
       total_items: 0,
       truncated_dirs: [],
       hint: "Directory is empty.",
     };
   }
 
-  const items = await listContextItemsByPrefix(conn, path, {
+  const items = await listContextItemsByPrefix(conn, drive, path, {
     recursive: true,
     limit: HARD_FETCH_CAP,
   });
 
-  // Build tree structure: dirs map child name -> child node
   const root: DirNode = {
-    name: path,
+    name: rootLabel,
     fullPath: path,
     isDir: true,
     children: [],
@@ -76,12 +110,11 @@ export async function buildContextTree(
   dirIndex.set(stripTrailingSlash(path), root);
 
   for (const item of items) {
-    const relative = item.context_path.slice(normalizedPath.length);
-    if (relative.length === 0) continue; // root itself, skip
+    const relative = item.path.slice(normalizedPath.length);
+    if (relative.length === 0) continue;
     const parts = relative.split("/").filter((p) => p.length > 0);
     const isExplicitDir = item.mime_type === "inode/directory";
 
-    // Walk segments, creating intermediate directories as needed
     let parentDir = root;
     let currentRel = "";
     for (let i = 0; i < parts.length; i++) {
@@ -116,7 +149,6 @@ export async function buildContextTree(
     }
   }
 
-  // Sort each directory's children: dirs first, then alphabetical
   for (const dir of dirIndex.values()) {
     dir.children.sort((a, b) => {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
@@ -131,7 +163,7 @@ export async function buildContextTree(
   }> = [];
   const depthLimitedDirs: string[] = [];
 
-  const lines: string[] = [path];
+  const lines: string[] = [rootLabel];
 
   const render = (dir: DirNode, indent: string, currentDepth: number): void => {
     const children = dir.children;
@@ -185,15 +217,21 @@ export async function buildContextTree(
     tree: lines.join("\n"),
     total_items: totalItems,
     truncated_dirs: truncatedDirs,
-    hint: buildHint({ truncatedDirs, depthLimitedDirs, totalItems }),
+    hint: buildHint({ truncatedDirs, depthLimitedDirs, totalItems, drive }),
   };
 }
 
 const inputSchema = z.object({
+  drive: z
+    .string()
+    .optional()
+    .describe(
+      "Drive to explore (e.g. 'disk', 'agent'). Omit to list every drive with its item count — useful as a first call.",
+    ),
   path: z
     .string()
     .optional()
-    .describe("Root path for the tree (defaults to /)"),
+    .describe("Root path for the tree within the drive (defaults to /)"),
   max_depth: z
     .number()
     .int()
@@ -231,12 +269,13 @@ const outputSchema = z.object({
 export const contextTreeTool = {
   name: "context_tree",
   description:
-    "[[ bash equivalent command: tree ]] Explore your context filesystem with a bird's-eye view — shows many paths across nested directories in one call. Reach for this first when you need to discover what content exists before reading a specific file (context_read) or running a keyword search (context_search). Returns a markdown-style tree; tune max_depth and items_per_dir to bound output, or pass a deeper path to drill into a subtree.",
+    "[[ bash equivalent command: tree ]] Explore your context with a bird's-eye view. Call with no `drive` to list every drive; call with a drive (and optional path) to render a tree of that drive. Returns a markdown-style tree; tune max_depth and items_per_dir to bound output.",
   group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
     const result = await buildContextTree(ctx.conn, {
+      drive: input.drive,
       path: input.path,
       maxDepth: input.max_depth,
       itemsPerDir: input.items_per_dir,
@@ -262,15 +301,16 @@ function buildHint(args: {
   truncatedDirs: Array<{ path: string; shown: number; total: number }>;
   depthLimitedDirs: string[];
   totalItems: number;
+  drive: string;
 }): string {
-  const { truncatedDirs, depthLimitedDirs } = args;
+  const { truncatedDirs, depthLimitedDirs, drive } = args;
   const parts: string[] = [];
 
   if (truncatedDirs.length > 0) {
     const first = truncatedDirs[0];
     if (first) {
       parts.push(
-        `${truncatedDirs.length} ${truncatedDirs.length === 1 ? "directory was" : "directories were"} capped by items_per_dir; raise items_per_dir or call context_tree with path="${first.path}".`,
+        `${truncatedDirs.length} ${truncatedDirs.length === 1 ? "directory was" : "directories were"} capped by items_per_dir; raise items_per_dir or call context_tree with drive="${drive}", path="${first.path}".`,
       );
     }
   }
@@ -279,7 +319,7 @@ function buildHint(args: {
     const first = depthLimitedDirs[0];
     if (first) {
       parts.push(
-        `${depthLimitedDirs.length} ${depthLimitedDirs.length === 1 ? "directory was" : "directories were"} not expanded due to max_depth; raise max_depth or call context_tree with path="${first}".`,
+        `${depthLimitedDirs.length} ${depthLimitedDirs.length === 1 ? "directory was" : "directories were"} not expanded due to max_depth; raise max_depth or call context_tree with drive="${drive}", path="${first}".`,
       );
     }
   }

@@ -3,6 +3,10 @@ import type { Command } from "commander";
 import { z } from "zod";
 import { loadConfig } from "../config/loader.ts";
 import { getDbPath } from "../constants.ts";
+import { parseDriveRef } from "../context/drives.ts";
+import type { DbConnection } from "../db/connection.ts";
+import { getContextItemById } from "../db/context.ts";
+import { isUuid } from "../db/uuid.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
   type AnyToolDefinition,
@@ -43,7 +47,7 @@ export function registerSearchToolSubcommands(parent: Command) {
   }
 }
 
-/** Derive CLI subcommand name from tool name: "context_read" → "read", "context_list_dir" → "list-dir" */
+/** Derive CLI subcommand name from tool name: "context_read" → "read", "context_create_dir" → "create-dir" */
 function deriveSubName(toolName: string): string {
   return toolName.replace(/^[^_]+_/, "").replace(/_/g, "-");
 }
@@ -64,7 +68,7 @@ function registerToolAsCLI(parent: Command, tool: AnyToolDefinition) {
   for (const [key, schema] of Object.entries(shape)) {
     const desc = schema.description ?? key;
     const isOptional = schema.isOptional();
-    const unwrapped = unwrapOptional(schema);
+    const unwrapped = unwrapSchema(schema);
 
     if (isPositionalArg(key, tool.name)) {
       positionals.push(isOptional ? `[${key}]` : `<${key}>`);
@@ -109,7 +113,14 @@ function registerToolAsCLI(parent: Command, tool: AnyToolDefinition) {
     while (root.parent) root = root.parent;
     return withDb(root, async (conn, dir) => {
       try {
-        const input = buildInput(tool, positionals, options, shape, args);
+        const input = await buildInput(
+          tool,
+          positionals,
+          options,
+          shape,
+          args,
+          conn,
+        );
 
         const ctx: ToolContext = {
           conn,
@@ -129,7 +140,7 @@ function registerToolAsCLI(parent: Command, tool: AnyToolDefinition) {
   });
 }
 
-function buildInput(
+async function buildInput(
   tool: AnyToolDefinition,
   positionals: string[],
   options: {
@@ -140,14 +151,36 @@ function buildInput(
   }[],
   shape: Record<string, z.ZodType>,
   args: unknown[],
-): Record<string, unknown> {
+  conn: DbConnection,
+): Promise<Record<string, unknown>> {
   const input: Record<string, unknown> = {};
 
-  // Positional args come first in Commander's action callback
+  // Positional args come first in Commander's action callback. Context tools
+  // carry `(drive, path)` or `(src_drive, src_path, …)` in their schema but
+  // accept a friendlier `drive:/path` or bare-UUID form as a single positional
+  // on the CLI.
   for (let i = 0; i < positionals.length; i++) {
     const key = positionals[i]?.replace(/[<>[\]]/g, "");
     const value = args[i];
-    if (key !== undefined && value !== undefined) input[key] = value;
+    if (key === undefined || value === undefined) continue;
+    const splitTargets = driveRefSplitTargets(key, shape);
+    if (splitTargets && typeof value === "string") {
+      const parsed = parseDriveRef(value);
+      if (parsed) {
+        input[splitTargets.drive] = parsed.drive;
+        input[splitTargets.path] = parsed.path;
+        continue;
+      }
+      if (isUuid(value)) {
+        const item = await getContextItemById(conn, value);
+        if (item) {
+          input[splitTargets.drive] = item.drive;
+          input[splitTargets.path] = item.path;
+          continue;
+        }
+      }
+    }
+    input[key] = value;
   }
 
   // Options object is the last argument before the Command object
@@ -163,7 +196,7 @@ function buildInput(
 
     const schemaForKey = shape[opt.key];
     if (!schemaForKey) continue;
-    const unwrapped = unwrapOptional(schemaForKey);
+    const unwrapped = unwrapSchema(schemaForKey);
 
     // Parse JSON for array types
     if (opt.isArray && typeof value === "string") {
@@ -192,6 +225,19 @@ function formatOutput(result: unknown, _toolName: string) {
   if (typeof result === "object") {
     const obj = result as Record<string, unknown>;
 
+    // Structured error shape: { is_error: true, message, next_action_hint? }
+    if (obj.is_error === true) {
+      const msg = typeof obj.message === "string" ? obj.message : "Error";
+      logger.error(msg);
+      if (
+        typeof obj.next_action_hint === "string" &&
+        obj.next_action_hint.length > 0
+      ) {
+        console.log(ansis.dim(obj.next_action_hint));
+      }
+      process.exit(1);
+    }
+
     // Special formatting for known output shapes
     if ("tree" in obj && typeof obj.tree === "string") {
       console.log(obj.tree);
@@ -213,6 +259,26 @@ function formatOutput(result: unknown, _toolName: string) {
         const e = entry as { name: string; type: string; size: number };
         const suffix = e.type === "directory" ? "/" : "";
         console.log(`  ${e.name}${suffix}`);
+      }
+      return;
+    }
+
+    if ("drives" in obj && Array.isArray(obj.drives)) {
+      const drives = obj.drives as { drive: string; count: number }[];
+      if (drives.length === 0) {
+        if (typeof obj.hint === "string") console.log(ansis.dim(obj.hint));
+        return;
+      }
+      const widest = Math.max(...drives.map((d) => d.drive.length));
+      for (const d of drives) {
+        const label = `${d.drive}:/`.padEnd(widest + 2);
+        const plural = d.count === 1 ? "item" : "items";
+        console.log(
+          `  ${ansis.cyan(label)} ${ansis.dim(`(${d.count} ${plural})`)}`,
+        );
+      }
+      if (typeof obj.hint === "string") {
+        console.log(`\n${ansis.dim(obj.hint)}`);
       }
       return;
     }
@@ -263,7 +329,6 @@ function isPositionalArg(key: string, toolName: string): boolean {
   // These keys are treated as positional arguments
   const positionalKeys: Record<string, string[]> = {
     context_create_dir: ["path"],
-    context_list_dir: ["path"],
     context_tree: ["path"],
     context_dir_size: ["path"],
     context_read: ["path"],
@@ -282,9 +347,33 @@ function isPositionalArg(key: string, toolName: string): boolean {
   return positionalKeys[toolName]?.includes(key) ?? false;
 }
 
-function unwrapOptional(schema: z.ZodType): z.ZodType {
+function unwrapSchema(schema: z.ZodType): z.ZodType {
   if (schema instanceof z.ZodOptional) {
-    return schema.unwrap() as z.ZodType;
+    return unwrapSchema(schema.unwrap() as z.ZodType);
+  }
+  if (schema instanceof z.ZodDefault) {
+    return unwrapSchema(schema.unwrap() as z.ZodType);
   }
   return schema;
+}
+
+/**
+ * Decide how to expand a positional `path`/`src`/`dst` value into the tool's
+ * schema when it carries a `drive:/path` prefix. Returns the drive+path field
+ * names in the schema, or null if the schema has no matching drive field.
+ */
+function driveRefSplitTargets(
+  positionalKey: string,
+  shape: Record<string, z.ZodType>,
+): { drive: string; path: string } | null {
+  if (positionalKey === "path" && "drive" in shape && "path" in shape) {
+    return { drive: "drive", path: "path" };
+  }
+  if (positionalKey === "src" && "src_drive" in shape && "src_path" in shape) {
+    return { drive: "src_drive", path: "src_path" };
+  }
+  if (positionalKey === "dst" && "dst_drive" in shape && "dst_path" in shape) {
+    return { drive: "dst_drive", path: "dst_path" };
+  }
+  return null;
 }

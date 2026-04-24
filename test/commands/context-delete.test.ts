@@ -4,10 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getDbPath } from "../../src/constants.ts";
 import { getConnection } from "../../src/db/connection.ts";
-import {
-  createContextItem,
-  getContextItemByPath,
-} from "../../src/db/context.ts";
+import { createContextItem, getContextItem } from "../../src/db/context.ts";
 import { migrate } from "../../src/db/schema.ts";
 import { initProject } from "../../src/init/index.ts";
 
@@ -38,42 +35,41 @@ async function run(
 }
 
 describe("context delete CLI", () => {
-  test("deletes an existing context item by path", async () => {
+  test("deletes an existing context item by drive:/path", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    // Seed a context item directly via DB
     const conn = await getConnection(getDbPath(tempDir));
     await migrate(conn);
     await createContextItem(conn, {
       title: "test.md",
       content: "hello",
-      contextPath: "/docs/test.md",
+      drive: "agent",
+      path: "/docs/test.md",
     });
     conn.close();
 
-    const result = await run(["context", "delete", "/docs/test.md"]);
+    const result = await run(["context", "delete", "agent:/docs/test.md"]);
     expect(result.code).toBe(0);
-    expect(result.stdout + result.stderr).toContain(
-      "Deleted context entry: /docs/test.md",
-    );
+    expect(result.stdout + result.stderr).toContain("Deleted context entry");
+    expect(result.stdout + result.stderr).toContain("agent:/docs/test.md");
 
-    // Verify it's actually gone
     const conn2 = await getConnection(getDbPath(tempDir));
     await migrate(conn2);
-    const item = await getContextItemByPath(conn2, "/docs/test.md");
+    const item = await getContextItem(conn2, {
+      drive: "agent",
+      path: "/docs/test.md",
+    });
     conn2.close();
     expect(item).toBeNull();
   });
 
-  test("exits with error for non-existent path", async () => {
+  test("exits with error for non-existent ref", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
-    const result = await run(["context", "delete", "/no/such/path.md"]);
+    const result = await run(["context", "delete", "agent:/no/such/path.md"]);
     expect(result.code).toBe(1);
-    expect(result.stdout + result.stderr).toContain(
-      "Context entry not found: /no/such/path.md",
-    );
+    expect(result.stdout + result.stderr).toContain("Context entry not found");
   });
 });

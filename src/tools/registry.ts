@@ -1,6 +1,7 @@
 // Capabilities tools
 import { capabilitiesRefreshTool } from "./capabilities/refresh.ts";
 // Context tools
+import { contextListDrivesTool } from "./context/list-drives.ts";
 import { readLargeResultTool } from "./context/read-large-result.ts";
 import { contextRefreshTool } from "./context/refresh.ts";
 import { contextSearchTool } from "./context/search.ts";
@@ -8,7 +9,6 @@ import { updateBeliefsTool } from "./context/update-beliefs.ts";
 import { updateGoalsTool } from "./context/update-goals.ts";
 // Context — directory operations
 import { contextCreateDirTool } from "./dir/create.ts";
-import { contextListDirTool } from "./dir/list.ts";
 import { contextDirSizeTool } from "./dir/size.ts";
 import { contextTreeTool } from "./dir/tree.ts";
 // Context — file operations
@@ -58,8 +58,8 @@ export function registerAllTools(): void {
   registerTool(viewTaskTool);
 
   // Context
+  registerTool(contextListDrivesTool);
   registerTool(contextCreateDirTool);
-  registerTool(contextListDirTool);
   registerTool(contextTreeTool);
   registerTool(contextDirSizeTool);
   registerTool(contextReadTool);
