@@ -107,8 +107,9 @@ export async function buildSystemPrompt(
       if (results.length > 0) {
         prompt += "## Relevant Context\n";
         for (const r of results) {
-          const path = r.source_path || r.context_item_id;
-          prompt += `### ${r.title} (${path})\n`;
+          const ref =
+            r.drive && r.path ? `${r.drive}:${r.path}` : r.context_item_id;
+          prompt += `### ${r.title} (${ref})\n`;
           if (r.chunk_content) {
             prompt += `${r.chunk_content.slice(0, 1000)}\n`;
           }

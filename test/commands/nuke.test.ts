@@ -43,7 +43,8 @@ async function seedAll(conn: DbConnection): Promise<void> {
   await createContextItem(conn, {
     title: "doc.md",
     content: "hello",
-    contextPath: "/docs/doc.md",
+    drive: "agent",
+    path: "/docs/doc.md",
   });
   await createTask(conn, { name: "example task" });
   await createSchedule(conn, { name: "nightly", frequency: "0 0 * * *" });

@@ -1,9 +1,16 @@
 import { z } from "zod";
-import { resolveContextItem } from "../../db/context.ts";
+import { parseDriveRef } from "../../context/drives.ts";
+import { getContextItem, getContextItemById } from "../../db/context.ts";
+import { isUuid } from "../../db/uuid.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
-  path: z.string().describe("File path or context item ID"),
+  drive: z
+    .string()
+    .describe("Drive name. Ignored when `path` is a UUID or 'drive:/path'."),
+  path: z
+    .string()
+    .describe("Path within the drive (or UUID / drive:/path ref)"),
 });
 
 const outputSchema = z.object({
@@ -19,7 +26,13 @@ export const contextExistsTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const item = await resolveContextItem(ctx.conn, input.path);
+    if (isUuid(input.path)) {
+      const item = await getContextItemById(ctx.conn, input.path);
+      return { exists: item !== null, is_error: false };
+    }
+    const parsed = parseDriveRef(input.path);
+    const target = parsed ?? { drive: input.drive, path: input.path };
+    const item = await getContextItem(ctx.conn, target);
     return { exists: item !== null, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

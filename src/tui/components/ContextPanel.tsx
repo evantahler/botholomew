@@ -1,5 +1,6 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { formatDriveRef } from "../../context/drives.ts";
 import { withDb } from "../../db/connection.ts";
 import {
   type ContextItem,
@@ -7,6 +8,7 @@ import {
   deleteContextItemsByPrefix,
   getDistinctDirectories,
   listContextItemsByPrefix,
+  listDriveSummaries,
   searchContextByKeyword,
 } from "../../db/context.ts";
 import { isMarkdownItem, renderMarkdown } from "../markdown.ts";
@@ -14,6 +16,12 @@ import { isMarkdownItem, renderMarkdown } from "../markdown.ts";
 interface ContextPanelProps {
   dbPath: string;
   isActive: boolean;
+}
+
+interface DriveEntry {
+  type: "drive";
+  drive: string;
+  count: number;
 }
 
 interface DirEntry {
@@ -27,9 +35,8 @@ interface FileEntry {
   item: ContextItem;
 }
 
-type Entry = DirEntry | FileEntry;
+type Entry = DriveEntry | DirEntry | FileEntry;
 
-// Reserve lines for header, search bar, padding, tab bar, status/input bar
 const CHROME_LINES = 8;
 
 export const ContextPanel = memo(function ContextPanel({
@@ -39,6 +46,8 @@ export const ContextPanel = memo(function ContextPanel({
   const { stdout } = useStdout();
   const termRows = stdout?.rows ?? 24;
 
+  // currentDrive === null means we're at the "pick a drive" level.
+  const [currentDrive, setCurrentDrive] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState("/");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [cursor, setCursor] = useState(0);
@@ -54,7 +63,6 @@ export const ContextPanel = memo(function ContextPanel({
 
   const visibleRows = Math.max(1, termRows - CHROME_LINES);
 
-  // Keep cursor in view by adjusting scroll offset
   useEffect(() => {
     if (cursor < scrollOffset) {
       setScrollOffset(cursor);
@@ -64,10 +72,26 @@ export const ContextPanel = memo(function ContextPanel({
   }, [cursor, scrollOffset, visibleRows]);
 
   const loadEntries = useCallback(
-    async (path: string) => {
+    async (drive: string | null, path: string) => {
+      if (drive === null) {
+        const summaries = await withDb(dbPath, (conn) =>
+          listDriveSummaries(conn),
+        );
+        const driveEntries: DriveEntry[] = summaries.map((s) => ({
+          type: "drive",
+          drive: s.drive,
+          count: s.count,
+        }));
+        setEntries(driveEntries);
+        setCursor(0);
+        setScrollOffset(0);
+        setPreview(null);
+        return;
+      }
+
       const [dirs, files] = await withDb(dbPath, async (conn) => [
-        await getDistinctDirectories(conn, path),
-        await listContextItemsByPrefix(conn, path, { recursive: false }),
+        await getDistinctDirectories(conn, drive, path),
+        await listContextItemsByPrefix(conn, drive, path, { recursive: false }),
       ]);
 
       const dirEntries: DirEntry[] = dirs.map((d) => ({
@@ -77,7 +101,7 @@ export const ContextPanel = memo(function ContextPanel({
       }));
 
       const fileEntries: FileEntry[] = files
-        .filter((f) => !dirs.some((d) => f.context_path.startsWith(`${d}/`)))
+        .filter((f) => !dirs.some((d) => f.path.startsWith(`${d}/`)))
         .map((f) => ({ type: "file", item: f }));
 
       setEntries([...dirEntries, ...fileEntries]);
@@ -90,9 +114,9 @@ export const ContextPanel = memo(function ContextPanel({
 
   useEffect(() => {
     if (searchResults === null) {
-      loadEntries(currentPath);
+      loadEntries(currentDrive, currentPath);
     }
-  }, [currentPath, loadEntries, searchResults]);
+  }, [currentDrive, currentPath, loadEntries, searchResults]);
 
   const executeSearch = useCallback(
     async (query: string) => {
@@ -111,7 +135,6 @@ export const ContextPanel = memo(function ContextPanel({
     [dbPath],
   );
 
-  // Compute the items list and visible window for the current view
   const items = searchResults ?? entries;
   const itemCount = items.length;
   const visibleItems = useMemo(
@@ -119,9 +142,6 @@ export const ContextPanel = memo(function ContextPanel({
     [items, scrollOffset, visibleRows],
   );
 
-  // Preview content split into lines for scrolling. Markdown files are
-  // rendered through Bun.markdown.ansi so headers/emphasis/code display
-  // with ANSI formatting in the terminal.
   const previewLines = useMemo(() => {
     if (!preview?.content) return [];
     const body = isMarkdownItem(preview)
@@ -132,7 +152,6 @@ export const ContextPanel = memo(function ContextPanel({
 
   useInput(
     (input, key) => {
-      // Search mode: capture text input
       if (searchMode) {
         if (key.return) {
           setSearchMode(false);
@@ -155,7 +174,6 @@ export const ContextPanel = memo(function ContextPanel({
         return;
       }
 
-      // Preview mode: scroll content
       if (preview) {
         if (key.upArrow) {
           setPreviewScroll((s) => Math.max(0, s - 1));
@@ -174,20 +192,23 @@ export const ContextPanel = memo(function ContextPanel({
         return;
       }
 
-      // Delete confirmation mode
       if (confirmDelete) {
         if (input === "y" || input === "d") {
           const entry = entries[cursor];
           if (entry) {
             void withDb(dbPath, async (conn) => {
-              if (entry.type === "directory") {
-                await deleteContextItemsByPrefix(conn, entry.path);
-              } else {
+              if (entry.type === "directory" && currentDrive) {
+                await deleteContextItemsByPrefix(
+                  conn,
+                  currentDrive,
+                  entry.path,
+                );
+              } else if (entry.type === "file") {
                 await deleteContextItem(conn, entry.item.id);
               }
             });
             setConfirmDelete(false);
-            loadEntries(currentPath);
+            loadEntries(currentDrive, currentPath);
           }
         } else {
           setConfirmDelete(false);
@@ -195,7 +216,6 @@ export const ContextPanel = memo(function ContextPanel({
         return;
       }
 
-      // Normal navigation
       if (input === "d" && itemCount > 0 && searchResults === null) {
         setConfirmDelete(true);
         return;
@@ -236,7 +256,10 @@ export const ContextPanel = memo(function ContextPanel({
         }
         const entry = entries[cursor];
         if (!entry) return;
-        if (entry.type === "directory") {
+        if (entry.type === "drive") {
+          setCurrentDrive(entry.drive);
+          setCurrentPath("/");
+        } else if (entry.type === "directory") {
           setCurrentPath(entry.path);
         } else {
           setPreview(entry.item);
@@ -251,13 +274,14 @@ export const ContextPanel = memo(function ContextPanel({
           parts.pop();
           const parent = parts.length <= 1 ? "/" : `${parts.join("/")}/`;
           setCurrentPath(parent);
+        } else if (currentDrive !== null) {
+          setCurrentDrive(null);
         }
       }
     },
     { isActive },
   );
 
-  // Render search results view
   if (searchResults !== null && !preview) {
     return (
       <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
@@ -272,17 +296,14 @@ export const ContextPanel = memo(function ContextPanel({
           {visibleItems.map((item, vi) => {
             const i = vi + scrollOffset;
             const ci = item as ContextItem;
-            const slashIdx = ci.context_path.lastIndexOf("/");
-            const dir =
-              slashIdx >= 0 ? ci.context_path.slice(0, slashIdx + 1) : "";
+            const ref = formatDriveRef(ci);
             return (
               <Box key={ci.id}>
                 <Text
                   backgroundColor={i === cursor ? "#333" : undefined}
                   color={i === cursor ? "cyan" : undefined}
                 >
-                  {"  "}📄 <Text dimColor>{dir}</Text>
-                  {ci.title}
+                  {"  "}📄 <Text dimColor>{ref}</Text> — {ci.title}
                   <Text dimColor> ({ci.mime_type})</Text>
                 </Text>
               </Box>
@@ -301,7 +322,6 @@ export const ContextPanel = memo(function ContextPanel({
     );
   }
 
-  // Render file preview with scrolling
   if (preview) {
     const visiblePreviewLines = previewLines.slice(
       previewScroll,
@@ -311,7 +331,7 @@ export const ContextPanel = memo(function ContextPanel({
       <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
         <Box>
           <Text bold color="cyan">
-            {preview.context_path}
+            {formatDriveRef(preview)}
           </Text>
           <Text dimColor> (esc to go back · ↑↓ to scroll)</Text>
         </Box>
@@ -321,7 +341,6 @@ export const ContextPanel = memo(function ContextPanel({
             {preview.description ? ` · ${preview.description}` : ""}
           </Text>
           <Text dimColor>
-            Source: {preview.source_path ?? "n/a"} ·{" "}
             {preview.indexed_at ? "Indexed" : "Not indexed"} · Updated:{" "}
             {preview.updated_at.toLocaleDateString()}
           </Text>
@@ -354,12 +373,16 @@ export const ContextPanel = memo(function ContextPanel({
     );
   }
 
-  // Render directory listing with scroll window
+  const headerLabel =
+    currentDrive === null
+      ? "(drives)"
+      : formatDriveRef({ drive: currentDrive, path: currentPath });
+
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
       <Box>
         <Text bold color="cyan">
-          {currentPath}
+          {headerLabel}
         </Text>
         <Text dimColor>
           {" "}
@@ -378,8 +401,10 @@ export const ContextPanel = memo(function ContextPanel({
           <Text color="red" bold>
             Delete{" "}
             {entries[cursor].type === "directory"
-              ? `${entries[cursor].name}/ and all contents`
-              : (entries[cursor] as FileEntry).item.title}
+              ? `${(entries[cursor] as DirEntry).name}/ and all contents`
+              : entries[cursor].type === "file"
+                ? (entries[cursor] as FileEntry).item.title
+                : "(pick a file first)"}
             ? (y/n)
           </Text>
         </Box>
@@ -390,6 +415,19 @@ export const ContextPanel = memo(function ContextPanel({
           const i = vi + scrollOffset;
           const entry = raw as Entry;
           const isSelected = i === cursor;
+          if (entry.type === "drive") {
+            return (
+              <Box key={entry.drive}>
+                <Text
+                  backgroundColor={isSelected ? "#333" : undefined}
+                  color={isSelected ? "cyan" : "magenta"}
+                  bold={isSelected}
+                >
+                  {"  "}🗄 {entry.drive}:/ <Text dimColor>({entry.count})</Text>
+                </Text>
+              </Box>
+            );
+          }
           if (entry.type === "directory") {
             return (
               <Box key={entry.path}>

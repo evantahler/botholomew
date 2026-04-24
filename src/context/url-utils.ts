@@ -11,29 +11,6 @@ export function isUrl(input: string): boolean {
 }
 
 /**
- * Derives a virtual context path from a URL.
- * Example: `https://docs.google.com/document/d/abc123/edit` → `/{prefix}/docs.google.com/document-d-abc123.md`
- */
-export function urlToContextPath(url: string, prefix: string): string {
-  const parsed = new URL(url);
-  const hostname = parsed.hostname;
-  const pathname = parsed.pathname
-    .replace(/\/+$/, "") // strip trailing slashes
-    .replace(/^\/+/, "") // strip leading slashes
-    .replace(/[^a-zA-Z0-9\-_.]/g, "-") // slugify
-    .replace(/-{2,}/g, "-"); // collapse repeated dashes
-
-  const slug = pathname ? `${hostname}/${pathname}` : hostname;
-  const full = `${prefix.replace(/\/+$/, "")}/${slug}.md`;
-
-  if (full.length > 120) {
-    return `${full.slice(0, 117 - 3)}.md`;
-  }
-
-  return full;
-}
-
-/**
  * Strips HTML tags from a string, removing script/style blocks first,
  * then all remaining tags, and collapsing whitespace.
  */

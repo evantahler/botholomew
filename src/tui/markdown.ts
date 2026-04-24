@@ -6,10 +6,9 @@ export function renderMarkdown(text: string): string {
 }
 
 export function isMarkdownItem(
-  item: Pick<ContextItem, "mime_type" | "source_path" | "context_path">,
+  item: Pick<ContextItem, "mime_type" | "path">,
 ): boolean {
   if (item.mime_type === "text/markdown") return true;
-  if (item.source_path?.toLowerCase().endsWith(".md")) return true;
-  if (item.context_path.toLowerCase().endsWith(".md")) return true;
+  if (item.path.toLowerCase().endsWith(".md")) return true;
   return false;
 }

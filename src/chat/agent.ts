@@ -37,6 +37,7 @@ const CHAT_TOOL_NAMES = new Set([
   "context_info",
   "context_refresh",
   "context_tree",
+  "context_list_drives",
   "search_grep",
   "search_semantic",
   "list_threads",
@@ -87,8 +88,9 @@ export async function buildChatSystemPrompt(
       if (results.length > 0) {
         prompt += "## Relevant Context\n";
         for (const r of results) {
-          const path = r.source_path || r.context_item_id;
-          prompt += `### ${r.title} (${path})\n`;
+          const ref =
+            r.drive && r.path ? `${r.drive}:${r.path}` : r.context_item_id;
+          prompt += `### ${r.title} (${ref})\n`;
           if (r.chunk_content) {
             prompt += `${r.chunk_content.slice(0, 1000)}\n`;
           }
@@ -103,7 +105,7 @@ export async function buildChatSystemPrompt(
   prompt += `## Instructions
 You are Botholomew, an AI agent personified by a wise owl. This is your interactive chat interface. Help the user manage tasks, review results from background worker activity, search context, and answer questions.
 You do NOT execute long-running work directly — enqueue tasks for a background worker instead using create_task, and spawn a worker via spawn_worker when the user wants the task run now.
-Use the available tools to look up tasks, threads, schedules, and context when the user asks about them. Context items can be looked up by virtual path or by UUID via \`context_info\` and refreshed via \`context_refresh\`.
+Use the available tools to look up tasks, threads, schedules, and context when the user asks about them. Context items live under a drive (disk / url / agent / google-docs / github / …); use \`context_list_drives\` to discover which drives have content, then \`context_tree\`, \`context_info\`, \`context_search\`, or \`context_refresh\` as needed.
 When multiple tool calls are independent of each other (i.e., one does not depend on the result of another), call them all in a single response. They will be executed in parallel, which is faster than calling them one at a time.
 You can update the agent's beliefs and goals files when the user asks you to.
 Format your responses using Markdown. Use headings, bold, italic, lists, and code blocks to make your responses clear and well-structured.

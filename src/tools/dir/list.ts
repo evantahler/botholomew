@@ -12,6 +12,11 @@ const DirEntrySchema = z.object({
 });
 
 const inputSchema = z.object({
+  drive: z
+    .string()
+    .describe(
+      "Drive name to list (e.g. 'disk', 'agent'). Use context_list_drives to discover which drives have content.",
+    ),
   path: z.string().optional().describe("Directory path (defaults to /)"),
   recursive: z
     .boolean()
@@ -39,7 +44,7 @@ const outputSchema = z.object({
 export const contextListDirTool = {
   name: "context_list_dir",
   description:
-    "[[ bash equivalent command: ls ]] List directory contents in context.",
+    "[[ bash equivalent command: ls ]] List directory contents under a drive.",
   group: "context",
   inputSchema,
   outputSchema,
@@ -50,14 +55,17 @@ export const contextListDirTool = {
     const offset = input.offset ?? 0;
     const normalizedPath = path.endsWith("/") ? path : `${path}/`;
 
-    const allItems = await listContextItemsByPrefix(ctx.conn, path, {
-      recursive,
-    });
+    const allItems = await listContextItemsByPrefix(
+      ctx.conn,
+      input.drive,
+      path,
+      {
+        recursive,
+      },
+    );
 
     const entries: z.infer<typeof DirEntrySchema>[] = allItems.map((item) => ({
-      name: recursive
-        ? item.context_path
-        : item.context_path.slice(normalizedPath.length),
+      name: recursive ? item.path : item.path.slice(normalizedPath.length),
       type:
         item.mime_type === "inode/directory"
           ? ("directory" as const)
@@ -65,9 +73,8 @@ export const contextListDirTool = {
       size: item.content?.length ?? 0,
     }));
 
-    // Add subdirectories (if not recursive, show immediate child dirs)
     if (!recursive) {
-      const dirs = await getDistinctDirectories(ctx.conn, path);
+      const dirs = await getDistinctDirectories(ctx.conn, input.drive, path);
       for (const dir of dirs) {
         const name = dir.slice(normalizedPath.length);
         if (!entries.some((e) => e.name === name)) {

@@ -105,11 +105,11 @@ schema to the Anthropic SDK's `Tool` type using `z.toJSONSchema()`:
 {
   name: "context_write",
   description:
-    "Write content to a context item. By default, fails if the path already exists — pass on_conflict='overwrite' to replace.",
+    "Write content to a context item. By default, fails if the (drive, path) already exists — pass on_conflict='overwrite' to replace.",
   input_schema: {
     type: "object",
     properties: { /* derived from Zod */ },
-    required: ["path", "content"],
+    required: ["drive", "path", "content"],
   }
 }
 ```
@@ -137,8 +137,8 @@ any of which transitions the task out of `in_progress`.
 Commander subcommand per tool, grouped by `group`:
 
 ```bash
-botholomew context read /notes/meeting.md --offset 10 --limit 20
-botholomew context tree / --max-depth 3
+botholomew context read disk:/Users/evan/notes/meeting.md --offset 10 --limit 20
+botholomew context tree disk:/Users/evan/notes --max-depth 3
 botholomew search semantic "quarterly revenue"
 ```
 

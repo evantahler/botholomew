@@ -88,15 +88,17 @@ filesystem" — see [virtual-filesystem.md](virtual-filesystem.md) and
 [context-and-search.md](context-and-search.md)).
 
 - `↑`/`↓` navigate.
-- `Enter` expands a directory or previews a file.
-- `Backspace` goes up one directory.
-- `/` opens a hybrid (keyword + vector) search across all context.
+- `Enter` picks a drive (at the top level), expands a directory, or
+  previews a file.
+- `Backspace` goes up one directory; at the root of a drive, it returns
+  to the drive picker.
+- `/` opens a hybrid (keyword + vector) search across all drives.
 - `d` deletes the selected item.
 
 Markdown files (detected by `mime_type === "text/markdown"` or a `.md`
-extension on `source_path` / `context_path`) are rendered through
-`Bun.markdown.ansi` so headers, emphasis, lists, and fenced code blocks
-show with terminal formatting. Other file types render as plain text.
+extension on the path) are rendered through `Bun.markdown.ansi` so
+headers, emphasis, lists, and fenced code blocks show with terminal
+formatting. Other file types render as plain text.
 
 ### 4. Tasks
 

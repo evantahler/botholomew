@@ -1,8 +1,14 @@
 import { z } from "zod";
-import { listContextItemsByPrefix } from "../../db/context.ts";
+import { formatDriveRef } from "../../context/drives.ts";
+import {
+  listContextItems,
+  listContextItemsByPrefix,
+} from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const GrepMatchSchema = z.object({
+  ref: z.string(),
+  drive: z.string(),
   path: z.string(),
   line: z.number(),
   content: z.string(),
@@ -11,14 +17,20 @@ const GrepMatchSchema = z.object({
 
 const inputSchema = z.object({
   pattern: z.string().describe("Regex pattern to search for"),
+  drive: z
+    .string()
+    .optional()
+    .describe("Restrict search to a single drive (defaults to all drives)"),
   path: z
     .string()
     .optional()
-    .describe("Directory to search in (defaults to /)"),
+    .describe(
+      "Directory to search under within the drive (defaults to /). Requires `drive`.",
+    ),
   glob: z
     .string()
     .optional()
-    .describe("Only search files matching this glob pattern"),
+    .describe("Only search files whose basename matches this glob pattern"),
   ignore_case: z.boolean().optional().describe("Case-insensitive search"),
   context: z
     .number()
@@ -37,16 +49,21 @@ const outputSchema = z.object({
 
 export const searchGrepTool = {
   name: "search_grep",
-  description:
-    "Search file contents by regex pattern in the virtual filesystem.",
+  description: "Search file contents by regex pattern across context drives.",
   group: "search",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const searchPath = input.path ?? "/";
-    const items = await listContextItemsByPrefix(ctx.conn, searchPath, {
-      recursive: true,
-    });
+    const items = input.drive
+      ? await listContextItemsByPrefix(
+          ctx.conn,
+          input.drive,
+          input.path ?? "/",
+          {
+            recursive: true,
+          },
+        )
+      : await listContextItems(ctx.conn);
 
     const flags = input.ignore_case ? "gi" : "g";
     const regex = new RegExp(input.pattern, flags);
@@ -60,7 +77,7 @@ export const searchGrepTool = {
       if (item.content == null) continue;
 
       if (globRegex) {
-        const filename = item.context_path.split("/").pop() ?? "";
+        const filename = item.path.split("/").pop() ?? "";
         if (!globRegex.test(filename)) continue;
       }
 
@@ -72,7 +89,9 @@ export const searchGrepTool = {
           const start = Math.max(0, i - contextLines);
           const end = Math.min(lines.length, i + contextLines + 1);
           matches.push({
-            path: item.context_path,
+            ref: formatDriveRef(item),
+            drive: item.drive,
+            path: item.path,
             line: i + 1,
             content: line,
             context_lines: lines.slice(start, end),

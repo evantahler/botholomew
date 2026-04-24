@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatDriveRef } from "../../context/drives.ts";
 import { embedSingle } from "../../context/embedder.ts";
 import { hybridSearch } from "../../db/embeddings.ts";
 import type { ToolDefinition } from "../tool.ts";
@@ -19,7 +20,7 @@ const inputSchema = z.object({
 const outputSchema = z.object({
   results: z.array(
     z.object({
-      path: z.string(),
+      ref: z.string(),
       title: z.string(),
       score: z.number(),
       snippet: z.string(),
@@ -31,7 +32,7 @@ const outputSchema = z.object({
 export const searchSemanticTool = {
   name: "search_semantic",
   description:
-    "Semantic search over indexed files using vector embeddings. Finds conceptually related content, not just keyword matches.",
+    "Semantic search over indexed context using vector embeddings. Finds conceptually related content, not just keyword matches.",
   group: "search",
   inputSchema,
   outputSchema,
@@ -53,7 +54,10 @@ export const searchSemanticTool = {
     return {
       results: filtered
         .map((r) => ({
-          path: r.source_path || r.context_item_id,
+          ref:
+            r.drive && r.path
+              ? formatDriveRef({ drive: r.drive, path: r.path })
+              : r.context_item_id,
           title: r.title,
           score: Math.round(r.score * 1000) / 1000,
           snippet: (r.chunk_content || "").slice(0, 300),

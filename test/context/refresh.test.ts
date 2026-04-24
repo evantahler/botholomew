@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 import type { DbConnection } from "../../src/db/connection.ts";
-import { createContextItem, getContextItem } from "../../src/db/context.ts";
+import { createContextItem, getContextItemById } from "../../src/db/context.ts";
 import { mockEmbed, setupTestDb } from "../helpers.ts";
 
 const config = { ...DEFAULT_CONFIG, openai_api_key: "test-key" };
@@ -26,35 +26,32 @@ afterEach(async () => {
   await rm(tmpBase, { recursive: true, force: true });
 });
 
-async function seedFileBackedItem(params: {
+async function seedDiskItem(params: {
   filePath: string;
   initialDiskContent: string;
   storedContent: string;
-  contextPath: string;
 }) {
   await Bun.write(params.filePath, params.initialDiskContent);
   return createContextItem(conn, {
-    title: params.contextPath.split("/").pop() ?? "item",
+    title: params.filePath.split("/").pop() ?? "item",
     content: params.storedContent,
-    contextPath: params.contextPath,
+    drive: "disk",
+    path: params.filePath,
     mimeType: "text/plain",
     isTextual: true,
-    sourceType: "file",
-    sourcePath: params.filePath,
   });
 }
 
-describe("refreshContextItems — file source", () => {
+describe("refreshContextItems — disk drive", () => {
   test("updates content and re-embeds when disk changed", async () => {
     const { refreshContextItems } = await import(
       "../../src/context/refresh.ts"
     );
     const filePath = join(tmpBase, "doc.md");
-    const item = await seedFileBackedItem({
+    const item = await seedDiskItem({
       filePath,
       initialDiskContent: "new content",
       storedContent: "old content",
-      contextPath: "/docs/doc.md",
     });
 
     const result = await refreshContextItems(
@@ -73,7 +70,7 @@ describe("refreshContextItems — file source", () => {
     expect(result.reembedded).toBe(1);
     expect(result.chunks).toBeGreaterThan(0);
 
-    const fresh = await getContextItem(conn, item.id);
+    const fresh = await getContextItemById(conn, item.id);
     expect(fresh?.content).toBe("new content");
     expect(fresh?.indexed_at).not.toBeNull();
   });
@@ -83,11 +80,10 @@ describe("refreshContextItems — file source", () => {
       "../../src/context/refresh.ts"
     );
     const filePath = join(tmpBase, "same.md");
-    const item = await seedFileBackedItem({
+    const item = await seedDiskItem({
       filePath,
       initialDiskContent: "identical",
       storedContent: "identical",
-      contextPath: "/docs/same.md",
     });
 
     const result = await refreshContextItems(
@@ -109,11 +105,10 @@ describe("refreshContextItems — file source", () => {
       "../../src/context/refresh.ts"
     );
     const filePath = join(tmpBase, "gone.md");
-    const item = await seedFileBackedItem({
+    const item = await seedDiskItem({
       filePath,
       initialDiskContent: "will be deleted",
       storedContent: "will be deleted",
-      contextPath: "/docs/gone.md",
     });
     await rm(filePath);
 
@@ -135,11 +130,10 @@ describe("refreshContextItems — file source", () => {
       "../../src/context/refresh.ts"
     );
     const filePath = join(tmpBase, "noembed.md");
-    const item = await seedFileBackedItem({
+    const item = await seedDiskItem({
       filePath,
       initialDiskContent: "drifted",
       storedContent: "original",
-      contextPath: "/docs/noembed.md",
     });
 
     const result = await refreshContextItems(conn, [item], configNoEmbed, null);
@@ -148,25 +142,26 @@ describe("refreshContextItems — file source", () => {
     expect(result.reembedded).toBe(0);
     expect(result.embeddings_skipped).toBe(true);
 
-    const fresh = await getContextItem(conn, item.id);
+    const fresh = await getContextItemById(conn, item.id);
     expect(fresh?.content).toBe("drifted");
   });
 
-  test("filters out items without a source_path", async () => {
+  test("skips items on drive=agent", async () => {
     const { refreshContextItems } = await import(
       "../../src/context/refresh.ts"
     );
-    const sourceless = await createContextItem(conn, {
-      title: "untethered",
-      content: "no source",
-      contextPath: "/docs/untethered.md",
+    const agent = await createContextItem(conn, {
+      title: "agent-only",
+      content: "no external origin",
+      drive: "agent",
+      path: "/docs/untethered.md",
       mimeType: "text/plain",
       isTextual: true,
     });
 
     const result = await refreshContextItems(
       conn,
-      [sourceless],
+      [agent],
       config,
       null,
       {},
@@ -182,11 +177,10 @@ describe("refreshContextItems — file source", () => {
       "../../src/context/refresh.ts"
     );
     const filePath = join(tmpBase, "progress.md");
-    const item = await seedFileBackedItem({
+    const item = await seedDiskItem({
       filePath,
       initialDiskContent: "changed",
       storedContent: "original",
-      contextPath: "/docs/progress.md",
     });
 
     const itemProgress: Array<[number, number]> = [];
@@ -214,15 +208,14 @@ describe("refreshContextItems — error handling", () => {
     const { refreshContextItems } = await import(
       "../../src/context/refresh.ts"
     );
-    // Point source_path at a directory; Bun.file().text() will throw when reading.
+    // Point disk path at a directory; Bun.file().text() will throw when reading.
     const item = await createContextItem(conn, {
       title: "bad source",
       content: "stored",
-      contextPath: "/docs/bad.md",
+      drive: "disk",
+      path: tmpBase,
       mimeType: "text/plain",
       isTextual: true,
-      sourceType: "file",
-      sourcePath: tmpBase,
     });
 
     const result = await refreshContextItems(
@@ -239,5 +232,31 @@ describe("refreshContextItems — error handling", () => {
     expect(statuses).toSatisfy(
       (s) => s.includes("error") || s.includes("missing"),
     );
+  });
+
+  test("errors for service-drive items (refresh not implemented)", async () => {
+    const { refreshContextItems } = await import(
+      "../../src/context/refresh.ts"
+    );
+    const gdoc = await createContextItem(conn, {
+      title: "some doc",
+      content: "stored",
+      drive: "google-docs",
+      path: "/abc123",
+      mimeType: "text/markdown",
+      isTextual: true,
+    });
+
+    const result = await refreshContextItems(
+      conn,
+      [gdoc],
+      config,
+      null,
+      {},
+      mockEmbed,
+    );
+
+    expect(result.items[0]?.status).toBe("error");
+    expect(result.items[0]?.error).toContain("google-docs");
   });
 });

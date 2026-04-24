@@ -10,6 +10,8 @@ import { seedDir, seedFile, setupToolContext } from "../helpers.ts";
 let conn: DbConnection;
 let ctx: ToolContext;
 
+const D = "agent";
+
 beforeEach(async () => {
   ({ conn, ctx } = await setupToolContext());
 });
@@ -18,19 +20,22 @@ beforeEach(async () => {
 
 describe("context_create_dir", () => {
   test("creates a new directory", async () => {
-    const result = await contextCreateDirTool.execute({ path: "/mydir" }, ctx);
+    const result = await contextCreateDirTool.execute(
+      { drive: D, path: "/mydir" },
+      ctx,
+    );
     expect(result.created).toBe(true);
-    expect(result.path).toBe("/mydir");
+    expect(result.ref).toBe(`${D}:/mydir`);
   });
 
   test("returns created=false if directory already exists", async () => {
     await seedDir(conn, "/existing");
     const result = await contextCreateDirTool.execute(
-      { path: "/existing" },
+      { drive: D, path: "/existing" },
       ctx,
     );
     expect(result.created).toBe(false);
-    expect(result.path).toBe("/existing");
+    expect(result.ref).toBe(`${D}:/existing`);
   });
 });
 
@@ -41,7 +46,7 @@ describe("context_list_dir", () => {
     await seedFile(conn, "/a.txt", "aaa");
     await seedFile(conn, "/b.txt", "bbb");
     const result = await contextListDirTool.execute(
-      { path: "/", recursive: true, limit: 100, offset: 0 },
+      { drive: D, path: "/", recursive: true, limit: 100, offset: 0 },
       ctx,
     );
     expect(result.total).toBeGreaterThanOrEqual(2);
@@ -56,14 +61,14 @@ describe("context_list_dir", () => {
     await seedFile(conn, "/p3.txt", "3");
 
     const page1 = await contextListDirTool.execute(
-      { path: "/", recursive: true, limit: 2, offset: 0 },
+      { drive: D, path: "/", recursive: true, limit: 2, offset: 0 },
       ctx,
     );
     expect(page1.entries.length).toBeLessThanOrEqual(2);
     expect(page1.total).toBeGreaterThanOrEqual(3);
 
     const page2 = await contextListDirTool.execute(
-      { path: "/", recursive: true, limit: 2, offset: 2 },
+      { drive: D, path: "/", recursive: true, limit: 2, offset: 2 },
       ctx,
     );
     expect(page2.entries.length).toBeGreaterThanOrEqual(1);
@@ -71,7 +76,7 @@ describe("context_list_dir", () => {
 
   test("returns empty for empty directory", async () => {
     const result = await contextListDirTool.execute(
-      { path: "/empty", recursive: true, limit: 100, offset: 0 },
+      { drive: D, path: "/empty", recursive: true, limit: 100, offset: 0 },
       ctx,
     );
     expect(result.entries).toHaveLength(0);
@@ -82,17 +87,16 @@ describe("context_list_dir", () => {
     await seedFile(conn, "/top/child.txt", "child");
     await seedFile(conn, "/top/sub/deep.txt", "deep");
     const result = await contextListDirTool.execute(
-      { path: "/top", recursive: false, limit: 100, offset: 0 },
+      { drive: D, path: "/top", recursive: false, limit: 100, offset: 0 },
       ctx,
     );
-    // Should include child.txt and sub/ directory but not deep.txt directly
     expect(result.total).toBeGreaterThanOrEqual(1);
   });
 
   test("entries include type and size", async () => {
     await seedFile(conn, "/typed.txt", "content");
     const result = await contextListDirTool.execute(
-      { path: "/", recursive: true, limit: 100, offset: 0 },
+      { drive: D, path: "/", recursive: true, limit: 100, offset: 0 },
       ctx,
     );
     const entry = result.entries.find((e) => e.name.includes("typed.txt"));
@@ -106,15 +110,21 @@ describe("context_list_dir", () => {
 
 describe("context_dir_size", () => {
   test("returns total size of files", async () => {
-    await seedFile(conn, "/size/a.txt", "hello"); // 5 bytes
-    await seedFile(conn, "/size/b.txt", "world!"); // 6 bytes
-    const result = await contextDirSizeTool.execute({ path: "/size" }, ctx);
+    await seedFile(conn, "/size/a.txt", "hello");
+    await seedFile(conn, "/size/b.txt", "world!");
+    const result = await contextDirSizeTool.execute(
+      { drive: D, path: "/size" },
+      ctx,
+    );
     expect(result.bytes).toBe(11);
     expect(result.formatted).toBeTruthy();
   });
 
   test("returns 0 for empty directory", async () => {
-    const result = await contextDirSizeTool.execute({ path: "/nothing" }, ctx);
+    const result = await contextDirSizeTool.execute(
+      { drive: D, path: "/nothing" },
+      ctx,
+    );
     expect(result.bytes).toBe(0);
     expect(result.formatted).toBe("0 B");
   });
@@ -122,7 +132,10 @@ describe("context_dir_size", () => {
   test("includes subdirectories by default", async () => {
     await seedFile(conn, "/deep/a.txt", "aaa");
     await seedFile(conn, "/deep/sub/b.txt", "bbb");
-    const result = await contextDirSizeTool.execute({ path: "/deep" }, ctx);
+    const result = await contextDirSizeTool.execute(
+      { drive: D, path: "/deep" },
+      ctx,
+    );
     expect(result.bytes).toBe(6);
   });
 });
@@ -130,14 +143,26 @@ describe("context_dir_size", () => {
 // ── context_tree ────────────────────────────────────────────────
 
 describe("context_tree", () => {
-  test("renders a tree with files", async () => {
+  test("with no drive: lists drives with counts", async () => {
+    await seedFile(conn, "/a.txt", "a");
+    await seedFile(conn, { drive: "disk", path: "/tmp/b.txt" }, "b");
+    const result = await contextTreeTool.execute(
+      { max_depth: 3, items_per_dir: 15 },
+      ctx,
+    );
+    expect(result.tree).toContain("agent:/");
+    expect(result.tree).toContain("disk:/");
+    expect(result.total_items).toBe(2);
+  });
+
+  test("renders a tree for a drive with files", async () => {
     await seedFile(conn, "/tree/a.txt", "a");
     await seedFile(conn, "/tree/sub/b.txt", "b");
     const result = await contextTreeTool.execute(
-      { path: "/tree", max_depth: 3, items_per_dir: 15 },
+      { drive: D, path: "/tree", max_depth: 3, items_per_dir: 15 },
       ctx,
     );
-    expect(result.tree).toContain("/tree");
+    expect(result.tree).toContain(`${D}:/tree`);
     expect(result.tree).toContain("a.txt");
     expect(result.tree).toContain("b.txt");
     expect(result.total_items).toBe(2);
@@ -147,7 +172,7 @@ describe("context_tree", () => {
 
   test("shows (empty) for empty directory", async () => {
     const result = await contextTreeTool.execute(
-      { path: "/void", max_depth: 3, items_per_dir: 15 },
+      { drive: D, path: "/void", max_depth: 3, items_per_dir: 15 },
       ctx,
     );
     expect(result.tree).toContain("(empty)");
@@ -160,7 +185,7 @@ describe("context_tree", () => {
       await seedFile(conn, `/many/file${i}.txt`, `content ${i}`);
     }
     const result = await contextTreeTool.execute(
-      { path: "/many", max_depth: 3, items_per_dir: 3 },
+      { drive: D, path: "/many", max_depth: 3, items_per_dir: 3 },
       ctx,
     );
     expect(result.tree).toContain("(+7 more)");
@@ -177,10 +202,9 @@ describe("context_tree", () => {
   test("respects max_depth and reports depth-limited dirs", async () => {
     await seedFile(conn, "/deep/a/b/c/file.txt", "deep");
     const result = await contextTreeTool.execute(
-      { path: "/deep", max_depth: 2, items_per_dir: 15 },
+      { drive: D, path: "/deep", max_depth: 2, items_per_dir: 15 },
       ctx,
     );
-    // a/ is depth 1, b/ is depth 2 — b should be shown but its contents not expanded
     expect(result.tree).toContain("a/");
     expect(result.tree).toContain("b/");
     expect(result.tree).not.toContain("file.txt");
@@ -193,7 +217,7 @@ describe("context_tree", () => {
     await seedFile(conn, "/count/sub/b.txt", "b");
     await seedFile(conn, "/count/sub/c.txt", "c");
     const result = await contextTreeTool.execute(
-      { path: "/count", max_depth: 5, items_per_dir: 50 },
+      { drive: D, path: "/count", max_depth: 5, items_per_dir: 50 },
       ctx,
     );
     expect(result.total_items).toBe(3);
@@ -203,7 +227,7 @@ describe("context_tree", () => {
     await seedFile(conn, "/order/zfile.txt", "z");
     await seedFile(conn, "/order/adir/x.txt", "x");
     const result = await contextTreeTool.execute(
-      { path: "/order", max_depth: 3, items_per_dir: 15 },
+      { drive: D, path: "/order", max_depth: 3, items_per_dir: 15 },
       ctx,
     );
     const adirIdx = result.tree.indexOf("adir/");

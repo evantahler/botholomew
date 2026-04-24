@@ -143,39 +143,58 @@ export async function setupToolContext(): Promise<{
   return { conn, ctx };
 }
 
-/** Seed a text file into the virtual filesystem. */
+/**
+ * Seed a text file into context.
+ * Accepts either `seedFile(conn, path, content)` — defaults to drive='agent' —
+ * or `seedFile(conn, { drive, path }, content)` for an explicit drive.
+ */
 export async function seedFile(
   conn: DbConnection,
-  path: string,
+  ref: string | { drive: string; path: string },
   content: string,
   opts?: { title?: string; description?: string },
 ) {
+  const { drive, path } =
+    typeof ref === "string" ? { drive: "agent", path: ref } : ref;
   return createContextItem(conn, {
     title: opts?.title ?? path.split("/").pop() ?? path,
     description: opts?.description,
     content,
-    contextPath: path,
+    drive,
+    path,
     mimeType: "text/plain",
     isTextual: true,
   });
 }
 
-/** Seed a binary (non-textual) file into the virtual filesystem. */
-export async function seedBinaryFile(conn: DbConnection, path: string) {
+/** Seed a binary (non-textual) file. */
+export async function seedBinaryFile(
+  conn: DbConnection,
+  ref: string | { drive: string; path: string },
+) {
+  const { drive, path } =
+    typeof ref === "string" ? { drive: "agent", path: ref } : ref;
   return createContextItem(conn, {
     title: path.split("/").pop() ?? path,
     content: undefined,
-    contextPath: path,
+    drive,
+    path,
     mimeType: "application/octet-stream",
     isTextual: false,
   });
 }
 
-/** Seed a directory entry into the virtual filesystem. */
-export async function seedDir(conn: DbConnection, path: string) {
+/** Seed a directory entry. */
+export async function seedDir(
+  conn: DbConnection,
+  ref: string | { drive: string; path: string },
+) {
+  const { drive, path } =
+    typeof ref === "string" ? { drive: "agent", path: ref } : ref;
   return createContextItem(conn, {
     title: path.split("/").pop() ?? path,
-    contextPath: path,
+    drive,
+    path,
     mimeType: "inode/directory",
     isTextual: false,
   });

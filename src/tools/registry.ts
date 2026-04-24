@@ -1,6 +1,7 @@
 // Capabilities tools
 import { capabilitiesRefreshTool } from "./capabilities/refresh.ts";
 // Context tools
+import { contextListDrivesTool } from "./context/list-drives.ts";
 import { readLargeResultTool } from "./context/read-large-result.ts";
 import { contextRefreshTool } from "./context/refresh.ts";
 import { contextSearchTool } from "./context/search.ts";
@@ -58,6 +59,7 @@ export function registerAllTools(): void {
   registerTool(viewTaskTool);
 
   // Context
+  registerTool(contextListDrivesTool);
   registerTool(contextCreateDirTool);
   registerTool(contextListDirTool);
   registerTool(contextTreeTool);

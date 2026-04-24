@@ -89,11 +89,11 @@ describe("search_grep", () => {
     expect(result.matches).toHaveLength(0);
   });
 
-  test("searches only within specified path", async () => {
+  test("searches only within specified drive and path", async () => {
     await seedFile(conn, "/a/file.txt", "target");
     await seedFile(conn, "/b/file.txt", "target");
     const result = await searchGrepTool.execute(
-      { pattern: "target", path: "/a" },
+      { pattern: "target", drive: "agent", path: "/a" },
       ctx,
     );
     expect(result.matches.length).toBe(1);

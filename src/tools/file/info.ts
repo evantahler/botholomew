@@ -1,12 +1,24 @@
 import { z } from "zod";
+import { formatDriveRef, parseDriveRef } from "../../context/drives.ts";
 import {
   findNearbyContextPaths,
-  resolveContextItem,
+  getContextItem,
+  getContextItemById,
 } from "../../db/context.ts";
+import { isUuid } from "../../db/uuid.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
-  path: z.string().describe("File path or context item ID"),
+  drive: z
+    .string()
+    .describe(
+      "Drive name (e.g. 'disk', 'url', 'agent'). Ignored when `path` is a UUID or already in `drive:/...` form.",
+    ),
+  path: z
+    .string()
+    .describe(
+      "Path within the drive (starts with /), or a bare UUID / 'drive:/path' ref.",
+    ),
 });
 
 const fileSchema = z.object({
@@ -17,8 +29,9 @@ const fileSchema = z.object({
   is_textual: z.boolean(),
   size: z.number(),
   lines: z.number(),
-  source_path: z.string().nullable(),
-  context_path: z.string(),
+  drive: z.string(),
+  path: z.string(),
+  ref: z.string(),
   indexed_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -40,20 +53,37 @@ export const contextInfoTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const item = await resolveContextItem(ctx.conn, input.path);
+    let drive = input.drive;
+    let path = input.path;
+    if (isUuid(input.path)) {
+      const byId = await getContextItemById(ctx.conn, input.path);
+      if (byId) {
+        drive = byId.drive;
+        path = byId.path;
+      }
+    } else {
+      const parsed = parseDriveRef(input.path);
+      if (parsed) {
+        drive = parsed.drive;
+        path = parsed.path;
+      }
+    }
+
+    const item = await getContextItem(ctx.conn, { drive, path });
     if (!item) {
       const { parent, siblings, walkedUp } = await findNearbyContextPaths(
         ctx.conn,
-        input.path,
+        drive,
+        path,
       );
       const hint =
         siblings.length > 0
-          ? `${walkedUp ? `Parent ${parent} has no direct entries; ` : ""}Nearby paths under ${parent}: ${siblings.join(", ")}. Call context_tree({path:"${parent}"}) to see more.`
-          : `No items found under ${parent}. Call context_tree({path:"/"}) to discover what exists.`;
+          ? `${walkedUp ? `Parent ${parent} has no direct entries; ` : ""}Nearby items under ${parent}: ${siblings.join(", ")}. Call context_tree({drive:"${drive}",path:"${parent.replace(/^[^:]*:/, "")}"}) to see more.`
+          : `No items found under ${parent}. Call context_list_drives to see which drives exist.`;
       return {
         is_error: true,
         error_type: "not_found",
-        message: `No context item at ${input.path}`,
+        message: `No context item at ${formatDriveRef({ drive, path })}`,
         next_action_hint: hint,
       };
     }
@@ -68,8 +98,9 @@ export const contextInfoTool = {
         is_textual: item.is_textual,
         size: content.length,
         lines: content ? content.split("\n").length : 0,
-        source_path: item.source_path,
-        context_path: item.context_path,
+        drive: item.drive,
+        path: item.path,
+        ref: formatDriveRef(item),
         indexed_at: item.indexed_at?.toISOString() ?? null,
         created_at: item.created_at.toISOString(),
         updated_at: item.updated_at.toISOString(),

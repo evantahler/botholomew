@@ -3,6 +3,7 @@ import type { Command } from "commander";
 import { z } from "zod";
 import { loadConfig } from "../config/loader.ts";
 import { getDbPath } from "../constants.ts";
+import { parseDriveRef } from "../context/drives.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
   type AnyToolDefinition,
@@ -143,11 +144,23 @@ function buildInput(
 ): Record<string, unknown> {
   const input: Record<string, unknown> = {};
 
-  // Positional args come first in Commander's action callback
+  // Positional args come first in Commander's action callback. Context tools
+  // carry `(drive, path)` or `(src_drive, src_path, …)` in their schema but
+  // accept a friendlier `drive:/path` form as a single positional on the CLI.
   for (let i = 0; i < positionals.length; i++) {
     const key = positionals[i]?.replace(/[<>[\]]/g, "");
     const value = args[i];
-    if (key !== undefined && value !== undefined) input[key] = value;
+    if (key === undefined || value === undefined) continue;
+    const splitTargets = driveRefSplitTargets(key, shape);
+    if (splitTargets && typeof value === "string") {
+      const parsed = parseDriveRef(value);
+      if (parsed) {
+        input[splitTargets.drive] = parsed.drive;
+        input[splitTargets.path] = parsed.path;
+        continue;
+      }
+    }
+    input[key] = value;
   }
 
   // Options object is the last argument before the Command object
@@ -287,4 +300,25 @@ function unwrapOptional(schema: z.ZodType): z.ZodType {
     return schema.unwrap() as z.ZodType;
   }
   return schema;
+}
+
+/**
+ * Decide how to expand a positional `path`/`src`/`dst` value into the tool's
+ * schema when it carries a `drive:/path` prefix. Returns the drive+path field
+ * names in the schema, or null if the schema has no matching drive field.
+ */
+function driveRefSplitTargets(
+  positionalKey: string,
+  shape: Record<string, z.ZodType>,
+): { drive: string; path: string } | null {
+  if (positionalKey === "path" && "drive" in shape && "path" in shape) {
+    return { drive: "drive", path: "path" };
+  }
+  if (positionalKey === "src" && "src_drive" in shape && "src_path" in shape) {
+    return { drive: "src_drive", path: "src_path" };
+  }
+  if (positionalKey === "dst" && "dst_drive" in shape && "dst_path" in shape) {
+    return { drive: "dst_drive", path: "dst_path" };
+  }
+  return null;
 }

@@ -1,4 +1,9 @@
 import { resolve as resolvePath } from "node:path";
+import {
+  type DriveTarget,
+  formatDriveRef,
+  parseDriveRef,
+} from "../context/drives.ts";
 import type { DbConnection } from "./connection.ts";
 import { buildSetClauses, buildWhereClause, sanitizeInt } from "./query.ts";
 import { isUuid, uuidv7 } from "./uuid.ts";
@@ -10,9 +15,8 @@ export interface ContextItem {
   content: string | null;
   mime_type: string;
   is_textual: boolean;
-  source_type: "file" | "url";
-  source_path: string | null;
-  context_path: string;
+  drive: string;
+  path: string;
   indexed_at: Date | null;
   created_at: Date;
   updated_at: Date;
@@ -32,9 +36,8 @@ interface ContextItemRow {
   content_blob: unknown;
   mime_type: string;
   is_textual: boolean;
-  source_type: string;
-  source_path: string | null;
-  context_path: string;
+  drive: string;
+  path: string;
   indexed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -48,9 +51,8 @@ function rowToContextItem(row: ContextItemRow): ContextItem {
     content: row.content,
     mime_type: row.mime_type,
     is_textual: !!row.is_textual,
-    source_type: row.source_type as "file" | "url",
-    source_path: row.source_path,
-    context_path: row.context_path,
+    drive: row.drive,
+    path: row.path,
     indexed_at: row.indexed_at ? new Date(row.indexed_at) : null,
     created_at: new Date(row.created_at),
     updated_at: new Date(row.updated_at),
@@ -59,12 +61,14 @@ function rowToContextItem(row: ContextItemRow): ContextItem {
 
 export class PathConflictError extends Error {
   existingId: string;
-  contextPath: string;
-  constructor(existingId: string, contextPath: string) {
-    super(`context_path already exists: ${contextPath}`);
+  drive: string;
+  path: string;
+  constructor(existingId: string, target: DriveTarget) {
+    super(`Path already exists: ${formatDriveRef(target)}`);
     this.name = "PathConflictError";
     this.existingId = existingId;
-    this.contextPath = contextPath;
+    this.drive = target.drive;
+    this.path = target.path;
   }
 }
 
@@ -76,17 +80,16 @@ export async function createContextItem(
     title: string;
     content?: string;
     mimeType?: string;
-    sourceType?: "file" | "url";
-    sourcePath?: string;
-    contextPath: string;
+    drive: string;
+    path: string;
     description?: string;
     isTextual?: boolean;
   },
 ): Promise<ContextItem> {
   const id = uuidv7();
   const row = await db.queryGet<ContextItemRow>(
-    `INSERT INTO context_items (id, title, description, content, mime_type, is_textual, source_type, source_path, context_path)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+    `INSERT INTO context_items (id, title, description, content, mime_type, is_textual, drive, path)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
      RETURNING *`,
     id,
     params.title,
@@ -94,16 +97,15 @@ export async function createContextItem(
     params.content ?? null,
     params.mimeType ?? "text/plain",
     params.isTextual !== false,
-    params.sourceType ?? "file",
-    params.sourcePath ?? null,
-    params.contextPath,
+    params.drive,
+    params.path,
   );
   if (!row) throw new Error("INSERT did not return a row");
   return rowToContextItem(row);
 }
 
 /**
- * Atomic upsert by context_path: updates if the path exists, inserts otherwise.
+ * Atomic upsert by (drive, path): updates if the pair exists, inserts otherwise.
  *
  * DuckDB implements UPDATE as delete+insert on tables with unique indexes,
  * which violates foreign keys from the embeddings table. We must delete
@@ -116,28 +118,33 @@ export async function upsertContextItem(
     title: string;
     content?: string;
     mimeType?: string;
-    sourceType?: "file" | "url";
-    sourcePath?: string;
-    contextPath: string;
+    drive: string;
+    path: string;
     description?: string;
     isTextual?: boolean;
   },
 ): Promise<ContextItem> {
-  const existing = await getContextItemByPath(db, params.contextPath);
+  const existing = await getContextItem(db, {
+    drive: params.drive,
+    path: params.path,
+  });
   if (existing) {
     const updated = await updateContextItem(db, existing.id, {
       title: params.title,
       content: params.content,
       mime_type: params.mimeType,
     });
-    if (!updated) throw new Error(`Failed to update: ${params.contextPath}`);
+    if (!updated)
+      throw new Error(
+        `Failed to update: ${formatDriveRef({ drive: params.drive, path: params.path })}`,
+      );
     return updated;
   }
   return createContextItem(db, params);
 }
 
 /**
- * Strict creator: throws PathConflictError if context_path already exists.
+ * Strict creator: throws PathConflictError if (drive, path) already exists.
  * Use when callers want to surface collisions instead of silently overwriting.
  */
 export async function createContextItemStrict(
@@ -146,19 +153,25 @@ export async function createContextItemStrict(
     title: string;
     content?: string;
     mimeType?: string;
-    sourceType?: "file" | "url";
-    sourcePath?: string;
-    contextPath: string;
+    drive: string;
+    path: string;
     description?: string;
     isTextual?: boolean;
   },
 ): Promise<ContextItem> {
-  const existing = await getContextItemByPath(db, params.contextPath);
-  if (existing) throw new PathConflictError(existing.id, params.contextPath);
+  const existing = await getContextItem(db, {
+    drive: params.drive,
+    path: params.path,
+  });
+  if (existing)
+    throw new PathConflictError(existing.id, {
+      drive: params.drive,
+      path: params.path,
+    });
   return createContextItem(db, params);
 }
 
-export async function getContextItem(
+export async function getContextItemById(
   db: DbConnection,
   id: string,
 ): Promise<ContextItem | null> {
@@ -169,51 +182,38 @@ export async function getContextItem(
   return row ? rowToContextItem(row) : null;
 }
 
-export async function getContextItemByPath(
+export async function getContextItem(
   db: DbConnection,
-  contextPath: string,
+  target: DriveTarget,
 ): Promise<ContextItem | null> {
   const row = await db.queryGet<ContextItemRow>(
-    "SELECT * FROM context_items WHERE context_path = ?1",
-    contextPath,
-  );
-  return row ? rowToContextItem(row) : null;
-}
-
-export async function getContextItemBySourcePath(
-  db: DbConnection,
-  sourcePath: string,
-  sourceType: "file" | "url",
-): Promise<ContextItem | null> {
-  const row = await db.queryGet<ContextItemRow>(
-    "SELECT * FROM context_items WHERE source_path = ?1 AND source_type = ?2 LIMIT 1",
-    sourcePath,
-    sourceType,
+    "SELECT * FROM context_items WHERE drive = ?1 AND path = ?2",
+    target.drive,
+    target.path,
   );
   return row ? rowToContextItem(row) : null;
 }
 
 /**
- * Look up a context item by UUID, `context_path`, or `source_path`.
+ * Look up a context item by UUID, `drive:/path`, or bare filesystem path
+ * (resolved against cwd and treated as `disk:/...`).
  *
- * `source_path` fallbacks let users pass the same argument they used for
- * `context add` (e.g. a bare `README.md`) to management commands like
- * `context refresh` / `context chunks`. Relative file paths are resolved
- * against `process.cwd()` to match the absolute `source_path` stored on add.
+ * The bare-path fallback lets users pass the same argument they used for
+ * `context add` (e.g. a relative `README.md`) to management commands like
+ * `context refresh` / `context chunks`.
  */
 export async function resolveContextItem(
   db: DbConnection,
-  pathOrId: string,
+  ref: string,
 ): Promise<ContextItem | null> {
-  if (isUuid(pathOrId)) return getContextItem(db, pathOrId);
+  if (isUuid(ref)) return getContextItemById(db, ref);
 
-  const byContextPath = await getContextItemByPath(db, pathOrId);
-  if (byContextPath) return byContextPath;
+  const parsed = parseDriveRef(ref);
+  if (parsed) return getContextItem(db, parsed);
 
-  const byUrl = await getContextItemBySourcePath(db, pathOrId, "url");
-  if (byUrl) return byUrl;
-
-  return getContextItemBySourcePath(db, resolvePath(pathOrId), "file");
+  // Bare filesystem path — try the `disk` drive with an absolute path.
+  const absolute = resolvePath(ref);
+  return getContextItem(db, { drive: "disk", path: absolute });
 }
 
 /**
@@ -221,17 +221,17 @@ export async function resolveContextItem(
  */
 export async function resolveContextItemOrThrow(
   db: DbConnection,
-  pathOrId: string,
+  ref: string,
 ): Promise<ContextItem> {
-  const item = await resolveContextItem(db, pathOrId);
-  if (!item) throw new Error(`Not found: ${pathOrId}`);
+  const item = await resolveContextItem(db, ref);
+  if (!item) throw new Error(`Not found: ${ref}`);
   return item;
 }
 
 export interface NearbyContextPaths {
   /** Directory we found neighbours under (may be an ancestor if the direct parent was empty). */
   parent: string;
-  /** Exact `context_path` values of the parent's immediate children. */
+  /** Exact `drive:/path` values of the parent's immediate children. */
   siblings: string[];
   /** True if we walked up from the requested path's direct parent to find a populated ancestor. */
   walkedUp: boolean;
@@ -239,26 +239,27 @@ export interface NearbyContextPaths {
 
 /**
  * Find context items near a requested path to power "did you mean?" suggestions
- * when a lookup misses. Returns up to `limit` exact `context_path` values of the
- * requested path's parent-dir neighbours; if the parent has no rows, walks up
- * until it finds a populated ancestor (or hits root).
+ * when a lookup misses. Returns up to `limit` immediate neighbours within the
+ * same drive; if the parent has no rows, walks up until it finds a populated
+ * ancestor (or hits root).
  */
 export async function findNearbyContextPaths(
   db: DbConnection,
+  drive: string,
   requestedPath: string,
   limit = 5,
 ): Promise<NearbyContextPaths> {
   let parent = parentDir(requestedPath);
   let walkedUp = false;
   while (true) {
-    const items = await listContextItemsByPrefix(db, parent, {
+    const items = await listContextItemsByPrefix(db, drive, parent, {
       recursive: false,
       limit,
     });
     if (items.length > 0 || parent === "/") {
       return {
-        parent,
-        siblings: items.map((i) => i.context_path),
+        parent: `${drive}:${parent}`,
+        siblings: items.map((i) => formatDriveRef(i)),
         walkedUp,
       };
     }
@@ -278,21 +279,21 @@ function parentDir(p: string): string {
 export async function listContextItems(
   db: DbConnection,
   filters?: {
-    contextPath?: string;
+    drive?: string;
     mimeType?: string;
     limit?: number;
     offset?: number;
   },
 ): Promise<ContextItem[]> {
   const { where, params } = buildWhereClause([
-    ["context_path", filters?.contextPath],
+    ["drive", filters?.drive],
     ["mime_type", filters?.mimeType],
   ]);
   const limit = filters?.limit ? `LIMIT ${sanitizeInt(filters.limit)}` : "";
   const offset = filters?.offset ? `OFFSET ${sanitizeInt(filters.offset)}` : "";
 
   const rows = await db.queryAll<ContextItemRow>(
-    `SELECT * FROM context_items ${where} ORDER BY context_path ASC ${limit} ${offset}`,
+    `SELECT * FROM context_items ${where} ORDER BY drive ASC, path ASC, id ASC ${limit} ${offset}`,
     ...params,
   );
   return rows.map(rowToContextItem);
@@ -300,6 +301,7 @@ export async function listContextItems(
 
 export async function listContextItemsByPrefix(
   db: DbConnection,
+  drive: string,
   prefix: string,
   opts?: { recursive?: boolean; limit?: number; offset?: number },
 ): Promise<ContextItem[]> {
@@ -312,17 +314,18 @@ export async function listContextItemsByPrefix(
   if (opts?.recursive) {
     rows = await db.queryAll<ContextItemRow>(
       `SELECT * FROM context_items
-       WHERE context_path LIKE ?1
-       ORDER BY context_path ASC ${limit} ${offset}`,
+       WHERE drive = ?1 AND path LIKE ?2
+       ORDER BY path ASC, id ASC ${limit} ${offset}`,
+      drive,
       `${normalizedPrefix}%`,
     );
   } else {
-    // Only immediate children: match prefix but no further slashes
     rows = await db.queryAll<ContextItemRow>(
       `SELECT * FROM context_items
-       WHERE context_path LIKE ?1
-         AND context_path NOT LIKE ?2
-       ORDER BY context_path ASC ${limit} ${offset}`,
+       WHERE drive = ?1 AND path LIKE ?2
+         AND path NOT LIKE ?3
+       ORDER BY path ASC, id ASC ${limit} ${offset}`,
+      drive,
       `${normalizedPrefix}%`,
       `${normalizedPrefix}%/%`,
     );
@@ -333,17 +336,19 @@ export async function listContextItemsByPrefix(
 
 export async function contextPathExists(
   db: DbConnection,
-  contextPath: string,
+  target: DriveTarget,
 ): Promise<boolean> {
   const row = await db.queryGet(
-    "SELECT 1 AS found FROM context_items WHERE context_path = ?1 LIMIT 1",
-    contextPath,
+    "SELECT 1 AS found FROM context_items WHERE drive = ?1 AND path = ?2 LIMIT 1",
+    target.drive,
+    target.path,
   );
   return row != null;
 }
 
 export async function countContextItemsByPrefix(
   db: DbConnection,
+  drive: string,
   prefix: string,
   opts?: { recursive?: boolean },
 ): Promise<number> {
@@ -351,13 +356,15 @@ export async function countContextItemsByPrefix(
   let row: { cnt: number } | null;
   if (opts?.recursive !== false) {
     row = await db.queryGet<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM context_items WHERE context_path LIKE ?1`,
+      `SELECT COUNT(*) AS cnt FROM context_items WHERE drive = ?1 AND path LIKE ?2`,
+      drive,
       `${normalizedPrefix}%`,
     );
   } else {
     row = await db.queryGet<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM context_items
-       WHERE context_path LIKE ?1 AND context_path NOT LIKE ?2`,
+       WHERE drive = ?1 AND path LIKE ?2 AND path NOT LIKE ?3`,
+      drive,
       `${normalizedPrefix}%`,
       `${normalizedPrefix}%/%`,
     );
@@ -367,6 +374,7 @@ export async function countContextItemsByPrefix(
 
 export async function getDistinctDirectories(
   db: DbConnection,
+  drive: string,
   prefix?: string,
 ): Promise<string[]> {
   const normalizedPrefix = prefix
@@ -379,18 +387,33 @@ export async function getDistinctDirectories(
   const rows = await db.queryAll<{ dir: string }>(
     `SELECT DISTINCT
         ?1 || CASE
-          WHEN strpos(substr(context_path, length(?1) + 1), '/') > 0
-          THEN substr(substr(context_path, length(?1) + 1), 1, strpos(substr(context_path, length(?1) + 1), '/') - 1)
-          ELSE substr(context_path, length(?1) + 1)
+          WHEN strpos(substr(path, length(?1) + 1), '/') > 0
+          THEN substr(substr(path, length(?1) + 1), 1, strpos(substr(path, length(?1) + 1), '/') - 1)
+          ELSE substr(path, length(?1) + 1)
         END AS dir
       FROM context_items
-      WHERE context_path LIKE ?2
+      WHERE drive = ?2 AND path LIKE ?3
       ORDER BY dir ASC`,
     normalizedPrefix,
+    drive,
     `${normalizedPrefix}%/%`,
   );
 
   return rows.map((row) => row.dir);
+}
+
+export interface DriveSummary {
+  drive: string;
+  count: number;
+}
+
+export async function listDriveSummaries(
+  db: DbConnection,
+): Promise<DriveSummary[]> {
+  const rows = await db.queryAll<{ drive: string; cnt: number }>(
+    "SELECT drive, COUNT(*) AS cnt FROM context_items GROUP BY drive ORDER BY drive ASC",
+  );
+  return rows.map((r) => ({ drive: r.drive, count: Number(r.cnt) }));
 }
 
 // --- Mutations ---
@@ -422,32 +445,34 @@ export async function updateContextItem(
      WHERE id = ?${params.length}`,
     ...params,
   );
-  return getContextItem(db, id);
+  return getContextItemById(db, id);
 }
 
 export async function updateContextItemContent(
   db: DbConnection,
-  contextPath: string,
+  target: DriveTarget,
   content: string,
 ): Promise<ContextItem | null> {
   await db.queryRun(
     `UPDATE context_items
      SET content = ?1, updated_at = current_timestamp::VARCHAR
-     WHERE context_path = ?2`,
+     WHERE drive = ?2 AND path = ?3`,
     content,
-    contextPath,
+    target.drive,
+    target.path,
   );
-  return getContextItemByPath(db, contextPath);
+  return getContextItem(db, target);
 }
 
 export async function applyPatchesToContextItem(
   db: DbConnection,
-  contextPath: string,
+  target: DriveTarget,
   patches: Patch[],
 ): Promise<{ item: ContextItem; applied: number }> {
-  const item = await getContextItemByPath(db, contextPath);
-  if (!item) throw new Error(`Not found: ${contextPath}`);
-  if (item.content == null) throw new Error(`No text content: ${contextPath}`);
+  const item = await getContextItem(db, target);
+  if (!item) throw new Error(`Not found: ${formatDriveRef(target)}`);
+  if (item.content == null)
+    throw new Error(`No text content: ${formatDriveRef(target)}`);
 
   const lines = item.content.split("\n");
 
@@ -468,45 +493,47 @@ export async function applyPatchesToContextItem(
   }
 
   const newContent = lines.join("\n");
-  const updated = await updateContextItemContent(db, contextPath, newContent);
-  if (!updated) throw new Error(`Failed to update: ${contextPath}`);
+  const updated = await updateContextItemContent(db, target, newContent);
+  if (!updated) throw new Error(`Failed to update: ${formatDriveRef(target)}`);
   return { item: updated, applied: patches.length };
 }
 
 export async function copyContextItem(
   db: DbConnection,
-  srcPath: string,
-  dstPath: string,
+  src: DriveTarget,
+  dst: DriveTarget,
 ): Promise<ContextItem> {
-  const src = await getContextItemByPath(db, srcPath);
-  if (!src) throw new Error(`Not found: ${srcPath}`);
+  const source = await getContextItem(db, src);
+  if (!source) throw new Error(`Not found: ${formatDriveRef(src)}`);
 
   return createContextItem(db, {
-    title: src.title,
-    description: src.description,
-    content: src.content ?? undefined,
-    mimeType: src.mime_type,
-    sourcePath: src.source_path ?? undefined,
-    contextPath: dstPath,
-    isTextual: src.is_textual,
+    title: source.title,
+    description: source.description,
+    content: source.content ?? undefined,
+    mimeType: source.mime_type,
+    drive: dst.drive,
+    path: dst.path,
+    isTextual: source.is_textual,
   });
 }
 
 export async function moveContextItem(
   db: DbConnection,
-  oldPath: string,
-  newPath: string,
+  src: DriveTarget,
+  dst: DriveTarget,
 ): Promise<void> {
   const row = await db.queryGet(
     `UPDATE context_items
-     SET context_path = ?1, updated_at = current_timestamp::VARCHAR
-     WHERE context_path = ?2
+     SET drive = ?1, path = ?2, updated_at = current_timestamp::VARCHAR
+     WHERE drive = ?3 AND path = ?4
      RETURNING id`,
-    newPath,
-    oldPath,
+    dst.drive,
+    dst.path,
+    src.drive,
+    src.path,
   );
   if (!row) {
-    throw new Error(`Not found: ${oldPath}`);
+    throw new Error(`Not found: ${formatDriveRef(src)}`);
   }
 }
 
@@ -527,10 +554,9 @@ export async function deleteContextItem(
 
 export async function deleteContextItemByPath(
   db: DbConnection,
-  contextPath: string,
+  target: DriveTarget,
 ): Promise<boolean> {
-  // Get ID first so we can cascade embeddings
-  const item = await getContextItemByPath(db, contextPath);
+  const item = await getContextItem(db, target);
   if (!item) return false;
   return deleteContextItem(db, item.id);
 }
@@ -548,6 +574,7 @@ export async function deleteAllContextItems(
 
 export async function deleteContextItemsByPrefix(
   db: DbConnection,
+  drive: string,
   prefix: string,
 ): Promise<number> {
   const normalizedPrefix = prefix.endsWith("/") ? prefix : `${prefix}/`;
@@ -557,15 +584,17 @@ export async function deleteContextItemsByPrefix(
     `DELETE FROM embeddings
      WHERE context_item_id IN (
        SELECT id FROM context_items
-       WHERE context_path LIKE ?1
+       WHERE drive = ?1 AND path LIKE ?2
      )`,
+    drive,
     `${normalizedPrefix}%`,
   );
 
   const rows = await db.queryAll(
     `DELETE FROM context_items
-     WHERE context_path LIKE ?1
+     WHERE drive = ?1 AND path LIKE ?2
      RETURNING id`,
+    drive,
     `${normalizedPrefix}%`,
   );
   return rows.length;

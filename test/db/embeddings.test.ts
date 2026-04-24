@@ -34,7 +34,8 @@ async function makeContextItem(title: string) {
   return await createContextItem(conn, {
     title,
     content: `Content for ${title}`,
-    contextPath: `/${title.toLowerCase().replace(/\s+/g, "-")}`,
+    drive: "agent",
+    path: `/${title.toLowerCase().replace(/\s+/g, "-")}`,
     mimeType: "text/plain",
     isTextual: true,
   });

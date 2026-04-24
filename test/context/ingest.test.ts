@@ -7,7 +7,7 @@ import {
   prepareIngestion,
 } from "../../src/context/ingest.ts";
 import type { DbConnection } from "../../src/db/connection.ts";
-import { createContextItem, getContextItem } from "../../src/db/context.ts";
+import { createContextItem, getContextItemById } from "../../src/db/context.ts";
 import { searchEmbeddings } from "../../src/db/embeddings.ts";
 import { setupTestDb } from "../helpers.ts";
 
@@ -17,12 +17,10 @@ const config = { ...DEFAULT_CONFIG };
 function mockEmbed(texts: string[]): Promise<number[][]> {
   return Promise.resolve(
     texts.map((text) => {
-      // Simple hash-based vector for deterministic results
       const vec = new Array(EMBEDDING_DIMENSION).fill(0);
       for (let i = 0; i < text.length; i++) {
         vec[i % EMBEDDING_DIMENSION] += text.charCodeAt(i) / 1000;
       }
-      // Normalize
       const norm = Math.sqrt(
         vec.reduce((s: number, v: number) => s + v * v, 0),
       );
@@ -42,7 +40,8 @@ describe("ingestContextItem", () => {
     const item = await createContextItem(conn, {
       title: "test doc",
       content: "This is a test document with some content.",
-      contextPath: "/test/doc.md",
+      drive: "agent",
+      path: "/test/doc.md",
       mimeType: "text/plain",
       isTextual: true,
     });
@@ -50,7 +49,6 @@ describe("ingestContextItem", () => {
     const count = await ingestContextItem(conn, item.id, config, mockEmbed);
     expect(count).toBeGreaterThan(0);
 
-    // Verify embeddings are stored
     const results = await searchEmbeddings(
       conn,
       await mockEmbed(["test"]).then((r) => r[0] ?? []),
@@ -63,7 +61,8 @@ describe("ingestContextItem", () => {
     const item = await createContextItem(conn, {
       title: "indexed check",
       content: "Some content to index.",
-      contextPath: "/test/indexed.md",
+      drive: "agent",
+      path: "/test/indexed.md",
       mimeType: "text/plain",
       isTextual: true,
     });
@@ -72,14 +71,15 @@ describe("ingestContextItem", () => {
 
     await ingestContextItem(conn, item.id, config, mockEmbed);
 
-    const updated = await getContextItem(conn, item.id);
+    const updated = await getContextItemById(conn, item.id);
     expect(updated?.indexed_at).not.toBeNull();
   });
 
   test("skips non-textual items", async () => {
     const item = await createContextItem(conn, {
       title: "binary file",
-      contextPath: "/test/image.png",
+      drive: "agent",
+      path: "/test/image.png",
       mimeType: "image/png",
       isTextual: false,
     });
@@ -91,7 +91,8 @@ describe("ingestContextItem", () => {
   test("skips items with no content", async () => {
     const item = await createContextItem(conn, {
       title: "empty file",
-      contextPath: "/test/empty.md",
+      drive: "agent",
+      path: "/test/empty.md",
       mimeType: "text/plain",
       isTextual: true,
     });
@@ -104,7 +105,8 @@ describe("ingestContextItem", () => {
     const item = await createContextItem(conn, {
       title: "re-index test",
       content: "Original content for re-indexing.",
-      contextPath: "/test/reindex.md",
+      drive: "agent",
+      path: "/test/reindex.md",
       mimeType: "text/plain",
       isTextual: true,
     });
@@ -112,11 +114,9 @@ describe("ingestContextItem", () => {
     const count1 = await ingestContextItem(conn, item.id, config, mockEmbed);
     expect(count1).toBeGreaterThan(0);
 
-    // Re-ingest should not double the embeddings
     const count2 = await ingestContextItem(conn, item.id, config, mockEmbed);
     expect(count2).toBe(count1);
 
-    // Total embeddings should match the latest ingest
     const allResults = await searchEmbeddings(
       conn,
       await mockEmbed(["test"]).then((r) => r[0] ?? []),
@@ -142,10 +142,10 @@ describe("prepareIngestion", () => {
       title: "My Report",
       description: "Quarterly revenue summary",
       content: "Some content to embed.",
-      contextPath: "/docs/report.md",
+      drive: "disk",
+      path: "/home/user/report.md",
       mimeType: "text/plain",
       isTextual: true,
-      sourcePath: "/home/user/report.md",
     });
 
     const capturedTexts: string[][] = [];
@@ -167,27 +167,27 @@ describe("prepareIngestion", () => {
     const embeddedText = capturedTexts[0]?.[0];
     expect(embeddedText).toStartWith("Title: My Report\n");
     expect(embeddedText).toContain("Description: Quarterly revenue summary\n");
-    expect(embeddedText).toContain("Source: /home/user/report.md\n");
+    expect(embeddedText).toContain("Source: disk:/home/user/report.md\n");
     expect(embeddedText).toContain("Some content to embed.");
 
-    // Raw chunk content should NOT contain metadata prefix
     expect(prepared?.chunks[0]?.content).toBe("Some content to embed.");
   });
 });
 
 describe("ingestByPath", () => {
-  test("ingests by virtual path", async () => {
+  test("ingests by (drive, path)", async () => {
     await createContextItem(conn, {
       title: "path test",
       content: "Content to find by path.",
-      contextPath: "/notes/find-me.md",
+      drive: "agent",
+      path: "/notes/find-me.md",
       mimeType: "text/plain",
       isTextual: true,
     });
 
     const count = await ingestByPath(
       conn,
-      "/notes/find-me.md",
+      { drive: "agent", path: "/notes/find-me.md" },
       config,
       mockEmbed,
     );
@@ -197,7 +197,7 @@ describe("ingestByPath", () => {
   test("returns 0 for non-existent path", async () => {
     const count = await ingestByPath(
       conn,
-      "/no/such/path.md",
+      { drive: "agent", path: "/no/such/path.md" },
       config,
       mockEmbed,
     );

@@ -1,9 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  isUrl,
-  stripHtmlTags,
-  urlToContextPath,
-} from "../../src/context/url-utils.ts";
+import { isUrl, stripHtmlTags } from "../../src/context/url-utils.ts";
 
 describe("isUrl", () => {
   test("returns true for http URLs", () => {
@@ -33,48 +29,6 @@ describe("isUrl", () => {
 
   test("returns false for plain text", () => {
     expect(isUrl("just some words")).toBe(false);
-  });
-});
-
-describe("urlToContextPath", () => {
-  test("derives path from a simple URL", () => {
-    const result = urlToContextPath("https://example.com/page", "/");
-    expect(result).toBe("/example.com/page.md");
-  });
-
-  test("derives path with prefix", () => {
-    const result = urlToContextPath("https://example.com/page", "/articles");
-    expect(result).toBe("/articles/example.com/page.md");
-  });
-
-  test("slugifies special characters in path", () => {
-    const result = urlToContextPath(
-      "https://docs.google.com/document/d/abc123/edit",
-      "/",
-    );
-    expect(result).toBe("/docs.google.com/document-d-abc123-edit.md");
-  });
-
-  test("handles URL with no path", () => {
-    const result = urlToContextPath("https://example.com", "/");
-    expect(result).toBe("/example.com.md");
-  });
-
-  test("handles URL with trailing slash", () => {
-    const result = urlToContextPath("https://example.com/page/", "/");
-    expect(result).toBe("/example.com/page.md");
-  });
-
-  test("truncates long URLs to 120 characters", () => {
-    const longPath = "a".repeat(200);
-    const result = urlToContextPath(`https://example.com/${longPath}`, "/");
-    expect(result.length).toBeLessThanOrEqual(120);
-    expect(result).toEndWith(".md");
-  });
-
-  test("strips trailing slash from prefix", () => {
-    const result = urlToContextPath("https://example.com/page", "/docs/");
-    expect(result).toBe("/docs/example.com/page.md");
   });
 });
 

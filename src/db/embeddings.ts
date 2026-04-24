@@ -13,7 +13,6 @@ export interface Embedding {
   chunk_content: string | null;
   title: string;
   description: string;
-  source_path: string | null;
   embedding: number[];
   created_at: Date;
 }
@@ -29,7 +28,6 @@ interface EmbeddingRow {
   chunk_content: string | null;
   title: string;
   description: string;
-  source_path: string | null;
   embedding: number[] | null;
   created_at: string;
 }
@@ -42,7 +40,6 @@ function rowToEmbedding(row: EmbeddingRow): Embedding {
     chunk_content: row.chunk_content,
     title: row.title,
     description: row.description,
-    source_path: row.source_path,
     embedding: row.embedding ?? [],
     created_at: new Date(row.created_at),
   };
@@ -56,21 +53,19 @@ export async function createEmbedding(
     chunkContent: string | null;
     title: string;
     description?: string;
-    sourcePath?: string | null;
     embedding: number[];
   },
 ): Promise<Embedding> {
   const id = uuidv7();
   await conn.queryRun(
-    `INSERT INTO embeddings (id, context_item_id, chunk_index, chunk_content, title, description, source_path, embedding)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8::FLOAT[${EMBEDDING_DIMENSION}])`,
+    `INSERT INTO embeddings (id, context_item_id, chunk_index, chunk_content, title, description, embedding)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7::FLOAT[${EMBEDDING_DIMENSION}])`,
     id,
     params.contextItemId,
     params.chunkIndex,
     params.chunkContent,
     params.title,
     params.description ?? "",
-    params.sourcePath ?? null,
     params.embedding,
   );
 
@@ -81,7 +76,6 @@ export async function createEmbedding(
     chunk_content: params.chunkContent,
     title: params.title,
     description: params.description ?? "",
-    source_path: params.sourcePath ?? null,
     embedding: params.embedding,
     created_at: new Date(),
   };
@@ -139,15 +133,19 @@ export async function searchEmbeddings(
   }));
 }
 
+export interface HybridSearchResult extends EmbeddingSearchResult {
+  drive: string | null;
+  path: string | null;
+}
+
 export async function hybridSearch(
   conn: DbConnection,
   query: string,
   queryEmbedding: number[],
   limit = 10,
-): Promise<EmbeddingSearchResult[]> {
+): Promise<HybridSearchResult[]> {
   const k = 60; // RRF constant
 
-  // Keyword search: match on chunk_content and title
   const keywordRows = await conn.queryAll<EmbeddingRow>(
     `SELECT * FROM embeddings
      WHERE chunk_content ILIKE '%' || ?1 || '%'
@@ -158,10 +156,8 @@ export async function hybridSearch(
 
   const keywordRanked = keywordRows.map(rowToEmbedding);
 
-  // Vector search via DuckDB VSS
   const vectorResults = await searchEmbeddings(conn, queryEmbedding, 100);
 
-  // Reciprocal rank fusion
   const scores = new Map<string, { embedding: Embedding; score: number }>();
 
   for (const [i, emb] of keywordRanked.entries()) {
@@ -187,8 +183,31 @@ export async function hybridSearch(
   const merged = Array.from(scores.values());
   merged.sort((a, b) => b.score - a.score);
 
-  return merged.slice(0, limit).map((entry) => ({
-    ...entry.embedding,
-    score: entry.score,
-  }));
+  const top = merged.slice(0, limit);
+  if (top.length === 0) return [];
+
+  // Look up drive + path from context_items for each surviving embedding
+  const itemIds = Array.from(
+    new Set(top.map((t) => t.embedding.context_item_id)),
+  );
+  const placeholders = itemIds.map((_, i) => `?${i + 1}`).join(", ");
+  const itemRows = await conn.queryAll<{
+    id: string;
+    drive: string;
+    path: string;
+  }>(
+    `SELECT id, drive, path FROM context_items WHERE id IN (${placeholders})`,
+    ...itemIds,
+  );
+  const itemIndex = new Map(itemRows.map((r) => [r.id, r]));
+
+  return top.map((entry) => {
+    const item = itemIndex.get(entry.embedding.context_item_id);
+    return {
+      ...entry.embedding,
+      score: entry.score,
+      drive: item?.drive ?? null,
+      path: item?.path ?? null,
+    };
+  });
 }

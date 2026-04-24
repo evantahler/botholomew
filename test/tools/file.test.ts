@@ -15,6 +15,8 @@ import { seedBinaryFile, seedFile, setupToolContext } from "../helpers.ts";
 let conn: DbConnection;
 let ctx: ToolContext;
 
+const D = "agent";
+
 beforeEach(async () => {
   ({ conn, ctx } = await setupToolContext());
 });
@@ -24,13 +26,17 @@ beforeEach(async () => {
 describe("context_write", () => {
   test("creates a new file", async () => {
     const result = await contextWriteTool.execute(
-      { path: "/hello.txt", content: "hello world" },
+      { drive: D, path: "/hello.txt", content: "hello world" },
       ctx,
     );
     expect(result.path).toBe("/hello.txt");
+    expect(result.drive).toBe(D);
     expect(result.id).toBeTruthy();
 
-    const read = await contextReadTool.execute({ path: "/hello.txt" }, ctx);
+    const read = await contextReadTool.execute(
+      { drive: D, path: "/hello.txt" },
+      ctx,
+    );
     expect(read.content).toBe("hello world");
   });
 
@@ -38,6 +44,7 @@ describe("context_write", () => {
     await seedFile(conn, "/overwrite.txt", "original");
     const result = await contextWriteTool.execute(
       {
+        drive: D,
         path: "/overwrite.txt",
         content: "updated",
         on_conflict: "overwrite",
@@ -47,14 +54,17 @@ describe("context_write", () => {
     expect(result.path).toBe("/overwrite.txt");
     expect(result.is_error).toBe(false);
 
-    const read = await contextReadTool.execute({ path: "/overwrite.txt" }, ctx);
+    const read = await contextReadTool.execute(
+      { drive: D, path: "/overwrite.txt" },
+      ctx,
+    );
     expect(read.content).toBe("updated");
   });
 
   test("returns path_conflict error by default when file exists", async () => {
     await seedFile(conn, "/collision.txt", "original");
     const result = await contextWriteTool.execute(
-      { path: "/collision.txt", content: "second" },
+      { drive: D, path: "/collision.txt", content: "second" },
       ctx,
     );
     expect(result.is_error).toBe(true);
@@ -62,14 +72,17 @@ describe("context_write", () => {
     expect(result.id).toBeNull();
     expect(result.next_action_hint).toContain("on_conflict='overwrite'");
 
-    // Original content preserved
-    const read = await contextReadTool.execute({ path: "/collision.txt" }, ctx);
+    const read = await contextReadTool.execute(
+      { drive: D, path: "/collision.txt" },
+      ctx,
+    );
     expect(read.content).toBe("original");
   });
 
   test("sets title and description", async () => {
     await contextWriteTool.execute(
       {
+        drive: D,
         path: "/doc.md",
         content: "# Doc",
         title: "My Doc",
@@ -77,7 +90,10 @@ describe("context_write", () => {
       },
       ctx,
     );
-    const info = await contextInfoTool.execute({ path: "/doc.md" }, ctx);
+    const info = await contextInfoTool.execute(
+      { drive: D, path: "/doc.md" },
+      ctx,
+    );
     expect(info.file?.title).toBe("My Doc");
     expect(info.file?.description).toBe("A document");
   });
@@ -85,7 +101,7 @@ describe("context_write", () => {
   test("writes base64 content", async () => {
     const b64 = btoa("binary data");
     const result = await contextWriteTool.execute(
-      { path: "/data.bin", content: "", content_base64: b64 },
+      { drive: D, path: "/data.bin", content: "", content_base64: b64 },
       ctx,
     );
     expect(result.path).toBe("/data.bin");
@@ -94,7 +110,7 @@ describe("context_write", () => {
   test("returns a tree snapshot on success", async () => {
     await seedFile(conn, "/notes/existing.md", "already here");
     const result = await contextWriteTool.execute(
-      { path: "/notes/new.md", content: "fresh" },
+      { drive: D, path: "/notes/new.md", content: "fresh" },
       ctx,
     );
     expect(result.is_error).toBe(false);
@@ -110,29 +126,35 @@ describe("context_write", () => {
 describe("context_read", () => {
   test("reads existing file", async () => {
     await seedFile(conn, "/readme.md", "line1\nline2\nline3");
-    const result = await contextReadTool.execute({ path: "/readme.md" }, ctx);
+    const result = await contextReadTool.execute(
+      { drive: D, path: "/readme.md" },
+      ctx,
+    );
     expect(result.content).toBe("line1\nline2\nline3");
   });
 
   test("reads with offset and limit", async () => {
     await seedFile(conn, "/lines.txt", "a\nb\nc\nd\ne");
     const result = await contextReadTool.execute(
-      { path: "/lines.txt", offset: 2, limit: 2 },
+      { drive: D, path: "/lines.txt", offset: 2, limit: 2 },
       ctx,
     );
     expect(result.content).toBe("b\nc");
   });
 
-  test("reads by context item ID", async () => {
+  test("reads by context item ID (drive is ignored)", async () => {
     const item = await seedFile(conn, "/by-id.txt", "found by id");
-    const result = await contextReadTool.execute({ path: item.id }, ctx);
+    const result = await contextReadTool.execute(
+      { drive: "ignored", path: item.id },
+      ctx,
+    );
     expect(result.content).toBe("found by id");
   });
 
   test("returns not_found error with sibling hints", async () => {
     await seedFile(conn, "/dir/real.txt", "hi");
     const result = await contextReadTool.execute(
-      { path: "/dir/missing.txt" },
+      { drive: D, path: "/dir/missing.txt" },
       ctx,
     );
     expect(result.is_error).toBe(true);
@@ -144,7 +166,7 @@ describe("context_read", () => {
   test("walks up when requested parent is empty", async () => {
     await seedFile(conn, "/root.txt", "root");
     const result = await contextReadTool.execute(
-      { path: "/nonexistent/deep/missing.txt" },
+      { drive: D, path: "/nonexistent/deep/missing.txt" },
       ctx,
     );
     expect(result.is_error).toBe(true);
@@ -154,7 +176,10 @@ describe("context_read", () => {
 
   test("returns no_text_content error for binary files", async () => {
     await seedBinaryFile(conn, "/image.png");
-    const result = await contextReadTool.execute({ path: "/image.png" }, ctx);
+    const result = await contextReadTool.execute(
+      { drive: D, path: "/image.png" },
+      ctx,
+    );
     expect(result.is_error).toBe(true);
     expect(result.error_type).toBe("no_text_content");
     expect(result.content).toBeUndefined();
@@ -168,6 +193,7 @@ describe("context_edit", () => {
     await seedFile(conn, "/edit.txt", "line1\nline2\nline3");
     const result = await contextEditTool.execute(
       {
+        drive: D,
         path: "/edit.txt",
         patches: [{ start_line: 2, end_line: 2, content: "replaced" }],
       },
@@ -182,6 +208,7 @@ describe("context_edit", () => {
     await seedFile(conn, "/insert.txt", "line1\nline2");
     const result = await contextEditTool.execute(
       {
+        drive: D,
         path: "/insert.txt",
         patches: [{ start_line: 2, end_line: 0, content: "inserted" }],
       },
@@ -197,6 +224,7 @@ describe("context_edit", () => {
     await seedFile(conn, "/delete.txt", "line1\nline2\nline3");
     const result = await contextEditTool.execute(
       {
+        drive: D,
         path: "/delete.txt",
         patches: [{ start_line: 2, end_line: 2, content: "" }],
       },
@@ -210,6 +238,7 @@ describe("context_edit", () => {
     expect(
       contextEditTool.execute(
         {
+          drive: D,
           path: "/nope.txt",
           patches: [{ start_line: 1, end_line: 1, content: "x" }],
         },
@@ -225,13 +254,13 @@ describe("context_delete", () => {
   test("deletes an existing file", async () => {
     await seedFile(conn, "/remove.txt", "bye");
     const result = await contextDeleteTool.execute(
-      { path: "/remove.txt" },
+      { drive: D, path: "/remove.txt" },
       ctx,
     );
     expect(result.deleted).toBe(1);
 
     const exists = await contextExistsTool.execute(
-      { path: "/remove.txt" },
+      { drive: D, path: "/remove.txt" },
       ctx,
     );
     expect(exists.exists).toBe(false);
@@ -239,13 +268,13 @@ describe("context_delete", () => {
 
   test("throws when deleting nonexistent without force", async () => {
     expect(
-      contextDeleteTool.execute({ path: "/ghost.txt" }, ctx),
+      contextDeleteTool.execute({ drive: D, path: "/ghost.txt" }, ctx),
     ).rejects.toThrow("Not found");
   });
 
   test("does not throw with force flag", async () => {
     const result = await contextDeleteTool.execute(
-      { path: "/ghost.txt", force: true },
+      { drive: D, path: "/ghost.txt", force: true },
       ctx,
     );
     expect(result.deleted).toBe(0);
@@ -255,7 +284,7 @@ describe("context_delete", () => {
     await seedFile(conn, "/dir/a.txt", "a");
     await seedFile(conn, "/dir/b.txt", "b");
     const result = await contextDeleteTool.execute(
-      { path: "/dir", recursive: true },
+      { drive: D, path: "/dir", recursive: true },
       ctx,
     );
     expect(result.deleted).toBeGreaterThanOrEqual(2);
@@ -268,12 +297,20 @@ describe("context_copy", () => {
   test("copies a file", async () => {
     await seedFile(conn, "/orig.txt", "content");
     const result = await contextCopyTool.execute(
-      { src: "/orig.txt", dst: "/copy.txt" },
+      {
+        src_drive: D,
+        src_path: "/orig.txt",
+        dst_drive: D,
+        dst_path: "/copy.txt",
+      },
       ctx,
     );
-    expect(result.path).toBe("/copy.txt");
+    expect(result.ref).toBe(`${D}:/copy.txt`);
 
-    const read = await contextReadTool.execute({ path: "/copy.txt" }, ctx);
+    const read = await contextReadTool.execute(
+      { drive: D, path: "/copy.txt" },
+      ctx,
+    );
     expect(read.content).toBe("content");
   });
 
@@ -281,7 +318,15 @@ describe("context_copy", () => {
     await seedFile(conn, "/src.txt", "a");
     await seedFile(conn, "/dst.txt", "b");
     expect(
-      contextCopyTool.execute({ src: "/src.txt", dst: "/dst.txt" }, ctx),
+      contextCopyTool.execute(
+        {
+          src_drive: D,
+          src_path: "/src.txt",
+          dst_drive: D,
+          dst_path: "/dst.txt",
+        },
+        ctx,
+      ),
     ).rejects.toThrow("Destination already exists");
   });
 
@@ -289,15 +334,29 @@ describe("context_copy", () => {
     await seedFile(conn, "/src.txt", "new");
     await seedFile(conn, "/dst.txt", "old");
     const result = await contextCopyTool.execute(
-      { src: "/src.txt", dst: "/dst.txt", overwrite: true },
+      {
+        src_drive: D,
+        src_path: "/src.txt",
+        dst_drive: D,
+        dst_path: "/dst.txt",
+        overwrite: true,
+      },
       ctx,
     );
-    expect(result.path).toBe("/dst.txt");
+    expect(result.ref).toBe(`${D}:/dst.txt`);
   });
 
   test("throws when source does not exist", async () => {
     expect(
-      contextCopyTool.execute({ src: "/missing.txt", dst: "/dst.txt" }, ctx),
+      contextCopyTool.execute(
+        {
+          src_drive: D,
+          src_path: "/missing.txt",
+          dst_drive: D,
+          dst_path: "/dst.txt",
+        },
+        ctx,
+      ),
     ).rejects.toThrow();
   });
 });
@@ -308,15 +367,26 @@ describe("context_move", () => {
   test("moves a file", async () => {
     await seedFile(conn, "/old.txt", "data");
     const result = await contextMoveTool.execute(
-      { src: "/old.txt", dst: "/new.txt" },
+      {
+        src_drive: D,
+        src_path: "/old.txt",
+        dst_drive: D,
+        dst_path: "/new.txt",
+      },
       ctx,
     );
-    expect(result.path).toBe("/new.txt");
+    expect(result.ref).toBe(`${D}:/new.txt`);
 
-    const exists = await contextExistsTool.execute({ path: "/old.txt" }, ctx);
+    const exists = await contextExistsTool.execute(
+      { drive: D, path: "/old.txt" },
+      ctx,
+    );
     expect(exists.exists).toBe(false);
 
-    const read = await contextReadTool.execute({ path: "/new.txt" }, ctx);
+    const read = await contextReadTool.execute(
+      { drive: D, path: "/new.txt" },
+      ctx,
+    );
     expect(read.content).toBe("data");
   });
 
@@ -324,7 +394,15 @@ describe("context_move", () => {
     await seedFile(conn, "/a.txt", "a");
     await seedFile(conn, "/b.txt", "b");
     expect(
-      contextMoveTool.execute({ src: "/a.txt", dst: "/b.txt" }, ctx),
+      contextMoveTool.execute(
+        {
+          src_drive: D,
+          src_path: "/a.txt",
+          dst_drive: D,
+          dst_path: "/b.txt",
+        },
+        ctx,
+      ),
     ).rejects.toThrow("Destination already exists");
   });
 
@@ -332,16 +410,44 @@ describe("context_move", () => {
     await seedFile(conn, "/a.txt", "a");
     await seedFile(conn, "/b.txt", "b");
     const result = await contextMoveTool.execute(
-      { src: "/a.txt", dst: "/b.txt", overwrite: true },
+      {
+        src_drive: D,
+        src_path: "/a.txt",
+        dst_drive: D,
+        dst_path: "/b.txt",
+        overwrite: true,
+      },
       ctx,
     );
-    expect(result.path).toBe("/b.txt");
+    expect(result.ref).toBe(`${D}:/b.txt`);
   });
 
   test("throws when source does not exist", async () => {
     expect(
-      contextMoveTool.execute({ src: "/missing.txt", dst: "/dst.txt" }, ctx),
+      contextMoveTool.execute(
+        {
+          src_drive: D,
+          src_path: "/missing.txt",
+          dst_drive: D,
+          dst_path: "/dst.txt",
+        },
+        ctx,
+      ),
     ).rejects.toThrow();
+  });
+
+  test("can move between drives", async () => {
+    await seedFile(conn, { drive: "disk", path: "/tmp/from.txt" }, "bytes");
+    const result = await contextMoveTool.execute(
+      {
+        src_drive: "disk",
+        src_path: "/tmp/from.txt",
+        dst_drive: "agent",
+        dst_path: "/from.txt",
+      },
+      ctx,
+    );
+    expect(result.ref).toBe("agent:/from.txt");
   });
 });
 
@@ -353,7 +459,10 @@ describe("context_info", () => {
       title: "Meta",
       description: "A test file",
     });
-    const info = await contextInfoTool.execute({ path: "/meta.txt" }, ctx);
+    const info = await contextInfoTool.execute(
+      { drive: D, path: "/meta.txt" },
+      ctx,
+    );
     expect(info.is_error).toBe(false);
     expect(info.file?.title).toBe("Meta");
     expect(info.file?.description).toBe("A test file");
@@ -361,7 +470,9 @@ describe("context_info", () => {
     expect(info.file?.is_textual).toBe(true);
     expect(info.file?.lines).toBe(2);
     expect(info.file?.size).toBe(11);
-    expect(info.file?.context_path).toBe("/meta.txt");
+    expect(info.file?.drive).toBe(D);
+    expect(info.file?.path).toBe("/meta.txt");
+    expect(info.file?.ref).toBe(`${D}:/meta.txt`);
     expect(info.file?.created_at).toBeTruthy();
     expect(info.file?.updated_at).toBeTruthy();
   });
@@ -370,16 +481,19 @@ describe("context_info", () => {
     const item = await seedFile(conn, "/meta-id.txt", "hello", {
       title: "MetaID",
     });
-    const info = await contextInfoTool.execute({ path: item.id }, ctx);
+    const info = await contextInfoTool.execute(
+      { drive: "ignored", path: item.id },
+      ctx,
+    );
     expect(info.file?.title).toBe("MetaID");
-    expect(info.file?.context_path).toBe("/meta-id.txt");
+    expect(info.file?.path).toBe("/meta-id.txt");
   });
 
   test("returns not_found error with sibling hints", async () => {
     await seedFile(conn, "/docs/readme.md", "hi");
     await seedFile(conn, "/docs/guide.md", "g");
     const result = await contextInfoTool.execute(
-      { path: "/docs/architecture.md" },
+      { drive: D, path: "/docs/architecture.md" },
       ctx,
     );
     expect(result.is_error).toBe(true);
@@ -391,16 +505,19 @@ describe("context_info", () => {
   });
 
   test("not_found at empty root returns discovery hint", async () => {
-    const result = await contextInfoTool.execute({ path: "/nope.txt" }, ctx);
+    const result = await contextInfoTool.execute(
+      { drive: D, path: "/nope.txt" },
+      ctx,
+    );
     expect(result.is_error).toBe(true);
     expect(result.error_type).toBe("not_found");
-    expect(result.next_action_hint).toContain("context_tree");
+    expect(result.next_action_hint).toContain("context_list_drives");
   });
 
   test("not_found walks up past empty parents", async () => {
     await seedFile(conn, "/a.txt", "a");
     const result = await contextInfoTool.execute(
-      { path: "/missing/deeper/file.md" },
+      { drive: D, path: "/missing/deeper/file.md" },
       ctx,
     );
     expect(result.is_error).toBe(true);
@@ -414,18 +531,27 @@ describe("context_info", () => {
 describe("context_exists", () => {
   test("returns true for existing file", async () => {
     await seedFile(conn, "/there.txt", "hi");
-    const result = await contextExistsTool.execute({ path: "/there.txt" }, ctx);
+    const result = await contextExistsTool.execute(
+      { drive: D, path: "/there.txt" },
+      ctx,
+    );
     expect(result.exists).toBe(true);
   });
 
   test("returns true when checked by ID", async () => {
     const item = await seedFile(conn, "/exists-id.txt", "hi");
-    const result = await contextExistsTool.execute({ path: item.id }, ctx);
+    const result = await contextExistsTool.execute(
+      { drive: "ignored", path: item.id },
+      ctx,
+    );
     expect(result.exists).toBe(true);
   });
 
   test("returns false for missing file", async () => {
-    const result = await contextExistsTool.execute({ path: "/nope.txt" }, ctx);
+    const result = await contextExistsTool.execute(
+      { drive: D, path: "/nope.txt" },
+      ctx,
+    );
     expect(result.exists).toBe(false);
   });
 });
@@ -436,22 +562,16 @@ describe("context_count_lines", () => {
   test("counts lines in a file", async () => {
     await seedFile(conn, "/lines.txt", "a\nb\nc");
     const result = await contextCountLinesTool.execute(
-      { path: "/lines.txt" },
+      { drive: D, path: "/lines.txt" },
       ctx,
     );
-    expect(result.lines).toBe(3);
-  });
-
-  test("counts lines by ID", async () => {
-    const item = await seedFile(conn, "/count-id.txt", "a\nb\nc");
-    const result = await contextCountLinesTool.execute({ path: item.id }, ctx);
     expect(result.lines).toBe(3);
   });
 
   test("single line file returns 1", async () => {
     await seedFile(conn, "/single.txt", "only one line");
     const result = await contextCountLinesTool.execute(
-      { path: "/single.txt" },
+      { drive: D, path: "/single.txt" },
       ctx,
     );
     expect(result.lines).toBe(1);
@@ -459,14 +579,14 @@ describe("context_count_lines", () => {
 
   test("throws for nonexistent file", async () => {
     expect(
-      contextCountLinesTool.execute({ path: "/nope.txt" }, ctx),
+      contextCountLinesTool.execute({ drive: D, path: "/nope.txt" }, ctx),
     ).rejects.toThrow("Not found");
   });
 
   test("throws for non-textual file", async () => {
     await seedBinaryFile(conn, "/bin.dat");
     expect(
-      contextCountLinesTool.execute({ path: "/bin.dat" }, ctx),
+      contextCountLinesTool.execute({ drive: D, path: "/bin.dat" }, ctx),
     ).rejects.toThrow("No text content");
   });
 });
@@ -475,18 +595,27 @@ describe("context_count_lines", () => {
 
 describe("context edge cases", () => {
   test("write and read file with empty content", async () => {
-    await contextWriteTool.execute({ path: "/empty.txt", content: "" }, ctx);
-    const result = await contextReadTool.execute({ path: "/empty.txt" }, ctx);
+    await contextWriteTool.execute(
+      { drive: D, path: "/empty.txt", content: "" },
+      ctx,
+    );
+    const result = await contextReadTool.execute(
+      { drive: D, path: "/empty.txt" },
+      ctx,
+    );
     expect(result.content).toBe("");
   });
 
   test("write file with very long single line", async () => {
     const longLine = "x".repeat(10000);
     await contextWriteTool.execute(
-      { path: "/long.txt", content: longLine },
+      { drive: D, path: "/long.txt", content: longLine },
       ctx,
     );
-    const result = await contextReadTool.execute({ path: "/long.txt" }, ctx);
+    const result = await contextReadTool.execute(
+      { drive: D, path: "/long.txt" },
+      ctx,
+    );
     expect(result.content).toBe(longLine);
   });
 
@@ -498,6 +627,7 @@ describe("context edge cases", () => {
     );
     const result = await contextEditTool.execute(
       {
+        drive: D,
         path: "/multi-edit.txt",
         patches: [
           { start_line: 1, end_line: 1, content: "REPLACED1" },
@@ -516,11 +646,16 @@ describe("context edge cases", () => {
     const content = "Special chars: \t\n\r\nUnicode: éèê";
     await seedFile(conn, "/special.txt", content);
     await contextCopyTool.execute(
-      { src: "/special.txt", dst: "/special-copy.txt" },
+      {
+        src_drive: D,
+        src_path: "/special.txt",
+        dst_drive: D,
+        dst_path: "/special-copy.txt",
+      },
       ctx,
     );
     const result = await contextReadTool.execute(
-      { path: "/special-copy.txt" },
+      { drive: D, path: "/special-copy.txt" },
       ctx,
     );
     expect(result.content).toBe(content);
@@ -529,18 +664,23 @@ describe("context edge cases", () => {
   test("move source no longer exists", async () => {
     await seedFile(conn, "/src-move.txt", "moving data");
     await contextMoveTool.execute(
-      { src: "/src-move.txt", dst: "/dst-move.txt" },
+      {
+        src_drive: D,
+        src_path: "/src-move.txt",
+        dst_drive: D,
+        dst_path: "/dst-move.txt",
+      },
       ctx,
     );
 
     const srcExists = await contextExistsTool.execute(
-      { path: "/src-move.txt" },
+      { drive: D, path: "/src-move.txt" },
       ctx,
     );
     expect(srcExists.exists).toBe(false);
 
     const dstExists = await contextExistsTool.execute(
-      { path: "/dst-move.txt" },
+      { drive: D, path: "/dst-move.txt" },
       ctx,
     );
     expect(dstExists.exists).toBe(true);
@@ -549,7 +689,10 @@ describe("context edge cases", () => {
   test("info returns correct size for multi-byte content", async () => {
     const content = "Hello";
     await seedFile(conn, "/sized.txt", content);
-    const info = await contextInfoTool.execute({ path: "/sized.txt" }, ctx);
+    const info = await contextInfoTool.execute(
+      { drive: D, path: "/sized.txt" },
+      ctx,
+    );
     expect(info.file?.size).toBe(5);
     expect(info.file?.lines).toBe(1);
   });
@@ -557,7 +700,7 @@ describe("context edge cases", () => {
   test("read with offset beyond file length returns empty", async () => {
     await seedFile(conn, "/short.txt", "only\ntwo");
     const result = await contextReadTool.execute(
-      { path: "/short.txt", offset: 100 },
+      { drive: D, path: "/short.txt", offset: 100 },
       ctx,
     );
     expect(result.content).toBe("");
@@ -568,11 +711,14 @@ describe("context edge cases", () => {
     await seedFile(conn, "/remove-dir/b.txt", "remove me");
 
     await contextDeleteTool.execute(
-      { path: "/remove-dir", recursive: true },
+      { drive: D, path: "/remove-dir", recursive: true },
       ctx,
     );
 
-    const kept = await contextExistsTool.execute({ path: "/keep/a.txt" }, ctx);
+    const kept = await contextExistsTool.execute(
+      { drive: D, path: "/keep/a.txt" },
+      ctx,
+    );
     expect(kept.exists).toBe(true);
   });
 });

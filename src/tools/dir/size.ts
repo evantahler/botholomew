@@ -11,6 +11,7 @@ function formatBytes(bytes: number): string {
 }
 
 const inputSchema = z.object({
+  drive: z.string().describe("Drive name"),
   path: z.string().optional().describe("Directory path (defaults to /)"),
   recursive: z
     .boolean()
@@ -27,13 +28,13 @@ const outputSchema = z.object({
 export const contextDirSizeTool = {
   name: "context_dir_size",
   description:
-    "[[ bash equivalent command: du -s ]] Get the total size of context items in a directory.",
+    "[[ bash equivalent command: du -s ]] Get the total size of context items under a drive/directory.",
   group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
     const path = input.path ?? "/";
-    const items = await listContextItemsByPrefix(ctx.conn, path, {
+    const items = await listContextItemsByPrefix(ctx.conn, input.drive, path, {
       recursive: input.recursive !== false,
     });
 
