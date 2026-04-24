@@ -1,5 +1,6 @@
+// Capabilities tools
+import { capabilitiesRefreshTool } from "./capabilities/refresh.ts";
 // Context tools
-
 import { readLargeResultTool } from "./context/read-large-result.ts";
 import { contextRefreshTool } from "./context/refresh.ts";
 import { contextSearchTool } from "./context/search.ts";
@@ -75,6 +76,9 @@ export function registerAllTools(): void {
   registerTool(updateBeliefsTool);
   registerTool(updateGoalsTool);
   registerTool(readLargeResultTool);
+
+  // Capabilities
+  registerTool(capabilitiesRefreshTool);
 
   // Schedule
   registerTool(createScheduleTool);

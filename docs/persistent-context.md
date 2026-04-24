@@ -6,7 +6,7 @@ Every one is versioned by frontmatter.
 
 ---
 
-## The three default files
+## The default files
 
 `botholomew init` creates:
 
@@ -15,6 +15,7 @@ Every one is versioned by frontmatter.
 | `soul.md` | `always` | **no** | Identity — who the agent is, how it behaves |
 | `beliefs.md` | `always` | yes | Priors the agent has learned about the world/project |
 | `goals.md` | `always` | yes | Current goals; updated as goals complete or change |
+| `capabilities.md` | `always` | yes | LLM-summarized, thematic inventory of what the agent can do (built-in + MCPX); no specific tool names |
 
 Each uses YAML frontmatter to declare its behavior:
 
@@ -67,6 +68,40 @@ The flow:
 Files without `agent-modification: true` are read-only to the agent,
 even if the tool is called — the tool checks the frontmatter and
 refuses.
+
+---
+
+## `capabilities.md` — high-level tool inventory
+
+`capabilities.md` is the same shape as `beliefs.md` / `goals.md`
+(always-loaded, agent-editable), but its body is machine-generated
+rather than hand-written. It's a **thematic summary** of what the
+agent can do — built-in capabilities grouped into coarse themes (task
+management, virtual filesystem, search, threads, …) and one theme per
+external service reachable through MCPX (Gmail, GitHub, Linear, …).
+Specific tool names are intentionally **omitted** from the rendered
+file; the agent uses `mcp_list_tools`, `mcp_search`, or `mcp_info` to
+look up exact names when it actually needs to invoke a tool. This
+keeps the always-loaded context small (tens of lines instead of
+hundreds).
+
+Summarization uses Claude (the `chunker_model` from config) on every
+refresh. When no Anthropic API key is configured, a static fallback
+listing is rendered with internal themes + MCPX server names and tool
+counts.
+
+It's seeded at `botholomew init` with the built-in tools already
+populated. Regenerate it any time via:
+
+- `botholomew capabilities` — CLI refresh (honors `--no-mcp`)
+- `capabilities_refresh` — the agent calls this tool itself when it
+  suspects the inventory has drifted (new MCPX servers added, tools
+  renamed, file deleted)
+- `/capabilities` — the matching slash command in chat
+
+Frontmatter is preserved on regeneration, so you can safely flip
+`loading` to `contextual` if you'd rather only surface the file when
+the task mentions tools.
 
 ---
 

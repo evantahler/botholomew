@@ -37,6 +37,28 @@ agent-modification: true
 - Get set up and ready to help.
 `;
 
+export const CAPABILITIES_MD = `---
+loading: always
+agent-modification: true
+---
+
+# Capabilities
+
+*This file is an auto-generated inventory of every tool available to Botholomew — built-in tools and tools exposed via configured MCPX servers.*
+*Regenerate with \`botholomew capabilities\`, the \`capabilities_refresh\` tool, or the \`/capabilities\` slash command.*
+
+_(Pending first scan. Run \`botholomew capabilities\` to populate.)_
+`;
+
+export const CAPABILITIES_SKILL = `---
+name: capabilities
+description: "Refresh capabilities.md — rescan internal and MCPX tools"
+arguments: []
+---
+
+Call \`capabilities_refresh\` to rescan every available tool (built-in and MCPX) and rewrite \`.botholomew/capabilities.md\`. After it finishes, give me a one-line summary of the counts.
+`;
+
 export const SUMMARIZE_SKILL = `---
 name: summarize
 description: "Summarize the current conversation"
