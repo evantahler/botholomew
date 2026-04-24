@@ -268,22 +268,17 @@ async function summarizeViaLLM(
   const userPrompt = `Summarize this tool inventory. Return via the \`${SUMMARIZE_TOOL_NAME}\` tool.\n\n${renderInventoryForPrompt(inv)}`;
 
   try {
-    const response = await Promise.race([
-      client.messages.create({
+    const response = await client.messages.create(
+      {
         model: config.chunker_model,
         max_tokens: SUMMARIZE_MAX_TOKENS,
         system: SUMMARIZE_SYSTEM,
         tools: [SUMMARIZE_TOOL],
         tool_choice: { type: "tool", name: SUMMARIZE_TOOL_NAME },
         messages: [{ role: "user", content: userPrompt }],
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(
-          () => reject(new Error("Capability summarization timeout")),
-          SUMMARIZE_TIMEOUT_MS,
-        ),
-      ),
-    ]);
+      },
+      { timeout: SUMMARIZE_TIMEOUT_MS },
+    );
 
     const toolBlock = response.content.find((b) => b.type === "tool_use");
     if (!toolBlock || toolBlock.type !== "tool_use") return null;
