@@ -3,12 +3,16 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { McpxClient } from "@evantahler/mcpx";
+import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 import {
   generateCapabilitiesMarkdown,
   writeCapabilitiesFile,
 } from "../../src/context/capabilities.ts";
 import { registerAllTools } from "../../src/tools/registry.ts";
 import { parseContextFile } from "../../src/utils/frontmatter.ts";
+
+/** Config with no API key → always takes the fallback path. */
+const FALLBACK_CONFIG = { ...DEFAULT_CONFIG, anthropic_api_key: "" };
 
 function mockClient(
   tools: Array<{ server: string; name: string; description: string }>,
@@ -35,34 +39,34 @@ afterEach(async () => {
   }
 });
 
-describe("generateCapabilitiesMarkdown", () => {
-  test("lists built-in tools grouped with stable headings", async () => {
+describe("generateCapabilitiesMarkdown (fallback path)", () => {
+  test("renders high-level internal summary without listing tool names", async () => {
     const fixed = new Date("2026-01-02T03:04:05Z");
-    const { body, counts } = await generateCapabilitiesMarkdown(null, fixed);
+    const { body, counts } = await generateCapabilitiesMarkdown(
+      null,
+      FALLBACK_CONFIG,
+      fixed,
+    );
 
     expect(body).toContain("# Capabilities");
     expect(body).toContain("*Generated 2026-01-02T03:04:05.000Z");
-    expect(body).toContain("## Internal tools");
-    expect(body).toContain("### Task management");
-    expect(body).toContain("### Context / virtual filesystem");
-    expect(body).toContain("`complete_task`");
-    expect(body).toContain("`context_read`");
+    expect(body).toContain("## Internal capabilities");
+    expect(body).toContain("Task management");
+    expect(body).toContain("Virtual filesystem");
+    // Tool names are intentionally absent from the rendered body.
+    expect(body).not.toContain("`complete_task`");
+    expect(body).not.toContain("`context_read`");
     expect(counts.internal).toBeGreaterThan(10);
     expect(counts.mcp).toBe(0);
   });
 
-  test("strips bash-equivalent tag from description and appends analog suffix", async () => {
-    const { body } = await generateCapabilitiesMarkdown(null);
-    // contextReadTool has `[[ bash equivalent command: cat ]]` prefix
-    const readLine = body
-      .split("\n")
-      .find((l) => l.startsWith("- **`context_read`**"));
-    expect(readLine).toBeDefined();
-    expect(readLine).not.toContain("[[");
-    expect(readLine).toContain("≈ `cat`");
+  test("instructs the reader to use mcp_list_tools / mcp_search / mcp_info", async () => {
+    const { body } = await generateCapabilitiesMarkdown(null, FALLBACK_CONFIG);
+    expect(body).toContain("mcp_list_tools");
+    expect(body).toContain("mcp_search");
   });
 
-  test("renders MCPX section grouped by server and alphabetized", async () => {
+  test("renders MCPX section as a server list with tool counts", async () => {
     const client = mockClient([
       { server: "slack", name: "post_message", description: "Post a message." },
       {
@@ -73,27 +77,33 @@ describe("generateCapabilitiesMarkdown", () => {
       { server: "gmail", name: "list_inbox", description: "List inbox." },
     ]);
 
-    const { body, counts } = await generateCapabilitiesMarkdown(client);
+    const { body, counts } = await generateCapabilitiesMarkdown(
+      client,
+      FALLBACK_CONFIG,
+    );
     expect(counts.mcp).toBe(3);
-    expect(body).toContain("## MCPX tools");
-    expect(body).toContain("### gmail");
-    expect(body).toContain("### slack");
-    const gmailIdx = body.indexOf("### gmail");
-    const slackIdx = body.indexOf("### slack");
-    expect(gmailIdx).toBeLessThan(slackIdx);
-    const listInboxIdx = body.indexOf("`list_inbox`");
-    const sendEmailIdx = body.indexOf("`send_email`");
-    expect(listInboxIdx).toBeLessThan(sendEmailIdx);
+    expect(body).toContain("## External capabilities (via MCPX)");
+    expect(body).toContain("**gmail** — 2 tool(s)");
+    expect(body).toContain("**slack** — 1 tool(s)");
+    // Still no specific tool names rendered in fallback mode.
+    expect(body).not.toContain("`send_email`");
+    expect(body).not.toContain("`post_message`");
   });
 
   test("emits a helpful message when no MCPX client is configured", async () => {
-    const { body, counts } = await generateCapabilitiesMarkdown(null);
+    const { body, counts } = await generateCapabilitiesMarkdown(
+      null,
+      FALLBACK_CONFIG,
+    );
     expect(body).toContain("No MCPX servers configured");
     expect(counts.mcp).toBe(0);
   });
 
   test("notes when MCPX is configured but exposes zero tools", async () => {
-    const { body, counts } = await generateCapabilitiesMarkdown(mockClient([]));
+    const { body, counts } = await generateCapabilitiesMarkdown(
+      mockClient([]),
+      FALLBACK_CONFIG,
+    );
     expect(body).toContain("MCPX is configured but no tools");
     expect(counts.mcp).toBe(0);
   });
@@ -105,7 +115,10 @@ describe("generateCapabilitiesMarkdown", () => {
       }),
     } as unknown as McpxClient;
 
-    const { body, counts } = await generateCapabilitiesMarkdown(client);
+    const { body, counts } = await generateCapabilitiesMarkdown(
+      client,
+      FALLBACK_CONFIG,
+    );
     expect(body).toContain("Failed to list MCPX tools");
     expect(body).toContain("connection refused");
     expect(counts.mcp).toBe(0);
@@ -121,7 +134,7 @@ describe("writeCapabilitiesFile", () => {
 
   test("creates the file with default frontmatter on first write", async () => {
     const dir = await makeProject();
-    const result = await writeCapabilitiesFile(dir, null);
+    const result = await writeCapabilitiesFile(dir, null, FALLBACK_CONFIG);
 
     expect(result.createdFile).toBe(true);
     expect(result.path).toBe(join(dir, ".botholomew", "capabilities.md"));
@@ -148,7 +161,7 @@ agent-modification: false
 `,
     );
 
-    const result = await writeCapabilitiesFile(dir, null);
+    const result = await writeCapabilitiesFile(dir, null, FALLBACK_CONFIG);
     expect(result.createdFile).toBe(false);
 
     const { meta, content } = parseContextFile(await Bun.file(filePath).text());

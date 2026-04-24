@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { McpxClient } from "@evantahler/mcpx";
-import { capabilitiesRefreshTool } from "../../src/tools/context/capabilities-refresh.ts";
+import { capabilitiesRefreshTool } from "../../src/tools/capabilities/refresh.ts";
 import { registerAllTools } from "../../src/tools/registry.ts";
 import { parseContextFile } from "../../src/utils/frontmatter.ts";
 import { setupToolContext } from "../helpers.ts";
@@ -63,8 +63,10 @@ describe("capabilities_refresh tool", () => {
     const result = await capabilitiesRefreshTool.execute({}, ctx);
     expect(result.mcp_tool_count).toBe(1);
     const body = await Bun.file(result.path).text();
-    expect(body).toContain("### gmail");
-    expect(body).toContain("`send_email`");
+    // Fallback mode (no API key in test config): renders the server name
+    // with a tool count, not individual tool names.
+    expect(body).toContain("**gmail** — 1 tool(s)");
+    expect(body).not.toContain("`send_email`");
   });
 
   test("skips MCPX when include_mcp is false", async () => {

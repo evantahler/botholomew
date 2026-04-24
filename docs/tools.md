@@ -165,16 +165,21 @@ command to wire. The Zod schema is the source of truth.
 
 ## `capabilities_refresh` — the meta-tool
 
-One context-group tool, `capabilities_refresh`, exists so the agent can
-keep its own tool inventory fresh. It walks `getAllTools()` and
-`mcpxClient.listTools()`, renders a grouped markdown summary, and
-writes it to `.botholomew/capabilities.md` (preserving frontmatter).
-Because that file is loaded into every system prompt, the next boot
-picks up the new inventory without another round-trip. See
-[persistent-context.md](persistent-context.md#capabilitiesmd--pre-scanned-tool-inventory)
+The `capabilities`-group tool `capabilities_refresh` exists so the
+agent can keep its own tool inventory fresh. It walks `getAllTools()`
+and `mcpxClient.listTools()`, then asks Claude (via
+`chunker_model`) to produce a **thematic summary** — one line per
+theme (e.g. "Gmail — read, send, draft, search, and reply to emails")
+rather than a line per tool. The result is written to
+`.botholomew/capabilities.md` (preserving frontmatter). Because that
+file is loaded into every system prompt, the next boot picks up the
+new inventory without another round-trip. Specific tool names are
+intentionally absent from the rendered file; the agent uses
+`mcp_list_tools` / `mcp_search` / `mcp_info` to look them up at
+call-time. See
+[persistent-context.md](persistent-context.md#capabilitiesmd--high-level-tool-inventory)
 for when the agent should call it. The matching CLI surface is
-`botholomew context capabilities`, and the slash command is
-`/context`.
+`botholomew capabilities`, and the slash command is `/capabilities`.
 
 ---
 

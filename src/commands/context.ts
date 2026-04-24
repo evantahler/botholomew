@@ -6,7 +6,6 @@ import { isText } from "istextorbinary";
 import { createSpinner } from "nanospinner";
 import { loadConfig } from "../config/loader.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { writeCapabilitiesFile } from "../context/capabilities.ts";
 import {
   generateDescription,
   generateDescriptionAndPath,
@@ -785,34 +784,6 @@ export function registerContextCommand(program: Command) {
           );
         } else if (result.embeddings_skipped) {
           logger.dim("Skipping embeddings (no OpenAI API key configured).");
-        }
-      }),
-    );
-
-  ctx
-    .command("capabilities")
-    .description(
-      "Regenerate .botholomew/capabilities.md by scanning built-in tools and MCPX tools",
-    )
-    .option("--no-mcp", "Skip MCPX tool enumeration (built-in tools only)")
-    .action((opts: { mcp?: boolean }) =>
-      withDb(program, async (_conn, dir) => {
-        const includeMcp = opts.mcp !== false;
-        const spinner = createSpinner("Scanning tools...").start();
-        const mcpxClient = includeMcp ? await createMcpxClient(dir) : null;
-        try {
-          const result = await writeCapabilitiesFile(dir, mcpxClient);
-          const bits = [
-            `${result.counts.internal} built-in`,
-            `${result.counts.mcp} MCPX`,
-          ];
-          if (!includeMcp) bits.push("MCPX skipped");
-          spinner.success({
-            text: `Wrote ${result.path} (${bits.join(", ")})`,
-          });
-        } catch (err) {
-          spinner.error({ text: `Failed: ${(err as Error).message}` });
-          process.exit(1);
         }
       }),
     );

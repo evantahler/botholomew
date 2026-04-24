@@ -24,13 +24,17 @@ export const capabilitiesRefreshTool = {
   name: "capabilities_refresh",
   description:
     "[[ bash equivalent command: which ]] Rescan every available tool (built-in + configured MCPX servers) and rewrite `.botholomew/capabilities.md`. Call this when you think the inventory is stale — new MCP servers were added, tools were renamed, or the capabilities file was deleted. The regenerated file is automatically loaded into every subsequent system prompt.",
-  group: "context",
+  group: "capabilities",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
     const includeMcp = input.include_mcp !== false;
     const client = includeMcp ? ctx.mcpxClient : null;
-    const result = await writeCapabilitiesFile(ctx.projectDir, client);
+    const result = await writeCapabilitiesFile(
+      ctx.projectDir,
+      client,
+      ctx.config,
+    );
     const parts = [
       `${result.counts.internal} internal tool(s)`,
       `${result.counts.mcp} MCPX tool(s)`,

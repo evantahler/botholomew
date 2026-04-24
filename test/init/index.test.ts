@@ -33,7 +33,7 @@ describe("initProject", () => {
     expect(await Bun.file(join(dotDir, "data.duckdb")).exists()).toBe(true);
   });
 
-  test("capabilities.md is populated with the built-in tool inventory", async () => {
+  test("capabilities.md is populated with the high-level capability summary", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
@@ -45,9 +45,9 @@ describe("initProject", () => {
     expect(meta.loading).toBe("always");
     expect(meta["agent-modification"]).toBe(true);
     expect(content).toContain("# Capabilities");
-    expect(content).toContain("## Internal tools");
-    expect(content).toContain("`complete_task`");
-    expect(content).toContain("`capabilities_refresh`");
+    expect(content).toContain("## Internal capabilities");
+    expect(content).toContain("Task management");
+    expect(content).toContain("Virtual filesystem");
     // seeded servers.json has no servers, so MCPX section announces that
     expect(content).toContain("No MCPX servers configured");
   });
@@ -106,7 +106,7 @@ describe("initProject", () => {
     await initProject(tempDir);
 
     const skillsDir = join(tempDir, ".botholomew", "skills");
-    const expectedSkills = ["summarize.md", "standup.md", "context.md"];
+    const expectedSkills = ["summarize.md", "standup.md", "capabilities.md"];
 
     for (const filename of expectedSkills) {
       const file = Bun.file(join(skillsDir, filename));
@@ -120,15 +120,15 @@ describe("initProject", () => {
     }
   });
 
-  test("context skill invokes capabilities_refresh", async () => {
+  test("capabilities skill invokes capabilities_refresh", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
     const raw = await Bun.file(
-      join(tempDir, ".botholomew", "skills", "context.md"),
+      join(tempDir, ".botholomew", "skills", "capabilities.md"),
     ).text();
-    const skill = parseSkillFile(raw, "context.md");
-    expect(skill.name).toBe("context");
+    const skill = parseSkillFile(raw, "capabilities.md");
+    expect(skill.name).toBe("capabilities");
     expect(skill.body).toContain("capabilities_refresh");
   });
 

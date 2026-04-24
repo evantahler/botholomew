@@ -45,13 +45,13 @@ agent-modification: true
 # Capabilities
 
 *This file is an auto-generated inventory of every tool available to Botholomew — built-in tools and tools exposed via configured MCPX servers.*
-*Regenerate with \`botholomew context capabilities\`, the \`capabilities_refresh\` tool, or the \`/context\` slash command.*
+*Regenerate with \`botholomew capabilities\`, the \`capabilities_refresh\` tool, or the \`/capabilities\` slash command.*
 
-_(Pending first scan. Run \`botholomew context capabilities\` to populate.)_
+_(Pending first scan. Run \`botholomew capabilities\` to populate.)_
 `;
 
-export const CONTEXT_SKILL = `---
-name: context
+export const CAPABILITIES_SKILL = `---
+name: capabilities
 description: "Refresh capabilities.md — rescan internal and MCPX tools"
 arguments: []
 ---
