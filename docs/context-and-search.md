@@ -16,7 +16,8 @@ agent writes via `context_write`), this happens:
  content ─► create context_item row  (drive, path)
          ─► LLM-driven chunker (claude-haiku-4-5 by default)
          ─► embedder (OpenAI text-embedding-3-small, 1536-dim)
-         ─► embeddings table (FLOAT[1536] + HNSW index)
+         ─► embeddings table (FLOAT[1536])
+         ─► rebuild FTS index (BM25 over chunk_content + title)
          ─► indexed_at set on the context_item
 ```
 
@@ -91,9 +92,20 @@ CREATE TABLE embeddings (
 );
 ```
 
-The VSS extension provides an HNSW index with cosine distance
-(`src/db/sql/6-vss_index.sql`). `SET hnsw_enable_experimental_persistence = true;`
-is run at connection time so the index survives process restarts.
+Vector similarity uses `array_cosine_distance` — a core DuckDB function,
+no extension required. There is no HNSW index: at our scale (hundreds
+to low thousands of rows) a linear scan beats the operational cost of
+the experimental-persistence HNSW path, which has bitten us with
+intermittent corruption more than once. Revisit when row counts reach
+the millions.
+
+Keyword search uses the **DuckDB FTS extension** (`INSTALL fts; LOAD
+fts;`) for BM25 ranking over `chunk_content` and `title`. The FTS index
+is a **snapshot** — it does not update incrementally on INSERT /
+DELETE. Every writer must call `rebuildSearchIndex(conn)` from
+`src/db/embeddings.ts` after its transaction commits. The ingest
+pipeline (`src/context/ingest.ts`) is the only writer today and does
+this automatically.
 
 ---
 
@@ -101,12 +113,14 @@ is run at connection time so the index survives process restarts.
 
 `hybridSearch()` in `src/db/embeddings.ts` combines two signals:
 
-1. **Keyword** — `LIKE` match on `chunk_content` and `title`.
-2. **Vector** — `array_cosine_distance(embedding, $query_embedding)` via
-   the HNSW index, which turns what would be a full scan into a
-   logarithmic probe.
+1. **Keyword** — `fts_main_embeddings.match_bm25(id, query)` over
+   `chunk_content` and `title`. BM25 handles tokenization, stemming,
+   stopwords, and length-normalized scoring, so multi-term queries
+   strictly *increase* recall over single-term queries.
+2. **Vector** — `array_cosine_distance(embedding, $query_embedding)`
+   via a linear scan over the `embeddings` table.
 
-Results are merged with reciprocal rank fusion, joined back to
+Results are merged with reciprocal rank fusion (k=60), joined back to
 `context_items` to pick up each hit's `drive` and `path`, and returned
 as `(ref, title, score, snippet)`.
 

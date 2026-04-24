@@ -65,7 +65,7 @@ describe("schema migrations", () => {
     )) as {
       count: number;
     };
-    expect(row.count).toBe(13);
+    expect(row.count).toBe(15);
 
     db.close();
   });

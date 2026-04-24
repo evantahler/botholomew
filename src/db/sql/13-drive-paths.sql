@@ -44,6 +44,4 @@ CREATE TABLE embeddings (
   UNIQUE(context_item_id, chunk_index)
 );
 
-CREATE INDEX idx_embeddings_cosine ON embeddings USING HNSW (embedding) WITH (metric = 'cosine');
-
 CHECKPOINT;
