@@ -143,4 +143,15 @@ describe("context_refresh tool", () => {
     expect(result.is_error).toBe(false);
     expect(result.tree).toBeTruthy();
   });
+
+  test("all: true renders the top-level drive summary, not a single drive", async () => {
+    await seedDiskItem("doc.md", "new disk content", "old stored");
+    await seedFile(ctx.conn, { drive: "agent", path: "/scratch.md" }, "s");
+    const result = await contextRefreshTool.execute({ all: true }, ctx);
+    expect(result.is_error).toBe(false);
+    // The summary tree lists both drives that have content, not just `disk:/`.
+    expect(result.tree).toContain("Drives:");
+    expect(result.tree).toContain("disk:/");
+    expect(result.tree).toContain("agent:/");
+  });
 });

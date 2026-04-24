@@ -147,8 +147,12 @@ export const contextRefreshTool = {
       parts.push("embeddings skipped (no OpenAI API key configured)");
     }
 
-    const firstItem = result.items[0];
-    const treeDrive = firstItem ? firstItem.drive : undefined;
+    // For a single-ref refresh, render that ref's drive; for `all: true`,
+    // render the top-level drive summary so the scope of the tree matches
+    // the scope of the operation.
+    const treeDrive = input.all
+      ? undefined
+      : (result.items[0]?.drive ?? undefined);
     const { tree } = await buildContextTree(ctx.conn, { drive: treeDrive });
 
     return {

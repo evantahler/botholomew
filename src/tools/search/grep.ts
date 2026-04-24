@@ -45,6 +45,8 @@ const inputSchema = z.object({
 const outputSchema = z.object({
   matches: z.array(GrepMatchSchema),
   is_error: z.boolean(),
+  error_type: z.string().optional(),
+  message: z.string().optional(),
 });
 
 export const searchGrepTool = {
@@ -54,6 +56,18 @@ export const searchGrepTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
+    // `path` scopes to a directory within a single drive; requiring `drive`
+    // alongside prevents a silent full-DB scan when only `path` is passed.
+    if (input.path && !input.drive) {
+      return {
+        matches: [],
+        is_error: true,
+        error_type: "invalid_arguments",
+        message:
+          "`path` requires `drive` — use context_list_drives to see which drives exist, then pass `drive` alongside `path`.",
+      };
+    }
+
     const items = input.drive
       ? await listContextItemsByPrefix(
           ctx.conn,

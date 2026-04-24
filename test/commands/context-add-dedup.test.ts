@@ -52,14 +52,46 @@ async function seedFile(filePath: string, content: string): Promise<void> {
 }
 
 describe("context add (drive, path) dedup", () => {
-  test("default policy errors fast when (disk, path) is already in context", async () => {
+  test("default policy skips when (disk, path) is already in context", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
+    await initProject(tempDir);
+
+    const filePath = join(tempDir, "already.md");
+    await seedFile(filePath, "original");
+
+    const result = await run(["context", "add", filePath]);
+
+    expect(result.code).toBe(0);
+    const output = result.stdout + result.stderr;
+    expect(output).toContain("already in context");
+    expect(output).toContain("1 skipped");
+
+    const conn = await getConnection(getDbPath(tempDir));
+    try {
+      await migrate(conn);
+      const item = await getContextItem(conn, {
+        drive: "disk",
+        path: filePath,
+      });
+      expect(item?.content).toBe("original");
+    } finally {
+      conn.close();
+    }
+  });
+
+  test("--on-conflict=error fails fast when (disk, path) is already in context", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);
 
     const filePath = join(tempDir, "already.md");
     await seedFile(filePath, "content");
 
-    const result = await run(["context", "add", filePath]);
+    const result = await run([
+      "context",
+      "add",
+      filePath,
+      "--on-conflict=error",
+    ]);
 
     expect(result.code).toBe(1);
     const output = result.stdout + result.stderr;

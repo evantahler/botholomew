@@ -111,7 +111,7 @@ export function registerContextCommand(program: Command) {
     .option(
       "--on-conflict <policy>",
       "collision policy: error | overwrite | skip",
-      "error",
+      "skip",
     )
     .option(
       "--prompt-addition <text>",

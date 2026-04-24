@@ -65,7 +65,7 @@ function registerToolAsCLI(parent: Command, tool: AnyToolDefinition) {
   for (const [key, schema] of Object.entries(shape)) {
     const desc = schema.description ?? key;
     const isOptional = schema.isOptional();
-    const unwrapped = unwrapOptional(schema);
+    const unwrapped = unwrapSchema(schema);
 
     if (isPositionalArg(key, tool.name)) {
       positionals.push(isOptional ? `[${key}]` : `<${key}>`);
@@ -176,7 +176,7 @@ function buildInput(
 
     const schemaForKey = shape[opt.key];
     if (!schemaForKey) continue;
-    const unwrapped = unwrapOptional(schemaForKey);
+    const unwrapped = unwrapSchema(schemaForKey);
 
     // Parse JSON for array types
     if (opt.isArray && typeof value === "string") {
@@ -295,9 +295,12 @@ function isPositionalArg(key: string, toolName: string): boolean {
   return positionalKeys[toolName]?.includes(key) ?? false;
 }
 
-function unwrapOptional(schema: z.ZodType): z.ZodType {
+function unwrapSchema(schema: z.ZodType): z.ZodType {
   if (schema instanceof z.ZodOptional) {
-    return schema.unwrap() as z.ZodType;
+    return unwrapSchema(schema.unwrap() as z.ZodType);
+  }
+  if (schema instanceof z.ZodDefault) {
+    return unwrapSchema(schema.unwrap() as z.ZodType);
   }
   return schema;
 }

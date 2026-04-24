@@ -233,14 +233,14 @@ Before doing anything expensive, `context add` checks each input's
 
 | Policy      | Behavior                                                                 |
 | ----------- | ------------------------------------------------------------------------ |
-| `error` *(default)* | Fast-fail if any input is already in context. |
+| `error`     | Fast-fail if any input is already in context. |
 | `overwrite` | Refresh content from the origin (diff + selective re-embed). |
-| `skip`      | Log and move on — no write, no error. |
+| `skip` *(default)* | Log and move on — no write, no error. |
 
-Re-running `context add` on already-ingested items with the default
-policy is a loud error rather than a silent overwrite. Use
-`--on-conflict=overwrite` when you genuinely want to refresh stored
-content (or `botholomew context refresh` for the idiomatic flow).
+Re-running `context add` on already-ingested items is a no-op by
+default. Use `--on-conflict=overwrite` when you want to refresh stored
+content (or `botholomew context refresh` for the idiomatic flow), and
+`--on-conflict=error` when you want a hard failure on collisions.
 
 The agent-side `context_write` tool follows the same convention:
 defaults to `on_conflict='error'` and returns a PATs-style

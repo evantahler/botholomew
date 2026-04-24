@@ -100,6 +100,17 @@ describe("search_grep", () => {
     expect(result.matches[0]?.path).toBe("/a/file.txt");
   });
 
+  test("errors when `path` is passed without `drive`", async () => {
+    await seedFile(conn, "/a/file.txt", "target");
+    const result = await searchGrepTool.execute(
+      { pattern: "target", path: "/a" },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("invalid_arguments");
+    expect(result.matches).toHaveLength(0);
+  });
+
   test("throws on invalid regex", async () => {
     await seedFile(conn, "/grep/test.txt", "test");
     expect(
