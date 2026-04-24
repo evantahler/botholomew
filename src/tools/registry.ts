@@ -9,7 +9,6 @@ import { updateBeliefsTool } from "./context/update-beliefs.ts";
 import { updateGoalsTool } from "./context/update-goals.ts";
 // Context — directory operations
 import { contextCreateDirTool } from "./dir/create.ts";
-import { contextListDirTool } from "./dir/list.ts";
 import { contextDirSizeTool } from "./dir/size.ts";
 import { contextTreeTool } from "./dir/tree.ts";
 // Context — file operations
@@ -61,7 +60,6 @@ export function registerAllTools(): void {
   // Context
   registerTool(contextListDrivesTool);
   registerTool(contextCreateDirTool);
-  registerTool(contextListDirTool);
   registerTool(contextTreeTool);
   registerTool(contextDirSizeTool);
   registerTool(contextReadTool);

@@ -44,7 +44,7 @@ export function registerSearchToolSubcommands(parent: Command) {
   }
 }
 
-/** Derive CLI subcommand name from tool name: "context_read" → "read", "context_list_dir" → "list-dir" */
+/** Derive CLI subcommand name from tool name: "context_read" → "read", "context_create_dir" → "create-dir" */
 function deriveSubName(toolName: string): string {
   return toolName.replace(/^[^_]+_/, "").replace(/_/g, "-");
 }
@@ -230,6 +230,26 @@ function formatOutput(result: unknown, _toolName: string) {
       return;
     }
 
+    if ("drives" in obj && Array.isArray(obj.drives)) {
+      const drives = obj.drives as { drive: string; count: number }[];
+      if (drives.length === 0) {
+        if (typeof obj.hint === "string") console.log(ansis.dim(obj.hint));
+        return;
+      }
+      const widest = Math.max(...drives.map((d) => d.drive.length));
+      for (const d of drives) {
+        const label = `${d.drive}:/`.padEnd(widest + 2);
+        const plural = d.count === 1 ? "item" : "items";
+        console.log(
+          `  ${ansis.cyan(label)} ${ansis.dim(`(${d.count} ${plural})`)}`,
+        );
+      }
+      if (typeof obj.hint === "string") {
+        console.log(`\n${ansis.dim(obj.hint)}`);
+      }
+      return;
+    }
+
     if ("matches" in obj && Array.isArray(obj.matches)) {
       for (const match of obj.matches) {
         if (typeof match === "string") {
@@ -276,7 +296,6 @@ function isPositionalArg(key: string, toolName: string): boolean {
   // These keys are treated as positional arguments
   const positionalKeys: Record<string, string[]> = {
     context_create_dir: ["path"],
-    context_list_dir: ["path"],
     context_tree: ["path"],
     context_dir_size: ["path"],
     context_read: ["path"],

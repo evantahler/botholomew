@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import type { DbConnection } from "../../src/db/connection.ts";
 import { contextCreateDirTool } from "../../src/tools/dir/create.ts";
-import { contextListDirTool } from "../../src/tools/dir/list.ts";
 import { contextDirSizeTool } from "../../src/tools/dir/size.ts";
 import { contextTreeTool } from "../../src/tools/dir/tree.ts";
 import type { ToolContext } from "../../src/tools/tool.ts";
@@ -36,73 +35,6 @@ describe("context_create_dir", () => {
     );
     expect(result.created).toBe(false);
     expect(result.ref).toBe(`${D}:/existing`);
-  });
-});
-
-// ── context_list_dir ────────────────────────────────────────────
-
-describe("context_list_dir", () => {
-  test("lists files at root", async () => {
-    await seedFile(conn, "/a.txt", "aaa");
-    await seedFile(conn, "/b.txt", "bbb");
-    const result = await contextListDirTool.execute(
-      { drive: D, path: "/", recursive: true, limit: 100, offset: 0 },
-      ctx,
-    );
-    expect(result.total).toBeGreaterThanOrEqual(2);
-    const names = result.entries.map((e) => e.name);
-    expect(names.some((n) => n.includes("a.txt"))).toBe(true);
-    expect(names.some((n) => n.includes("b.txt"))).toBe(true);
-  });
-
-  test("lists with pagination", async () => {
-    await seedFile(conn, "/p1.txt", "1");
-    await seedFile(conn, "/p2.txt", "2");
-    await seedFile(conn, "/p3.txt", "3");
-
-    const page1 = await contextListDirTool.execute(
-      { drive: D, path: "/", recursive: true, limit: 2, offset: 0 },
-      ctx,
-    );
-    expect(page1.entries.length).toBeLessThanOrEqual(2);
-    expect(page1.total).toBeGreaterThanOrEqual(3);
-
-    const page2 = await contextListDirTool.execute(
-      { drive: D, path: "/", recursive: true, limit: 2, offset: 2 },
-      ctx,
-    );
-    expect(page2.entries.length).toBeGreaterThanOrEqual(1);
-  });
-
-  test("returns empty for empty directory", async () => {
-    const result = await contextListDirTool.execute(
-      { drive: D, path: "/empty", recursive: true, limit: 100, offset: 0 },
-      ctx,
-    );
-    expect(result.entries).toHaveLength(0);
-    expect(result.total).toBe(0);
-  });
-
-  test("non-recursive lists only immediate children", async () => {
-    await seedFile(conn, "/top/child.txt", "child");
-    await seedFile(conn, "/top/sub/deep.txt", "deep");
-    const result = await contextListDirTool.execute(
-      { drive: D, path: "/top", recursive: false, limit: 100, offset: 0 },
-      ctx,
-    );
-    expect(result.total).toBeGreaterThanOrEqual(1);
-  });
-
-  test("entries include type and size", async () => {
-    await seedFile(conn, "/typed.txt", "content");
-    const result = await contextListDirTool.execute(
-      { drive: D, path: "/", recursive: true, limit: 100, offset: 0 },
-      ctx,
-    );
-    const entry = result.entries.find((e) => e.name.includes("typed.txt"));
-    expect(entry).toBeDefined();
-    expect(entry?.type).toBe("file");
-    expect(entry?.size).toBe(7);
   });
 });
 

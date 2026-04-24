@@ -91,7 +91,6 @@ is ignored.
 | Tool | What it does |
 |---|---|
 | `context_create_dir` | Create a directory placeholder row (defaults to `drive: "agent"`) |
-| `context_list_dir`   | List entries under a drive/path (files + subdirs, with sizes) |
 | `context_dir_size`   | Sum `length(content)` for items under a drive/prefix |
 
 **File operations:**

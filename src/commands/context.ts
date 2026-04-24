@@ -28,6 +28,7 @@ import {
   createContextItemStrict,
   deleteContextItemByPath,
   getContextItem,
+  getDistinctDirectories,
   listContextItems,
   listContextItemsByPrefix,
   PathConflictError,
@@ -56,6 +57,10 @@ export function registerContextCommand(program: Command) {
     .description("List context entries")
     .option("--drive <drive>", "filter by drive (e.g. disk, url, agent)")
     .option("--path <prefix>", "filter by path prefix (requires --drive)")
+    .option(
+      "--non-recursive",
+      "list only immediate children; include directories",
+    )
     .option("-l, --limit <n>", "max number of items", Number.parseInt)
     .option("-o, --offset <n>", "skip first N items", Number.parseInt)
     .action((opts) =>
@@ -64,10 +69,17 @@ export function registerContextCommand(program: Command) {
           logger.error("--path requires --drive to scope the prefix.");
           process.exit(1);
         }
+        if (opts.nonRecursive && !opts.drive) {
+          logger.error(
+            "--non-recursive requires --drive to scope the listing.",
+          );
+          process.exit(1);
+        }
 
-        const items = opts.path
-          ? await listContextItemsByPrefix(conn, opts.drive, opts.path, {
-              recursive: true,
+        const prefix = opts.path ?? (opts.nonRecursive ? "/" : null);
+        const items = prefix
+          ? await listContextItemsByPrefix(conn, opts.drive, prefix, {
+              recursive: !opts.nonRecursive,
               limit: opts.limit,
               offset: opts.offset,
             })
@@ -77,7 +89,11 @@ export function registerContextCommand(program: Command) {
               offset: opts.offset,
             });
 
-        if (items.length === 0) {
+        const dirs = opts.nonRecursive
+          ? await getDistinctDirectories(conn, opts.drive, opts.path ?? "/")
+          : [];
+
+        if (items.length === 0 && dirs.length === 0) {
           logger.dim("No context entries found.");
           return;
         }
@@ -85,6 +101,14 @@ export function registerContextCommand(program: Command) {
         const header = `${ansis.bold("ID".padEnd(36))} ${ansis.bold("Ref".padEnd(50))} ${"Title".padEnd(20)} ${"Description".padEnd(30)} ${"Type".padEnd(15)} ${"Updated".padEnd(18)} Indexed`;
         console.log(header);
         console.log("-".repeat(header.length));
+
+        const dash = ansis.dim("—");
+        for (const dir of dirs) {
+          const ref = formatDriveRef({ drive: opts.drive, path: `${dir}/` });
+          console.log(
+            `${dash.padEnd(36)} ${ansis.cyan(ref.slice(0, 49).padEnd(50))} ${dash.padEnd(20)} ${dash.padEnd(30)} ${ansis.dim("directory".padEnd(15))} ${dash.padEnd(18)} ${dash}`,
+          );
+        }
 
         for (const item of items) {
           const indexed = item.indexed_at
@@ -101,7 +125,12 @@ export function registerContextCommand(program: Command) {
           );
         }
 
-        console.log(`\n${ansis.dim(`${items.length} item(s)`)}`);
+        const totals: string[] = [];
+        if (dirs.length > 0) {
+          totals.push(`${dirs.length} dir(s)`);
+        }
+        totals.push(`${items.length} item(s)`);
+        console.log(`\n${ansis.dim(totals.join(", "))}`);
       }),
     );
 
@@ -591,14 +620,14 @@ export function registerContextCommand(program: Command) {
     );
 
   ctx
-    .command("refresh [ref]")
+    .command("refresh [refs...]")
     .description(
       "Re-import items from their origin (disk / URL / MCP) and re-embed if content changed",
     )
     .option("--all", "refresh every item (except those on drive=agent)")
-    .action((ref: string | undefined, opts: { all?: boolean }) =>
+    .action((refs: string[], opts: { all?: boolean }) =>
       withDb(program, async (conn, dir) => {
-        const items = await resolveItems(conn, ref, !!opts.all);
+        const items = await resolveItems(conn, refs, !!opts.all);
         if (items.length === 0) {
           logger.error("No matching context entries found.");
           process.exit(1);
@@ -675,19 +704,37 @@ export function registerContextCommand(program: Command) {
 
 async function resolveItems(
   conn: DbConnection,
-  ref: string | undefined,
+  refs: string[],
   all: boolean,
 ): Promise<ContextItem[]> {
-  if (!ref && !all) {
-    logger.error("Provide a ref or use --all.");
+  if (!all && refs.length === 0) {
+    logger.error("Provide at least one ref or use --all.");
     process.exit(1);
   }
   if (all) return listContextItems(conn);
-  const r = ref as string;
-  const exact = await resolveContextItem(conn, r);
+
+  const byId = new Map<string, ContextItem>();
+  const unresolved: string[] = [];
+  for (const r of refs) {
+    const matched = await resolveOne(conn, r);
+    if (matched.length === 0) {
+      unresolved.push(r);
+      continue;
+    }
+    for (const item of matched) byId.set(item.id, item);
+  }
+  for (const r of unresolved) logger.warn(`  Not found: ${r}`);
+  return [...byId.values()];
+}
+
+async function resolveOne(
+  conn: DbConnection,
+  ref: string,
+): Promise<ContextItem[]> {
+  const exact = await resolveContextItem(conn, ref);
   if (exact) return [exact];
   // Prefix expansion: only valid for `drive:/path` form.
-  const parsed = parseDriveRef(r);
+  const parsed = parseDriveRef(ref);
   if (parsed) {
     return listContextItemsByPrefix(conn, parsed.drive, parsed.path, {
       recursive: true,
