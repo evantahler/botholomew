@@ -186,8 +186,7 @@ export async function getConnection(dbPath?: string): Promise<DbConnection> {
   if (isMemoryPath(path)) {
     const instance = await DuckDBInstance.create(path);
     const conn = await instance.connect();
-    await conn.run("INSTALL vss; LOAD vss;");
-    await conn.run("SET hnsw_enable_experimental_persistence = true;");
+    await conn.run("INSTALL fts; LOAD fts;");
     return new DbConnection(conn, instance, path);
   }
 
@@ -197,8 +196,7 @@ export async function getConnection(dbPath?: string): Promise<DbConnection> {
     // INSTALL is a no-op after the first successful install (the extension
     // is persisted to the user's DuckDB extension directory). LOAD is
     // cheap per connection.
-    await conn.run("INSTALL vss; LOAD vss;");
-    await conn.run("SET hnsw_enable_experimental_persistence = true;");
+    await conn.run("INSTALL fts; LOAD fts;");
     return new DbConnection(conn, null, path);
   } catch (err) {
     releaseInstance(path);

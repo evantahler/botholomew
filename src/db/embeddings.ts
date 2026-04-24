@@ -45,6 +45,11 @@ function rowToEmbedding(row: EmbeddingRow): Embedding {
   };
 }
 
+/**
+ * Insert a single embedding row. Callers that bulk-write embeddings are
+ * responsible for calling `rebuildSearchIndex()` afterward — the FTS index is
+ * a snapshot and will not reflect new rows until rebuilt.
+ */
 export async function createEmbedding(
   conn: DbConnection,
   params: {
@@ -92,6 +97,11 @@ export async function getEmbeddingsForItem(
   return rows.map(rowToEmbedding);
 }
 
+/**
+ * Delete all embeddings for a context item. Callers are responsible for
+ * calling `rebuildSearchIndex()` afterward — the FTS index is a snapshot and
+ * will still reference the deleted rows until rebuilt.
+ */
 export async function deleteEmbeddingsForItem(
   conn: DbConnection,
   contextItemId: string,
@@ -138,6 +148,18 @@ export interface HybridSearchResult extends EmbeddingSearchResult {
   path: string | null;
 }
 
+/**
+ * Rebuild the FTS index over (chunk_content, title). DuckDB's FTS index is a
+ * snapshot — it does not update incrementally on INSERT/UPDATE/DELETE, so any
+ * batch writer must call this once its transaction commits. Cheap at our
+ * scale (hundreds to low thousands of rows).
+ */
+export async function rebuildSearchIndex(conn: DbConnection): Promise<void> {
+  await conn.exec(
+    "PRAGMA create_fts_index('embeddings', 'id', 'chunk_content', 'title', overwrite = 1)",
+  );
+}
+
 export async function hybridSearch(
   conn: DbConnection,
   query: string,
@@ -146,10 +168,16 @@ export async function hybridSearch(
 ): Promise<HybridSearchResult[]> {
   const k = 60; // RRF constant
 
+  // Keyword side: BM25 over chunk_content + title via the FTS extension.
+  // `match_bm25` returns NULL for rows with no token overlap; we keep only
+  // scored rows and order by descending score so RRF sees the best matches
+  // at the lowest ranks. Stemming, stopwords, and tokenization are handled
+  // by FTS — more query terms produce higher scores, which is exactly the
+  // behaviour a naive per-token ILIKE loop fails to provide.
   const keywordRows = await conn.queryAll<EmbeddingRow>(
     `SELECT * FROM embeddings
-     WHERE chunk_content ILIKE '%' || ?1 || '%'
-        OR title ILIKE '%' || ?1 || '%'
+     WHERE fts_main_embeddings.match_bm25(id, ?1) IS NOT NULL
+     ORDER BY fts_main_embeddings.match_bm25(id, ?1) DESC
      LIMIT 100`,
     query,
   );

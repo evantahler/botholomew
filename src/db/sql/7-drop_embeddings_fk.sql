@@ -20,5 +20,4 @@ CREATE TABLE embeddings (
   created_at TEXT NOT NULL DEFAULT (current_timestamp::VARCHAR),
   UNIQUE(context_item_id, chunk_index)
 );
-CREATE INDEX IF NOT EXISTS idx_embeddings_cosine ON embeddings USING HNSW (embedding) WITH (metric = 'cosine');
 CHECKPOINT;

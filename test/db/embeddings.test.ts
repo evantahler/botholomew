@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { EMBEDDING_DIMENSION } from "../../src/constants.ts";
 import type { DbConnection } from "../../src/db/connection.ts";
 import { createContextItem } from "../../src/db/context.ts";
@@ -6,9 +6,10 @@ import {
   createEmbedding,
   deleteEmbeddingsForItem,
   hybridSearch,
+  rebuildSearchIndex,
   searchEmbeddings,
 } from "../../src/db/embeddings.ts";
-import { setupTestDb } from "../helpers.ts";
+import { fakeEmbed, setupTestDb, setupTestDbFile } from "../helpers.ts";
 
 let conn: DbConnection;
 
@@ -330,11 +331,163 @@ describe("edge cases", () => {
       title: "unique",
       embedding: vec(0),
     });
+    await rebuildSearchIndex(conn);
 
     // Search with keyword that matches AND vector that matches
     const results = await hybridSearch(conn, "unique", vec(0), 10);
     expect(results.length).toBe(1);
     // Score should be boosted by appearing in both keyword and vector results
     expect(results[0]?.score).toBeGreaterThan(0);
+  });
+});
+
+// ── hybridSearch with content-aware embeddings ─────────────
+//
+// These tests use real natural-language content plus a deterministic
+// content-aware fake embedder (vocab → hot dim, unit-normalized) so that
+// cosine similarity actually tracks word overlap. The existing describe
+// blocks above use sparse unit vectors, which produce valid-but-meaningless
+// cosine distances and mask real search bugs.
+
+describe("hybridSearch end-to-end (content-aware)", () => {
+  let fileConn: DbConnection;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    const setup = await setupTestDbFile();
+    fileConn = setup.conn;
+    cleanup = setup.cleanup;
+  });
+
+  afterEach(async () => {
+    await cleanup();
+  });
+
+  async function seedDoc(opts: {
+    title: string;
+    path: string;
+    content: string;
+    embedFrom?: string;
+  }) {
+    const item = await createContextItem(fileConn, {
+      title: opts.title,
+      content: opts.content,
+      drive: "agent",
+      path: opts.path,
+      mimeType: "text/plain",
+      isTextual: true,
+    });
+    await createEmbedding(fileConn, {
+      contextItemId: item.id,
+      chunkIndex: 0,
+      chunkContent: opts.content,
+      title: opts.title,
+      embedding: fakeEmbed(opts.embedFrom ?? opts.content),
+    });
+    return item;
+  }
+
+  async function seedStandardCorpus() {
+    await seedDoc({
+      title: "Evan's Paternity Leave Plan",
+      path: "/paternity",
+      content:
+        "A plan for paternity leave and time off after the newborn arrives.",
+    });
+    await seedDoc({
+      title: "Q3 Revenue Forecast",
+      path: "/revenue",
+      content: "Revenue forecast and quota for Q3.",
+    });
+    await seedDoc({
+      title: "Kubernetes Deployment Guide",
+      path: "/k8s",
+      content: "Kubernetes helm deployment rollout guide.",
+    });
+    await rebuildSearchIndex(fileConn);
+  }
+
+  test("multi-word query recovers doc matching on some tokens", async () => {
+    // Exact reproduction of the user-reported failure: the query contains
+    // five words, none of which appear as a contiguous substring of any
+    // chunk. Naive ILIKE on the whole query finds nothing; BM25 + vector
+    // together must still surface the paternity doc.
+    await seedStandardCorpus();
+    const query = "leave plans time off parental";
+    const results = await hybridSearch(fileConn, query, fakeEmbed(query), 5);
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0]?.title).toBe("Evan's Paternity Leave Plan");
+  });
+
+  test("vector-only recall: doc retrieved with zero keyword overlap", async () => {
+    // chunk_content has no vocab words so the BM25 path returns nothing;
+    // the embedding was computed from the original sentence so the vector
+    // path can still rescue the doc. Asserts the vector arm carries its
+    // weight on its own.
+    await seedDoc({
+      title: "Redacted Leave Plan",
+      path: "/redacted",
+      content: "A plan for [redacted] and [redacted] away.",
+      embedFrom:
+        "A plan for paternity leave and time off after the newborn arrives.",
+    });
+    await seedDoc({
+      title: "Q3 Revenue Forecast",
+      path: "/revenue",
+      content: "Revenue forecast and quota for Q3.",
+    });
+    await rebuildSearchIndex(fileConn);
+
+    const query = "paternity leave";
+    const results = await hybridSearch(fileConn, query, fakeEmbed(query), 5);
+    expect(results.some((r) => r.title === "Redacted Leave Plan")).toBe(true);
+    expect(results[0]?.title).toBe("Redacted Leave Plan");
+  });
+
+  test("BM25: more matching tokens rank higher than fewer", async () => {
+    // Doc X matches three query tokens (leave, time, off); Doc Y matches
+    // one (leave). BM25 length-normalization + IDF plus the RRF merge
+    // must put X above Y. A naive ILIKE-OR tokenizer cannot distinguish
+    // them reliably — both would appear at arbitrary ranks.
+    await seedDoc({
+      title: "Three Token Doc",
+      path: "/three",
+      content: "Leave time off policy overview.",
+    });
+    await seedDoc({
+      title: "One Token Doc",
+      path: "/one",
+      content: "Leave the building through the south exit.",
+    });
+    await rebuildSearchIndex(fileConn);
+
+    const query = "leave time off";
+    const results = await hybridSearch(fileConn, query, fakeEmbed(query), 5);
+    const threeIdx = results.findIndex((r) => r.title === "Three Token Doc");
+    const oneIdx = results.findIndex((r) => r.title === "One Token Doc");
+    expect(threeIdx).toBeGreaterThanOrEqual(0);
+    expect(oneIdx).toBeGreaterThanOrEqual(0);
+    expect(threeIdx).toBeLessThan(oneIdx);
+  });
+
+  test("unrelated query does not surface the paternity doc", async () => {
+    await seedStandardCorpus();
+    const query = "kubernetes helm rollout";
+    const results = await hybridSearch(fileConn, query, fakeEmbed(query), 5);
+    expect(results[0]?.title).toBe("Kubernetes Deployment Guide");
+    expect(results[0]?.title).not.toBe("Evan's Paternity Leave Plan");
+  });
+
+  test("searchEmbeddings tripwire: returns rows when embeddings exist", async () => {
+    // Catches future vector-path regressions (e.g., a reintroduced HNSW
+    // that silently returns 0 rows on cosine queries). If this assertion
+    // ever goes red, the whole hybrid search is dead regardless of BM25.
+    await seedStandardCorpus();
+    const results = await searchEmbeddings(
+      fileConn,
+      fakeEmbed("paternity leave"),
+      5,
+    );
+    expect(results.length).toBeGreaterThan(0);
   });
 });

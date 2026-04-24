@@ -59,7 +59,8 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - **Timestamps**: stored as ISO 8601 TEXT (`datetime('now')`), converted to `Date` objects in TypeScript interfaces
 - **Booleans**: stored as INTEGER (0/1) in DuckDB, converted to `boolean` in TypeScript
 - **Arrays**: `blocked_by`/`context_ids` are JSON TEXT columns — `JSON.stringify()` on write, `JSON.parse()` on read
-- **Vectors**: embedding columns use DuckDB's native `FLOAT[N]` array type with HNSW indexes and `array_cosine_distance()` for similarity search
+- **Vectors**: embedding columns use DuckDB's native `FLOAT[N]` array type with `array_cosine_distance()` (core DuckDB, no extension) for similarity search; no HNSW index — linear scan is plenty fast at our scale.
+- **Full-text search**: keyword search over `embeddings.chunk_content` + `title` uses the `fts` extension's `match_bm25`. The FTS index is a snapshot — any code that writes to `embeddings` must call `rebuildSearchIndex(conn)` from `src/db/embeddings.ts` after its transaction commits. Ingest (`src/context/ingest.ts`) is the only writer today and already does this.
 - **Row mapping**: each module has a `RowType` interface (raw DuckDB values) and a `rowToX()` function that converts to the public TypeScript interface with proper types
 
 ## Testing

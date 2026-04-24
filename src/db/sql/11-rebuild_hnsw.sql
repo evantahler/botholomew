@@ -1,9 +1,8 @@
--- The HNSW index from migration 6 can end up in an internally-inconsistent
--- state after a native-side crash during embedding writes: the buffered WAL
--- replay tries to re-insert a node that HNSW's high-level wrapper already has,
--- and search_semantic then fails with "Duplicate keys not allowed in
--- high-level wrappers". Dropping and recreating the index rebuilds it cleanly
--- from the current contents of the embeddings table.
-DROP INDEX IF EXISTS idx_embeddings_cosine;
-
-CREATE INDEX idx_embeddings_cosine ON embeddings USING HNSW (embedding) WITH (metric = 'cosine');
+-- Historical: this migration used to drop and recreate the HNSW index
+-- to clean up an internally-inconsistent state after native-side crashes
+-- during embedding writes. HNSW is now gone (see migration 14) and the
+-- VSS extension is no longer loaded at connection time, so the original
+-- DDL would fail on fresh DBs. Kept as a no-op to preserve migration
+-- numbering for existing databases that have already recorded id 11 in
+-- _migrations.
+SELECT 1;

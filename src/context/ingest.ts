@@ -1,7 +1,11 @@
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
 import { getContextItem, getContextItemById } from "../db/context.ts";
-import { createEmbedding, deleteEmbeddingsForItem } from "../db/embeddings.ts";
+import {
+  createEmbedding,
+  deleteEmbeddingsForItem,
+  rebuildSearchIndex,
+} from "../db/embeddings.ts";
 import { logger } from "../utils/logger.ts";
 import { chunk } from "./chunker.ts";
 import { type DriveTarget, formatDriveRef } from "./drives.ts";
@@ -120,6 +124,9 @@ export async function storeIngestion(
     await conn.exec("ROLLBACK");
     throw err;
   }
+
+  // FTS index is a snapshot and doesn't see the writes above until rebuilt.
+  await rebuildSearchIndex(conn);
 
   const action = isUpdate ? "updated" : "added";
   logger.info(

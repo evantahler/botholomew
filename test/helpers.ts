@@ -84,6 +84,45 @@ export const mockEmbed = async (texts: string[]) =>
 export const mockEmbedSingle = async () =>
   new Array(EMBEDDING_DIMENSION).fill(0);
 
+/**
+ * Content-aware deterministic embedder for search-pipeline tests.
+ *
+ * Unlike `mockEmbed` (zero vectors), this produces vectors whose cosine
+ * similarity tracks word overlap: each vocab word maps to a dedicated hot
+ * dimension, the resulting vector is unit-normalized, and two texts sharing
+ * any vocab word produce a positive dot product.
+ *
+ * Use for tests that exercise `searchEmbeddings` / `hybridSearch` — zero
+ * vectors produce valid-but-meaningless cosine distances and mask real bugs.
+ */
+const FAKE_EMBED_VOCAB: Record<string, number> = {
+  paternity: 10,
+  leave: 20,
+  parental: 30,
+  time: 40,
+  off: 50,
+  newborn: 60,
+  plan: 70,
+  childcare: 80,
+  revenue: 100,
+  forecast: 110,
+  quota: 120,
+  kubernetes: 200,
+  helm: 210,
+  deployment: 220,
+  rollout: 230,
+};
+
+export function fakeEmbed(text: string): number[] {
+  const v = new Array(EMBEDDING_DIMENSION).fill(0);
+  const lower = text.toLowerCase();
+  for (const [word, dim] of Object.entries(FAKE_EMBED_VOCAB)) {
+    if (lower.includes(word)) v[dim] = 1;
+  }
+  const mag = Math.sqrt(v.reduce((s, x) => s + x * x, 0));
+  return mag === 0 ? v : v.map((x) => x / mag);
+}
+
 // ---------------------------------------------------------------------------
 // Test config
 // ---------------------------------------------------------------------------
