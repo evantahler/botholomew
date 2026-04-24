@@ -167,16 +167,22 @@ Typing `/` with nothing before it opens the autocomplete popup.
 | Key | Action |
 |---|---|
 | `↑` / `↓` | Move the highlight |
-| `Tab` or `Return` | Accept the highlighted command |
+| `Return` | Submit the highlighted command if it takes no arguments; otherwise insert `/<name> ` so you can type args |
+| `Tab` | Insert the highlighted completion as `/<name> ` without submitting (lets you edit before sending) |
 | `Esc` | Close the popup (keeps what you typed) |
 
-Built-in commands are `/help`, `/skills`, and `/exit`. Every file in
-`.botholomew/skills/` is also surfaced in the popup with its
-description. See [skills.md](skills.md) for the file format and how
+Built-in commands are `/help`, `/skills`, `/clear`, and `/exit`.
+`/clear` ends the current chat thread (persisted, still resumable via
+`botholomew chat --thread-id <id>`) and starts a fresh one on the same
+session, so you can reset context without losing the conversation.
+Every file in `.botholomew/skills/` is also surfaced in the popup with
+its description. See [skills.md](skills.md) for the file format and how
 skills are invoked with positional arguments.
 
-The popup disappears as soon as you type a space — so a second
-`Return` submits the message as normal.
+Skills that reference `$1` / `$ARGUMENTS` (or declare `arguments` in
+frontmatter) are treated as argument-taking: `Return` inserts
+`/<name> ` and waits for your input. Skills without placeholders, like
+the built-ins, submit in a single `Return`.
 
 ---
 
@@ -255,7 +261,8 @@ just shows the summary to keep the chat view compact.
 | `⌥+Enter` | Insert newline |
 | `↑` / `↓` | Browse input history |
 | `/` | Open slash-command popup |
-| `Tab` / `Return` | Accept highlighted slash command (popup open) |
+| `Return` | Run highlighted command (popup open, no-arg) / insert `/<name> ` if args needed |
+| `Tab` | Insert highlighted command as `/<name> ` without submitting |
 | `Esc` | Close popup |
 | `Ctrl+J` / `Ctrl+K` | Select queued message |
 | `Ctrl+E` | Edit queued message |
