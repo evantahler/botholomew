@@ -131,6 +131,8 @@ When calling complete_task, write a summary that captures your key findings, dec
     prompt += `
 ## External Tools (MCP)
 
+Before reaching for MCP tools to **find** information, check local context first — content from Drive, Gmail, GitHub, URLs, and prior agent runs is often already ingested. Use \`search_semantic\` (semantic) or \`context_search\` (keyword) across drives, then \`context_read\` / \`context_tree\` to drill in. Only fall through to \`mcp_exec\` when the data is fresh, write-side (sending an email, creating an issue), or genuinely missing locally.
+
 You have access to external tools via MCP servers. Before calling any MCP tool you haven't used yet this session, you MUST fetch its schema first:
 
 1. Discover tools with \`mcp_search\` (preferred — semantic) or \`mcp_list_tools\`.
