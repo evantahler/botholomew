@@ -194,4 +194,4 @@ migration touched tables from migration 2 so it never mattered.
      `~/.config/systemd/user/botholomew-*.*` files are written.
 4. `package.json` version bumped.
 
-## Status: **In Progress**
+## Status: **Done**
