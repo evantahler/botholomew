@@ -77,6 +77,45 @@ botholomew context tree /
 
 ---
 
+## Structured errors from `context_read` / `context_info`
+
+When the agent passes a path that doesn't resolve, these tools return a
+structured `is_error: true` response (they do **not** throw) so the model
+can recover inside the same tool loop:
+
+```json
+{
+  "is_error": true,
+  "error_type": "not_found",
+  "message": "No context item at /projects/foo/README.md",
+  "next_action_hint": "Nearby paths under /projects/foo: /projects/foo/docs/a.md, /projects/foo/notes.md. Call context_tree({path:\"/projects/foo\"}) to see more."
+}
+```
+
+On success, `context_info` returns the metadata under a `file` key:
+
+```json
+{
+  "is_error": false,
+  "file": {
+    "id": "...", "title": "...", "context_path": "/projects/foo/notes.md",
+    "mime_type": "text/markdown", "is_textual": true,
+    "size": 1234, "lines": 42, ...
+  }
+}
+```
+
+The hint is built from `findNearbyContextPaths` — up to five immediate
+siblings of the requested path's parent directory, walking up until it
+finds a populated ancestor. `context_read` also returns
+`error_type: "no_text_content"` when the target exists but is binary
+(e.g. an image row).
+
+CLI callers of the underlying resolver still throw — this shape is only
+used by the agent-facing tools.
+
+---
+
 ## Patch format for `context_edit`
 
 ```ts

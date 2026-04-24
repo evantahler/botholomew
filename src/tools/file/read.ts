@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { resolveContextItemOrThrow } from "../../db/context.ts";
+import {
+  findNearbyContextPaths,
+  resolveContextItem,
+} from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
@@ -12,8 +15,11 @@ const inputSchema = z.object({
 });
 
 const outputSchema = z.object({
-  content: z.string(),
+  content: z.string().optional(),
   is_error: z.boolean(),
+  error_type: z.string().optional(),
+  message: z.string().optional(),
+  next_action_hint: z.string().optional(),
 });
 
 export const contextReadTool = {
@@ -24,8 +30,33 @@ export const contextReadTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const item = await resolveContextItemOrThrow(ctx.conn, input.path);
-    if (item.content == null) throw new Error(`No text content: ${input.path}`);
+    const item = await resolveContextItem(ctx.conn, input.path);
+    if (!item) {
+      const { parent, siblings, walkedUp } = await findNearbyContextPaths(
+        ctx.conn,
+        input.path,
+      );
+      const hint =
+        siblings.length > 0
+          ? `${walkedUp ? `Parent ${parent} has no direct entries; ` : ""}Nearby paths under ${parent}: ${siblings.join(", ")}. Call context_tree({path:"${parent}"}) to see more.`
+          : `No items found under ${parent}. Call context_tree({path:"/"}) to discover what exists.`;
+      return {
+        is_error: true,
+        error_type: "not_found",
+        message: `No context item at ${input.path}`,
+        next_action_hint: hint,
+      };
+    }
+
+    if (item.content == null) {
+      return {
+        is_error: true,
+        error_type: "no_text_content",
+        message: `Context item ${item.context_path} has no text content (mime: ${item.mime_type})`,
+        next_action_hint:
+          "Binary items can't be read as text. Call context_info to inspect metadata, or pick a textual sibling.",
+      };
+    }
 
     let content = item.content;
 
