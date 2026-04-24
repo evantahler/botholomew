@@ -138,6 +138,28 @@ describe("buildChatSystemPrompt", () => {
     expect(prompt).not.toContain("Our invoicing system uses Stripe");
   });
 
+  test("includes MCP section with mcp_info requirement when hasMcpTools is true", async () => {
+    const prompt = await buildChatSystemPrompt(projectDir, {
+      hasMcpTools: true,
+    });
+    expect(prompt).toContain("## External Tools (MCP)");
+    expect(prompt).toContain("MUST fetch its schema first");
+    expect(prompt).toContain("`mcp_info`");
+    expect(prompt).toContain("`mcp_exec`");
+    expect(prompt).toContain("`mcp_search`");
+    expect(prompt).toContain("`mcp_list_tools`");
+  });
+
+  test("omits MCP section when hasMcpTools is false or absent", async () => {
+    const promptNoOpts = await buildChatSystemPrompt(projectDir);
+    expect(promptNoOpts).not.toContain("## External Tools (MCP)");
+
+    const promptFalse = await buildChatSystemPrompt(projectDir, {
+      hasMcpTools: false,
+    });
+    expect(promptFalse).not.toContain("## External Tools (MCP)");
+  });
+
   test("always-loaded files appear even when keywordSource matches nothing", async () => {
     const always = serializeContextFile(
       { loading: "always", "agent-modification": true },

@@ -29,16 +29,16 @@ export function extractKeywords(text: string): Set<string> {
 }
 
 /**
- * Load persistent context files from .botholomew/ directory.
- * Returns an array of formatted string sections for "always" loaded files.
- * If taskKeywords are provided, also includes "contextual" files that match.
+ * Load persistent context files from .botholomew/ directory as a single
+ * formatted string. Includes "always" files unconditionally and "contextual"
+ * files whose content overlaps the provided taskKeywords.
  */
 export async function loadPersistentContext(
   projectDir: string,
   taskKeywords?: Set<string> | null,
-): Promise<string[]> {
+): Promise<string> {
   const dotDir = getBotholomewDir(projectDir);
-  const parts: string[] = [];
+  let out = "";
 
   try {
     const files = await readdir(dotDir);
@@ -50,18 +50,14 @@ export async function loadPersistentContext(
       const { meta, content } = parseContextFile(raw);
 
       if (meta.loading === "always") {
-        parts.push(`## ${filename}`);
-        parts.push(content);
-        parts.push("");
+        out += `## ${filename}\n${content}\n\n`;
       } else if (meta.loading === "contextual" && taskKeywords) {
         const contentLower = content.toLowerCase();
         const hasOverlap = [...taskKeywords].some((kw) =>
           contentLower.includes(kw),
         );
         if (hasOverlap) {
-          parts.push(`## ${filename} (contextual)`);
-          parts.push(content);
-          parts.push("");
+          out += `## ${filename} (contextual)\n${content}\n\n`;
         }
       }
     }
@@ -69,21 +65,20 @@ export async function loadPersistentContext(
     // .botholomew dir might not have md files yet
   }
 
-  return parts;
+  return out;
 }
 
 /**
  * Build common meta header (version, time, OS, user).
  */
-export function buildMetaHeader(projectDir: string): string[] {
-  return [
-    `# Botholomew v${pkg.version}`,
-    `Current time: ${new Date().toISOString()}`,
-    `Project directory: ${projectDir}`,
-    `OS: ${process.platform} ${process.arch}`,
-    `User: ${process.env.USER || process.env.USERNAME || "unknown"}`,
-    "",
-  ];
+export function buildMetaHeader(projectDir: string): string {
+  return `# Botholomew v${pkg.version}
+Current time: ${new Date().toISOString()}
+Project directory: ${projectDir}
+OS: ${process.platform} ${process.arch}
+User: ${process.env.USER || process.env.USERNAME || "unknown"}
+
+`;
 }
 
 export async function buildSystemPrompt(
@@ -93,20 +88,14 @@ export async function buildSystemPrompt(
   _config?: Required<BotholomewConfig>,
   options?: { hasMcpTools?: boolean },
 ): Promise<string> {
-  const parts: string[] = [];
+  let prompt = buildMetaHeader(projectDir);
 
-  // Meta information
-  parts.push(...buildMetaHeader(projectDir));
-
-  // Build keyword set from task for contextual loading
   const taskKeywords = task
     ? extractKeywords(`${task.name} ${task.description}`)
     : null;
 
-  // Load context files from .botholomew/
-  parts.push(...(await loadPersistentContext(projectDir, taskKeywords)));
+  prompt += await loadPersistentContext(projectDir, taskKeywords);
 
-  // Relevant context from embeddings search
   if (task && dbPath && _config?.openai_api_key) {
     try {
       const query = `${task.name} ${task.description}`;
@@ -116,14 +105,14 @@ export async function buildSystemPrompt(
       );
 
       if (results.length > 0) {
-        parts.push("## Relevant Context");
+        prompt += "## Relevant Context\n";
         for (const r of results) {
           const path = r.source_path || r.context_item_id;
-          parts.push(`### ${r.title} (${path})`);
+          prompt += `### ${r.title} (${path})\n`;
           if (r.chunk_content) {
-            parts.push(r.chunk_content.slice(0, 1000));
+            prompt += `${r.chunk_content.slice(0, 1000)}\n`;
           }
-          parts.push("");
+          prompt += "\n";
         }
       }
     } catch (err) {
@@ -131,19 +120,25 @@ export async function buildSystemPrompt(
     }
   }
 
-  // Instructions
-  parts.push("## Instructions");
-  parts.push(
-    "You are Botholomew, a wise-owl worker that works through tasks. Use available tools to complete your assigned task, then call complete_task, fail_task, or wait_task. Use create_task for subtasks and update_task to refine pending tasks. Batch independent tool calls in a single response for parallel execution.\n\nWhen calling complete_task, write a summary that captures your key findings, decisions, and outputs. This summary becomes the task's output and is provided to any downstream tasks that depend on this one. Include specific results (data, names, paths, conclusions) rather than vague descriptions of what you did — downstream tasks will rely on this information to do their work.",
-  );
-  if (options?.hasMcpTools) {
-    parts.push("");
-    parts.push("## External Tools (MCP)");
-    parts.push(
-      "You have access to external tools via MCP servers. Use `mcp_list_tools` or `mcp_search` to discover available tools, `mcp_info` to get a tool's input schema, then `mcp_exec` to call them.",
-    );
-  }
-  parts.push("");
+  prompt += `## Instructions
+You are Botholomew, a wise-owl worker that works through tasks. Use available tools to complete your assigned task, then call complete_task, fail_task, or wait_task. Use create_task for subtasks and update_task to refine pending tasks. Batch independent tool calls in a single response for parallel execution.
 
-  return parts.join("\n");
+When calling complete_task, write a summary that captures your key findings, decisions, and outputs. This summary becomes the task's output and is provided to any downstream tasks that depend on this one. Include specific results (data, names, paths, conclusions) rather than vague descriptions of what you did — downstream tasks will rely on this information to do their work.
+`;
+
+  if (options?.hasMcpTools) {
+    prompt += `
+## External Tools (MCP)
+
+You have access to external tools via MCP servers. Before calling any MCP tool you haven't used yet this session, you MUST fetch its schema first:
+
+1. Discover tools with \`mcp_search\` (preferred — semantic) or \`mcp_list_tools\`.
+2. Call \`mcp_info\` with the exact \`server\` and \`tool\` to read the tool's input schema, required fields, and types.
+3. Only then call \`mcp_exec\` with arguments that conform to that schema.
+
+Skip step 2 only if you already called \`mcp_info\` for that exact server+tool earlier in this conversation. Do not guess arguments from the tool's description alone — descriptions omit types and required/optional markers.
+`;
+  }
+
+  return prompt;
 }

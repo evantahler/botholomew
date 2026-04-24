@@ -65,18 +65,16 @@ export async function buildChatSystemPrompt(
     keywordSource?: string;
     dbPath?: string;
     config?: Required<BotholomewConfig>;
+    hasMcpTools?: boolean;
   },
 ): Promise<string> {
-  const parts: string[] = [];
-
-  parts.push(...buildMetaHeader(projectDir));
+  let prompt = buildMetaHeader(projectDir);
 
   const keywordSource = options?.keywordSource?.trim();
   const taskKeywords = keywordSource ? extractKeywords(keywordSource) : null;
 
-  parts.push(...(await loadPersistentContext(projectDir, taskKeywords)));
+  prompt += await loadPersistentContext(projectDir, taskKeywords);
 
-  // Relevant context from embeddings search
   const dbPath = options?.dbPath;
   const config = options?.config;
   if (dbPath && config?.openai_api_key && keywordSource) {
@@ -87,14 +85,14 @@ export async function buildChatSystemPrompt(
       );
 
       if (results.length > 0) {
-        parts.push("## Relevant Context");
+        prompt += "## Relevant Context\n";
         for (const r of results) {
           const path = r.source_path || r.context_item_id;
-          parts.push(`### ${r.title} (${path})`);
+          prompt += `### ${r.title} (${path})\n`;
           if (r.chunk_content) {
-            parts.push(r.chunk_content.slice(0, 1000));
+            prompt += `${r.chunk_content.slice(0, 1000)}\n`;
           }
-          parts.push("");
+          prompt += "\n";
         }
       }
     } catch (err) {
@@ -102,28 +100,30 @@ export async function buildChatSystemPrompt(
     }
   }
 
-  parts.push("## Instructions");
-  parts.push(
-    "You are Botholomew, an AI agent personified by a wise owl. This is your interactive chat interface. Help the user manage tasks, review results from background worker activity, search context, and answer questions.",
-  );
-  parts.push(
-    "You do NOT execute long-running work directly — enqueue tasks for a background worker instead using create_task, and spawn a worker via spawn_worker when the user wants the task run now.",
-  );
-  parts.push(
-    "Use the available tools to look up tasks, threads, schedules, and context when the user asks about them. Context items can be looked up by virtual path or by UUID via `context_info` and refreshed via `context_refresh`.",
-  );
-  parts.push(
-    "When multiple tool calls are independent of each other (i.e., one does not depend on the result of another), call them all in a single response. They will be executed in parallel, which is faster than calling them one at a time.",
-  );
-  parts.push(
-    "You can update the agent's beliefs and goals files when the user asks you to.",
-  );
-  parts.push(
-    "Format your responses using Markdown. Use headings, bold, italic, lists, and code blocks to make your responses clear and well-structured.",
-  );
-  parts.push("");
+  prompt += `## Instructions
+You are Botholomew, an AI agent personified by a wise owl. This is your interactive chat interface. Help the user manage tasks, review results from background worker activity, search context, and answer questions.
+You do NOT execute long-running work directly — enqueue tasks for a background worker instead using create_task, and spawn a worker via spawn_worker when the user wants the task run now.
+Use the available tools to look up tasks, threads, schedules, and context when the user asks about them. Context items can be looked up by virtual path or by UUID via \`context_info\` and refreshed via \`context_refresh\`.
+When multiple tool calls are independent of each other (i.e., one does not depend on the result of another), call them all in a single response. They will be executed in parallel, which is faster than calling them one at a time.
+You can update the agent's beliefs and goals files when the user asks you to.
+Format your responses using Markdown. Use headings, bold, italic, lists, and code blocks to make your responses clear and well-structured.
+`;
 
-  return parts.join("\n");
+  if (options?.hasMcpTools) {
+    prompt += `
+## External Tools (MCP)
+
+You have access to external tools via MCP servers. Before calling any MCP tool you haven't used yet this session, you MUST fetch its schema first:
+
+1. Discover tools with \`mcp_search\` (preferred — semantic) or \`mcp_list_tools\`.
+2. Call \`mcp_info\` with the exact \`server\` and \`tool\` to read the tool's input schema, required fields, and types.
+3. Only then call \`mcp_exec\` with arguments that conform to that schema.
+
+Skip step 2 only if you already called \`mcp_info\` for that exact server+tool earlier in this conversation. Do not guess arguments from the tool's description alone — descriptions omit types and required/optional markers.
+`;
+  }
+
+  return prompt;
 }
 
 export interface ToolEndMeta {
@@ -202,6 +202,7 @@ export async function runChatTurn(input: {
       keywordSource,
       dbPath,
       config,
+      hasMcpTools: mcpxClient != null,
     });
 
     fitToContextWindow(messages, systemPrompt, maxInputTokens);
