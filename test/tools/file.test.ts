@@ -151,6 +151,37 @@ describe("context_read", () => {
     expect(result.content).toBe("found by id");
   });
 
+  test("reads by UUID when drive is omitted", async () => {
+    const item = await seedFile(conn, "/no-drive.txt", "resolved by id");
+    const result = await contextReadTool.execute({ path: item.id }, ctx);
+    expect(result.content).toBe("resolved by id");
+  });
+
+  test("reads by drive:/path ref when drive is omitted", async () => {
+    await seedFile(conn, "/ref.txt", "resolved by ref");
+    const result = await contextReadTool.execute(
+      { path: `${D}:/ref.txt` },
+      ctx,
+    );
+    expect(result.content).toBe("resolved by ref");
+  });
+
+  test("returns missing_drive error when drive is absent and path is bare", async () => {
+    const result = await contextReadTool.execute({ path: "/lonely.txt" }, ctx);
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("missing_drive");
+    expect(result.content).toBeUndefined();
+  });
+
+  test("prepends leading slash to bare path", async () => {
+    await seedFile(conn, "/no-slash.txt", "body");
+    const result = await contextReadTool.execute(
+      { drive: D, path: "no-slash.txt" },
+      ctx,
+    );
+    expect(result.content).toBe("body");
+  });
+
   test("returns not_found error with sibling hints", async () => {
     await seedFile(conn, "/dir/real.txt", "hi");
     const result = await contextReadTool.execute(

@@ -4,6 +4,9 @@ import { z } from "zod";
 import { loadConfig } from "../config/loader.ts";
 import { getDbPath } from "../constants.ts";
 import { parseDriveRef } from "../context/drives.ts";
+import type { DbConnection } from "../db/connection.ts";
+import { getContextItemById } from "../db/context.ts";
+import { isUuid } from "../db/uuid.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
   type AnyToolDefinition,
@@ -110,7 +113,14 @@ function registerToolAsCLI(parent: Command, tool: AnyToolDefinition) {
     while (root.parent) root = root.parent;
     return withDb(root, async (conn, dir) => {
       try {
-        const input = buildInput(tool, positionals, options, shape, args);
+        const input = await buildInput(
+          tool,
+          positionals,
+          options,
+          shape,
+          args,
+          conn,
+        );
 
         const ctx: ToolContext = {
           conn,
@@ -130,7 +140,7 @@ function registerToolAsCLI(parent: Command, tool: AnyToolDefinition) {
   });
 }
 
-function buildInput(
+async function buildInput(
   tool: AnyToolDefinition,
   positionals: string[],
   options: {
@@ -141,12 +151,14 @@ function buildInput(
   }[],
   shape: Record<string, z.ZodType>,
   args: unknown[],
-): Record<string, unknown> {
+  conn: DbConnection,
+): Promise<Record<string, unknown>> {
   const input: Record<string, unknown> = {};
 
   // Positional args come first in Commander's action callback. Context tools
   // carry `(drive, path)` or `(src_drive, src_path, …)` in their schema but
-  // accept a friendlier `drive:/path` form as a single positional on the CLI.
+  // accept a friendlier `drive:/path` or bare-UUID form as a single positional
+  // on the CLI.
   for (let i = 0; i < positionals.length; i++) {
     const key = positionals[i]?.replace(/[<>[\]]/g, "");
     const value = args[i];
@@ -158,6 +170,14 @@ function buildInput(
         input[splitTargets.drive] = parsed.drive;
         input[splitTargets.path] = parsed.path;
         continue;
+      }
+      if (isUuid(value)) {
+        const item = await getContextItemById(conn, value);
+        if (item) {
+          input[splitTargets.drive] = item.drive;
+          input[splitTargets.path] = item.path;
+          continue;
+        }
       }
     }
     input[key] = value;
@@ -204,6 +224,19 @@ function formatOutput(result: unknown, _toolName: string) {
 
   if (typeof result === "object") {
     const obj = result as Record<string, unknown>;
+
+    // Structured error shape: { is_error: true, message, next_action_hint? }
+    if (obj.is_error === true) {
+      const msg = typeof obj.message === "string" ? obj.message : "Error";
+      logger.error(msg);
+      if (
+        typeof obj.next_action_hint === "string" &&
+        obj.next_action_hint.length > 0
+      ) {
+        console.log(ansis.dim(obj.next_action_hint));
+      }
+      process.exit(1);
+    }
 
     // Special formatting for known output shapes
     if ("tree" in obj && typeof obj.tree === "string") {

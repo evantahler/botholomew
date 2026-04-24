@@ -11,8 +11,9 @@ import type { ToolDefinition } from "../tool.ts";
 const inputSchema = z.object({
   drive: z
     .string()
+    .optional()
     .describe(
-      "Drive name (e.g. 'disk', 'url', 'agent', 'google-docs', 'github'). Use context_list_drives to see what's available. Ignored when `path` is a UUID or already in `drive:/...` form.",
+      "Drive name (e.g. 'disk', 'url', 'agent', 'google-docs', 'github'). Use context_list_drives to see what's available. Optional when `path` is a UUID or already in `drive:/...` form.",
     ),
   path: z
     .string()
@@ -58,6 +59,18 @@ export const contextReadTool = {
         path = parsed.path;
       }
     }
+
+    if (!drive) {
+      return {
+        is_error: true,
+        error_type: "missing_drive",
+        message: `Cannot resolve context item: no drive provided and \`${input.path}\` is not a UUID or \`drive:/path\` ref.`,
+        next_action_hint:
+          "Pass `drive` explicitly, or use a `drive:/path` ref. Call context_list_drives to see which drives exist.",
+      };
+    }
+
+    if (!path.startsWith("/")) path = `/${path}`;
 
     const item = await getContextItem(ctx.conn, { drive, path });
     if (!item) {
