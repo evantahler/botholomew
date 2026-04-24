@@ -199,6 +199,9 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("`mcp_exec`");
     expect(prompt).toContain("`mcp_search`");
     expect(prompt).toContain("`mcp_list_tools`");
+    expect(prompt).toContain("check local context first");
+    expect(prompt).toContain("`search_semantic`");
+    expect(prompt).toContain("`context_search`");
   });
 
   test("omits MCP section when hasMcpTools is false or absent", async () => {
