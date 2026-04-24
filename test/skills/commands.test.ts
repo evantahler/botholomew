@@ -7,16 +7,19 @@ import type { SkillDefinition } from "../../src/skills/parser.ts";
 
 function makeCtx(
   skills: Map<string, SkillDefinition> = new Map(),
+  opts: { withClearChat?: boolean } = {},
 ): SlashCommandContext & {
   systemMessages: string[];
   queuedMessages: string[];
   exited: boolean;
+  clearCalls: number;
 } {
   const ctx = {
     skills,
     systemMessages: [] as string[],
     queuedMessages: [] as string[],
     exited: false,
+    clearCalls: 0,
     addSystemMessage: (content: string) => {
       ctx.systemMessages.push(content);
     },
@@ -26,6 +29,11 @@ function makeCtx(
     exit: () => {
       ctx.exited = true;
     },
+    clearChat: opts.withClearChat
+      ? () => {
+          ctx.clearCalls++;
+        }
+      : undefined,
   };
   return ctx;
 }
@@ -114,5 +122,21 @@ describe("handleSlashCommand", () => {
     const result = handleSlashCommand("/REVIEW src/main.ts", ctx);
     expect(result).toBe(true);
     expect(ctx.queuedMessages).toHaveLength(1);
+  });
+
+  test("/clear invokes clearChat when provided", () => {
+    const ctx = makeCtx(new Map(), { withClearChat: true });
+    const result = handleSlashCommand("/clear", ctx);
+    expect(result).toBe(true);
+    expect(ctx.clearCalls).toBe(1);
+    expect(ctx.systemMessages).toHaveLength(0);
+  });
+
+  test("/clear warns when clearChat is not provided", () => {
+    const ctx = makeCtx();
+    const result = handleSlashCommand("/clear", ctx);
+    expect(result).toBe(true);
+    expect(ctx.clearCalls).toBe(0);
+    expect(ctx.systemMessages[0]).toContain("only available in the chat TUI");
   });
 });

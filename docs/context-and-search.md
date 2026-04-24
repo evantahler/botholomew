@@ -200,6 +200,9 @@ The agent-side `context_write` tool follows the same convention:
 defaults to `on_conflict='error'` and returns a PATs-style
 `error_type: "path_conflict"` with a `next_action_hint` that guides the
 agent to `context_read` first or pass `on_conflict='overwrite'`.
+On success, `context_write` also returns a `tree` field — a `context_tree`
+snapshot of the filesystem after the write — so the agent can see what
+else is nearby without a follow-up call.
 
 ### Remote content via a loading agent
 
@@ -272,7 +275,9 @@ same arguments as the CLI (`path` for a single item or subtree,
 `all: true` for every sourced item) and returns a structured summary
 (`checked`, `updated`, `unchanged`, `missing`, `reembedded`,
 `chunks`, per-item statuses) so the agent can report back or feed a
-downstream task via `complete_task`.
+downstream task via `complete_task`. On success the tool also returns
+a `tree` field — a post-refresh `context_tree` snapshot so the agent
+sees the current filesystem layout without a follow-up call.
 
 Under the hood, URL fetches from the daemon open a nested fetcher
 loop with the project's MCPX client — the same path the CLI uses.

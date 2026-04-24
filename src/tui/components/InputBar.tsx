@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import type { SlashCommand } from "../../skills/commands.ts";
-import { getSlashMatches } from "../slashCompletion.ts";
+import { getSlashMatches, shouldSubmitOnEnter } from "../slashCompletion.ts";
 import { SlashCommandPopup } from "./SlashCommandPopup.tsx";
 
 interface InputBarProps {
@@ -128,11 +128,23 @@ export const InputBar = memo(function InputBar({
         ? getSlashMatches(val, slashCommandsRef.current ?? [])
         : null;
 
-      const acceptSelection = () => {
+      const acceptSelection = (mode: "insert" | "submit") => {
         if (!popupOpen) return false;
         const chosen =
           popupOpen[Math.min(selectedIndexRef.current, popupOpen.length - 1)];
         if (!chosen) return false;
+        if (mode === "submit") {
+          const completed = `/${chosen.name}`;
+          valueRef.current = completed;
+          cursorPosRef.current = 0;
+          onChangeRef.current(completed);
+          setCursorPos(0);
+          historyIndexRef.current = -1;
+          setHistoryIndex(-1);
+          savedInput.current = "";
+          onSubmitRef.current(completed);
+          return true;
+        }
         const completed = `/${chosen.name} `;
         valueRef.current = completed;
         cursorPosRef.current = completed.length;
@@ -152,11 +164,16 @@ export const InputBar = memo(function InputBar({
         return;
       }
 
-      // Enter: if popup is open, accept selection (do not submit).
-      // Otherwise submit as before.
+      // Enter: if popup is open, accept the highlighted entry. No-arg
+      // commands submit in one keystroke; commands that take args insert
+      // `/<name> ` and wait for the user to finish typing.
       if (key.return) {
         if (popupOpen && !key.shift && !key.meta) {
-          acceptSelection();
+          const chosen =
+            popupOpen[Math.min(selectedIndexRef.current, popupOpen.length - 1)];
+          acceptSelection(
+            chosen && shouldSubmitOnEnter(chosen) ? "submit" : "insert",
+          );
           return;
         }
         if (key.shift || key.meta) {
@@ -179,10 +196,10 @@ export const InputBar = memo(function InputBar({
         return;
       }
 
-      // Tab: accept popup selection if open. No-op otherwise.
+      // Tab: insert the highlighted completion so the user can keep editing.
       if (key.tab) {
         if (popupOpen) {
-          acceptSelection();
+          acceptSelection("insert");
         }
         return;
       }

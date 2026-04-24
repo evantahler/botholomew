@@ -4,6 +4,7 @@ import {
   buildSlashCommands,
   getSlashMatches,
   MAX_VISIBLE_COMPLETIONS,
+  shouldSubmitOnEnter,
 } from "../../src/tui/slashCompletion.ts";
 
 const commands: SlashCommand[] = [
@@ -95,5 +96,45 @@ describe("buildSlashCommands", () => {
     ];
     const result = buildSlashCommands(builtins, []);
     expect(result.map((c) => c.name)).toEqual(["quit", "exit"]);
+  });
+
+  test("propagates takesArgs from skills and leaves builtins unset", () => {
+    const builtins: SlashCommand[] = [{ name: "help", description: "Help" }];
+    const skills = [
+      { name: "review", description: "Review", takesArgs: true },
+      { name: "status", description: "Status", takesArgs: false },
+      { name: "ping", description: "Ping" },
+    ];
+    const result = buildSlashCommands(builtins, skills);
+    expect(result[0]?.takesArgs).toBeUndefined();
+    expect(result[1]?.takesArgs).toBe(true);
+    expect(result[2]?.takesArgs).toBe(false);
+    expect(result[3]?.takesArgs).toBeUndefined();
+  });
+});
+
+describe("shouldSubmitOnEnter", () => {
+  test("returns true for commands without takesArgs (builtins)", () => {
+    expect(shouldSubmitOnEnter({ name: "clear", description: "" })).toBe(true);
+  });
+
+  test("returns false when takesArgs is true", () => {
+    expect(
+      shouldSubmitOnEnter({
+        name: "review",
+        description: "",
+        takesArgs: true,
+      }),
+    ).toBe(false);
+  });
+
+  test("returns true when takesArgs is explicitly false", () => {
+    expect(
+      shouldSubmitOnEnter({
+        name: "status",
+        description: "",
+        takesArgs: false,
+      }),
+    ).toBe(true);
   });
 });
