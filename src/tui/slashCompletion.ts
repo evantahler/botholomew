@@ -28,11 +28,25 @@ export function getSlashMatches(
 
 export function buildSlashCommands(
   builtins: SlashCommand[],
-  skills: Iterable<{ name: string; description: string }>,
+  skills: Iterable<{ name: string; description: string; takesArgs?: boolean }>,
 ): SlashCommand[] {
   const out: SlashCommand[] = [...builtins];
   for (const s of skills) {
-    out.push({ name: s.name, description: s.description });
+    out.push({
+      name: s.name,
+      description: s.description,
+      takesArgs: s.takesArgs,
+    });
   }
   return out;
+}
+
+/**
+ * Decide whether pressing Enter on a highlighted popup entry should both
+ * accept the completion and immediately submit. True for no-argument
+ * commands (single-Enter runs them); false for commands that take args,
+ * where we insert `/<name> ` and wait for the user to finish typing.
+ */
+export function shouldSubmitOnEnter(cmd: SlashCommand): boolean {
+  return !cmd.takesArgs;
 }

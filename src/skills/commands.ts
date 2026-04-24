@@ -4,6 +4,7 @@ import { renderSkill } from "./parser.ts";
 export interface SlashCommand {
   name: string;
   description: string;
+  takesArgs?: boolean;
 }
 
 export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [

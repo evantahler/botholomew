@@ -127,6 +127,7 @@ export function App({
 }: AppProps) {
   const { exit } = useApp();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messagesEpoch, setMessagesEpoch] = useState(0);
   const [inputValue, setInputValue] = useState("");
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -491,7 +492,8 @@ export function App({
             "  ⌥+Enter        Insert newline",
             "  ↑/↓            Browse input history",
             "  /              Open slash-command autocomplete",
-            "  Tab/Enter      Accept highlighted command (popup open)",
+            "  Enter          Run highlighted command / insert if it takes args (popup open)",
+            "  Tab            Insert highlighted command without submitting (popup open)",
             "  ↑/↓            Move highlight (popup open)",
             "  Esc            Close popup",
             "",
@@ -573,6 +575,11 @@ export function App({
             syncQueue();
             clearChatSession(session)
               .then(({ previousThreadId, newThreadId }) => {
+                // Ink's <Static> writes messages to terminal scrollback and
+                // can't un-write them, so setMessages alone leaves the old
+                // lines visible. Clear the terminal (including scrollback)
+                // and bump the epoch key on <Static> to force a fresh mount.
+                process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
                 setMessages([
                   {
                     id: msgId(),
@@ -581,6 +588,7 @@ export function App({
                     timestamp: new Date(),
                   },
                 ]);
+                setMessagesEpoch((n) => n + 1);
                 setChatTitle(undefined);
               })
               .catch((err) => {
@@ -627,6 +635,10 @@ export function App({
       ? Array.from(sessionSkills.values()).map((s) => ({
           name: s.name,
           description: s.description,
+          takesArgs:
+            s.arguments.length > 0 ||
+            /\$ARGUMENTS\b/.test(s.body) ||
+            /\$[1-9]\b/.test(s.body),
         }))
       : [];
     return buildSlashCommands(BUILTIN_SLASH_COMMANDS, skillList);
@@ -672,7 +684,7 @@ export function App({
           node always has proper terminal width in its Yoga layout.
           Otherwise Ink's border renderer crashes with a negative
           contentWidth when tool-call boxes are rendered at width 0. */}
-      <Static items={messages}>
+      <Static key={messagesEpoch} items={messages}>
         {(msg) => <MessageBubble key={msg.id} message={msg} />}
       </Static>
 
