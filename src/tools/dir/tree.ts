@@ -8,7 +8,7 @@ import {
 } from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 
-const DEFAULT_MAX_DEPTH = 3;
+const DEFAULT_MAX_DEPTH = 10;
 const DEFAULT_ITEMS_PER_DIR = 15;
 const HARD_FETCH_CAP = 1000;
 

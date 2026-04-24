@@ -254,8 +254,9 @@ what else is nearby without a follow-up call.
 
 ```bash
 botholomew context refresh disk:/Users/evan/notes/strategy.md
-botholomew context refresh README.md      # bare path → resolves to disk:/<abs>
-botholomew context refresh --all          # every non-agent item
+botholomew context refresh README.md           # bare path → resolves to disk:/<abs>
+botholomew context refresh docs/*.md           # multiple paths (shell glob)
+botholomew context refresh --all               # every non-agent item
 ```
 
 `refresh` dispatches on the drive:
