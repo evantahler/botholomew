@@ -228,6 +228,53 @@ export async function resolveContextItemOrThrow(
   return item;
 }
 
+export interface NearbyContextPaths {
+  /** Directory we found neighbours under (may be an ancestor if the direct parent was empty). */
+  parent: string;
+  /** Exact `context_path` values of the parent's immediate children. */
+  siblings: string[];
+  /** True if we walked up from the requested path's direct parent to find a populated ancestor. */
+  walkedUp: boolean;
+}
+
+/**
+ * Find context items near a requested path to power "did you mean?" suggestions
+ * when a lookup misses. Returns up to `limit` exact `context_path` values of the
+ * requested path's parent-dir neighbours; if the parent has no rows, walks up
+ * until it finds a populated ancestor (or hits root).
+ */
+export async function findNearbyContextPaths(
+  db: DbConnection,
+  requestedPath: string,
+  limit = 5,
+): Promise<NearbyContextPaths> {
+  let parent = parentDir(requestedPath);
+  let walkedUp = false;
+  while (true) {
+    const items = await listContextItemsByPrefix(db, parent, {
+      recursive: false,
+      limit,
+    });
+    if (items.length > 0 || parent === "/") {
+      return {
+        parent,
+        siblings: items.map((i) => i.context_path),
+        walkedUp,
+      };
+    }
+    parent = parentDir(parent);
+    walkedUp = true;
+  }
+}
+
+function parentDir(p: string): string {
+  if (!p || p === "/") return "/";
+  const trimmed = p.endsWith("/") && p.length > 1 ? p.slice(0, -1) : p;
+  const idx = trimmed.lastIndexOf("/");
+  if (idx <= 0) return "/";
+  return trimmed.slice(0, idx);
+}
+
 export async function listContextItems(
   db: DbConnection,
   filters?: {

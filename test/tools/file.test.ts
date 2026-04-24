@@ -78,8 +78,8 @@ describe("context_write", () => {
       ctx,
     );
     const info = await contextInfoTool.execute({ path: "/doc.md" }, ctx);
-    expect(info.title).toBe("My Doc");
-    expect(info.description).toBe("A document");
+    expect(info.file?.title).toBe("My Doc");
+    expect(info.file?.description).toBe("A document");
   });
 
   test("writes base64 content", async () => {
@@ -129,17 +129,35 @@ describe("context_read", () => {
     expect(result.content).toBe("found by id");
   });
 
-  test("throws for nonexistent file", async () => {
-    expect(contextReadTool.execute({ path: "/nope.txt" }, ctx)).rejects.toThrow(
-      "Not found",
+  test("returns not_found error with sibling hints", async () => {
+    await seedFile(conn, "/dir/real.txt", "hi");
+    const result = await contextReadTool.execute(
+      { path: "/dir/missing.txt" },
+      ctx,
     );
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("not_found");
+    expect(result.content).toBeUndefined();
+    expect(result.next_action_hint).toContain("/dir/real.txt");
   });
 
-  test("throws for file with no text content", async () => {
+  test("walks up when requested parent is empty", async () => {
+    await seedFile(conn, "/root.txt", "root");
+    const result = await contextReadTool.execute(
+      { path: "/nonexistent/deep/missing.txt" },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("not_found");
+    expect(result.next_action_hint).toContain("/root.txt");
+  });
+
+  test("returns no_text_content error for binary files", async () => {
     await seedBinaryFile(conn, "/image.png");
-    expect(
-      contextReadTool.execute({ path: "/image.png" }, ctx),
-    ).rejects.toThrow("No text content");
+    const result = await contextReadTool.execute({ path: "/image.png" }, ctx);
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("no_text_content");
+    expect(result.content).toBeUndefined();
   });
 });
 
@@ -336,15 +354,16 @@ describe("context_info", () => {
       description: "A test file",
     });
     const info = await contextInfoTool.execute({ path: "/meta.txt" }, ctx);
-    expect(info.title).toBe("Meta");
-    expect(info.description).toBe("A test file");
-    expect(info.mime_type).toBe("text/plain");
-    expect(info.is_textual).toBe(true);
-    expect(info.lines).toBe(2);
-    expect(info.size).toBe(11);
-    expect(info.context_path).toBe("/meta.txt");
-    expect(info.created_at).toBeTruthy();
-    expect(info.updated_at).toBeTruthy();
+    expect(info.is_error).toBe(false);
+    expect(info.file?.title).toBe("Meta");
+    expect(info.file?.description).toBe("A test file");
+    expect(info.file?.mime_type).toBe("text/plain");
+    expect(info.file?.is_textual).toBe(true);
+    expect(info.file?.lines).toBe(2);
+    expect(info.file?.size).toBe(11);
+    expect(info.file?.context_path).toBe("/meta.txt");
+    expect(info.file?.created_at).toBeTruthy();
+    expect(info.file?.updated_at).toBeTruthy();
   });
 
   test("returns metadata by ID", async () => {
@@ -352,14 +371,41 @@ describe("context_info", () => {
       title: "MetaID",
     });
     const info = await contextInfoTool.execute({ path: item.id }, ctx);
-    expect(info.title).toBe("MetaID");
-    expect(info.context_path).toBe("/meta-id.txt");
+    expect(info.file?.title).toBe("MetaID");
+    expect(info.file?.context_path).toBe("/meta-id.txt");
   });
 
-  test("throws for nonexistent file", async () => {
-    expect(contextInfoTool.execute({ path: "/nope.txt" }, ctx)).rejects.toThrow(
-      "Not found",
+  test("returns not_found error with sibling hints", async () => {
+    await seedFile(conn, "/docs/readme.md", "hi");
+    await seedFile(conn, "/docs/guide.md", "g");
+    const result = await contextInfoTool.execute(
+      { path: "/docs/architecture.md" },
+      ctx,
     );
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("not_found");
+    expect(result.file).toBeUndefined();
+    expect(result.message).toContain("/docs/architecture.md");
+    expect(result.next_action_hint).toContain("/docs/readme.md");
+    expect(result.next_action_hint).toContain("/docs/guide.md");
+  });
+
+  test("not_found at empty root returns discovery hint", async () => {
+    const result = await contextInfoTool.execute({ path: "/nope.txt" }, ctx);
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("not_found");
+    expect(result.next_action_hint).toContain("context_tree");
+  });
+
+  test("not_found walks up past empty parents", async () => {
+    await seedFile(conn, "/a.txt", "a");
+    const result = await contextInfoTool.execute(
+      { path: "/missing/deeper/file.md" },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("not_found");
+    expect(result.next_action_hint).toContain("/a.txt");
   });
 });
 
@@ -504,8 +550,8 @@ describe("context edge cases", () => {
     const content = "Hello";
     await seedFile(conn, "/sized.txt", content);
     const info = await contextInfoTool.execute({ path: "/sized.txt" }, ctx);
-    expect(info.size).toBe(5);
-    expect(info.lines).toBe(1);
+    expect(info.file?.size).toBe(5);
+    expect(info.file?.lines).toBe(1);
   });
 
   test("read with offset beyond file length returns empty", async () => {
