@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import { logger } from "../utils/logger.ts";
 
 export interface Chunk {
   index: number;
@@ -16,6 +17,10 @@ const DEFAULT_OVERLAP_LINES = 2;
 // 8192-token limit, leaving headroom for the title/description prefix
 // prepended at embed time.
 const MAX_CHUNK_CHARS = 15_000;
+// Target size for deterministic fallback chunks. Smaller than MAX_CHUNK_CHARS
+// so a large doc produces multiple chunks of reasonable granularity when the
+// LLM chunker fails.
+const FALLBACK_TARGET_CHARS = 4_000;
 
 const CHUNKER_TOOL_NAME = "return_chunks";
 const CHUNKER_TOOL = {
@@ -152,6 +157,26 @@ export function addOverlapToChunks(
   });
 }
 
+export type LLMChunkerFn = (
+  content: string,
+  mimeType: string,
+  config: Required<BotholomewConfig>,
+) => Promise<Chunk[]>;
+
+/**
+ * Deterministic fallback that splits content on paragraph / line /
+ * hard-char boundaries. Used when the LLM chunker errors or times out.
+ */
+export function chunkByTextSplit(
+  content: string,
+  targetChars = FALLBACK_TARGET_CHARS,
+): Chunk[] {
+  return splitText(content, targetChars).map((c, i) => ({
+    index: i,
+    content: c,
+  }));
+}
+
 /**
  * LLM-driven chunker that asks Claude to identify semantic boundaries.
  * Uses structured outputs via tool_use with forced tool_choice.
@@ -167,7 +192,7 @@ export async function chunkWithLLM(
   const response = await Promise.race([
     client.messages.create({
       model: config.chunker_model,
-      max_tokens: 1024,
+      max_tokens: 2048,
       tools: [CHUNKER_TOOL],
       tool_choice: { type: "tool", name: CHUNKER_TOOL_NAME },
       messages: [
@@ -209,13 +234,15 @@ ${content}`,
 }
 
 /**
- * Chunk content using the LLM chunker.
+ * Chunk content using the LLM chunker, with a deterministic fallback
+ * when the LLM call fails (timeout, empty boundaries, API error, …).
  * Short content (<200 chars) is returned as a single chunk.
  */
 export async function chunk(
   content: string,
   mimeType: string,
   config: Required<BotholomewConfig>,
+  llmChunker: LLMChunkerFn = chunkWithLLM,
 ): Promise<Chunk[]> {
   if (content.length < SHORT_CONTENT_THRESHOLD) {
     return [{ index: 0, content }];
@@ -227,7 +254,17 @@ export async function chunk(
     );
   }
 
-  const chunks = await chunkWithLLM(content, mimeType, config);
+  let chunks: Chunk[];
+  try {
+    chunks = await llmChunker(content, mimeType, config);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn(
+      `chunker: LLM chunking failed (${msg}); falling back to deterministic text split`,
+    );
+    chunks = chunkByTextSplit(content);
+  }
+
   // Enforce a hard size cap before AND after overlap. The first pass handles
   // oversize chunks from the LLM (common for docs with very long lines); the
   // second pass handles the rare case where added overlap pushes a near-limit

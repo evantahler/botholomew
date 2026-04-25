@@ -17,6 +17,7 @@ export interface ContextItem {
   is_textual: boolean;
   drive: string;
   path: string;
+  source_url: string | null;
   indexed_at: Date | null;
   created_at: Date;
   updated_at: Date;
@@ -38,6 +39,7 @@ interface ContextItemRow {
   is_textual: boolean;
   drive: string;
   path: string;
+  source_url: string | null;
   indexed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -53,6 +55,7 @@ function rowToContextItem(row: ContextItemRow): ContextItem {
     is_textual: !!row.is_textual,
     drive: row.drive,
     path: row.path,
+    source_url: row.source_url,
     indexed_at: row.indexed_at ? new Date(row.indexed_at) : null,
     created_at: new Date(row.created_at),
     updated_at: new Date(row.updated_at),
@@ -84,12 +87,13 @@ export async function createContextItem(
     path: string;
     description?: string;
     isTextual?: boolean;
+    sourceUrl?: string | null;
   },
 ): Promise<ContextItem> {
   const id = uuidv7();
   const row = await db.queryGet<ContextItemRow>(
-    `INSERT INTO context_items (id, title, description, content, mime_type, is_textual, drive, path)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+    `INSERT INTO context_items (id, title, description, content, mime_type, is_textual, drive, path, source_url)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
      RETURNING *`,
     id,
     params.title,
@@ -99,6 +103,7 @@ export async function createContextItem(
     params.isTextual !== false,
     params.drive,
     params.path,
+    params.sourceUrl ?? null,
   );
   if (!row) throw new Error("INSERT did not return a row");
   return rowToContextItem(row);
@@ -122,6 +127,7 @@ export async function upsertContextItem(
     path: string;
     description?: string;
     isTextual?: boolean;
+    sourceUrl?: string | null;
   },
 ): Promise<ContextItem> {
   const existing = await getContextItem(db, {
@@ -133,6 +139,7 @@ export async function upsertContextItem(
       title: params.title,
       content: params.content,
       mime_type: params.mimeType,
+      source_url: params.sourceUrl,
     });
     if (!updated)
       throw new Error(
@@ -157,6 +164,7 @@ export async function createContextItemStrict(
     path: string;
     description?: string;
     isTextual?: boolean;
+    sourceUrl?: string | null;
   },
 ): Promise<ContextItem> {
   const existing = await getContextItem(db, {
@@ -426,7 +434,10 @@ export async function updateContextItem(
   db: DbConnection,
   id: string,
   updates: Partial<
-    Pick<ContextItem, "title" | "description" | "content" | "mime_type">
+    Pick<
+      ContextItem,
+      "title" | "description" | "content" | "mime_type" | "source_url"
+    >
   >,
 ): Promise<ContextItem | null> {
   const { setClauses, params } = buildSetClauses([
@@ -434,6 +445,7 @@ export async function updateContextItem(
     ["description", updates.description],
     ["content", updates.content],
     ["mime_type", updates.mime_type],
+    ["source_url", updates.source_url],
   ]);
 
   setClauses.push("updated_at = current_timestamp::VARCHAR");
@@ -514,6 +526,7 @@ export async function copyContextItem(
     drive: dst.drive,
     path: dst.path,
     isTextual: source.is_textual,
+    sourceUrl: source.source_url,
   });
 }
 

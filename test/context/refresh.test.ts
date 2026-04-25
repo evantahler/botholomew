@@ -3,6 +3,8 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
+import type { FetchedContent } from "../../src/context/fetcher.ts";
+import type { FetchUrlFn } from "../../src/context/refresh.ts";
 import type { DbConnection } from "../../src/db/connection.ts";
 import { createContextItem, getContextItemById } from "../../src/db/context.ts";
 import { mockEmbed, setupTestDb } from "../helpers.ts";
@@ -12,6 +14,19 @@ const configNoEmbed = { ...DEFAULT_CONFIG };
 
 let conn: DbConnection;
 let tmpBase: string;
+
+/** Build a fake fetcher that records every URL it's called with. */
+function makeFakeFetchFn(reply: (url: string) => FetchedContent): {
+  fn: FetchUrlFn;
+  calls: string[];
+} {
+  const calls: string[] = [];
+  const fn: FetchUrlFn = async (url) => {
+    calls.push(url);
+    return reply(url);
+  };
+  return { fn, calls };
+}
 
 beforeEach(async () => {
   conn = await setupTestDb();
@@ -234,18 +249,63 @@ describe("refreshContextItems — error handling", () => {
     );
   });
 
-  test("errors for service-drive items (refresh not implemented)", async () => {
+  test("errors when drive is unknown and source_url is null", async () => {
+    const { refreshContextItems } = await import(
+      "../../src/context/refresh.ts"
+    );
+    const item = await createContextItem(conn, {
+      title: "unknown service doc",
+      content: "stored",
+      drive: "notion",
+      path: "/abc123",
+      mimeType: "text/markdown",
+      isTextual: true,
+    });
+
+    const { fn, calls } = makeFakeFetchFn(() => {
+      throw new Error("fetchFn should not be called");
+    });
+
+    const result = await refreshContextItems(
+      conn,
+      [item],
+      config,
+      null,
+      {},
+      mockEmbed,
+      fn,
+    );
+
+    expect(result.items[0]?.status).toBe("error");
+    expect(result.items[0]?.error).toMatch(/no source_url/);
+    expect(result.items[0]?.error).toContain("notion:/abc123");
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("refreshContextItems — service drives", () => {
+  test("google-docs refresh uses source_url when present", async () => {
     const { refreshContextItems } = await import(
       "../../src/context/refresh.ts"
     );
     const gdoc = await createContextItem(conn, {
       title: "some doc",
-      content: "stored",
+      content: "stale",
       drive: "google-docs",
       path: "/abc123",
       mimeType: "text/markdown",
       isTextual: true,
+      sourceUrl: "https://docs.google.com/document/d/abc123/edit",
     });
+
+    const { fn, calls } = makeFakeFetchFn((url) => ({
+      title: "some doc",
+      content: "fresh content",
+      mimeType: "text/markdown",
+      sourceUrl: url,
+      drive: "google-docs",
+      path: "/abc123",
+    }));
 
     const result = await refreshContextItems(
       conn,
@@ -254,9 +314,83 @@ describe("refreshContextItems — error handling", () => {
       null,
       {},
       mockEmbed,
+      fn,
     );
 
+    expect(calls).toEqual(["https://docs.google.com/document/d/abc123/edit"]);
+    expect(result.items[0]?.status).toBe("updated");
+    expect(result.updated).toBe(1);
+    expect(result.reembedded).toBe(1);
+
+    const fresh = await getContextItemById(conn, gdoc.id);
+    expect(fresh?.content).toBe("fresh content");
+  });
+
+  test("service-drive refresh errors when source_url is null (no remote-service reconstruction)", async () => {
+    const { refreshContextItems } = await import(
+      "../../src/context/refresh.ts"
+    );
+    const legacy = await createContextItem(conn, {
+      title: "legacy doc",
+      content: "stale",
+      drive: "google-docs",
+      path: "/legacy-id",
+      mimeType: "text/markdown",
+      isTextual: true,
+    });
+
+    const { fn, calls } = makeFakeFetchFn(() => {
+      throw new Error("fetchFn should not be called without source_url");
+    });
+
+    const result = await refreshContextItems(
+      conn,
+      [legacy],
+      config,
+      null,
+      {},
+      mockEmbed,
+      fn,
+    );
+
+    expect(calls).toHaveLength(0);
     expect(result.items[0]?.status).toBe("error");
-    expect(result.items[0]?.error).toContain("google-docs");
+    expect(result.items[0]?.error).toMatch(/no source_url/);
+  });
+
+  test("url-drive refresh passes the stored URL through fetchFn", async () => {
+    const { refreshContextItems } = await import(
+      "../../src/context/refresh.ts"
+    );
+    const item = await createContextItem(conn, {
+      title: "example",
+      content: "stale",
+      drive: "url",
+      path: "/https://example.com/post",
+      mimeType: "text/markdown",
+      isTextual: true,
+    });
+
+    const { fn, calls } = makeFakeFetchFn((url) => ({
+      title: "example",
+      content: "stale", // unchanged
+      mimeType: "text/markdown",
+      sourceUrl: url,
+      drive: "url",
+      path: "/https://example.com/post",
+    }));
+
+    const result = await refreshContextItems(
+      conn,
+      [item],
+      config,
+      null,
+      {},
+      mockEmbed,
+      fn,
+    );
+
+    expect(calls).toEqual(["https://example.com/post"]);
+    expect(result.items[0]?.status).toBe("unchanged");
   });
 });
