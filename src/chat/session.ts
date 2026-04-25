@@ -104,6 +104,10 @@ export async function sendMessage(
   userMessage: string,
   callbacks: ChatTurnCallbacks,
 ): Promise<void> {
+  // Hot-reload skills so any skill the agent created/edited last turn (or any
+  // out-of-band edit) is visible to slash-command dispatch this turn.
+  session.skills = await loadSkills(session.projectDir);
+
   // Log and append user message
   await withDb(session.dbPath, (conn) =>
     logInteraction(conn, session.threadId, {

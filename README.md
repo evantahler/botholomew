@@ -38,7 +38,8 @@ through MCP servers wired up via [MCPX](https://github.com/evantahler/mcpx).
   Slack, GitHub) or connect through an MCP gateway like
   [Arcade.dev](https://www.arcade.dev/) to reach hundreds of
   authenticated services without managing each server yourself.
-  Reusable workflows are defined as markdown "skills" (slash commands).
+  Reusable workflows are defined as markdown "skills" (slash commands)
+  that the chat agent can also create, edit, and search at runtime.
 - **Safe by default.** The agent has no shell and no direct filesystem
   access. Out of the box, everything it can touch lives in `.botholomew/`;
   every external capability is a MCP server you explicitly add.
@@ -47,7 +48,8 @@ through MCP servers wired up via [MCPX](https://github.com/evantahler/mcpx).
   back into the queue automatically.
 - **Self-modifying.** The agent maintains its own `beliefs.md` and
   `goals.md` — it learns, updates its priors, and revises its goals as it
-  works.
+  works. It can also author its own slash-command skills mid-conversation,
+  turning prompts you keep retyping into durable project assets.
 
 ---
 
@@ -209,7 +211,8 @@ Topics worth understanding in detail:
 - **[Persistent context](docs/persistent-context.md)** — `soul.md`,
   `beliefs.md`, `goals.md`, frontmatter flags, and agent self-modification.
 - **[Skills (slash commands)](docs/skills.md)** — reusable prompt templates
-  with positional arguments and tab completion.
+  with positional arguments and tab completion; the chat agent can also
+  create, edit, and search them at runtime.
 - **[MCPX integration](docs/mcpx.md)** — configuring external servers and
   how MCP tools are merged into the agent's toolset.
 - **[Configuration](docs/configuration.md)** — every key in `config.json`

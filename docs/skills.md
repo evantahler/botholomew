@@ -116,6 +116,45 @@ skill is invoked, so it's visually distinct from a regular message.
 
 ---
 
+## Managing skills from chat
+
+Skills aren't write-once-via-CLI: the chat agent can list, read, create,
+edit, and search them on demand. Five tools are exposed to the chat
+agent:
+
+| Tool | What it does |
+|---|---|
+| `skill_list` | List skills (name, description, args, file path) |
+| `skill_read` | Read a skill's raw file contents and parsed fields |
+| `skill_search` | Keyword search across name, description, body, and arg metadata |
+| `skill_write` | Create or overwrite a skill (`on_conflict: 'error' \| 'overwrite'`) |
+| `skill_edit` | Apply git-style line-range patches to an existing skill |
+
+Newly written or edited skills are picked up at the start of the *next*
+user message — `ChatSession.skills` is reloaded from disk in
+`sendMessage`. So a typical flow looks like:
+
+```
+> save this prompt as a skill called daily-log so I can run it tomorrow
+[agent calls skill_write]
+> /daily-log              # works immediately, no chat restart needed
+```
+
+`skill_write` rejects the reserved built-in names (`help`, `skills`,
+`clear`, `exit`) with `error_type: "reserved_name"`. It also normalizes
+names to `[a-z0-9-]`, sets the frontmatter `name` to match the
+filename, and re-parses the generated file before writing — so an
+invalid skill never lands on disk.
+
+`skill_edit` re-parses after applying patches and refuses to write
+if the result fails validation, so you can't break a skill from chat.
+
+**Editing skills outside the chat** (e.g., with your text editor) still
+requires a chat restart — the in-memory cache is only refreshed inside
+`sendMessage`.
+
+---
+
 ## CLI management
 
 ```bash
@@ -132,9 +171,12 @@ non-zero if any file fails to parse, so it fits naturally into a
 pre-commit hook or CI check.
 
 Skills are parsed by `src/skills/parser.ts` and loaded from disk by
-`src/skills/loader.ts` at chat-session start. They're cached on the
-`ChatSession` object, so changes require restarting the chat — but not
-the daemon.
+`src/skills/loader.ts`. The `ChatSession` caches them on session start
+and reloads them at the top of every `sendMessage` — so skills the
+chat agent creates or edits via the `skill_*` tools are usable on the
+next user message. Direct file edits made outside the running chat
+(e.g., from your editor) take effect on the next user message in any
+active session, but won't appear retroactively in history.
 
 ---
 
