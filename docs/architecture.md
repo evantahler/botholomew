@@ -264,3 +264,29 @@ For safety, `nuke` refuses to run while any worker is in `status='running'`
 (tables, `_migrations`) is always preserved.
 
 See `src/commands/nuke.ts`.
+
+---
+
+## DB doctor: detect and repair index corruption
+
+Under rare circumstances — typically after a hard crash or interrupted
+write — DuckDB's primary-key index can fall out of sync with the row
+data. The symptom is that `UPDATE`/`DELETE` against the affected rows
+fails with `Invalid Input Error: Failed to delete all rows from index`.
+Inside Bun, that FATAL error unwinds past the NAPI boundary as a C++
+exception, surfacing as `panic: A C++ exception occurred` from
+`Zig__GlobalObject__onCrash`. The CLI command, the worker tick loop, and
+anything else that touches a corrupted row die immediately.
+
+`botholomew db doctor` exists to detect and recover from this:
+
+| Mode | What it does |
+|---|---|
+| `db doctor` (default) | For each user table, spawns a child Bun process that runs a self-update touching the PK index. Reports `ok` / `empty` / `missing` / `corrupt` per table. The child-process isolation is essential — a panic in the probe stays out of the doctor itself. |
+| `db doctor --repair` | Refuses if any worker is registered as `running`. Runs `CHECKPOINT`, `EXPORT DATABASE` to a timestamped directory under `.botholomew/`, renames the original `data.duckdb` (and `.wal`) to `data.duckdb.bak-<timestamp>`, opens a fresh DB at the original path, and `IMPORT DATABASE`s back. Indexes are rebuilt from data, which restores write integrity. |
+
+Repair is idempotent and non-destructive: the original DB is preserved
+as a `.bak-<timestamp>` file next to the new one. Delete the backup once
+you've confirmed the rebuilt DB looks right.
+
+See `src/db/doctor.ts` and `src/commands/db.ts`.
