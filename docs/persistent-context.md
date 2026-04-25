@@ -40,14 +40,14 @@ prompt, verbatim. Use sparingly. `soul.md`, `beliefs.md`, and `goals.md`
 are always-loaded.
 
 **`loading: contextual`** — the file is included only if its content
-shares keywords with the caller's current intent. The daemon derives
+shares keywords with the caller's current intent. The worker derives
 keywords from the running task's name and description; the chat agent
 derives them from your most recent message. Use this for
 topic-specific notes ("Everything I know about our invoicing system")
 that shouldn't pollute the prompt on unrelated tasks.
 
 See `loadPersistentContext()` and `extractKeywords()` in
-`src/daemon/prompt.ts`.
+`src/worker/prompt.ts`.
 
 ---
 
@@ -134,7 +134,7 @@ agent-modification: true
 
 - Evan prefers bullet-point summaries over paragraphs.
 - The "Q4 planning" doc in /notes is the canonical source for revenue targets.
-- The daemon should escalate to a "waiting" status if a task needs access
+- The worker should escalate to a "waiting" status if a task needs access
   to a tool that isn't configured, instead of failing outright.
 - When summarizing email, strip quoted replies — they add tokens without
   value.
@@ -184,10 +184,10 @@ agent-modification: false
 Tasks mentioning "deploy", "release", or "version" — and chat messages
 mentioning the same — will now include this file in the system prompt
 automatically. You didn't have to register it anywhere. On every tick
-the daemon reads every `.md` file in `.botholomew/`, extracts words
+the worker reads every `.md` file in `.botholomew/`, extracts words
 longer than three characters from the current task's name and
 description, and includes any `loading: contextual` file whose content
 contains at least one of those words. The chat agent does the same on
 every turn, using your most recent message as the keyword source. See
-`loadPersistentContext()` in `src/daemon/prompt.ts` for the exact
+`loadPersistentContext()` in `src/worker/prompt.ts` for the exact
 logic.

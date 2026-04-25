@@ -50,7 +50,7 @@ export const completeTaskTool = {
 | `name` | Snake-case identifier; also the CLI subcommand name |
 | `description` | Used for both the LLM tool definition and CLI help text |
 | `group` | Groups tools into CLI namespaces (`task`, `file`, `dir`, …) |
-| `terminal` | If `true`, the daemon ends the agent loop when this tool is called (e.g., `complete_task`, `fail_task`, `wait_task`) |
+| `terminal` | If `true`, the agent loop ends when this tool is called (e.g., `complete_task`, `fail_task`, `wait_task`) |
 | `inputSchema` | Zod schema with `.describe()` per field — becomes JSON Schema for the model and Commander flags for the CLI |
 | `outputSchema` | Zod schema guaranteeing the shape of the response |
 | `execute` | The actual implementation, receiving validated input and a `ToolContext` |
@@ -85,7 +85,7 @@ That means:
   and will be closed immediately after. Use it for ordinary tools that
   do one or two quick queries.
 - `ctx.dbPath` is for tools that run long enough that holding the file
-  lock would block the daemon or CLI (e.g., `context_refresh` re-fetching
+  lock would block the worker or CLI (e.g., `context_refresh` re-fetching
   many URLs). Wrap each DB touch in
   `await withDb(ctx.dbPath, async (conn) => { … })` so the lock is
   released between items.
@@ -126,7 +126,7 @@ tool by name via `getTool(name)`, validates the input against
 `tool_result` block.
 
 Terminal tools (the ones with `terminal: true`) tell the loop to stop.
-For the daemon, those are `complete_task`, `fail_task`, and `wait_task` —
+For workers, those are `complete_task`, `fail_task`, and `wait_task` —
 any of which transitions the task out of `in_progress`.
 
 ---

@@ -209,9 +209,10 @@ DuckDB's "don't open the same DB twice" rule; when the last caller in the
 process releases, we close the instance and free the OS-level lock so
 another process can claim it.
 
-The DuckDB VSS extension is loaded at connect time (`INSTALL vss; LOAD
-vss;`) and HNSW persistence is enabled so vector indexes survive
-restarts. See `src/db/connection.ts`.
+Vector search uses `array_cosine_distance()` (core DuckDB, no extension)
+over a linear scan of the `embeddings.embedding` column; the FTS
+extension (`INSTALL fts; LOAD fts;`) is loaded at connect time for BM25
+keyword search. See `src/db/connection.ts`.
 
 ---
 

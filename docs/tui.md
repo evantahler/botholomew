@@ -364,9 +364,10 @@ A few choices worth knowing if you're reading or modifying the TUI:
 - **Colors look off / no colors at all.** Your terminal may not be
   reporting `COLORFGBG`. Export it manually (`export COLORFGBG="15;0"`
   for light, `"15;16"` for dark) or rely on the macOS fallback.
-- **"Daemon not running" in the status bar.** Run `botholomew daemon
-  status`; if it's not up, either restart with `botholomew daemon
-  start` or relaunch `chat` without `--no-daemon`.
+- **No workers running.** The TUI does not auto-spawn workers — check
+  `botholomew worker list --status running`. If nothing is alive, start
+  one with `botholomew worker start --persist` or have the chat agent
+  call `spawn_worker`.
 - **Weird layout in tmux / split panes.** Ink needs a stable terminal
   width; if the pane resizes mid-render, large tool-call boxes can
   wrap oddly. A fresh `Ctrl+L` usually sorts it.
@@ -381,7 +382,7 @@ A few choices worth knowing if you're reading or modifying the TUI:
 
 - [Skills (slash commands)](skills.md) — the `/<name>` commands the
   popup surfaces.
-- [Architecture](architecture.md) — how the TUI, daemon, and watchdog
+- [Architecture](architecture.md) — how the TUI, workers, and CLI
   share one DuckDB.
 - [Tasks & schedules](tasks-and-schedules.md) — what the Tasks and
   Schedules tabs are actually managing.
