@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from "bun:test";
 import type { DbConnection } from "../../src/db/connection.ts";
 import { createTask } from "../../src/db/tasks.ts";
 import { createThread, getThread } from "../../src/db/threads.ts";
@@ -397,6 +405,65 @@ describe("runAgentLoop", () => {
       (i) => i.kind === "tool_use" && i.tool_name === "context_exists",
     );
     expect(toolUses?.length).toBe(2);
+  });
+
+  test("emits assistant/tool-call/tool-result phases for background workers", async () => {
+    const { logger } = await import("../../src/utils/logger.ts");
+    const phaseSpy = spyOn(logger, "phase").mockImplementation(() => {});
+
+    try {
+      const task = await createTask(conn, {
+        name: "Phase log task",
+        description: "Should emit phase markers",
+      });
+      const threadId = await createThread(conn, "worker_tick", task.id);
+
+      mockCreate.mockImplementation(async () => ({
+        content: [
+          { type: "text", text: "Reasoning step." },
+          {
+            type: "tool_use",
+            id: "tool_1",
+            name: "complete_task",
+            input: { summary: "Wrapped up" },
+          },
+        ],
+        stop_reason: "tool_use",
+        usage: { input_tokens: 100, output_tokens: 50 },
+      }));
+
+      await runAgentLoop({
+        systemPrompt: "You are a test agent.",
+        task,
+        config: testConfig,
+        dbPath,
+        threadId,
+        projectDir: "/tmp/test",
+      });
+
+      const phaseNames = phaseSpy.mock.calls.map(([name]) => name);
+      expect(phaseNames).toContain("assistant");
+      expect(phaseNames).toContain("tool-call");
+      expect(phaseNames).toContain("tool-result");
+
+      const assistantCall = phaseSpy.mock.calls.find(
+        ([name]) => name === "assistant",
+      );
+      expect(assistantCall?.[1]).toBe("Reasoning step.");
+
+      const toolCall = phaseSpy.mock.calls.find(
+        ([name]) => name === "tool-call",
+      );
+      expect(toolCall?.[1]).toContain("complete_task");
+
+      const toolResult = phaseSpy.mock.calls.find(
+        ([name]) => name === "tool-result",
+      );
+      expect(toolResult?.[1]).toContain("complete_task");
+      expect(toolResult?.[1]).toContain("ok");
+    } finally {
+      phaseSpy.mockRestore();
+    }
   });
 
   test("logs all interactions to thread", async () => {

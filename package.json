@@ -1,6 +1,6 @@
 {
   "name": "botholomew",
-  "version": "0.9.11",
+  "version": "0.9.12",
   "description": "An autonomous AI agent for knowledge work — works your task queue while you sleep.",
   "type": "module",
   "bin": {

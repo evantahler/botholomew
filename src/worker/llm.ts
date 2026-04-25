@@ -11,11 +11,16 @@ import { getTask, type Task } from "../db/tasks.ts";
 import { logInteraction } from "../db/threads.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import { getTool, type ToolContext, toAnthropicTools } from "../tools/tool.ts";
+import { logger } from "../utils/logger.ts";
 import { fitToContextWindow, getMaxInputTokens } from "./context.ts";
 import { clearLargeResults, maybeStoreResult } from "./large-results.ts";
 import { createLlmClient } from "./llm-client.ts";
 
 registerAllTools();
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+}
 
 export interface WorkerStreamCallbacks {
   onToken: (text: string) => void;
@@ -153,6 +158,9 @@ export async function runAgentLoop(input: {
             tokenCount,
           }),
         );
+        if (!callbacks) {
+          logger.phase("assistant", block.text);
+        }
       }
     }
 
@@ -175,6 +183,12 @@ export async function runAgentLoop(input: {
     for (const toolUse of toolUseBlocks) {
       const toolInput = JSON.stringify(toolUse.input);
       callbacks?.onToolStart(toolUse.name, toolInput);
+      if (!callbacks) {
+        logger.phase(
+          "tool-call",
+          `${toolUse.name} ${truncate(toolInput, 200)}`,
+        );
+      }
       await withDb(dbPath, (conn) =>
         logInteraction(conn, threadId, {
           role: "assistant",
@@ -222,6 +236,11 @@ export async function runAgentLoop(input: {
           durationMs,
         }),
       );
+      if (!callbacks) {
+        const seconds = (durationMs / 1000).toFixed(1);
+        const status = result.isError ? "err" : "ok";
+        logger.phase("tool-result", `${toolUse.name} ${status} in ${seconds}s`);
+      }
 
       if (result.terminal && result.agentResult) {
         return result.agentResult;

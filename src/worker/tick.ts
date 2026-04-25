@@ -133,6 +133,9 @@ async function runClaimedTask(opts: {
   const { projectDir, dbPath, config, mcpxClient, callbacks, task } = opts;
 
   logger.info(`Claimed task: ${task.name} (${task.id})`);
+  if (!callbacks && task.description) {
+    logger.dim(task.description);
+  }
   callbacks?.onTaskStart(task);
 
   const threadId = await withDb(dbPath, (conn) =>

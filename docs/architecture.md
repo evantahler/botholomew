@@ -77,6 +77,20 @@ and grep (`grep '\[\[' .botholomew/logs/<id>.log`). Phases emitted each tick:
 - `[[tick-end]] #N Xs didWork=true|false`
 - `[[sleeping]] Ns` (only when there was no work in a persist worker)
 
+Background workers (spawned without a TTY) also mirror the conversation
+thread to the log between `[[claiming-task]]` and `Task ... -> complete`,
+so a `tail -f` shows what the LLM is actually doing:
+
+- `[[assistant]] <full text response>` — assistant message blocks
+- `[[tool-call]] <tool> <truncated JSON input>` — each tool invocation
+- `[[tool-result]] <tool> ok|err in Ns` — tool outcome and duration
+
+Full content (untruncated input, tool output, tokens) stays in the
+`interactions` table; the log mirrors enough to follow the trace without
+opening the DB. Foreground workers (`worker run`) keep their existing
+streaming UX (per-token output and `▶`/`✓` markers) — these phase lines
+are suppressed there to avoid duplication.
+
 ---
 
 ## Registration, heartbeat, reaping
