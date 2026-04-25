@@ -24,6 +24,7 @@ import {
   buildMetaHeader,
   extractKeywords,
   loadPersistentContext,
+  STYLE_RULES,
 } from "../worker/prompt.ts";
 
 registerAllTools();
@@ -150,6 +151,8 @@ Before calling any MCP tool you haven't used yet this session, you MUST fetch it
 Skip step 2 only if you already called \`mcp_info\` for that exact server+tool earlier in this conversation. Do not guess arguments from the tool's description alone — descriptions omit types and required/optional markers.
 `;
   }
+
+  prompt += `\n${STYLE_RULES}`;
 
   return prompt;
 }
