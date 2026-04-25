@@ -101,4 +101,63 @@ describe("createFakeAnthropicClient", () => {
     expect(blocks[0]).toMatchObject({ type: "tool_use", name: "list_tasks" });
     expect(final.stop_reason).toBe("tool_use");
   });
+
+  test("emits streamEvent content_block_start for tool_use before contentBlock", async () => {
+    process.env.BOTHOLOMEW_FAKE_LLM_FIXTURE = writeFixture("preparing", {
+      turns: [
+        {
+          text: "",
+          delayMs: 0,
+          toolCalls: [
+            { id: "toolu_abc", name: "create_task", input: { name: "x" } },
+          ],
+        },
+      ],
+    });
+
+    const { createFakeAnthropicClient } = await import(
+      `../../src/worker/fake-llm.ts?cachebust=${Date.now()}`
+    );
+    const client = createFakeAnthropicClient();
+
+    const stream = client.messages.stream({
+      messages: [{ role: "user", content: "go" }],
+    });
+
+    const events: Array<{
+      source: "streamEvent" | "contentBlock";
+      data: unknown;
+    }> = [];
+    // biome-ignore lint/suspicious/noExplicitAny: EventEmitter surface
+    (stream as any).on("streamEvent", (e: unknown) => {
+      events.push({ source: "streamEvent", data: e });
+    });
+    // biome-ignore lint/suspicious/noExplicitAny: EventEmitter surface
+    (stream as any).on("contentBlock", (b: unknown) => {
+      events.push({ source: "contentBlock", data: b });
+    });
+    await stream.finalMessage();
+
+    const startEvents = events.filter(
+      (e) =>
+        e.source === "streamEvent" &&
+        (e.data as { type: string }).type === "content_block_start",
+    );
+    expect(startEvents).toHaveLength(1);
+    expect(startEvents[0]?.data).toMatchObject({
+      type: "content_block_start",
+      content_block: { type: "tool_use", id: "toolu_abc", name: "create_task" },
+    });
+
+    // The streamEvent must arrive before the corresponding contentBlock so
+    // listeners can show a "Preparing tool call" spinner during input
+    // assembly.
+    const firstStartIdx = events.findIndex(
+      (e) =>
+        e.source === "streamEvent" &&
+        (e.data as { type: string }).type === "content_block_start",
+    );
+    const firstBlockIdx = events.findIndex((e) => e.source === "contentBlock");
+    expect(firstStartIdx).toBeLessThan(firstBlockIdx);
+  });
 });

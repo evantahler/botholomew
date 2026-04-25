@@ -160,6 +160,7 @@ export interface ToolEndMeta {
 
 export interface ChatTurnCallbacks {
   onToken: (text: string) => void;
+  onToolPreparing?: (id: string, name: string) => void;
   onToolStart: (id: string, name: string, input: string) => void;
   onToolEnd: (
     id: string,
@@ -249,6 +250,18 @@ export async function runChatTurn(input: {
     stream.on("text", (text) => {
       assistantText += text;
       callbacks.onToken(text);
+    });
+
+    stream.on("streamEvent", (event) => {
+      if (
+        event.type === "content_block_start" &&
+        event.content_block.type === "tool_use"
+      ) {
+        callbacks.onToolPreparing?.(
+          event.content_block.id,
+          event.content_block.name,
+        );
+      }
     });
 
     stream.on("contentBlock", (block) => {

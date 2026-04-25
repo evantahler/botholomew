@@ -144,9 +144,22 @@ class FakeMessageStream extends EventEmitter {
       if (delay > 0) await new Promise((r) => setTimeout(r, delay));
     }
     const final = buildFinalMessage(text, this.turn.toolCalls);
+    let blockIndex = text ? 1 : 0;
     for (const block of final.content) {
       if ((block as { type: string }).type === "tool_use") {
-        this.emit("contentBlock", block as ToolUseBlock);
+        const toolUse = block as ToolUseBlock;
+        this.emit("streamEvent", {
+          type: "content_block_start",
+          index: blockIndex,
+          content_block: {
+            type: "tool_use",
+            id: toolUse.id,
+            name: toolUse.name,
+            input: {},
+          },
+        });
+        this.emit("contentBlock", toolUse);
+        blockIndex++;
       }
     }
     this.resolveFinal(final);

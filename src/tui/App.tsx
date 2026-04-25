@@ -133,6 +133,10 @@ export function App({
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCallData[]>([]);
+  const [preparingTool, setPreparingTool] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [ready, setReady] = useState(false);
   const skipSplash = !!(resumeThreadId || initialPrompt);
   const [splashDone, setSplashDone] = useState(skipSplash);
@@ -329,6 +333,7 @@ export function App({
       setIsLoading(true);
       setStreamingText("");
       setActiveToolCalls([]);
+      setPreparingTool(null);
 
       const userMsg: ChatMessage = {
         id: msgId(),
@@ -370,6 +375,9 @@ export function App({
               lastStreamFlush = now;
             }
           },
+          onToolPreparing: (id, name) => {
+            setPreparingTool({ id, name });
+          },
           onToolStart: (id, name, input) => {
             if (currentText) {
               finalizeSegment();
@@ -383,6 +391,7 @@ export function App({
             };
             pendingToolCalls.push(tc);
             setActiveToolCalls([...pendingToolCalls]);
+            setPreparingTool(null);
           },
           onToolEnd: (id, _name, output, isError, meta) => {
             const tc = pendingToolCalls.find((t) => t.id === id);
@@ -410,6 +419,7 @@ export function App({
       } finally {
         setStreamingText("");
         setActiveToolCalls([]);
+        setPreparingTool(null);
       }
     }
 
@@ -700,6 +710,7 @@ export function App({
           streamingText={streamingText}
           isLoading={isLoading}
           activeToolCalls={activeToolCalls}
+          preparingTool={preparingTool}
         />
       </Box>
       <Box

@@ -17,6 +17,7 @@ interface MessageListProps {
   streamingText: string;
   isLoading: boolean;
   activeToolCalls: ToolCallData[];
+  preparingTool: { id: string; name: string } | null;
 }
 
 function formatTime(date: Date): string {
@@ -127,6 +128,7 @@ export function MessageList({
   streamingText,
   isLoading,
   activeToolCalls,
+  preparingTool,
 }: MessageListProps) {
   return (
     <>
@@ -160,7 +162,17 @@ export function MessageList({
         </Box>
       )}
 
+      {preparingTool && (
+        <Box marginTop={1}>
+          <Text color={theme.accent}>
+            <Spinner type="dots" />
+          </Text>
+          <Text dimColor> Preparing tool call: {preparingTool.name}...</Text>
+        </Box>
+      )}
+
       {isLoading &&
+        !preparingTool &&
         !streamingText &&
         (activeToolCalls.length === 0 ||
           activeToolCalls.every((tc) => !tc.running)) && (
