@@ -13,7 +13,7 @@ Two pieces:
    GIF, MP4, or PNG.
 2. **Fake LLM mode** — when `BOTHOLOMEW_FAKE_LLM=1` is set, every Anthropic
    client in the codebase is swapped for a scripted stub that streams
-   fixture-defined replies (see `src/daemon/fake-llm.ts`). This makes
+   fixture-defined replies (see `src/worker/fake-llm.ts`). This makes
    captures hermetic: no API key required, no network, and every run produces
    the same output.
 
@@ -74,7 +74,7 @@ bun run capture chat-happy-path
    Output docs/assets/<name>.gif
 
    Sleep 1s
-   Type "botholomew chat --no-daemon"
+   Type "botholomew chat"
    Sleep 600ms
    Enter
    Sleep 4s
@@ -103,7 +103,7 @@ bun run capture chat-happy-path
   (modulo VHS upgrades). `git diff docs/assets/` is meaningful.
 - **Hermetic.** No API key needed, so CI can regenerate captures on merge.
 - **Decoupled.** The TUI itself is unchanged — the fake swap lives at the
-  daemon LLM boundary (`src/daemon/llm-client.ts`), so the same stub can be
+  worker LLM boundary (`src/worker/llm-client.ts`), so the same stub can be
   reused for deterministic agent-loop tests.
 
 ## Known VHS/ttyd limitations

@@ -31,8 +31,9 @@ through MCP servers wired up via [MCPX](https://github.com/evantahler/mcpx).
   DuckDB. Copy it, share it, check it in (or `.gitignore` it).
 - **Your data, your disk.** Project state — tasks, threads, ingested
   context, embeddings — lives in `.botholomew/`, indexed in DuckDB with
-  HNSW for vector search. Model calls go direct to Anthropic and OpenAI;
-  any further reach is scoped to the MCP servers you add.
+  BM25 keyword search and `array_cosine_distance` vector search. Model
+  calls go direct to Anthropic and OpenAI; any further reach is scoped to
+  the MCP servers you add.
 - **Extensible.** External tools come from MCP servers via
   [MCPX](https://github.com/evantahler/mcpx) — run them locally (Gmail,
   Slack, GitHub) or connect through an MCP gateway like
@@ -115,12 +116,14 @@ my-project/
     soul.md               # always-loaded identity (not agent-editable)
     beliefs.md            # always-loaded, agent-editable priors
     goals.md              # always-loaded, agent-editable goals
+    capabilities.md       # always-loaded, agent-editable tool inventory
     config.json           # models, tick interval, API keys
     data.duckdb           # tasks, schedules, context, embeddings, logs
     mcpx/servers.json     # external MCP servers (Gmail, Slack, …)
-    skills/               # user-defined slash commands
+    skills/               # slash commands (built-ins + user-defined)
       summarize.md
       standup.md
+      capabilities.md
     logs/                 # per-worker log files (one file per spawned worker)
       <worker-id>.log
 ```
@@ -140,12 +143,11 @@ Everything the agent can touch is here. No surprises.
 | `botholomew worker list\|status\|stop\|kill\|reap` | Inspect and manage running workers |
 | `botholomew chat` | Interactive Ink/React TUI |
 | `botholomew task list\|add\|view\|update\|reset\|delete` | Manage the task queue |
-| `botholomew schedule list\|add\|enable\|trigger\|delete` | Recurring work |
-| `botholomew context add\|list\|view\|search\|refresh\|remove` | Ingest & browse knowledge (files, folders, URLs) |
+| `botholomew schedule list\|add\|view\|enable\|disable\|trigger\|delete` | Recurring work |
+| `botholomew context add\|list\|search\|chunks\|refresh\|delete` | Ingest & browse knowledge (files, folders, URLs); also exposes the agent's `read`/`write`/`tree`/`edit`/… tools as subcommands |
 | `botholomew capabilities` | Rescan built-in + MCPX tools and rewrite `.botholomew/capabilities.md` |
-| `botholomew mcpx servers\|add\|remove\|info\|search\|exec\|ping\|auth\|import-global` | Configure external MCP servers |
+| `botholomew mcpx servers\|list\|add\|remove\|info\|search\|exec\|ping\|auth\|deauth\|import-global\|…` | Configure external MCP servers (passthrough to `mcpx`) |
 | `botholomew skill list\|show\|create\|validate` | Manage slash-command skills |
-| `botholomew context ... \| search ...` | Direct access to the agent's virtual filesystem |
 | `botholomew thread list\|view` | Browse the agent's interaction history |
 | `botholomew nuke context\|tasks\|schedules\|threads\|all` | Bulk-erase sections of the database |
 | `botholomew db doctor [--repair]` | Probe each table for primary-key index corruption; rebuild via EXPORT/IMPORT |
@@ -176,7 +178,7 @@ All `list` subcommands support `-l, --limit <n>` and `-o, --offset <n>` for pagi
                │  ┌───────────┐ ┌──────────────┐    │
                │  │  tasks    │ │ context_items│    │
                │  │ schedules │ │  embeddings  │    │
-               │  │  workers  │ │   (HNSW)     │    │
+               │  │  workers  │ │  (FTS+vector)│    │
                │  │  threads  │ │              │    │
                │  └───────────┘ └──────────────┘    │
                └─────┬───────────────────────────────┘
@@ -204,8 +206,8 @@ Topics worth understanding in detail:
 - **[The virtual filesystem](docs/virtual-filesystem.md)** — why the agent's
   "files" are actually DuckDB rows, and how `context_read`/`context_write` work.
 - **[Context & hybrid search](docs/context-and-search.md)** — LLM-driven
-  chunking, OpenAI embeddings, and DuckDB's HNSW-accelerated keyword +
-  vector search.
+  chunking, OpenAI embeddings, and DuckDB BM25 + linear-scan vector
+  search merged with reciprocal rank fusion.
 - **[Tasks & schedules](docs/tasks-and-schedules.md)** — the claim loop, DAG
   validation, stale-task recovery, and natural-language recurring schedules.
 - **[The Tool class](docs/tools.md)** — one Zod definition, three consumers
@@ -227,9 +229,9 @@ Topics worth understanding in detail:
 ## Tech stack
 
 - **[Bun](https://bun.sh)** + TypeScript
-- **[DuckDB](https://duckdb.org)** via `@duckdb/node-api`, with the
-  **[VSS extension](https://duckdb.org/docs/stable/extensions/vss)** for
-  native vector search
+- **[DuckDB](https://duckdb.org)** via `@duckdb/node-api` —
+  `array_cosine_distance()` (core DuckDB) for vector search, plus the
+  built-in FTS extension for BM25 keyword search
 - **[Anthropic SDK](https://docs.anthropic.com/en/api/client-sdks)** for
   Claude — the reasoning model
 - **OpenAI embeddings API** (`text-embedding-3-small`, 1536-dim) for

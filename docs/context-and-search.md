@@ -312,4 +312,4 @@ an embedding of the query string itself.
 
 If you want a fully-local setup, swap `src/context/embedder.ts` for a
 local model and adjust `EMBEDDING_DIMENSION` in `src/constants.ts` —
-everything downstream (VSS, HNSW, hybrid search) is dimension-agnostic.
+everything downstream (hybrid search) is dimension-agnostic.

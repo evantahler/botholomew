@@ -7,8 +7,8 @@ GitHub — comes from MCP servers, managed per project via
 
 Think of MCPX as the `package.json` of the agent's tools: a
 project-local manifest (`.botholomew/mcpx/servers.json`) lists the MCP
-servers this project can use, and the daemon connects to them at
-startup.
+servers this project can use, and workers and the chat session connect
+to them at startup.
 
 You have two options for *how* those servers run:
 
@@ -103,8 +103,8 @@ them (e.g. `--args "-y,@scope/pkg"`).
 2. Connects to every server.
 3. Returns an `McpxClient | null` (`null` if no servers are configured).
 
-The daemon holds the client for its entire lifetime and calls
-`client.close()` on SIGTERM/SIGINT. CLI commands like
+Each worker (and the chat session) holds the client for its lifetime
+and calls `client.close()` on SIGTERM/SIGINT. CLI commands like
 `botholomew mcpx exec` open a client, do their work, and close it.
 
 ---

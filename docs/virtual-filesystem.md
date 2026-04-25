@@ -66,7 +66,7 @@ for `context_refresh`.
 | File contents       | `context_items.content` (TEXT) or `content_blob` (BLOB) |
 | MIME type           | `context_items.mime_type` |
 | Directory           | A row with `mime_type = 'inode/directory'` |
-| Directory listing   | `SELECT DISTINCT parent(path) WHERE drive = ?` |
+| Directory listing   | Items filtered by `drive` and a path prefix, with intermediate directory segments derived from the matching paths |
 | Binary file         | `is_textual = false`, content in `content_blob` |
 | Ingestion time      | `indexed_at`, `created_at`, `updated_at` |
 
@@ -166,9 +166,11 @@ Every mutation cascades into the embeddings table:
 - `context_move` → no embedding changes (embeddings reference the item id, not the path).
 - `context_delete` → cascade delete embedding rows.
 
-The HNSW index on `embeddings.embedding` stays in sync automatically
-(it is maintained by DuckDB VSS on INSERT/DELETE, and persisted with
-`SET hnsw_enable_experimental_persistence = true`).
+Embeddings are stored as `FLOAT[1536]` and queried by linear scan via
+`array_cosine_distance()` — no HNSW index, no VSS extension. The FTS
+index over `chunk_content` and `title` is rebuilt by
+`rebuildSearchIndex()` after every ingest write. See
+[context-and-search.md](context-and-search.md) for the full pipeline.
 
 ---
 
