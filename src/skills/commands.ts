@@ -1,5 +1,5 @@
 import type { SkillDefinition } from "./parser.ts";
-import { renderSkill } from "./parser.ts";
+import { renderSkill, validateSkillArgs } from "./parser.ts";
 
 export interface SlashCommand {
   name: string;
@@ -14,12 +14,30 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
   { name: "exit", description: "End the chat session" },
 ];
 
+export interface QueueUserMessageOptions {
+  display?: string;
+}
+
 export interface SlashCommandContext {
   skills: Map<string, SkillDefinition>;
   addSystemMessage: (content: string) => void;
-  queueUserMessage: (content: string) => void;
+  queueUserMessage: (content: string, opts?: QueueUserMessageOptions) => void;
   exit: () => void;
   clearChat?: () => void;
+}
+
+export function formatSkillUsage(skill: SkillDefinition): string {
+  const parts = [`/${skill.name}`];
+  for (const arg of skill.arguments) {
+    if (arg.required && arg.default === undefined) {
+      parts.push(`<${arg.name}>`);
+    } else if (arg.default !== undefined) {
+      parts.push(`[${arg.name}=${arg.default}]`);
+    } else {
+      parts.push(`[${arg.name}]`);
+    }
+  }
+  return parts.join(" ");
 }
 
 /**
@@ -70,9 +88,16 @@ export function handleSlashCommand(
   // Skill dispatch
   const skill = ctx.skills.get(name);
   if (skill) {
+    const { missing } = validateSkillArgs(skill, rawArgs);
+    if (missing.length > 0) {
+      ctx.addSystemMessage(
+        `/${skill.name}: missing required argument(s): ${missing.join(", ")}\n` +
+          `Usage: ${formatSkillUsage(skill)}`,
+      );
+      return true;
+    }
     const rendered = renderSkill(skill, rawArgs);
-    ctx.addSystemMessage(`Running skill: ${skill.name}`);
-    ctx.queueUserMessage(rendered);
+    ctx.queueUserMessage(rendered, { display: input });
     return true;
   }
 

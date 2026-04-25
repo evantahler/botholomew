@@ -5,26 +5,34 @@ import {
 } from "../../src/skills/commands.ts";
 import type { SkillDefinition } from "../../src/skills/parser.ts";
 
+interface QueuedEntry {
+  content: string;
+  display: string;
+}
+
 function makeCtx(
   skills: Map<string, SkillDefinition> = new Map(),
   opts: { withClearChat?: boolean } = {},
 ): SlashCommandContext & {
   systemMessages: string[];
-  queuedMessages: string[];
+  queuedMessages: QueuedEntry[];
   exited: boolean;
   clearCalls: number;
 } {
   const ctx = {
     skills,
     systemMessages: [] as string[],
-    queuedMessages: [] as string[],
+    queuedMessages: [] as QueuedEntry[],
     exited: false,
     clearCalls: 0,
     addSystemMessage: (content: string) => {
       ctx.systemMessages.push(content);
     },
-    queueUserMessage: (content: string) => {
-      ctx.queuedMessages.push(content);
+    queueUserMessage: (content: string, opts?: { display?: string }) => {
+      ctx.queuedMessages.push({
+        content,
+        display: opts?.display ?? content,
+      });
     },
     exit: () => {
       ctx.exited = true;
@@ -89,15 +97,15 @@ describe("handleSlashCommand", () => {
     expect(ctx.systemMessages[0]).toContain("No skills loaded");
   });
 
-  test("dispatches skill and renders template", () => {
+  test("dispatches skill, renders content, displays slash command", () => {
     const skills = makeSkillMap(reviewSkill);
     const ctx = makeCtx(skills);
     const result = handleSlashCommand("/review src/main.ts", ctx);
     expect(result).toBe(true);
-    expect(ctx.systemMessages).toHaveLength(1);
-    expect(ctx.systemMessages[0]).toContain("Running skill: review");
+    expect(ctx.systemMessages).toHaveLength(0);
     expect(ctx.queuedMessages).toHaveLength(1);
-    expect(ctx.queuedMessages[0]).toBe("Please review `src/main.ts`.");
+    expect(ctx.queuedMessages[0]?.content).toBe("Please review `src/main.ts`.");
+    expect(ctx.queuedMessages[0]?.display).toBe("/review src/main.ts");
   });
 
   test("dispatches skill with no arguments", () => {
@@ -105,7 +113,72 @@ describe("handleSlashCommand", () => {
     const ctx = makeCtx(skills);
     const result = handleSlashCommand("/summarize", ctx);
     expect(result).toBe(true);
-    expect(ctx.queuedMessages[0]).toBe("Summarize this conversation.");
+    expect(ctx.queuedMessages[0]?.content).toBe("Summarize this conversation.");
+    expect(ctx.queuedMessages[0]?.display).toBe("/summarize");
+  });
+
+  test("rejects skill invocation missing required args", () => {
+    const skills = makeSkillMap(reviewSkill);
+    const ctx = makeCtx(skills);
+    const result = handleSlashCommand("/review", ctx);
+    expect(result).toBe(true);
+    expect(ctx.queuedMessages).toHaveLength(0);
+    expect(ctx.systemMessages).toHaveLength(1);
+    expect(ctx.systemMessages[0]).toContain("missing required argument(s)");
+    expect(ctx.systemMessages[0]).toContain("file");
+    expect(ctx.systemMessages[0]).toContain("Usage: /review <file>");
+  });
+
+  test("optional arg with default is rendered when omitted", () => {
+    const bizSkill: SkillDefinition = {
+      name: "biz-update",
+      description: "",
+      arguments: [
+        {
+          name: "start_date",
+          description: "",
+          required: false,
+          default: "yesterday",
+        },
+        {
+          name: "end_date",
+          description: "",
+          required: false,
+          default: "today",
+        },
+      ],
+      body: "From $start_date to $end_date.",
+      filePath: "/skills/biz-update.md",
+    };
+    const skills = makeSkillMap(bizSkill);
+    const ctx = makeCtx(skills);
+    const result = handleSlashCommand("/biz-update", ctx);
+    expect(result).toBe(true);
+    expect(ctx.queuedMessages).toHaveLength(1);
+    expect(ctx.queuedMessages[0]?.content).toBe("From yesterday to today.");
+    expect(ctx.queuedMessages[0]?.display).toBe("/biz-update");
+  });
+
+  test("required arg with default counts as satisfied", () => {
+    const skill: SkillDefinition = {
+      name: "thing",
+      description: "",
+      arguments: [
+        {
+          name: "name",
+          description: "",
+          required: true,
+          default: "world",
+        },
+      ],
+      body: "Hello $name",
+      filePath: "/skills/thing.md",
+    };
+    const ctx = makeCtx(makeSkillMap(skill));
+    const result = handleSlashCommand("/thing", ctx);
+    expect(result).toBe(true);
+    expect(ctx.systemMessages).toHaveLength(0);
+    expect(ctx.queuedMessages[0]?.content).toBe("Hello world");
   });
 
   test("unknown command shows error", () => {

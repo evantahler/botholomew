@@ -145,13 +145,13 @@ export function App({
   const [activeTab, setActiveTab] = useState<TabId>(1);
   const [workerRunning, setWorkerRunning] = useState(false);
   const [chatTitle, setChatTitle] = useState<string | undefined>(undefined);
-  const queueRef = useRef<string[]>([]);
+  const queueRef = useRef<Array<{ display: string; content: string }>>([]);
   const processingRef = useRef(false);
   const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
   const [selectedQueueIndex, setSelectedQueueIndex] = useState(0);
 
   const syncQueue = useCallback(() => {
-    const snapshot = [...queueRef.current];
+    const snapshot = queueRef.current.map((e) => e.display);
     setQueuedMessages(snapshot);
     setSelectedQueueIndex((prev) =>
       snapshot.length === 0 ? 0 : Math.min(prev, snapshot.length - 1),
@@ -297,7 +297,7 @@ export function App({
           );
           syncQueue();
           if (msg) {
-            setInputValue(msg);
+            setInputValue(msg.display);
           }
           return;
         }
@@ -327,9 +327,9 @@ export function App({
     processingRef.current = true;
 
     while (queueRef.current.length > 0) {
-      const trimmed = queueRef.current.shift();
+      const entry = queueRef.current.shift();
       syncQueue();
-      if (!trimmed) break;
+      if (!entry) break;
       setIsLoading(true);
       setStreamingText("");
       setActiveToolCalls([]);
@@ -338,7 +338,7 @@ export function App({
       const userMsg: ChatMessage = {
         id: msgId(),
         role: "user",
-        content: trimmed,
+        content: entry.display,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, userMsg]);
@@ -366,7 +366,7 @@ export function App({
 
       let lastStreamFlush = 0;
       try {
-        await sendMessage(sessionRef.current, trimmed, {
+        await sendMessage(sessionRef.current, entry.content, {
           onToken: (token) => {
             currentText += token;
             const now = Date.now();
@@ -432,7 +432,10 @@ export function App({
   useEffect(() => {
     if (ready && initialPrompt && !initialPromptSent.current) {
       initialPromptSent.current = true;
-      queueRef.current.push(initialPrompt);
+      queueRef.current.push({
+        display: initialPrompt,
+        content: initialPrompt,
+      });
       syncQueue();
       setInputHistory((prev) => [...prev, initialPrompt]);
       processQueue();
@@ -570,9 +573,12 @@ export function App({
             };
             setMessages((prev) => [...prev, msg]);
           },
-          queueUserMessage: (content) => {
+          queueUserMessage: (content, opts) => {
             setInputHistory((prev) => [...prev, trimmed]);
-            queueRef.current.push(content);
+            queueRef.current.push({
+              display: opts?.display ?? content,
+              content,
+            });
             syncQueue();
             processQueue();
           },
@@ -618,7 +624,7 @@ export function App({
       }
 
       setInputHistory((prev) => [...prev, trimmed]);
-      queueRef.current.push(trimmed);
+      queueRef.current.push({ display: trimmed, content: trimmed });
       syncQueue();
       processQueue();
     },
