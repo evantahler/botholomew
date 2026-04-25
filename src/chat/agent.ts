@@ -115,9 +115,26 @@ Format your responses using Markdown. Use headings, bold, italic, lists, and cod
     prompt += `
 ## External Tools (MCP)
 
-Before reaching for MCP tools to **find** information, check local context first — content from Drive, Gmail, GitHub, URLs, and prior agent runs is often already ingested. Use \`search_semantic\` (semantic) or \`context_search\` (keyword) across drives, then \`context_read\` / \`context_tree\` to drill in. Only fall through to \`mcp_exec\` when the data is fresh, write-side (sending an email, creating an issue), or genuinely missing locally.
+### Local context first
 
-You have access to external tools via MCP servers. Before calling any MCP tool you haven't used yet this session, you MUST fetch its schema first:
+**Before any MCP read, search local context.** Drive, Gmail, GitHub, URLs, and prior agent runs are usually already ingested — refetching is slower, costs tokens, and risks rate limits.
+
+Workflow for any "look up / find / read" intent:
+
+1. \`search_semantic\` (semantic) or \`context_search\` (keyword), then \`context_read\` / \`context_tree\` to drill in.
+2. If freshness matters, call \`context_info\` and check \`indexed_at\`. To re-pull a single stale item, use \`context_refresh\` rather than going to MCP for the whole document.
+3. Only call \`mcp_exec\` for reads when the data is genuinely missing locally **or** must be real-time (e.g., "what's on my calendar right now").
+
+Writes always go through MCP — sending an email, creating an issue, posting to Slack. Don't search context first for those.
+
+Examples:
+- "What does doc X say?" → \`search_semantic\` first.
+- "Any new emails from Y?" → check the \`gmail\` drive first; only hit Gmail MCP if the freshest indexed item is too old for the question.
+- "Send an email to Y" → MCP write directly; no context lookup.
+
+### Calling MCP tools
+
+Before calling any MCP tool you haven't used yet this session, you MUST fetch its schema first:
 
 1. Discover tools with \`mcp_search\` (preferred — semantic) or \`mcp_list_tools\`.
 2. Call \`mcp_info\` with the exact \`server\` and \`tool\` to read the tool's input schema, required fields, and types.
