@@ -33,22 +33,30 @@ export function StatusBar({
   useEffect(() => {
     let mounted = true;
 
+    // Errors here (e.g. transient DuckDB lock conflicts while a freshly
+    // spawned worker is migrating) must not freeze the count — the next
+    // interval tick will retry. Swallow silently rather than logging
+    // because logger writes to stdout and would corrupt the Ink render.
     const refresh = async () => {
-      const [pending, inProgress, workers] = await withDb(
-        dbPath,
-        async (conn) => [
-          await listTasks(conn, { status: "pending" }),
-          await listTasks(conn, { status: "in_progress" }),
-          await listWorkers(conn, { status: "running" }),
-        ],
-      );
-      if (mounted) {
-        setStatus({
-          workerCount: workers.length,
-          pendingCount: pending.length,
-          inProgressCount: inProgress.length,
-        });
-        onWorkerStatusChange?.(workers.length > 0);
+      try {
+        const [pending, inProgress, workers] = await withDb(
+          dbPath,
+          async (conn) => [
+            await listTasks(conn, { status: "pending" }),
+            await listTasks(conn, { status: "in_progress" }),
+            await listWorkers(conn, { status: "running" }),
+          ],
+        );
+        if (mounted) {
+          setStatus({
+            workerCount: workers.length,
+            pendingCount: pending.length,
+            inProgressCount: inProgress.length,
+          });
+          onWorkerStatusChange?.(workers.length > 0);
+        }
+      } catch {
+        // Keep prior state; next tick will retry.
       }
     };
 
