@@ -130,7 +130,15 @@ Live view of every worker registered against this project (status
 filter cycles with `f`: all → running → stopped → dead → all). Each row
 shows status, short id, mode, and heartbeat age. The detail pane has
 full id, pid, hostname, started time, heartbeat time, stopped time (if
-any), and pinned task id (if any).
+any), pinned task id (if any), and the per-worker log path.
+
+Press `l` to swap the detail pane into a **log view** that tails the
+selected worker's log file (`.botholomew/logs/<id>.log`). The log
+auto-refreshes every ~1.5 s and follows the bottom by default — scroll
+up with `Shift+↑`, `k`, or `K` to pause following; `G` (or scrolling
+back to the bottom) resumes it. Press `l` again to return to the
+detail view. Foreground workers (`worker run`) have no log file, so
+the log view shows an empty-state message instead.
 
 The panel polls the DB every ~3s. Workers heartbeat every
 `worker_heartbeat_interval_seconds` (default 15s); ones older than
@@ -282,6 +290,18 @@ just shows the summary to keep the chat view compact.
 | `r` | Refresh from DB |
 | `d` | Delete with confirmation (Threads, Schedules, Context) |
 | `e` | Toggle enable/disable (Schedules only) |
+
+### Workers tab
+
+| Key | Action |
+|---|---|
+| `↑` / `↓` | Select worker |
+| `f` | Cycle status filter (all → running → stopped → dead) |
+| `l` | Toggle between detail and log-tail view |
+| `Shift+↑` / `Shift+↓` | Scroll log up/down (log view) |
+| `j` / `k` | Scroll log down/up by one line (log view) |
+| `J` / `K` | Page scroll the log (log view) |
+| `g` / `G` | Jump to top / bottom of log (log view, `G` resumes follow) |
 
 ### Context tab
 

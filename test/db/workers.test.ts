@@ -49,6 +49,34 @@ describe("worker registration", () => {
     expect(w.task_id).toBe("task-42");
   });
 
+  test("stores logPath and round-trips through getWorker / listWorkers", async () => {
+    const w = await registerWorker(conn, {
+      id: "w-log-1",
+      pid: 1,
+      hostname: "h",
+      mode: "persist",
+      logPath: "/tmp/proj/.botholomew/logs/w-log-1.log",
+    });
+    expect(w.log_path).toBe("/tmp/proj/.botholomew/logs/w-log-1.log");
+
+    const fetched = await getWorker(conn, "w-log-1");
+    expect(fetched?.log_path).toBe("/tmp/proj/.botholomew/logs/w-log-1.log");
+
+    const listed = await listWorkers(conn, { status: "running" });
+    const found = listed.find((row) => row.id === "w-log-1");
+    expect(found?.log_path).toBe("/tmp/proj/.botholomew/logs/w-log-1.log");
+  });
+
+  test("log_path defaults to null when omitted", async () => {
+    const w = await registerWorker(conn, {
+      id: "w-log-2",
+      pid: 1,
+      hostname: "h",
+      mode: "once",
+    });
+    expect(w.log_path).toBeNull();
+  });
+
   test("heartbeat advances last_heartbeat_at", async () => {
     await registerWorker(conn, {
       id: "w-3",

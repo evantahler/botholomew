@@ -1,5 +1,11 @@
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { getBotholomewDir, getLogPath } from "../constants.ts";
+import {
+  getBotholomewDir,
+  getWorkerLogPath,
+  getWorkerLogsDir,
+} from "../constants.ts";
+import { uuidv7 } from "../db/uuid.ts";
 import { logger } from "../utils/logger.ts";
 import type { WorkerMode } from "./index.ts";
 
@@ -12,11 +18,14 @@ export interface SpawnWorkerOptions {
  * Spawn a worker as a detached background process. Unlike the old daemon
  * model, multiple workers per project are allowed and expected — this just
  * launches a new one.
+ *
+ * The parent generates the worker id and opens a per-worker log file before
+ * spawning so that the TUI / CLI can later tail just this worker's output.
  */
 export async function spawnWorker(
   projectDir: string,
   options: SpawnWorkerOptions = {},
-): Promise<{ pid: number }> {
+): Promise<{ pid: number; workerId: string; logPath: string }> {
   const dotDir = getBotholomewDir(projectDir);
   const dirExists = await Bun.file(join(dotDir, "config.json")).exists();
   if (!dirExists) {
@@ -24,11 +33,20 @@ export async function spawnWorker(
     process.exit(1);
   }
 
-  const logPath = getLogPath(projectDir);
+  const workerId = uuidv7();
+  await mkdir(getWorkerLogsDir(projectDir), { recursive: true });
+  const logPath = getWorkerLogPath(projectDir, workerId);
   const logFile = Bun.file(logPath);
 
   const workerScript = new URL("./run.ts", import.meta.url).pathname;
-  const args = ["bun", "run", workerScript, projectDir];
+  const args = [
+    "bun",
+    "run",
+    workerScript,
+    projectDir,
+    `--worker-id=${workerId}`,
+    `--log-path=${logPath}`,
+  ];
   if (options.mode === "persist") args.push("--persist");
   if (options.taskId) args.push(`--task-id=${options.taskId}`);
 
@@ -44,5 +62,5 @@ export async function spawnWorker(
   );
   logger.dim(`  Log: ${logPath}`);
 
-  return { pid: proc.pid ?? 0 };
+  return { pid: proc.pid ?? 0, workerId, logPath };
 }

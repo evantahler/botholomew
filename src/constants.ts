@@ -13,14 +13,13 @@ export const DEFAULTS = {
   UPDATE_CHECK_TIMEOUT_MS: 5_000,
 } as const;
 export const DB_FILENAME = "data.duckdb";
-export const LOG_FILENAME = "worker.log";
+export const LOGS_DIR = "logs";
 export const CONFIG_FILENAME = "config.json";
 export const MCPX_DIR = "mcpx";
 export const SKILLS_DIR = "skills";
 export const MCPX_SERVERS_FILENAME = "servers.json";
 export const EMBEDDING_DIMENSION = 1536;
 export const EMBEDDING_MODEL = "text-embedding-3-small";
-export const LOG_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
 export function getBotholomewDir(projectDir: string): string {
   return join(projectDir, BOTHOLOMEW_DIR);
@@ -30,8 +29,12 @@ export function getDbPath(projectDir: string): string {
   return join(projectDir, BOTHOLOMEW_DIR, DB_FILENAME);
 }
 
-export function getLogPath(projectDir: string): string {
-  return join(projectDir, BOTHOLOMEW_DIR, LOG_FILENAME);
+export function getWorkerLogsDir(projectDir: string): string {
+  return join(projectDir, BOTHOLOMEW_DIR, LOGS_DIR);
+}
+
+export function getWorkerLogPath(projectDir: string, workerId: string): string {
+  return join(projectDir, BOTHOLOMEW_DIR, LOGS_DIR, `${workerId}.log`);
 }
 
 export function getConfigPath(projectDir: string): string {

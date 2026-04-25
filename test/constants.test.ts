@@ -11,9 +11,10 @@ import {
   getBotholomewDir,
   getConfigPath,
   getDbPath,
-  getLogPath,
   getMcpxDir,
-  LOG_FILENAME,
+  getWorkerLogPath,
+  getWorkerLogsDir,
+  LOGS_DIR,
   MCPX_DIR,
 } from "../src/constants.ts";
 
@@ -24,7 +25,7 @@ describe("constants", () => {
 
   test("file name constants are defined", () => {
     expect(DB_FILENAME).toBe("data.duckdb");
-    expect(LOG_FILENAME).toBe("worker.log");
+    expect(LOGS_DIR).toBe("logs");
     expect(CONFIG_FILENAME).toBe("config.json");
     expect(MCPX_DIR).toBe("mcpx");
   });
@@ -57,9 +58,15 @@ describe("path helpers", () => {
     );
   });
 
-  test("getLogPath returns project/.botholomew/worker.log", () => {
-    expect(getLogPath(projectDir)).toBe(
-      join(projectDir, ".botholomew", "worker.log"),
+  test("getWorkerLogsDir returns project/.botholomew/logs", () => {
+    expect(getWorkerLogsDir(projectDir)).toBe(
+      join(projectDir, ".botholomew", "logs"),
+    );
+  });
+
+  test("getWorkerLogPath returns project/.botholomew/logs/<id>.log", () => {
+    expect(getWorkerLogPath(projectDir, "abc123")).toBe(
+      join(projectDir, ".botholomew", "logs", "abc123.log"),
     );
   });
 

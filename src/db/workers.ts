@@ -14,6 +14,7 @@ export interface Worker {
   started_at: Date;
   last_heartbeat_at: Date;
   stopped_at: Date | null;
+  log_path: string | null;
 }
 
 interface WorkerRow {
@@ -26,6 +27,7 @@ interface WorkerRow {
   started_at: string;
   last_heartbeat_at: string;
   stopped_at: string | null;
+  log_path: string | null;
 }
 
 function rowToWorker(row: WorkerRow): Worker {
@@ -39,6 +41,7 @@ function rowToWorker(row: WorkerRow): Worker {
     started_at: new Date(row.started_at),
     last_heartbeat_at: new Date(row.last_heartbeat_at),
     stopped_at: row.stopped_at ? new Date(row.stopped_at) : null,
+    log_path: row.log_path,
   };
 }
 
@@ -50,17 +53,19 @@ export async function registerWorker(
     hostname: string;
     mode: Worker["mode"];
     taskId?: string | null;
+    logPath?: string | null;
   },
 ): Promise<Worker> {
   const row = await db.queryGet<WorkerRow>(
-    `INSERT INTO workers (id, pid, hostname, mode, task_id, status)
-     VALUES (?1, ?2, ?3, ?4, ?5, 'running')
+    `INSERT INTO workers (id, pid, hostname, mode, task_id, status, log_path)
+     VALUES (?1, ?2, ?3, ?4, ?5, 'running', ?6)
      RETURNING *`,
     params.id,
     params.pid,
     params.hostname,
     params.mode,
     params.taskId ?? null,
+    params.logPath ?? null,
   );
   if (!row) throw new Error("INSERT did not return a row");
   return rowToWorker(row);
