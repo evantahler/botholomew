@@ -63,7 +63,9 @@ re-layout.
 
 While the agent is streaming, text flushes to the screen on a ~50 ms
 timer (~20 fps) to keep the terminal from flickering. A spinner marks
-in-flight tool calls.
+in-flight tool calls. While the model is assembling a tool-call input
+(streaming a large JSON args block), a `Preparing tool call: <name>...`
+spinner is shown so the UI doesn't appear frozen.
 
 ### 2. Tools
 
