@@ -3,11 +3,12 @@ import type { Command } from "commander";
 import { getDbPath } from "../constants.ts";
 import { withDb as coreWithDb } from "../db/connection.ts";
 import {
+  isPidAlive,
   type ProbeResult,
   probeAllTables,
   repairDatabase,
 } from "../db/doctor.ts";
-import { listWorkers } from "../db/workers.ts";
+import { listWorkers, type Worker } from "../db/workers.ts";
 import { logger } from "../utils/logger.ts";
 
 function statusBadge(status: ProbeResult["status"]): string {
@@ -78,27 +79,37 @@ async function doctor(program: Command, repair: boolean): Promise<void> {
     process.exit(1);
   }
 
-  // Repair requires exclusive access — refuse if any worker is registered
-  // as running, otherwise the EXPORT would race with the worker's writes.
+  // Repair requires exclusive access — refuse if any worker is actually
+  // running, otherwise the EXPORT would race with the worker's writes.
+  // Stale `status='running'` rows whose PID is dead (the exact case that
+  // tends to coexist with workers-table corruption) are reported but do
+  // not block repair: trying to flip them to `stopped` would just trip
+  // the same corruption we're about to fix.
   const running = await coreWithDb(dbPath, async (conn) => {
     try {
       return await listWorkers(conn, { status: "running" });
     } catch {
-      // If listWorkers itself trips the corruption we're about to fix,
-      // fall through and let repair proceed; the user is on their own
-      // for confirming no live workers, which `worker reap` would also
-      // be unable to do anyway.
-      return [];
+      return [] as Worker[];
     }
   });
-  if (running.length > 0) {
+  const live = running.filter((w) => isPidAlive(w.pid));
+  const stale = running.filter((w) => !isPidAlive(w.pid));
+  if (live.length > 0) {
     logger.error(
-      `${running.length} worker(s) registered as running. Stop them first: botholomew worker stop <id>`,
+      `${live.length} worker(s) actually running. Stop them first: botholomew worker stop <id>`,
     );
-    for (const w of running) {
+    for (const w of live) {
       logger.dim(`  ${w.id} (pid ${w.pid}, mode=${w.mode})`);
     }
     process.exit(1);
+  }
+  if (stale.length > 0) {
+    logger.warn(
+      `${stale.length} worker row(s) marked 'running' but PID is dead — proceeding (rows will be carried through repair, then reapable):`,
+    );
+    for (const w of stale) {
+      logger.dim(`  ${w.id} (pid ${w.pid}, mode=${w.mode})`);
+    }
   }
 
   logger.phase("repair", "EXPORT DATABASE → swap files → IMPORT DATABASE");

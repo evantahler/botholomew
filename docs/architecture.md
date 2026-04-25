@@ -284,7 +284,7 @@ anything else that touches a corrupted row die immediately.
 | Mode | What it does |
 |---|---|
 | `db doctor` (default) | For each user table, spawns a child Bun process that runs a self-update touching the PK index. Reports `ok` / `empty` / `missing` / `corrupt` per table. The child-process isolation is essential — a panic in the probe stays out of the doctor itself. |
-| `db doctor --repair` | Refuses if any worker is registered as `running`. Runs `CHECKPOINT`, `EXPORT DATABASE` to a timestamped directory under `.botholomew/`, renames the original `data.duckdb` (and `.wal`) to `data.duckdb.bak-<timestamp>`, opens a fresh DB at the original path, and `IMPORT DATABASE`s back. Indexes are rebuilt from data, which restores write integrity. |
+| `db doctor --repair` | Refuses if any worker is **actually running** (PID alive). Stale `status='running'` rows whose PIDs are dead — the case that tends to coexist with workers-table corruption — are warned about but do not block repair, because flipping them to `stopped` would just trip the same corruption. Runs `CHECKPOINT`, `EXPORT DATABASE` to a timestamped directory under `.botholomew/`, renames the original `data.duckdb` (and `.wal`) to `data.duckdb.bak-<timestamp>`, opens a fresh DB at the original path, and `IMPORT DATABASE`s back. Indexes are rebuilt from data, which restores write integrity. After repair, `botholomew worker reap` cleans up the stale rows. |
 
 Repair is idempotent and non-destructive: the original DB is preserved
 as a `.bak-<timestamp>` file next to the new one. Delete the backup once

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getConnection } from "../../src/db/connection.ts";
 import {
+  isPidAlive,
   PROBE_TABLES,
   probeAllTables,
   probeTable,
@@ -74,6 +75,23 @@ describe("probeAllTables", () => {
     );
     // Empty DB: no table is corrupt.
     expect(results.every((r) => r.status !== "corrupt")).toBe(true);
+  });
+});
+
+describe("isPidAlive", () => {
+  test("returns true for the current process", () => {
+    expect(isPidAlive(process.pid)).toBe(true);
+  });
+
+  test("returns false for a sentinel non-existent pid", () => {
+    // PID 0 is special on POSIX (process group); reject it explicitly.
+    expect(isPidAlive(0)).toBe(false);
+    expect(isPidAlive(-1)).toBe(false);
+  });
+
+  test("returns false for a pid that was never assigned in this process tree", () => {
+    // 2^31 - 1 is past the typical max PID on macOS/Linux.
+    expect(isPidAlive(2147483647)).toBe(false);
   });
 });
 

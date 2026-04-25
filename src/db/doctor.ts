@@ -85,12 +85,15 @@ export async function probeTable(
     }
   `;
 
+  // Discard the child's stderr. When the probe panics, Bun writes a multi-
+  // line crash banner there which would otherwise spill into our table
+  // output via the fallback message. The exit code alone tells us what we
+  // need to know.
   const proc = Bun.spawn(["bun", "-e", script], {
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["ignore", "pipe", "ignore"],
   });
-  const [stdout, stderr, exitCode] = await Promise.all([
+  const [stdout, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
     proc.exited,
   ]);
 
@@ -103,20 +106,21 @@ export async function probeTable(
     return {
       table,
       status: "missing",
-      message: stdout.slice("MISSING:".length),
+      message: firstLine(stdout.slice("MISSING:".length)),
     };
   }
   if (stdout.startsWith("CORRUPT:")) {
     return {
       table,
       status: "corrupt",
-      message: stdout.slice("CORRUPT:".length),
+      message: firstLine(stdout.slice("CORRUPT:".length)),
     };
   }
-  const reason =
-    stderr.trim() ||
-    `child exited with code ${exitCode} and no verdict (likely native panic)`;
-  return { table, status: "corrupt", message: reason };
+  return {
+    table,
+    status: "corrupt",
+    message: `child exited with code ${exitCode} (likely native panic)`,
+  };
 }
 
 /**
@@ -207,6 +211,30 @@ export async function repairDatabase(dbPath: string): Promise<RepairResult> {
 async function pathExists(p: string): Promise<boolean> {
   try {
     await stat(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function firstLine(s: string): string {
+  const trimmed = s.trim();
+  const nl = trimmed.indexOf("\n");
+  return nl === -1 ? trimmed : trimmed.slice(0, nl);
+}
+
+/**
+ * Send signal 0 to test whether `pid` corresponds to a live process. Returns
+ * false on ESRCH (no such process) and on any other error (including EPERM,
+ * which we conservatively treat as "not ours, not relevant"). Used by the
+ * doctor's safety gate to distinguish workers actually running from rows
+ * that say `status = 'running'` because the worker crashed before flipping
+ * its row to `stopped` or `dead`.
+ */
+export function isPidAlive(pid: number): boolean {
+  if (!pid || pid < 1) return false;
+  try {
+    process.kill(pid, 0);
     return true;
   } catch {
     return false;
