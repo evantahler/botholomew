@@ -119,7 +119,7 @@ skill is invoked, so it's visually distinct from a regular message.
 ## Managing skills from chat
 
 Skills aren't write-once-via-CLI: the chat agent can list, read, create,
-edit, and search them on demand. Five tools are exposed to the chat
+edit, search, and delete them on demand. Six tools are exposed to the chat
 agent:
 
 | Tool | What it does |
@@ -129,6 +129,7 @@ agent:
 | `skill_search` | Keyword search across name, description, body, and arg metadata |
 | `skill_write` | Create or overwrite a skill (`on_conflict: 'error' \| 'overwrite'`) |
 | `skill_edit` | Apply git-style line-range patches to an existing skill |
+| `skill_delete` | Delete a skill file by name |
 
 Newly written or edited skills are picked up at the start of the *next*
 user message — `ChatSession.skills` is reloaded from disk in

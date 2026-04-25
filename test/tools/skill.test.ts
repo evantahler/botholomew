@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getSkillsDir } from "../../src/constants.ts";
 import { loadSkills } from "../../src/skills/loader.ts";
+import { skillDeleteTool } from "../../src/tools/skill/delete.ts";
 import { skillEditTool } from "../../src/tools/skill/edit.ts";
 import { skillListTool } from "../../src/tools/skill/list.ts";
 import { skillReadTool } from "../../src/tools/skill/read.ts";
@@ -530,5 +531,75 @@ describe("skill_search", () => {
     expect(result.is_error).toBe(false);
     expect(result.results).toEqual([]);
     expect(result.hint).toContain("No skills exist yet");
+  });
+});
+
+// ── skill_delete ───────────────────────────────────────────────
+
+describe("skill_delete", () => {
+  test("deletes an existing skill", async () => {
+    await seedSkill(
+      tempDir,
+      "doomed.md",
+      "---\nname: doomed\ndescription: bye\narguments: []\n---\nbody\n",
+    );
+
+    const result = await skillDeleteTool.execute({ name: "doomed" }, ctx);
+    expect(result.is_error).toBe(false);
+    expect(result.deleted).toBe(true);
+    expect(result.name).toBe("doomed");
+    expect(result.path).toContain("doomed.md");
+
+    const skills = await loadSkills(tempDir);
+    expect(skills.has("doomed")).toBe(false);
+    expect(
+      await Bun.file(join(getSkillsDir(tempDir), "doomed.md")).exists(),
+    ).toBe(false);
+  });
+
+  test("looks up name case-insensitively", async () => {
+    await seedSkill(
+      tempDir,
+      "review.md",
+      "---\nname: review\ndescription: r\narguments: []\n---\nbody\n",
+    );
+
+    const result = await skillDeleteTool.execute({ name: "REVIEW" }, ctx);
+    expect(result.is_error).toBe(false);
+    expect(result.deleted).toBe(true);
+
+    const skills = await loadSkills(tempDir);
+    expect(skills.has("review")).toBe(false);
+  });
+
+  test("returns not_found with hint when no skills exist", async () => {
+    const result = await skillDeleteTool.execute({ name: "nope" }, ctx);
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("not_found");
+    expect(result.deleted).toBe(false);
+    expect(result.next_action_hint).toContain("skill_write");
+  });
+
+  test("returns not_found listing available names when other skills exist", async () => {
+    await seedSkill(
+      tempDir,
+      "alpha.md",
+      "---\nname: alpha\ndescription: a\narguments: []\n---\nbody\n",
+    );
+    await seedSkill(
+      tempDir,
+      "beta.md",
+      "---\nname: beta\ndescription: b\narguments: []\n---\nbody\n",
+    );
+
+    const result = await skillDeleteTool.execute({ name: "missing" }, ctx);
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("not_found");
+    expect(result.next_action_hint).toContain("alpha");
+    expect(result.next_action_hint).toContain("beta");
+
+    const skills = await loadSkills(tempDir);
+    expect(skills.has("alpha")).toBe(true);
+    expect(skills.has("beta")).toBe(true);
   });
 });

@@ -129,6 +129,27 @@ or $1, $2, etc. for positional arguments.
       await Bun.write(filePath, template);
       logger.success(`Created skill: ${filePath}`);
     });
+
+  skill
+    .command("delete <name>")
+    .description("Delete a skill file")
+    .action(async (name: string) => {
+      const dir = program.opts().dir;
+      const skills = await loadSkills(dir);
+      const s = skills.get(name.toLowerCase());
+
+      if (!s) {
+        logger.error(`Skill not found: ${name}`);
+        if (skills.size > 0) {
+          const available = [...skills.keys()].sort().join(", ");
+          console.error(ansis.dim(`Available: ${available}`));
+        }
+        process.exit(1);
+      }
+
+      await Bun.file(s.filePath).delete();
+      logger.success(`Deleted skill: ${s.filePath}`);
+    });
 }
 
 async function validateSingleFile(filePath: string): Promise<void> {
