@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { logger } from "../utils/logger.ts";
 import type { DbConnection } from "./connection.ts";
 
 interface Migration {
@@ -45,9 +46,16 @@ export async function migrate(db: DbConnection): Promise<void> {
   const applied = new Set(rows.map((row) => row.id));
 
   // Run pending migrations in order
+  const pending = loadMigrations().filter((m) => !applied.has(m.id));
+  if (pending.length > 0) {
+    logger.info(
+      `applying ${pending.length} migration${pending.length === 1 ? "" : "s"}`,
+    );
+  }
+
   let appliedAny = false;
-  for (const migration of loadMigrations()) {
-    if (applied.has(migration.id)) continue;
+  for (const migration of pending) {
+    logger.info(`  ${migration.id}. ${migration.name}`);
 
     // Split on semicolons and run each statement individually
     const statements = migration.sql

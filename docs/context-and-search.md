@@ -49,7 +49,9 @@ Each chunk is embedded separately; the `title` and `description` come
 from the parent `context_item` (set at ingestion time), are prepended
 to the chunk's text at embed time (along with a `Source: drive:/path`
 line), and surface in search results as the snippet. If the chunker
-fails, ingestion fails — there is no sliding-window fallback today.
+errors or times out, ingestion falls back to a deterministic
+paragraph/line splitter (`chunkByTextSplit` in `src/context/chunker.ts`)
+— semantic quality suffers, but the item still gets embedded.
 
 ---
 
@@ -276,10 +278,15 @@ botholomew context refresh --all               # every non-agent item
 `refresh` dispatches on the drive:
 
 - `disk` → re-reads from the filesystem.
-- `url` → re-runs the loading agent.
 - `agent` → skipped (no external origin).
-- `google-docs` / `github` → returns a per-item error today (not yet
-  implemented). Re-add from the original URL if you need a fresh copy.
+- Everything else → re-runs the loading agent against
+  `context_items.source_url`, which is captured at ingest time. The
+  built-in `url` drive also accepts its own path as a fallback (the path
+  is the URL). Items without `source_url` — legacy rows created before
+  that column landed, or rows from a drive whose origin isn't a URL —
+  surface a per-item error and the user must re-add from URL. Refresh
+  has no knowledge of any specific remote service; everything goes
+  through `source_url`.
 
 In all cases it compares the new content against what's stored, updates
 only when they differ, and re-embeds only the changed items. Missing

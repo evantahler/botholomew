@@ -3,7 +3,7 @@ import type { BotholomewConfig } from "../config/schemas.ts";
 import type { DbConnection } from "../db/connection.ts";
 import { type ContextItem, updateContextItem } from "../db/context.ts";
 import { formatDriveRef } from "./drives.ts";
-import { fetchUrl } from "./fetcher.ts";
+import { type FetchedContent, fetchUrl } from "./fetcher.ts";
 import {
   type PreparedIngestion,
   prepareIngestion,
@@ -40,6 +40,13 @@ export interface RefreshOptions {
 
 type IngestEmbedFn = (texts: string[]) => Promise<number[][]>;
 
+/** Signature compatible with {@link fetchUrl}. Injectable for tests. */
+export type FetchUrlFn = (
+  url: string,
+  config: Required<BotholomewConfig>,
+  mcpxClient: McpxClient | null,
+) => Promise<FetchedContent>;
+
 /**
  * Refresh a batch of context items: re-read from origin, diff, update
  * content, and re-embed only the items that changed.
@@ -47,10 +54,12 @@ type IngestEmbedFn = (texts: string[]) => Promise<number[][]>;
  * Dispatches on `drive`:
  *   disk  → read from filesystem
  *   agent → skip (no external origin)
- *   other → re-fetch as a URL (the path is either a full URL for `url` drive
- *           or an origin-specific identifier that fetchUrl can re-derive via
- *           the MCP agent; for now this only refreshes items stored under
- *           `url:/<full-url>`)
+ *   other → re-fetch via `item.source_url` (captured at ingest time).
+ *           The built-in `url` drive stores the URL as its path so it can
+ *           also refresh directly from `path`. Any other drive with no
+ *           `source_url` surfaces a per-item error — the user must re-add
+ *           from URL. No code here knows anything about the remote
+ *           service behind a drive.
  */
 export async function refreshContextItems(
   conn: DbConnection,
@@ -59,6 +68,7 @@ export async function refreshContextItems(
   mcpxClient: McpxClient | null,
   opts: RefreshOptions = {},
   embedFn?: IngestEmbedFn,
+  fetchFn: FetchUrlFn = fetchUrl,
 ): Promise<RefreshResult> {
   const refreshable = items.filter((i) => i.drive !== "agent");
 
@@ -84,20 +94,20 @@ export async function refreshContextItems(
           continue;
         }
         content = await bunFile.text();
-      } else if (item.drive === "url") {
-        const url = item.path.startsWith("/") ? item.path.slice(1) : item.path;
-        const fetched = await fetchUrl(url, config, mcpxClient);
-        content = fetched.content;
       } else {
-        // Service-specific drives (google-docs, github, etc.) — only
-        // refreshable when the original URL can be reconstructed. For now,
-        // we punt: mark as error so the user knows to re-add from URL.
-        results.push({
-          ...base,
-          status: "error",
-          error: `Refresh not implemented for drive '${item.drive}' — re-add from the original URL.`,
-        });
-        continue;
+        const url =
+          item.source_url ??
+          (item.drive === "url" ? item.path.replace(/^\//, "") : null);
+        if (!url) {
+          results.push({
+            ...base,
+            status: "error",
+            error: `Cannot refresh ${formatDriveRef(item)}: no source_url recorded. Re-add from the original URL.`,
+          });
+          continue;
+        }
+        const fetched = await fetchFn(url, config, mcpxClient);
+        content = fetched.content;
       }
 
       if (content === item.content) {

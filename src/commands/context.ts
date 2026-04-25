@@ -871,6 +871,7 @@ async function addUrl(
       drive: target.drive,
       path: target.path,
       isTextual: true,
+      sourceUrl: fetched.sourceUrl,
     };
 
     const item =

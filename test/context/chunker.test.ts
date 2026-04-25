@@ -21,6 +21,31 @@ describe("chunk", () => {
       "Anthropic API key is required",
     );
   });
+
+  test("falls back to deterministic splitting when LLM chunker throws", async () => {
+    const config = { ...DEFAULT_CONFIG, anthropic_api_key: "test-key" };
+    const paragraph = "abcdefghij".repeat(50); // 500 chars, no newlines
+    const content = Array.from({ length: 12 }, () => paragraph).join("\n\n");
+    expect(content.length).toBeGreaterThan(5_000);
+
+    const throwingChunker = async () => {
+      throw new Error("LLM chunker returned empty boundaries");
+    };
+
+    const chunks = await chunk(content, "text/plain", config, throwingChunker);
+
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const c of chunks) {
+      expect(c.content.length).toBeLessThanOrEqual(15_000);
+    }
+    // Indices are 0..n-1 contiguous.
+    for (const [i, c] of chunks.entries()) {
+      expect(c.index).toBe(i);
+    }
+    // Every paragraph shows up somewhere in the concatenated chunks.
+    const joined = chunks.map((c) => c.content).join("\n");
+    expect(joined).toContain(paragraph);
+  });
 });
 
 describe("addOverlapToChunks", () => {

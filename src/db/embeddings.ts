@@ -153,11 +153,18 @@ export interface HybridSearchResult extends EmbeddingSearchResult {
  * snapshot — it does not update incrementally on INSERT/UPDATE/DELETE, so any
  * batch writer must call this once its transaction commits. Cheap at our
  * scale (hundreds to low thousands of rows).
+ *
+ * The trailing CHECKPOINT is load-bearing: `overwrite = 1` writes a
+ * `DROP SCHEMA fts_main_embeddings` record into the WAL. If the WAL still
+ * contains that drop on the next open, replay fails with "Cannot drop entry
+ * 'fts_main_embeddings' because there are entries that depend on it". Forcing
+ * a checkpoint flushes the WAL so the next open has nothing to replay.
  */
 export async function rebuildSearchIndex(conn: DbConnection): Promise<void> {
   await conn.exec(
     "PRAGMA create_fts_index('embeddings', 'id', 'chunk_content', 'title', overwrite = 1)",
   );
+  await conn.exec("CHECKPOINT");
 }
 
 export async function hybridSearch(
