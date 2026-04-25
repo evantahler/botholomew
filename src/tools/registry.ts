@@ -32,6 +32,12 @@ import { listSchedulesTool } from "./schedule/list.ts";
 // Search tools
 import { searchGrepTool } from "./search/grep.ts";
 import { searchSemanticTool } from "./search/semantic.ts";
+// Skill tools
+import { skillEditTool } from "./skill/edit.ts";
+import { skillListTool } from "./skill/list.ts";
+import { skillReadTool } from "./skill/read.ts";
+import { skillSearchTool } from "./skill/search.ts";
+import { skillWriteTool } from "./skill/write.ts";
 // Task tools
 import { completeTaskTool } from "./task/complete.ts";
 import { createTaskTool } from "./task/create.ts";
@@ -87,6 +93,13 @@ export function registerAllTools(): void {
   // Search
   registerTool(searchGrepTool);
   registerTool(searchSemanticTool);
+
+  // Skill
+  registerTool(skillListTool);
+  registerTool(skillReadTool);
+  registerTool(skillWriteTool);
+  registerTool(skillEditTool);
+  registerTool(skillSearchTool);
 
   // Thread
   registerTool(listThreadsTool);

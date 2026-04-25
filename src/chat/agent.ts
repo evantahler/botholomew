@@ -52,6 +52,11 @@ const CHAT_TOOL_NAMES = new Set([
   "mcp_exec",
   "read_large_result",
   "spawn_worker",
+  "skill_list",
+  "skill_read",
+  "skill_write",
+  "skill_edit",
+  "skill_search",
 ]);
 
 export function getChatTools() {
@@ -108,6 +113,7 @@ You do NOT execute long-running work directly — enqueue tasks for a background
 Use the available tools to look up tasks, threads, schedules, and context when the user asks about them. Context items live under a drive (disk / url / agent / google-docs / github / …); use \`context_list_drives\` to discover which drives have content, then \`context_tree\`, \`context_info\`, \`context_search\`, or \`context_refresh\` as needed.
 When multiple tool calls are independent of each other (i.e., one does not depend on the result of another), call them all in a single response. They will be executed in parallel, which is faster than calling them one at a time.
 You can update the agent's beliefs and goals files when the user asks you to.
+You can author and refine slash-command skills (reusable prompt templates stored in \`.botholomew/skills/\`) via \`skill_list\`, \`skill_search\`, \`skill_read\`, \`skill_write\`, and \`skill_edit\`. New or edited skills are usable as \`/<name>\` on the user's next message.
 Format your responses using Markdown. Use headings, bold, italic, lists, and code blocks to make your responses clear and well-structured.
 `;
 
