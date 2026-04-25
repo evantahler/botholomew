@@ -225,6 +225,40 @@ describe("buildSystemPrompt", () => {
     expect(promptFalse).not.toContain("## External Tools (MCP)");
   });
 
+  test("appends the Style block after Instructions", async () => {
+    const prompt = await buildSystemPrompt(projectDir);
+    expect(prompt).toContain("## Style");
+    expect(prompt).toContain("preambles");
+    expect(prompt).toContain("Don't flatter");
+    expect(prompt.indexOf("## Style")).toBeGreaterThan(
+      prompt.indexOf("## Instructions"),
+    );
+  });
+
+  test("Style block appears after the MCP block when hasMcpTools is true", async () => {
+    const prompt = await buildSystemPrompt(
+      projectDir,
+      undefined,
+      undefined,
+      undefined,
+      { hasMcpTools: true },
+    );
+    expect(prompt).toContain("## Style");
+    expect(prompt.indexOf("## Style")).toBeGreaterThan(
+      prompt.indexOf("## External Tools (MCP)"),
+    );
+  });
+
+  test("Style block is present even with no .botholomew files", async () => {
+    await rm(join(projectDir, ".botholomew"), {
+      recursive: true,
+      force: true,
+    });
+    const prompt = await buildSystemPrompt(projectDir);
+    expect(prompt).toContain("## Style");
+    expect(prompt).toContain("Don't flatter");
+  });
+
   test("keyword extraction filters short words", async () => {
     const contextual = serializeContextFile(
       { loading: "contextual", "agent-modification": false },

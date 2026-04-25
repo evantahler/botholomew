@@ -63,6 +63,17 @@ describe("initProject", () => {
     expect(meta["agent-modification"]).toBe(false);
   });
 
+  test("soul.md instructs the agent to be direct and skip flattery", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
+    await initProject(tempDir);
+
+    const raw = await Bun.file(join(tempDir, ".botholomew", "soul.md")).text();
+    const { content } = parseContextFile(raw);
+
+    expect(content).toContain("lead with the answer");
+    expect(content).toContain("never flatter");
+  });
+
   test("beliefs.md is agent-editable", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
     await initProject(tempDir);

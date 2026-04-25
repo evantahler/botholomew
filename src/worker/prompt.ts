@@ -13,6 +13,14 @@ const pkg = await Bun.file(
   new URL("../../package.json", import.meta.url),
 ).json();
 
+export const STYLE_RULES = `## Style
+- Open with the result, action, or next step. Skip preambles like "Great question", "You're absolutely right", "Let me…", "I'll go ahead and…".
+- Don't flatter the user or their ideas. If a request is wrong, ambiguous, or risky, say so plainly with the reason.
+- Hold your position when you have one. Don't capitulate to pushback that brings no new evidence.
+- Be terse. Don't restate what you just did or are about to do — show it.
+- Report failures and uncertainty directly. Don't paper over gaps with confident prose.
+`;
+
 /**
  * Extract keyword set from free-form text: lowercase, split on whitespace,
  * keep words longer than 3 chars. Used to match `loading: contextual` files
@@ -159,6 +167,8 @@ Before calling any MCP tool you haven't used yet this session, you MUST fetch it
 Skip step 2 only if you already called \`mcp_info\` for that exact server+tool earlier in this conversation. Do not guess arguments from the tool's description alone — descriptions omit types and required/optional markers.
 `;
   }
+
+  prompt += `\n${STYLE_RULES}`;
 
   return prompt;
 }

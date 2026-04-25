@@ -51,6 +51,21 @@ See `loadPersistentContext()` and `extractKeywords()` in
 
 ---
 
+## The hardcoded `## Style` block
+
+After the persistent-context files (and after the optional MCP
+section), every system prompt — worker and chat alike — appends a
+short `## Style` block defined as `STYLE_RULES` in
+`src/worker/prompt.ts`. It tells the model to skip sycophantic
+preambles ("You're absolutely right!", "Great question!"), push back
+when the user is wrong, and report failures and uncertainty directly.
+This is hardcoded so it applies to every install without needing to
+re-run `botholomew init`. Anything you put in `soul.md` or
+`beliefs.md` still loads above it and can layer on top — if you'd
+rather have a warm, chatty agent, say so there.
+
+---
+
 ## Agent self-modification
 
 When `agent-modification: true`, the agent can rewrite the file using

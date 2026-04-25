@@ -169,6 +169,36 @@ describe("buildChatSystemPrompt", () => {
     expect(promptFalse).not.toContain("## External Tools (MCP)");
   });
 
+  test("appends the Style block after Instructions", async () => {
+    const prompt = await buildChatSystemPrompt(projectDir);
+    expect(prompt).toContain("## Style");
+    expect(prompt).toContain("preambles");
+    expect(prompt).toContain("Don't flatter");
+    expect(prompt.indexOf("## Style")).toBeGreaterThan(
+      prompt.indexOf("## Instructions"),
+    );
+  });
+
+  test("Style block appears after the MCP block when hasMcpTools is true", async () => {
+    const prompt = await buildChatSystemPrompt(projectDir, {
+      hasMcpTools: true,
+    });
+    expect(prompt).toContain("## Style");
+    expect(prompt.indexOf("## Style")).toBeGreaterThan(
+      prompt.indexOf("## External Tools (MCP)"),
+    );
+  });
+
+  test("Style block is present even with no .botholomew files", async () => {
+    await rm(join(projectDir, ".botholomew"), {
+      recursive: true,
+      force: true,
+    });
+    const prompt = await buildChatSystemPrompt(projectDir);
+    expect(prompt).toContain("## Style");
+    expect(prompt).toContain("Don't flatter");
+  });
+
   test("always-loaded files appear even when keywordSource matches nothing", async () => {
     const always = serializeContextFile(
       { loading: "always", "agent-modification": true },
