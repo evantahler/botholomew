@@ -35,6 +35,7 @@ import { searchSemanticTool } from "./search/semantic.ts";
 // Task tools
 import { completeTaskTool } from "./task/complete.ts";
 import { createTaskTool } from "./task/create.ts";
+import { deleteTaskTool } from "./task/delete.ts";
 import { failTaskTool } from "./task/fail.ts";
 import { listTasksTool } from "./task/list.ts";
 import { updateTaskTool } from "./task/update.ts";
@@ -54,6 +55,7 @@ export function registerAllTools(): void {
   registerTool(waitTaskTool);
   registerTool(createTaskTool);
   registerTool(updateTaskTool);
+  registerTool(deleteTaskTool);
   registerTool(listTasksTool);
   registerTool(viewTaskTool);
 

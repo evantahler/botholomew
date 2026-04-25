@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import type { DbConnection } from "../../src/db/connection.ts";
-import { updateTaskStatus } from "../../src/db/tasks.ts";
+import {
+  claimSpecificTask,
+  createTask,
+  getTask,
+  updateTaskStatus,
+} from "../../src/db/tasks.ts";
 import { completeTaskTool } from "../../src/tools/task/complete.ts";
 import { createTaskTool } from "../../src/tools/task/create.ts";
+import { deleteTaskTool } from "../../src/tools/task/delete.ts";
 import { failTaskTool } from "../../src/tools/task/fail.ts";
 import { updateTaskTool } from "../../src/tools/task/update.ts";
 import { waitTaskTool } from "../../src/tools/task/wait.ts";
@@ -127,6 +133,79 @@ describe("update_task", () => {
       id: "abc",
       priority: "urgent",
     });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ── delete_task ────────────────────────────────────────────
+
+describe("delete_task", () => {
+  test("deletes a pending task", async () => {
+    const task = await createTask(conn, { name: "scratch" });
+
+    const result = await deleteTaskTool.execute({ id: task.id }, ctx);
+
+    expect(result.is_error).toBe(false);
+    expect(result.deleted_id).toBe(task.id);
+    expect(result.message).toContain("scratch");
+    expect(await getTask(conn, task.id)).toBeNull();
+  });
+
+  test("deletes a failed task", async () => {
+    const task = await createTask(conn, { name: "broken" });
+    await updateTaskStatus(conn, task.id, "failed", "boom");
+
+    const result = await deleteTaskTool.execute({ id: task.id }, ctx);
+
+    expect(result.is_error).toBe(false);
+    expect(await getTask(conn, task.id)).toBeNull();
+  });
+
+  test("deletes a complete task", async () => {
+    const task = await createTask(conn, { name: "done" });
+    await updateTaskStatus(conn, task.id, "complete", null, "ok");
+
+    const result = await deleteTaskTool.execute({ id: task.id }, ctx);
+
+    expect(result.is_error).toBe(false);
+    expect(await getTask(conn, task.id)).toBeNull();
+  });
+
+  test("deletes a waiting task", async () => {
+    const task = await createTask(conn, { name: "paused" });
+    await updateTaskStatus(conn, task.id, "waiting", "blocked on user");
+
+    const result = await deleteTaskTool.execute({ id: task.id }, ctx);
+
+    expect(result.is_error).toBe(false);
+    expect(await getTask(conn, task.id)).toBeNull();
+  });
+
+  test("refuses to delete an in_progress task and names the worker", async () => {
+    const task = await createTask(conn, { name: "running" });
+    const claimed = await claimSpecificTask(conn, task.id, "worker-1");
+    expect(claimed?.status).toBe("in_progress");
+
+    const result = await deleteTaskTool.execute({ id: task.id }, ctx);
+
+    expect(result.is_error).toBe(true);
+    expect(result.deleted_id).toBeNull();
+    expect(result.message).toContain("in_progress");
+    expect(result.message).toContain("worker-1");
+    expect(result.message).toContain("botholomew task reset");
+    expect(await getTask(conn, task.id)).not.toBeNull();
+  });
+
+  test("returns not-found error for unknown id", async () => {
+    const result = await deleteTaskTool.execute({ id: "nonexistent" }, ctx);
+
+    expect(result.is_error).toBe(true);
+    expect(result.deleted_id).toBeNull();
+    expect(result.message).toContain("not found");
+  });
+
+  test("validates input schema rejects missing id", () => {
+    const result = deleteTaskTool.inputSchema.safeParse({});
     expect(result.success).toBe(false);
   });
 });
