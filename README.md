@@ -148,6 +148,7 @@ Everything the agent can touch is here. No surprises.
 | `botholomew context ... \| search ...` | Direct access to the agent's virtual filesystem |
 | `botholomew thread list\|view` | Browse the agent's interaction history |
 | `botholomew nuke context\|tasks\|schedules\|threads\|all` | Bulk-erase sections of the database |
+| `botholomew db doctor [--repair]` | Probe each table for primary-key index corruption; rebuild via EXPORT/IMPORT |
 | `botholomew upgrade` | Self-update |
 
 All `list` subcommands support `-l, --limit <n>` and `-o, --offset <n>` for pagination.
