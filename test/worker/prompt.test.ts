@@ -194,14 +194,19 @@ describe("buildSystemPrompt", () => {
       },
     );
     expect(prompt).toContain("## External Tools (MCP)");
+    expect(prompt).toContain("### Local context first");
+    expect(prompt).toContain("### Calling MCP tools");
+    expect(prompt).toContain("Before any MCP read, search local context");
     expect(prompt).toContain("MUST fetch its schema first");
     expect(prompt).toContain("`mcp_info`");
     expect(prompt).toContain("`mcp_exec`");
     expect(prompt).toContain("`mcp_search`");
     expect(prompt).toContain("`mcp_list_tools`");
-    expect(prompt).toContain("check local context first");
     expect(prompt).toContain("`search_semantic`");
     expect(prompt).toContain("`context_search`");
+    expect(prompt).toContain("`context_info`");
+    expect(prompt).toContain("`context_refresh`");
+    expect(prompt).toContain("MCP write directly");
   });
 
   test("omits MCP section when hasMcpTools is false or absent", async () => {
