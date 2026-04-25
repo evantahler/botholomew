@@ -25,6 +25,19 @@ export interface StartWorkerOptions {
    */
   taskId?: string;
   /**
+   * Pre-allocated worker id from the spawn parent. When provided, the parent
+   * has already opened a per-worker log file at this id and we record both on
+   * the workers row. Foreground/in-process callers may omit this and a fresh
+   * id will be generated.
+   */
+  workerId?: string;
+  /**
+   * Path to the per-worker log file (set by the spawn parent when launching
+   * a detached worker). Stored on the workers row so the TUI can tail it.
+   * Null/undefined for foreground workers writing to stdout.
+   */
+  logPath?: string;
+  /**
    * Whether to evaluate schedules as part of this run.
    * Defaults to `true` for one-shot workers without a taskId and for persist
    * workers; `false` when a taskId is supplied (targeted work shouldn't fan
@@ -86,7 +99,7 @@ export async function startWorker(
     logger.info("MCPX client initialized with external tools");
   }
 
-  const workerId = uuidv7();
+  const workerId = options.workerId ?? uuidv7();
   await withDb(dbPath, (conn) =>
     registerWorker(conn, {
       id: workerId,
@@ -94,6 +107,7 @@ export async function startWorker(
       hostname: hostname(),
       mode,
       taskId: taskId ?? null,
+      logPath: options.logPath ?? null,
     }),
   );
 

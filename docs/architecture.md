@@ -67,10 +67,9 @@ See `src/worker/tick.ts`.
 
 ### Log format
 
-Worker logs (both foreground stdout and `.botholomew/worker.log`) prefix
-every line with a local `HH:MM:SS` timestamp. Lifecycle phases render as
-`[[phase-name]]` in bold magenta so they're easy to scan and grep
-(`grep '\[\[' worker.log`). Phases emitted each tick:
+Worker logs prefix every line with a local `HH:MM:SS` timestamp. Lifecycle
+phases render as `[[phase-name]]` in bold magenta so they're easy to scan
+and grep (`grep '\[\[' .botholomew/logs/<id>.log`). Phases emitted each tick:
 
 - `[[tick-start]] #N`
 - `[[evaluating-schedules]]` (only when any are enabled)
@@ -84,9 +83,16 @@ every line with a local `HH:MM:SS` timestamp. Lifecycle phases render as
 
 Every worker writes a row into the `workers` table on start
 (`registerWorker` in `src/db/workers.ts`) with its id (uuidv7), pid,
-hostname, mode, optional pinned task id, and `status='running'`. From
-that moment, a non-blocking `setInterval` in `src/worker/heartbeat.ts`
-bumps `last_heartbeat_at` every
+hostname, mode, optional pinned task id, optional `log_path`, and
+`status='running'`. Detached workers (spawned via `worker start` or
+`spawn_worker`) get a per-worker log file at
+`.botholomew/logs/<worker-id>.log` — the spawn parent generates the id
+and opens that file before launching the child, so the path is recorded
+on the row from registration onward. Foreground workers (`worker run`)
+have `log_path = null` and write to stdout instead.
+
+From that moment, a non-blocking `setInterval` in
+`src/worker/heartbeat.ts` bumps `last_heartbeat_at` every
 `worker_heartbeat_interval_seconds` (default 15s) — independent of the
 tick loop, so a worker mid-LLM-call still heartbeats reliably.
 

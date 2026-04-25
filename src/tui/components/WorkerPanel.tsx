@@ -1,7 +1,8 @@
 import { Box, Text, useInput, useStdout } from "ink";
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { withDb } from "../../db/connection.ts";
 import { listWorkers, type Worker } from "../../db/workers.ts";
+import { readLogTail } from "../../worker/log-reader.ts";
 
 interface WorkerPanelProps {
   dbPath: string;
@@ -14,6 +15,9 @@ const STATUS_FILTERS: readonly (Worker["status"] | null)[] = [
   "stopped",
   "dead",
 ];
+
+const PAGE_SCROLL_LINES = 10;
+const LOG_POLL_MS = 1500;
 
 function statusColor(status: Worker["status"]): string {
   switch (status) {
@@ -36,6 +40,12 @@ function formatAge(from: Date, now: Date): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n}B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)}KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)}MB`;
+}
+
 export const WorkerPanel = memo(function WorkerPanel({
   dbPath,
   isActive,
@@ -46,6 +56,12 @@ export const WorkerPanel = memo(function WorkerPanel({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filterIdx, setFilterIdx] = useState(0);
   const [now, setNow] = useState(() => new Date());
+  const [viewMode, setViewMode] = useState<"detail" | "log">("detail");
+  const [logContent, setLogContent] = useState("");
+  const [logSize, setLogSize] = useState(0);
+  const [logTruncated, setLogTruncated] = useState(false);
+  const [logScroll, setLogScroll] = useState(0);
+  const [logFollow, setLogFollow] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -72,17 +88,135 @@ export const WorkerPanel = memo(function WorkerPanel({
     };
   }, [dbPath, filterIdx]);
 
+  const selected = workers[selectedIndex];
+  const selectedLogPath = selected?.log_path ?? null;
+
+  useEffect(() => {
+    if (viewMode !== "log" || !selectedLogPath) return;
+    let mounted = true;
+
+    const refresh = async () => {
+      try {
+        const tail = await readLogTail(selectedLogPath);
+        if (!mounted) return;
+        setLogContent(tail.content);
+        setLogSize(tail.size);
+        setLogTruncated(tail.truncated);
+      } catch {
+        // Ignore transient read errors; next tick will retry.
+      }
+    };
+
+    refresh();
+    const interval = setInterval(refresh, LOG_POLL_MS);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [viewMode, selectedLogPath]);
+
+  // Reset log scroll + content when the selection or view mode changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset triggers
+  useEffect(() => {
+    setLogScroll(0);
+    setLogFollow(true);
+    setLogContent("");
+    setLogSize(0);
+    setLogTruncated(false);
+  }, [selected?.id, viewMode]);
+
+  const logLines = useMemo(() => {
+    if (logContent.length === 0) return [];
+    // Trim a single trailing newline so the rendered list doesn't end with a
+    // blank row, but preserve internal blank lines.
+    const trimmed = logContent.endsWith("\n")
+      ? logContent.slice(0, -1)
+      : logContent;
+    return trimmed.split("\n");
+  }, [logContent]);
+
+  const visibleRows = Math.max(4, termRows - 8);
+  const maxLogScroll = Math.max(0, logLines.length - visibleRows);
+
+  // When following, snap scroll to the bottom whenever new log content
+  // arrives. The user can break follow mode by scrolling up; pressing G or
+  // running off the end via j/J resumes it.
+  useEffect(() => {
+    if (viewMode === "log" && logFollow) {
+      setLogScroll(maxLogScroll);
+    }
+  }, [viewMode, logFollow, maxLogScroll]);
+
   useInput(
     (input, key) => {
       if (!isActive) return;
+
+      if (input === "l") {
+        setViewMode((m) => (m === "log" ? "detail" : "log"));
+        return;
+      }
+
       if (key.upArrow) {
+        if (viewMode === "log" && key.shift) {
+          setLogFollow(false);
+          setLogScroll((s) => Math.max(0, s - 1));
+          return;
+        }
         setSelectedIndex((i) => Math.max(0, i - 1));
         return;
       }
       if (key.downArrow) {
+        if (viewMode === "log" && key.shift) {
+          setLogScroll((s) => {
+            const next = Math.min(maxLogScroll, s + 1);
+            if (next >= maxLogScroll) setLogFollow(true);
+            return next;
+          });
+          return;
+        }
         setSelectedIndex((i) => Math.min(workers.length - 1, i + 1));
         return;
       }
+
+      if (viewMode === "log") {
+        if (input === "j") {
+          setLogScroll((s) => {
+            const next = Math.min(maxLogScroll, s + 1);
+            if (next >= maxLogScroll) setLogFollow(true);
+            return next;
+          });
+          return;
+        }
+        if (input === "k") {
+          setLogFollow(false);
+          setLogScroll((s) => Math.max(0, s - 1));
+          return;
+        }
+        if (input === "J") {
+          setLogScroll((s) => {
+            const next = Math.min(maxLogScroll, s + PAGE_SCROLL_LINES);
+            if (next >= maxLogScroll) setLogFollow(true);
+            return next;
+          });
+          return;
+        }
+        if (input === "K") {
+          setLogFollow(false);
+          setLogScroll((s) => Math.max(0, s - PAGE_SCROLL_LINES));
+          return;
+        }
+        if (input === "g") {
+          setLogFollow(false);
+          setLogScroll(0);
+          return;
+        }
+        if (input === "G") {
+          setLogFollow(true);
+          setLogScroll(maxLogScroll);
+          return;
+        }
+      }
+
       if (input === "f") {
         setFilterIdx((i) => (i + 1) % STATUS_FILTERS.length);
         return;
@@ -91,9 +225,8 @@ export const WorkerPanel = memo(function WorkerPanel({
     { isActive },
   );
 
-  const selected = workers[selectedIndex];
   const filterLabel = STATUS_FILTERS[filterIdx] ?? "all";
-  const visibleRows = Math.max(4, termRows - 10);
+  const visibleSidebarRows = Math.max(4, termRows - 10);
 
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={1}>
@@ -103,7 +236,11 @@ export const WorkerPanel = memo(function WorkerPanel({
         </Text>
         <Text dimColor> · filter: </Text>
         <Text color="yellow">{filterLabel}</Text>
-        <Text dimColor>{" · [f] cycle filter  [↑↓] select"}</Text>
+        <Text dimColor>
+          {viewMode === "log"
+            ? "  · [l] back  [↑↓] select  [j/k] scroll  [g/G] top/bot  [f] filter"
+            : "  · [l] view log  [f] cycle filter  [↑↓] select"}
+        </Text>
       </Box>
 
       {workers.length === 0 ? (
@@ -121,7 +258,7 @@ export const WorkerPanel = memo(function WorkerPanel({
             marginRight={2}
             overflow="hidden"
           >
-            {workers.slice(0, visibleRows).map((w, i) => {
+            {workers.slice(0, visibleSidebarRows).map((w, i) => {
               const active = i === selectedIndex;
               const short = w.id.slice(0, 8);
               return (
@@ -148,7 +285,21 @@ export const WorkerPanel = memo(function WorkerPanel({
             })}
           </Box>
           <Box flexDirection="column" flexGrow={1}>
-            {selected ? <WorkerDetail worker={selected} now={now} /> : null}
+            {selected ? (
+              viewMode === "log" ? (
+                <WorkerLogView
+                  worker={selected}
+                  lines={logLines}
+                  scroll={logScroll}
+                  visibleRows={visibleRows}
+                  truncated={logTruncated}
+                  size={logSize}
+                  follow={logFollow}
+                />
+              ) : (
+                <WorkerDetail worker={selected} now={now} />
+              )
+            ) : null}
           </Box>
         </Box>
       )}
@@ -201,6 +352,89 @@ function WorkerDetail({ worker, now }: { worker: Worker; now: Date }) {
             {worker.task_id}
           </Text>
         )}
+        {worker.log_path && (
+          <Text>
+            <Text dimColor>Log </Text>
+            <Text dimColor>{worker.log_path}</Text>
+          </Text>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+function WorkerLogView({
+  worker,
+  lines,
+  scroll,
+  visibleRows,
+  truncated,
+  size,
+  follow,
+}: {
+  worker: Worker;
+  lines: string[];
+  scroll: number;
+  visibleRows: number;
+  truncated: boolean;
+  size: number;
+  follow: boolean;
+}) {
+  if (!worker.log_path) {
+    return (
+      <Box flexDirection="column">
+        <Text bold color="blue">
+          {worker.id}
+        </Text>
+        <Box marginTop={1}>
+          <Text dimColor>
+            No log file (worker is running in foreground or was started before
+            per-worker logs existed).
+          </Text>
+        </Box>
+      </Box>
+    );
+  }
+
+  if (lines.length === 0) {
+    return (
+      <Box flexDirection="column">
+        <Text bold color="blue">
+          {worker.id}
+        </Text>
+        <Box marginTop={1}>
+          <Text dimColor>Log empty.</Text>
+        </Box>
+      </Box>
+    );
+  }
+
+  const visible = lines.slice(scroll, scroll + visibleRows);
+  const lastLine = Math.min(scroll + visibleRows, lines.length);
+
+  return (
+    <Box flexDirection="column" flexGrow={1}>
+      <Box>
+        <Text bold color="blue">
+          {worker.id.slice(0, 8)}
+        </Text>
+        <Text dimColor>
+          {" "}
+          · {formatBytes(size)}
+          {truncated ? " (tail only)" : ""} ·{" "}
+        </Text>
+        <Text color={follow ? "green" : "yellow"}>
+          {follow ? "following" : "paused"}
+        </Text>
+        <Text dimColor>
+          {"  "}[{scroll + 1}–{lastLine} of {lines.length}]
+        </Text>
+      </Box>
+      <Box flexDirection="column" marginTop={1}>
+        {visible.map((line, i) => {
+          const lineNum = scroll + i;
+          return <Text key={lineNum}>{line || " "}</Text>;
+        })}
       </Box>
     </Box>
   );

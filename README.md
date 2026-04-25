@@ -121,7 +121,8 @@ my-project/
     skills/               # user-defined slash commands
       summarize.md
       standup.md
-    worker.log            # stdout/stderr from spawned workers
+    logs/                 # per-worker log files (one file per spawned worker)
+      <worker-id>.log
 ```
 
 Everything the agent can touch is here. No surprises.
