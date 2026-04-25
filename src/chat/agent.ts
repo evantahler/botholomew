@@ -46,6 +46,7 @@ const CHAT_TOOL_NAMES = new Set([
   "list_schedules",
   "update_beliefs",
   "update_goals",
+  "capabilities_refresh",
   "mcp_list_tools",
   "mcp_search",
   "mcp_info",

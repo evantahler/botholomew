@@ -46,6 +46,7 @@ describe("getChatTools", () => {
     expect(names).toContain("context_tree");
     expect(names).toContain("update_beliefs");
     expect(names).toContain("update_goals");
+    expect(names).toContain("capabilities_refresh");
     expect(names).toContain("list_schedules");
     expect(names).toContain("create_schedule");
 
