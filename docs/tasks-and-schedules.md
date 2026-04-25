@@ -195,5 +195,8 @@ botholomew schedule trigger <id>
 ```
 
 All of the same operations are available to the chat agent (`create_task`,
-`list_tasks`, `view_task`, `update_task`, `create_schedule`,
+`list_tasks`, `view_task`, `update_task`, `delete_task`, `create_schedule`,
 `list_schedules`) so you can drive the queue conversationally too.
+`delete_task` refuses tasks in `in_progress` — the worker has no
+mid-execution interrupt, so wait for it to finish or run
+`botholomew task reset <id>` from the CLI first.
