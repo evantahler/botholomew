@@ -53,9 +53,18 @@ Please review the file at `$1`. Read it with the available tools, then provide:
 |---|---|
 | `$ARGUMENTS` | The entire argument string as typed |
 | `$1`, `$2`, … | Positional arguments (split on whitespace, quoted strings respected) |
+| `$<name>` | Named placeholder bound to the declared argument with that `name` (same value as the matching positional `$N`) |
 
 Missing optional arguments fall back to their `default`. Missing required
-arguments cause a validation error before the skill is sent.
+arguments cause a validation error before the skill is sent — the TUI
+prints a `Usage:` line and never calls the LLM.
+
+Named and positional placeholders refer to the same underlying value.
+The `arguments[]` order in frontmatter sets each name's slot: the first
+declared argument is `$1` and `$<first-name>`, the second is `$2` and
+`$<second-name>`, and so on. Named placeholders are word-boundary
+matched (so `$start` won't clip `$start_date`), and longer names are
+substituted first when both exist.
 
 Example:
 
@@ -63,8 +72,8 @@ Example:
 > /review src/cli.ts security
 ```
 
-becomes `$1 = "src/cli.ts"`, `$2 = "security"`, `$ARGUMENTS = "src/cli.ts
-security"`.
+becomes `$1 = $file = "src/cli.ts"`, `$2 = $focus = "security"`, and
+`$ARGUMENTS = "src/cli.ts security"`.
 
 ---
 
@@ -111,8 +120,10 @@ name and its description.
 The popup filters as you keep typing, and it disappears once you type
 a space — so a second `Return` submits the message as usual.
 
-A system message ("Running skill: review") is printed to the TUI when a
-skill is invoked, so it's visually distinct from a regular message.
+When a skill runs, the TUI's user bubble shows the literal slash command
+you typed (e.g. `/review src/cli.ts security`), not the rendered prompt
+body — that keeps the chat transcript readable. The agent still receives
+the fully-rendered prompt as its user message.
 
 ---
 
@@ -186,7 +197,10 @@ active session, but won't appear retroactively in history.
 - **Be explicit about what you want.** The model doesn't know the shape
   of the output unless you describe it.
 - **Use positional args, not free-form.** `/review src/cli.ts` is easier
-  to tab-complete than `/review --file=src/cli.ts`.
+  to tab-complete than `/review --file=src/cli.ts`. In the body, you
+  can reference each argument either positionally (`$1`, `$2`) or by
+  the name you gave it (`$file`, `$focus`) — pick whichever reads
+  better.
 - **Reference tools by name.** "Read the file with `context_read`" nudges
   the agent toward the right tool and keeps token counts down.
 - **Keep them short.** A skill is a prompt, not a program. If your skill

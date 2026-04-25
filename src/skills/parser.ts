@@ -55,7 +55,7 @@ export function parseSkillFile(raw: string, filePath: string): SkillDefinition {
  * Split a raw argument string into positional tokens,
  * respecting double-quoted strings.
  */
-function tokenize(raw: string): string[] {
+export function tokenize(raw: string): string[] {
   const tokens: string[] = [];
   let current = "";
   let inQuote = false;
@@ -77,9 +77,29 @@ function tokenize(raw: string): string[] {
   return tokens;
 }
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function renderSkill(skill: SkillDefinition, rawArgs: string): string {
   const tokens = tokenize(rawArgs);
   let result = skill.body;
+
+  // Replace $<argName> placeholders first, longest names first so a `$start`
+  // arg can't truncate `$start_date`. Word-boundary tail prevents `$end`
+  // from clipping `$endpoint`.
+  const namedArgs = skill.arguments
+    .map((argDef, i) => ({
+      name: argDef.name,
+      value: tokens[i] ?? argDef.default ?? "",
+    }))
+    .filter((a) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(a.name))
+    .sort((a, b) => b.name.length - a.name.length);
+
+  for (const { name, value } of namedArgs) {
+    const re = new RegExp(`\\$${escapeRegex(name)}(?![A-Za-z0-9_])`, "g");
+    result = result.replace(re, value);
+  }
 
   result = result.replaceAll("$ARGUMENTS", rawArgs);
 
@@ -92,4 +112,24 @@ export function renderSkill(skill: SkillDefinition, rawArgs: string): string {
   }
 
   return result;
+}
+
+/**
+ * Identify required arguments that have neither a positional token
+ * nor a declared default. Used by the TUI to reject incomplete
+ * slash-command invocations before sending to the LLM.
+ */
+export function validateSkillArgs(
+  skill: SkillDefinition,
+  rawArgs: string,
+): { missing: string[] } {
+  const tokens = tokenize(rawArgs);
+  const missing: string[] = [];
+  skill.arguments.forEach((argDef, i) => {
+    if (!argDef.required) return;
+    const hasToken = tokens[i] !== undefined;
+    const hasDefault = argDef.default !== undefined;
+    if (!hasToken && !hasDefault) missing.push(argDef.name);
+  });
+  return { missing };
 }
