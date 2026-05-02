@@ -66,6 +66,12 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - **Full-text search**: keyword search over `embeddings.chunk_content` + `title` uses the `fts` extension's `match_bm25`. The FTS index is a snapshot — any code that writes to `embeddings` must call `rebuildSearchIndex(conn)` from `src/db/embeddings.ts` after its transaction commits. Ingest (`src/context/ingest.ts`) is the only writer today and already does this.
 - **Row mapping**: each module has a `RowType` interface (raw DuckDB values) and a `rowToX()` function that converts to the public TypeScript interface with proper types
 
+## Embeddings
+
+- Embeddings run via `@huggingface/transformers` in **WASM** (`onnxruntime-web`), not the native `onnxruntime-node` bindings. The native bindings segfault under Bun when DuckDB is also loaded in the same process (see [oven-sh/bun#26081](https://github.com/oven-sh/bun/issues/26081)).
+- The switch is enforced by a `bun patch` at `patches/@huggingface%2Ftransformers@<version>.patch` plus a `wasmPaths` override in `src/context/embedder-impl.ts` that points at the local `onnxruntime-web/dist/` files (no CDN fetch).
+- **Bumping `@huggingface/transformers`**: re-run `bun patch '@huggingface/transformers@<version>'`, reapply the three edits to `src/backends/onnx.js` (kill the static `onnxruntime-node` import; in the `IS_NODE_ENV` branch, set `ONNX = ONNX_WEB` and use `['wasm']` for `supportedDevices`/`defaultDevices`), then `bun patch --commit`. The "coexists with DuckDB native module" test in `test/context/embedder.test.ts` is the regression guard.
+
 ## Testing
 
 - **Tests are required**: all new features and bug fixes must include tests. `bun test` and `bun run lint` must pass before merging.

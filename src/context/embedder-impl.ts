@@ -8,6 +8,22 @@ import {
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { logger } from "../utils/logger.ts";
 
+// We patch @huggingface/transformers to use onnxruntime-web (WASM) instead of
+// onnxruntime-node (which segfaults under Bun — oven-sh/bun#26081). By default
+// transformers.js then points the WASM loader at jsDelivr; pin it to the
+// onnxruntime-web copy already on disk so the chat path stays offline-capable.
+const ortWasm = env.backends.onnx?.wasm;
+if (ortWasm) {
+  ortWasm.wasmPaths = {
+    mjs: import.meta.resolve(
+      "onnxruntime-web/ort-wasm-simd-threaded.asyncify.mjs",
+    ),
+    wasm: import.meta.resolve(
+      "onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm",
+    ),
+  };
+}
+
 type EmbedFn = (
   texts: string[],
   config: Required<BotholomewConfig>,

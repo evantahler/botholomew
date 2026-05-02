@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 import { embed, embedSingle } from "../../src/context/embedder-impl.ts";
+import { setupTestDb } from "../helpers.ts";
 
 const config = { ...DEFAULT_CONFIG };
 
@@ -37,5 +38,18 @@ describe("embed", () => {
   test("embedSingle returns one vector of the configured dimension", async () => {
     const vec = await embedSingle("test", config);
     expect(vec).toHaveLength(384);
+  }, 120_000);
+
+  // Regression: chat process loads DuckDB and the embedder into the same Bun
+  // runtime. Pre-patch this combination segfaulted (onnxruntime-node + DuckDB
+  // native bindings under Bun, oven-sh/bun#26081). Holding both at once here
+  // catches it if the WASM patch ever stops applying.
+  test("coexists with DuckDB native module in the same process", async () => {
+    const conn = await setupTestDb();
+    const vec = await embedSingle("duckdb plus embedder", config);
+    expect(vec).toHaveLength(384);
+    const row = await conn.queryGet<{ n: number }>("SELECT 1 AS n");
+    expect(row?.n).toBe(1);
+    conn.close();
   }, 120_000);
 });

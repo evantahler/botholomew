@@ -310,6 +310,23 @@ are downloaded the first time the model is used and cached under
 No API key, no per-token cost, no network dependency at query time. The
 model loads lazily on the first embed call, so CLI startup stays fast.
 
+ONNX Runtime runs in **WASM** mode (`onnxruntime-web`) rather than the
+default native `onnxruntime-node` bindings, because the native bindings
+segfault under Bun when another native module (DuckDB) is loaded in the
+same process — see [oven-sh/bun#26081](https://github.com/oven-sh/bun/issues/26081).
+The switch is implemented as a small `bun patch` against
+`@huggingface/transformers` (see `patches/`) plus a `wasmPaths` override
+in `src/context/embedder-impl.ts` that points the WASM loader at the
+`onnxruntime-web/dist/` files already on disk — no CDN fetch at runtime.
+
+> **Maintaining the patch.** When bumping `@huggingface/transformers`,
+> re-run `bun patch '@huggingface/transformers@<version>'`, reapply the
+> three edits in `src/backends/onnx.js` (drop the static
+> `onnxruntime-node` import; route the `IS_NODE_ENV` branch to `ONNX_WEB`
+> with `wasm` defaults), and run `bun patch --commit`. If the patch ever
+> stops applying cleanly, the new `embedder.test.ts` regression case
+> (DuckDB + embedder in the same process) will catch it.
+
 To use a different model, set `embedding_model` and `embedding_dimension`
 in `.botholomew/config.json`. Any feature-extraction model from the
 Xenova/* namespace works — for example, `Xenova/multilingual-e5-small`
