@@ -47,11 +47,13 @@ function isModelCached(model: string): boolean {
 async function getPipeline(model: string): Promise<FeatureExtractionPipeline> {
   let p = pipelinePromises.get(model);
   if (!p) {
-    logger.info(
-      isModelCached(model)
-        ? `Loading embedding model ${model}`
-        : `Loading embedding model ${model} (first run, downloading weights)`,
-    );
+    if (isModelCached(model)) {
+      logger.debug(`Loading embedding model ${model}`);
+    } else {
+      logger.info(
+        `Loading embedding model ${model} (first run, downloading weights)`,
+      );
+    }
     p = pipeline("feature-extraction", model);
     pipelinePromises.set(model, p);
   }
