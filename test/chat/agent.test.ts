@@ -44,6 +44,10 @@ describe("getChatTools", () => {
     expect(names).toContain("context_info");
     expect(names).toContain("context_refresh");
     expect(names).toContain("context_tree");
+    expect(names).toContain("context_list_drives");
+    expect(names).toContain("context_read");
+    expect(names).toContain("context_write");
+    expect(names).toContain("context_edit");
     expect(names).toContain("update_beliefs");
     expect(names).toContain("update_goals");
     expect(names).toContain("capabilities_refresh");
@@ -55,10 +59,8 @@ describe("getChatTools", () => {
     expect(names).not.toContain("fail_task");
     expect(names).not.toContain("wait_task");
 
-    // Should NOT include destructive file tools
-    expect(names).not.toContain("context_write");
+    // Should NOT include bulk-destructive file tools
     expect(names).not.toContain("context_delete");
-    expect(names).not.toContain("context_edit");
   });
 
   test("returns valid Anthropic tool format", () => {
