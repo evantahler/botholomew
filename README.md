@@ -193,6 +193,8 @@ See [docs/architecture.md](docs/architecture.md) for a deeper tour.
 
 ## Deep dives
 
+> The full docs site is published at **[botholomew.com](https://botholomew.com)**.
+
 Topics worth understanding in detail:
 
 - **[Architecture](docs/architecture.md)** — workers, chat, and how

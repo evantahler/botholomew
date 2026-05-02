@@ -14,7 +14,10 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `tui/` — Ink (React) TUI components
   - `utils/` — Logger, frontmatter
 - `test/` — Tests (mirrors src/ structure)
-- `docs/plans/` — Milestone plans and roadmap
+- `docs/` — User-facing markdown docs (also published at [botholomew.com](https://botholomew.com))
+  - `docs/.vitepress/` — VitePress config + theme overrides for the published site
+  - `docs/public/` — Static assets served at site root (CNAME, favicon, hero GIF)
+- `docs/plans/` — Milestone plans and roadmap (excluded from the published site)
 
 ## Commands
 
@@ -72,7 +75,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 ## Documentation
 
 - **Docs must track code.** Every PR that changes user-visible behavior must update the relevant doc(s). Treat docs as part of the code — not a follow-up task.
-- The user-facing doc set lives under `docs/` and is linked from `README.md`:
+- The user-facing doc set lives under `docs/`, is published at [botholomew.com](https://botholomew.com) via VitePress + GitHub Pages, and is linked from `README.md`:
   - `docs/architecture.md` — workers, chat, registration + heartbeat + reaping, shared DB
   - `docs/automation.md` — cron, tmux, optional launchd/systemd for running workers on a schedule
   - `docs/virtual-filesystem.md` — DuckDB-as-filesystem, `file_*` / `dir_*` tools, patch format
@@ -95,6 +98,8 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - Adding or renaming a skill template in `src/init/templates.ts` → update `docs/skills.md` and `src/init/index.ts`.
   - Changing anything in persistent-context loading (`src/worker/prompt.ts`) → update `docs/persistent-context.md`.
   - Changing anything in `src/tui/` (new tab, new shortcut, input behavior) → update `docs/tui.md`.
+  - Adding a new top-level doc under `docs/` → also add it to the sidebar in `docs/.vitepress/config.ts` so it's reachable from the published site.
 - If a doc reference goes stale (links a renamed file, cites a removed behavior), fix it in the same PR — don't leave it for later.
-- When adding a new top-level feature, add a new doc under `docs/` and link it from the "Deep dives" section of `README.md`.
+- When adding a new top-level feature, add a new doc under `docs/` and link it from the "Deep dives" section of `README.md` and the sidebar in `docs/.vitepress/config.ts`.
 - Never claim a feature exists that isn't implemented. If something is planned, say so and link to the milestone under `docs/plans/`.
+- Site build: `bun run docs:dev` for local preview, `bun run docs:build` for the static site (output: `docs/.vitepress/dist`). The `docs-build` CI job validates every PR; `docs-deploy` publishes on push to `main`.

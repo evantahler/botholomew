@@ -4,3 +4,7 @@ dist/
 
 # Botholomew project data (contains API keys and DB)
 .botholomew/
+
+# VitePress build outputs
+docs/.vitepress/cache/
+docs/.vitepress/dist/

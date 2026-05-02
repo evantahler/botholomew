@@ -1,0 +1,29 @@
+.llm-callout {
+  border: 1px dashed var(--vp-c-divider);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 24px 0;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
+  font-size: 0.9rem;
+}
+
+.llm-callout > :first-child {
+  margin-top: 0;
+}
+
+.llm-callout > :last-child {
+  margin-bottom: 0;
+}
+
+.llm-callout h2,
+.llm-callout h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+  margin: 0 0 8px;
+  padding: 0;
+  border: none;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
