@@ -14,7 +14,6 @@ import {
   formatDriveRef,
   parseDriveRef,
 } from "../context/drives.ts";
-import { embedSingle } from "../context/embedder.ts";
 import { FetchFailureError, fetchUrl } from "../context/fetcher.ts";
 import {
   type PreparedIngestion,
@@ -36,14 +35,13 @@ import {
   resolveContextItem,
   upsertContextItem,
 } from "../db/context.ts";
-import { getEmbeddingsForItem, hybridSearch } from "../db/embeddings.ts";
+import { getEmbeddingsForItem } from "../db/embeddings.ts";
 import { reembedMissingVectors } from "../db/reembed.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
+import { searchTool } from "../tools/search/index.ts";
+import type { ToolContext } from "../tools/tool.ts";
 import { logger } from "../utils/logger.ts";
-import {
-  registerContextToolSubcommands,
-  registerSearchToolSubcommands,
-} from "./tools.ts";
+import { registerContextToolSubcommands } from "./tools.ts";
 import { withDb } from "./with-db.ts";
 
 function fmtDate(d: Date): string {
@@ -513,46 +511,82 @@ export function registerContextCommand(program: Command) {
 
   const search = ctx
     .command("search")
-    .description("Search context entries")
-    .argument("[query]", "search query (hybrid keyword + semantic)")
-    .option("-k, --top-k <n>", "max results", Number.parseInt, 10)
+    .description("Search context entries (hybrid regexp + semantic)")
+    .argument(
+      "[query]",
+      "natural-language query (semantic + BM25). Combine with --pattern for fused regexp + semantic ranking.",
+    )
+    .option("-k, --top-k <n>", "max results", Number.parseInt, 20)
+    .option(
+      "--pattern <regex>",
+      "regex pattern (regexp side). May be combined with [query] to fuse signals.",
+    )
+    .option("--drive <drive>", "restrict to a single drive")
+    .option("--path <path>", "directory prefix within drive (requires --drive)")
+    .option("--glob <glob>", "filter results to files whose basename matches")
+    .option("--ignore-case", "case-insensitive regex")
+    .option(
+      "--context <n>",
+      "context lines around each regexp hit",
+      Number.parseInt,
+    )
     .action((query, opts) =>
       withDb(program, async (conn, dir) => {
-        if (!query) {
+        if (!query && !opts.pattern) {
           search.help();
           return;
         }
         const config = await loadConfig(dir);
-        const queryVec = await embedSingle(query, config);
-        const results = await hybridSearch(conn, query, queryVec, opts.topK);
+        const toolCtx: ToolContext = {
+          conn,
+          dbPath: getDbPath(dir),
+          projectDir: dir,
+          config,
+          mcpxClient: null,
+        };
+        const result = await searchTool.execute(
+          {
+            query,
+            pattern: opts.pattern,
+            drive: opts.drive,
+            path: opts.path,
+            glob: opts.glob,
+            ignore_case: opts.ignoreCase,
+            context: opts.context,
+            max_results: opts.topK,
+          },
+          toolCtx,
+        );
 
-        if (results.length === 0) {
+        if (result.is_error) {
+          logger.error(result.message ?? "Search failed");
+          process.exit(1);
+        }
+
+        if (result.matches.length === 0) {
           logger.dim("No results found.");
           return;
         }
 
-        for (const [i, r] of results.entries()) {
-          const score = (r.score * 100).toFixed(1);
+        for (const [i, m] of result.matches.entries()) {
+          const tagColor =
+            m.match_type === "both"
+              ? ansis.green
+              : m.match_type === "regexp"
+                ? ansis.yellow
+                : ansis.cyan;
+          const tag = tagColor(`[${m.match_type}]`);
+          const location = m.line != null ? `${m.ref}:${m.line}` : m.ref;
           console.log(
-            `${ansis.bold(`${i + 1}.`)} ${ansis.cyan(r.title)} ${ansis.dim(`(${score}%)`)}`,
+            `${ansis.bold(`${i + 1}.`)} ${tag} ${ansis.cyan(location)}  ${ansis.dim(`score=${m.score.toFixed(4)}`)}`,
           );
-          const ref =
-            r.drive && r.path
-              ? formatDriveRef({ drive: r.drive, path: r.path })
-              : r.context_item_id;
-          console.log(
-            `   ${ansis.dim(ref)}  ${ansis.dim(fmtDate(r.created_at))}`,
-          );
-          if (r.chunk_content) {
-            const snippet = r.chunk_content.slice(0, 120).replace(/\n/g, " ");
-            console.log(`   ${snippet}...`);
-          }
+          const snippet = m.content.slice(0, 200).replace(/\n/g, " ");
+          if (snippet) console.log(`   ${snippet}`);
           console.log("");
         }
       }),
     );
 
-  registerSearchToolSubcommands(search);
   ctx
     .command("delete <ref>")
     .description("Delete a context entry (UUID or drive:/path)")

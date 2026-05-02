@@ -30,8 +30,7 @@ import { mcpSearchTool } from "./mcp/search.ts";
 import { createScheduleTool } from "./schedule/create.ts";
 import { listSchedulesTool } from "./schedule/list.ts";
 // Search tools
-import { searchGrepTool } from "./search/grep.ts";
-import { searchSemanticTool } from "./search/semantic.ts";
+import { searchTool } from "./search/index.ts";
 // Skill tools
 import { skillDeleteTool } from "./skill/delete.ts";
 import { skillEditTool } from "./skill/edit.ts";
@@ -94,8 +93,7 @@ export function registerAllTools(): void {
   registerTool(listSchedulesTool);
 
   // Search
-  registerTool(searchGrepTool);
-  registerTool(searchSemanticTool);
+  registerTool(searchTool);
 
   // Skill
   registerTool(skillListTool);

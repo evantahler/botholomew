@@ -126,8 +126,47 @@ Results are merged with reciprocal rank fusion (k=60), joined back to
 `context_items` to pick up each hit's `drive` and `path`, and returned
 as `(ref, title, score, snippet)`.
 
-Exposed to the agent as `search_semantic` and `search_grep`, and to
-you as `botholomew context search "..."`.
+## The `search` tool
+
+The agent has a single `search` tool that fuses three signals:
+**regexp** over file contents, **BM25 keyword**, and **vector
+similarity**. At least one of `query` (natural language) or `pattern`
+(regex) is required; passing both is the strongest signal. Scoping
+(`drive`, `path`, `glob`) applies to both sides.
+
+The execute path:
+
+1. If `pattern` is set, run `runRegexp()` over context items (scoped
+   by drive/path/glob when given). Each hit is a `(drive, path, line)`
+   triple with the matched line and any requested context lines.
+2. If `query` is set, run `embedSingle()` then `hybridSearch()` (BM25
+   + vector via reciprocal rank fusion). Apply `drive` / `path` /
+   `glob` as a post-filter so scoping is consistent across sides.
+3. Fuse via `fuseRRF()` in `src/tools/search/fuse.ts` (k=60). Each
+   regexp hit gets its rank contribution; if the same `(drive, path)`
+   also appears in the semantic results, that side's rank
+   contribution is added too and the row is tagged
+   `match_type: "both"`. Pure-semantic chunks for files the regexp
+   didn't touch are emitted as their own rows
+   (`match_type: "semantic"`, `line: null`).
+
+Each match has shape:
+
+```ts
+{
+  ref, drive, path,
+  line: number | null,           // null for pure-semantic chunks
+  content,                        // matched line OR chunk snippet (300 chars)
+  context_lines,                  // grep neighbors when context > 0
+  match_type: "regexp" | "semantic" | "both",
+  semantic_score: number | null,  // raw hybridSearch RRF, null for regexp-only
+  score                           // unified fused RRF score
+}
+```
+
+The CLI exposes hybrid keyword + semantic search to humans as
+`botholomew context search "..."` (parent command, no regexp side).
+The combined `search` tool is agent-only.
 
 ---
 
