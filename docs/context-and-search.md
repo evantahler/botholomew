@@ -314,26 +314,23 @@ ONNX Runtime runs in **WASM** mode (`onnxruntime-web`) rather than the
 default native `onnxruntime-node` bindings, because the native bindings
 segfault under Bun when another native module (DuckDB) is loaded in the
 same process — see [oven-sh/bun#26081](https://github.com/oven-sh/bun/issues/26081).
-The switch is implemented as `bun patch` files against every copy of
-`@huggingface/transformers` in `node_modules/` (see `patches/`) plus a
-`wasmPaths` override in `src/context/embedder-impl.ts` that points the
-WASM loader at the `onnxruntime-web/dist/` files already on disk — no
-CDN fetch at runtime.
+The switch is implemented as a `bun patch` against
+`@huggingface/transformers` (see `patches/`) plus a `wasmPaths` override
+in `src/context/embedder-impl.ts` that points the WASM loader at the
+`onnxruntime-web/dist/` files already on disk — no CDN fetch at runtime.
 
-> **Two transformers copies.** Both the top-level `@huggingface/transformers@4.2.0`
-> (used by Botholomew's embedder) and the nested copy under
-> `@evantahler/mcpx/node_modules/@huggingface/transformers@3.8.1` (used by
-> mcpx's `mcp_search` for tool semantic search) need the same patch.
-> Bumping mcpx may bring in a new transformers version — re-apply the
-> patch to that one too.
+> **One shared transformers.** `@evantahler/mcpx` also embeds (for
+> `mcp_search`'s semantic tool index) and aligned its dep on
+> `^4.2.0` from v0.19.0 onward, so Bun dedupes to a single copy that
+> our patch covers. If a future mcpx bump diverges to a different major,
+> a second patch will be needed for the nested copy.
 
-> **Maintaining a patch.** Run `bun patch '@huggingface/transformers@<version>'`,
+> **Maintaining the patch.** Run `bun patch '@huggingface/transformers@<version>'`,
 > reapply the two edits in `src/backends/onnx.js` (drop the static
 > `onnxruntime-node` import; route the `IS_NODE_ENV` branch to `ONNX_WEB`
-> with `wasm` defaults), then `bun patch --commit`. If a patch ever stops
-> applying cleanly, the `embedder.test.ts` regression case
-> (DuckDB + embedder in the same process) will catch the top-level one;
-> watch for chat-time crashes inside `mcp_search` to catch the mcpx one.
+> with `wasm` defaults), then `bun patch --commit`. The `embedder.test.ts`
+> regression case (DuckDB + embedder in the same process) catches it
+> if the patch ever stops applying.
 
 To use a different model, set `embedding_model` and `embedding_dimension`
 in `.botholomew/config.json`. Any feature-extraction model from the
