@@ -52,7 +52,7 @@ Please review the file at `$1`. Read it with the available tools, then provide:
 | Placeholder | Meaning |
 |---|---|
 | `$ARGUMENTS` | The entire argument string as typed |
-| `$1`, `$2`, … | Positional arguments (split on whitespace, quoted strings respected) |
+| `$1`, `$2`, … | Positional arguments (split on whitespace; single- and double-quoted strings are respected; the **last declared positional consumes the rest of the input**) |
 | `$<name>` | Named placeholder bound to the declared argument with that `name` (same value as the matching positional `$N`) |
 
 Missing optional arguments fall back to their `default`. Missing required
@@ -74,6 +74,37 @@ Example:
 
 becomes `$1 = $file = "src/cli.ts"`, `$2 = $focus = "security"`, and
 `$ARGUMENTS = "src/cli.ts security"`.
+
+### Multi-word arguments
+
+The last declared positional argument is **greedy** — it captures the
+entire remainder of the input verbatim. So a single-arg skill just
+works without quoting:
+
+```
+> /summarize-topic why are avocados good?
+```
+
+→ `$1 = "why are avocados good?"` (one slot, full sentence).
+
+For skills with two or more declared arguments, an unquoted multi-word
+input is **ambiguous** — Botholomew can't know which words belong to
+which slot. The TUI rejects the invocation, prints a parse breakdown,
+and shows quoting suggestions instead of silently truncating:
+
+```
+> /write-as-evan why are avocados good?
+/write-as-evan: ambiguous input. Parsed as:
+  topic  = "why"
+  format = "are avocados good?"
+
+Quote the multi-word argument to confirm, e.g.:
+  /write-as-evan "why are avocados good?"
+  /write-as-evan 'why' 'are avocados good?'
+```
+
+Either single or double quotes work; the surrounding pair is stripped
+when the entire remainder is one quoted run.
 
 ---
 

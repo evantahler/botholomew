@@ -1,5 +1,5 @@
 import type { SkillDefinition } from "./parser.ts";
-import { renderSkill, validateSkillArgs } from "./parser.ts";
+import { renderSkill, tokenizeForSkill, validateSkillArgs } from "./parser.ts";
 
 export interface SlashCommand {
   name: string;
@@ -38,6 +38,58 @@ export function formatSkillUsage(skill: SkillDefinition): string {
     }
   }
   return parts.join(" ");
+}
+
+/**
+ * Detect when a multi-arg skill received unquoted whitespace-separated
+ * input that the greedy-last splitter has packed into the final slot.
+ * The user almost certainly intended one of the words to belong to a
+ * different slot (or the whole thing to be a single argument), so we
+ * surface a parse breakdown instead of silently committing to one
+ * interpretation.
+ *
+ * Returns null when the input is unambiguous and may proceed.
+ */
+export function detectAmbiguousSplit(
+  skill: SkillDefinition,
+  rawArgs: string,
+): { tokens: string[] } | null {
+  if (skill.arguments.length < 2) return null;
+  if (rawArgs.includes('"') || rawArgs.includes("'")) return null;
+  const tokens = tokenizeForSkill(rawArgs, skill);
+  const last = tokens[tokens.length - 1];
+  if (!last || !/\s/.test(last)) return null;
+  return { tokens };
+}
+
+function formatAmbiguityHint(skill: SkillDefinition, tokens: string[]): string {
+  const slots: string[] = [];
+  const nameWidth = skill.arguments.reduce(
+    (m, a) => Math.max(m, a.name.length),
+    0,
+  );
+  skill.arguments.forEach((argDef, i) => {
+    const value =
+      tokens[i] !== undefined
+        ? `"${tokens[i]}"`
+        : argDef.default !== undefined
+          ? `"${argDef.default}" (default)`
+          : "(unset)";
+    slots.push(`  ${argDef.name.padEnd(nameWidth)} = ${value}`);
+  });
+
+  const firstWord = tokens[0] ?? "";
+  const restPreview = tokens.slice(1).join(" ");
+  const fullPreview = [firstWord, restPreview].filter(Boolean).join(" ");
+
+  return [
+    `/${skill.name}: ambiguous input. Parsed as:`,
+    ...slots,
+    "",
+    "Quote the multi-word argument to confirm, e.g.:",
+    `  /${skill.name} "${fullPreview}"`,
+    `  /${skill.name} '${firstWord}' '${restPreview}'`,
+  ].join("\n");
 }
 
 /**
@@ -94,6 +146,11 @@ export function handleSlashCommand(
         `/${skill.name}: missing required argument(s): ${missing.join(", ")}\n` +
           `Usage: ${formatSkillUsage(skill)}`,
       );
+      return true;
+    }
+    const ambiguous = detectAmbiguousSplit(skill, rawArgs);
+    if (ambiguous) {
+      ctx.addSystemMessage(formatAmbiguityHint(skill, ambiguous.tokens));
       return true;
     }
     const rendered = renderSkill(skill, rawArgs);
