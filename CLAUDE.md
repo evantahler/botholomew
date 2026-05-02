@@ -14,7 +14,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `tui/` — Ink (React) TUI components
   - `utils/` — Logger, frontmatter
 - `test/` — Tests (mirrors src/ structure)
-- `docs/` — User-facing markdown docs (also published at [botholomew.com](https://botholomew.com))
+- `docs/` — User-facing markdown docs (also published at [www.botholomew.com](https://www.botholomew.com))
   - `docs/.vitepress/` — VitePress config + theme overrides for the published site
   - `docs/public/` — Static assets served at site root (CNAME, favicon, hero GIF)
 - `docs/plans/` — Milestone plans and roadmap (excluded from the published site)
@@ -75,7 +75,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 ## Documentation
 
 - **Docs must track code.** Every PR that changes user-visible behavior must update the relevant doc(s). Treat docs as part of the code — not a follow-up task.
-- The user-facing doc set lives under `docs/`, is published at [botholomew.com](https://botholomew.com) via VitePress + GitHub Pages, and is linked from `README.md`:
+- The user-facing doc set lives under `docs/`, is published at [www.botholomew.com](https://www.botholomew.com) via VitePress + GitHub Pages, and is linked from `README.md`:
   - `docs/architecture.md` — workers, chat, registration + heartbeat + reaping, shared DB
   - `docs/automation.md` — cron, tmux, optional launchd/systemd for running workers on a schedule
   - `docs/virtual-filesystem.md` — DuckDB-as-filesystem, `file_*` / `dir_*` tools, patch format

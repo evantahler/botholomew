@@ -3,7 +3,7 @@ import llmstxt, {
   copyOrDownloadAsMarkdownButtons,
 } from "vitepress-plugin-llms";
 
-const SITE_URL = "https://botholomew.com";
+const SITE_URL = "https://www.botholomew.com";
 const REPO_URL = "https://github.com/evantahler/botholomew";
 
 export const LLM_LANDING_PAGE = `# Botholomew
