@@ -20,7 +20,10 @@
     "dev:demo": "bun run src/cli.ts chat -p 'learn everything you can about me from the connected MCP services and then save what you'\\''ve learned about me to context'",
     "test": "bun test",
     "lint": "tsc --noEmit && biome check .",
-    "capture": "bun run scripts/capture.ts"
+    "capture": "bun run scripts/capture.ts",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
@@ -43,6 +46,9 @@
     "@types/bun": "latest",
     "@types/react": "^19.1.0",
     "@types/uuid": "^11.0.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitepress": "^1.5.0",
+    "vitepress-plugin-llms": "^1.12.1",
+    "vue": "^3.5.0"
   }
 }
