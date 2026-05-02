@@ -164,9 +164,9 @@ Each match has shape:
 }
 ```
 
-The CLI exposes hybrid keyword + semantic search to humans as
-`botholomew context search "..."` (parent command, no regexp side).
-The combined `search` tool is agent-only.
+The CLI exposes the same hybrid search via
+`botholomew context search "..." --pattern <regex>` — pass a
+positional query, `--pattern`, or both.
 
 ---
 
