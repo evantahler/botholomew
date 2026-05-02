@@ -37,16 +37,6 @@ export function registerContextToolSubcommands(parent: Command) {
   }
 }
 
-/**
- * Register search tool subcommands (grep, semantic) onto an
- * existing Commander command (e.g. the "context search" group).
- */
-export function registerSearchToolSubcommands(parent: Command) {
-  for (const tool of getToolsByGroup("search")) {
-    registerToolAsCLI(parent, tool);
-  }
-}
-
 /** Derive CLI subcommand name from tool name: "context_read" → "read", "context_create_dir" → "create-dir" */
 function deriveSubName(toolName: string): string {
   return toolName.replace(/^[^_]+_/, "").replace(/_/g, "-");
@@ -341,8 +331,6 @@ function isPositionalArg(key: string, toolName: string): boolean {
     context_exists: ["path"],
     context_count_lines: ["path"],
     context_search: ["query"],
-    search_grep: ["pattern"],
-    search_semantic: ["query"],
   };
   return positionalKeys[toolName]?.includes(key) ?? false;
 }

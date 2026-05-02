@@ -154,7 +154,7 @@ describe("buildChatSystemPrompt", () => {
     expect(prompt).toContain("`mcp_exec`");
     expect(prompt).toContain("`mcp_search`");
     expect(prompt).toContain("`mcp_list_tools`");
-    expect(prompt).toContain("`search_semantic`");
+    expect(prompt).toContain("`search`");
     expect(prompt).toContain("`context_search`");
     expect(prompt).toContain("`context_info`");
     expect(prompt).toContain("`context_refresh`");

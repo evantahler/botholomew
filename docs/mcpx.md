@@ -164,4 +164,4 @@ You don't need a server when:
 - The work happens entirely in `.botholomew/` (the virtual filesystem,
   embeddings, tasks, schedules).
 - You just want Claude to *read* something you already put in context —
-  `context_read` / `search_semantic` are enough.
+  `context_read` / `search` are enough.

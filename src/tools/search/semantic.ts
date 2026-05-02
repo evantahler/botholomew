@@ -1,69 +1,81 @@
-import { z } from "zod";
 import { formatDriveRef } from "../../context/drives.ts";
 import { embedSingle } from "../../context/embedder.ts";
-import { hybridSearch } from "../../db/embeddings.ts";
-import type { ToolDefinition } from "../tool.ts";
+import { type HybridSearchResult, hybridSearch } from "../../db/embeddings.ts";
+import type { ToolContext } from "../tool.ts";
+import { globToRegex } from "./regexp.ts";
 
-const inputSchema = z.object({
-  query: z.string().describe("Natural language search query"),
-  top_k: z
-    .number()
-    .optional()
-    .default(10)
-    .describe("Maximum number of results to return (defaults to 10)"),
-  threshold: z
-    .number()
-    .optional()
-    .describe("Minimum similarity score (0-1) to include in results"),
-});
+export interface SemanticHit {
+  ref: string;
+  drive: string | null;
+  path: string | null;
+  context_item_id: string;
+  chunk_index: number;
+  title: string;
+  chunk_content: string;
+  score: number;
+}
 
-const outputSchema = z.object({
-  results: z.array(
-    z.object({
-      ref: z.string(),
-      title: z.string(),
-      score: z.number(),
-      snippet: z.string(),
-    }),
-  ),
-  is_error: z.boolean(),
-});
+export interface SemanticOptions {
+  query: string;
+  drive?: string;
+  path?: string;
+  glob?: string;
+  limit?: number;
+}
 
-export const searchSemanticTool = {
-  name: "search_semantic",
-  description:
-    "Semantic search over indexed context using vector embeddings. Finds conceptually related content, not just keyword matches.",
-  group: "search",
-  inputSchema,
-  outputSchema,
-  execute: async (input, ctx) => {
-    const queryVec = await embedSingle(input.query, ctx.config);
-    const results = await hybridSearch(
-      ctx.conn,
-      input.query,
-      queryVec,
-      input.top_k,
-    );
+/**
+ * Run the embedding + hybrid-search pipeline. Scoping (`drive` / `path` /
+ * `glob`) is applied as a *post-filter* on results so the caller gets
+ * consistent behavior whether they used the regex side, the semantic side,
+ * or both.
+ */
+export async function runSemantic(
+  ctx: ToolContext,
+  options: SemanticOptions,
+): Promise<SemanticHit[]> {
+  const queryVec = await embedSingle(options.query, ctx.config);
+  const results = await hybridSearch(
+    ctx.conn,
+    options.query,
+    queryVec,
+    options.limit ?? 100,
+  );
 
-    const threshold = input.threshold;
-    const filtered =
-      threshold !== undefined
-        ? results.filter((r) => r.score >= threshold)
-        : results;
+  return results.filter((r) => matchesScope(r, options)).map(toHit);
+}
 
-    return {
-      results: filtered
-        .map((r) => ({
-          ref:
-            r.drive && r.path
-              ? formatDriveRef({ drive: r.drive, path: r.path })
-              : r.context_item_id,
-          title: r.title,
-          score: Math.round(r.score * 1000) / 1000,
-          snippet: (r.chunk_content || "").slice(0, 300),
-        }))
-        .sort((a, b) => b.score - a.score),
-      is_error: false,
-    };
-  },
-} satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;
+function matchesScope(
+  result: HybridSearchResult,
+  options: SemanticOptions,
+): boolean {
+  if (options.drive && result.drive !== options.drive) return false;
+  if (options.path && result.path) {
+    const prefix = options.path.endsWith("/")
+      ? options.path
+      : `${options.path}/`;
+    if (result.path !== options.path && !result.path.startsWith(prefix)) {
+      return false;
+    }
+  }
+  if (options.glob && result.path) {
+    const filename = result.path.split("/").pop() ?? "";
+    if (!globToRegex(options.glob).test(filename)) return false;
+  }
+  return true;
+}
+
+function toHit(r: HybridSearchResult): SemanticHit {
+  return {
+    ref:
+      r.drive && r.path
+        ? formatDriveRef({ drive: r.drive, path: r.path })
+        : r.context_item_id,
+    drive: r.drive,
+    path: r.path,
+    context_item_id: r.context_item_id,
+    chunk_index: r.chunk_index,
+    title: r.title,
+    chunk_content: r.chunk_content ?? "",
+    score: r.score,
+  };
+}

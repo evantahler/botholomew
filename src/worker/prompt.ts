@@ -145,14 +145,14 @@ When calling complete_task, write a summary that captures your key findings, dec
 
 Workflow for any "look up / find / read" intent:
 
-1. \`search_semantic\` (semantic) or \`context_search\` (keyword), then \`context_read\` / \`context_tree\` to drill in.
+1. \`search\` (hybrid regexp + semantic) or \`context_search\` (keyword), then \`context_read\` / \`context_tree\` to drill in.
 2. If freshness matters, call \`context_info\` and check \`indexed_at\`. To re-pull a single stale item, use \`context_refresh\` rather than going to MCP for the whole document.
 3. Only call \`mcp_exec\` for reads when the data is genuinely missing locally **or** must be real-time (e.g., "what's on my calendar right now").
 
 Writes always go through MCP — sending an email, creating an issue, posting to Slack. Don't search context first for those.
 
 Examples:
-- "What does doc X say?" → \`search_semantic\` first.
+- "What does doc X say?" → \`search\` first.
 - "Any new emails from Y?" → check the \`gmail\` drive first; only hit Gmail MCP if the freshest indexed item is too old for the question.
 - "Send an email to Y" → MCP write directly; no context lookup.
 
