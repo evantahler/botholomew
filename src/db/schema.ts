@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { logger } from "../utils/logger.ts";
 import type { DbConnection } from "./connection.ts";
+import { rebuildSearchIndex } from "./embeddings.ts";
 
 interface Migration {
   id: number;
@@ -83,4 +84,10 @@ export async function migrate(db: DbConnection): Promise<void> {
   if (appliedAny) {
     await db.exec("CHECKPOINT");
   }
+
+  // Ensure the FTS index exists. Migration 18 drops it (it can't recreate it
+  // in the same SQL run without DuckDB rejecting the dependency commit), and
+  // fresh DBs need it created at least once. `overwrite = 1` makes this
+  // idempotent for DBs that already have a healthy FTS index.
+  await rebuildSearchIndex(db);
 }

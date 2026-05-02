@@ -1,15 +1,21 @@
 -- Switch from OpenAI 1536-dim embeddings to local 384-dim embeddings.
+--
 -- DuckDB encodes array dimension in the column type, so we rebuild the
 -- embeddings table preserving every row's metadata (chunk_content, title,
 -- description, context_item_id, chunk_index, created_at). The vectors
 -- themselves are NULLed and repopulated by `botholomew context reembed`
 -- using the locally-loaded embedding model.
 --
--- The FTS index is dropped before the table rebuild and rebuilt by the
--- re-embed sweep. Without this drop, dropping the underlying table leaves
--- fts_main_embeddings in a broken state.
+-- Idempotency: every destructive step uses IF EXISTS so a partial prior
+-- run can be re-attempted cleanly. The FTS index is dropped here but NOT
+-- recreated — `migrate()` calls rebuildSearchIndex once after all SQL
+-- migrations apply, which avoids a same-migration drop-then-create that
+-- DuckDB rejects with "Could not commit creation of dependency, subject
+-- 'stopwords' has been deleted".
 
-PRAGMA drop_fts_index('embeddings');
+DROP SCHEMA IF EXISTS fts_main_embeddings CASCADE;
+
+DROP TABLE IF EXISTS embeddings_new;
 
 CREATE TABLE embeddings_new (
   id TEXT PRIMARY KEY,
@@ -29,7 +35,5 @@ FROM embeddings;
 
 DROP TABLE embeddings;
 ALTER TABLE embeddings_new RENAME TO embeddings;
-
-PRAGMA create_fts_index('embeddings', 'id', 'chunk_content', 'title', overwrite = 1);
 
 CHECKPOINT;
