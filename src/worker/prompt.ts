@@ -104,7 +104,7 @@ export async function buildSystemPrompt(
 
   prompt += await loadPersistentContext(projectDir, taskKeywords);
 
-  if (task && dbPath && _config?.openai_api_key) {
+  if (task && dbPath && _config) {
     try {
       const query = `${task.name} ${task.description}`;
       const queryVec = await embedSingle(query, _config);

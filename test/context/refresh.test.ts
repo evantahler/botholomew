@@ -9,8 +9,7 @@ import type { DbConnection } from "../../src/db/connection.ts";
 import { createContextItem, getContextItemById } from "../../src/db/context.ts";
 import { mockEmbed, setupTestDb } from "../helpers.ts";
 
-const config = { ...DEFAULT_CONFIG, openai_api_key: "test-key" };
-const configNoEmbed = { ...DEFAULT_CONFIG };
+const config = { ...DEFAULT_CONFIG };
 
 let conn: DbConnection;
 let tmpBase: string;
@@ -138,27 +137,6 @@ describe("refreshContextItems — disk drive", () => {
 
     expect(result.missing).toBe(1);
     expect(result.items[0]?.status).toBe("missing");
-  });
-
-  test("skips embeddings and flags embeddings_skipped when no OpenAI key", async () => {
-    const { refreshContextItems } = await import(
-      "../../src/context/refresh.ts"
-    );
-    const filePath = join(tmpBase, "noembed.md");
-    const item = await seedDiskItem({
-      filePath,
-      initialDiskContent: "drifted",
-      storedContent: "original",
-    });
-
-    const result = await refreshContextItems(conn, [item], configNoEmbed, null);
-
-    expect(result.updated).toBe(1);
-    expect(result.reembedded).toBe(0);
-    expect(result.embeddings_skipped).toBe(true);
-
-    const fresh = await getContextItemById(conn, item.id);
-    expect(fresh?.content).toBe("drifted");
   });
 
   test("skips items on drive=agent", async () => {

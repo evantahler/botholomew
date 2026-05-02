@@ -31,8 +31,8 @@ describe("constants", () => {
   });
 
   test("embedding constants are defined", () => {
-    expect(EMBEDDING_DIMENSION).toBe(1536);
-    expect(EMBEDDING_MODEL).toBe("text-embedding-3-small");
+    expect(EMBEDDING_DIMENSION).toBe(384);
+    expect(EMBEDDING_MODEL).toBe("Xenova/bge-small-en-v1.5");
   });
 
   test("environment variable keys are defined", () => {

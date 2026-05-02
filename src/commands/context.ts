@@ -6,6 +6,7 @@ import { isText } from "istextorbinary";
 import { createSpinner } from "nanospinner";
 import { loadConfig } from "../config/loader.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import { getDbPath } from "../constants.ts";
 import { generateDescription } from "../context/describer.ts";
 import {
   type DriveTarget,
@@ -36,6 +37,7 @@ import {
   upsertContextItem,
 } from "../db/context.ts";
 import { getEmbeddingsForItem, hybridSearch } from "../db/embeddings.ts";
+import { reembedMissingVectors } from "../db/reembed.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
 import { logger } from "../utils/logger.ts";
 import {
@@ -425,10 +427,7 @@ export function registerContextCommand(program: Command) {
 
         skipped.push(...dedupSkipped);
 
-        if (itemIds.length === 0 || !config.openai_api_key) {
-          if (!config.openai_api_key) {
-            logger.dim("Skipping embeddings (no OpenAI API key configured).");
-          }
+        if (itemIds.length === 0) {
           const msg = buildSummary({
             added: itemIds.length,
             refreshed: refreshedCount,
@@ -693,9 +692,20 @@ export function registerContextCommand(program: Command) {
           logger.success(
             `Refreshed ${result.updated} item(s), ${result.chunks} chunk(s) re-indexed.`,
           );
-        } else if (result.embeddings_skipped) {
-          logger.dim("Skipping embeddings (no OpenAI API key configured).");
         }
+      }),
+    );
+
+  ctx
+    .command("reembed")
+    .description(
+      "Recompute every embedding using the configured local model. Run this after upgrading or after changing embedding_model.",
+    )
+    .action(() =>
+      withDb(program, async (_conn, dir) => {
+        const config = await loadConfig(dir);
+        const dbPath = getDbPath(dir);
+        await reembedMissingVectors(dbPath, config, { mode: "all" });
       }),
     );
 

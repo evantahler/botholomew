@@ -15,8 +15,8 @@ agent writes via `context_write`), this happens:
 ```
  content ─► create context_item row  (drive, path)
          ─► LLM-driven chunker (claude-haiku-4-5 by default)
-         ─► embedder (OpenAI text-embedding-3-small, 1536-dim)
-         ─► embeddings table (FLOAT[1536])
+         ─► embedder (local @huggingface/transformers, default Xenova/bge-small-en-v1.5, 384-dim)
+         ─► embeddings table (FLOAT[384])
          ─► rebuild FTS index (BM25 over chunk_content + title)
          ─► indexed_at set on the context_item
 ```
@@ -88,7 +88,7 @@ CREATE TABLE embeddings (
   chunk_content    TEXT,
   title            TEXT NOT NULL,
   description      TEXT NOT NULL DEFAULT '',
-  embedding        FLOAT[1536],
+  embedding        FLOAT[384],
   created_at       TEXT NOT NULL DEFAULT (current_timestamp::VARCHAR),
   UNIQUE(context_item_id, chunk_index)
 );
@@ -299,17 +299,28 @@ post-refresh `tree` snapshot.
 
 ---
 
-## Why OpenAI for embeddings?
+## Local embeddings
 
-Earlier milestones used a local `@xenova/transformers` model
-(`bge-small-en-v1.5`, 384-dim). It worked but had drawbacks: ~500 MB of
-model weights, slow CPU inference on first load, and noticeably worse
-quality on mixed-language content. Migration 5
-(`5-reset_embeddings_for_openai.sql`) switched to OpenAI
-`text-embedding-3-small` at 1536 dimensions — faster, better, and only
-"non-local" for the index-time call. Queries at runtime still only need
-an embedding of the query string itself.
+Botholomew runs embeddings locally via
+[`@huggingface/transformers`](https://huggingface.co/docs/transformers.js).
+The default model is `Xenova/bge-small-en-v1.5` (384-dim, ~33 MB). Weights
+are downloaded the first time the model is used and cached under
+`~/.cache/huggingface/` — subsequent runs load from disk in milliseconds.
 
-If you want a fully-local setup, swap `src/context/embedder.ts` for a
-local model and adjust `EMBEDDING_DIMENSION` in `src/constants.ts` —
-everything downstream (hybrid search) is dimension-agnostic.
+No API key, no per-token cost, no network dependency at query time. The
+model loads lazily on the first embed call, so CLI startup stays fast.
+
+To use a different model, set `embedding_model` and `embedding_dimension`
+in `.botholomew/config.json`. Any feature-extraction model from the
+Xenova/* namespace works — for example, `Xenova/multilingual-e5-small`
+(also 384-dim) handles mixed-language content much better than the default.
+
+Changing models means old vectors and new vectors live in different
+embedding spaces and aren't comparable. Run `botholomew context reembed`
+to rebuild every vector with the new model.
+
+History: an older milestone shipped with OpenAI
+`text-embedding-3-small` (1536-dim) for quality reasons. Migration 18
+(`18-reset_embeddings_for_local.sql`) reverts that decision — modern
+small open-source models close the quality gap, and "no API key
+required" is more in line with Botholomew's local-first stance.

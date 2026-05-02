@@ -13,7 +13,6 @@ let ctx: ToolContext;
 const originalFetch = globalThis.fetch;
 beforeEach(async () => {
   ({ conn, ctx } = await setupToolContext());
-  ctx.config.openai_api_key = "test-key";
 });
 afterEach(() => {
   globalThis.fetch = originalFetch;

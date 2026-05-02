@@ -18,8 +18,8 @@ export const CONFIG_FILENAME = "config.json";
 export const MCPX_DIR = "mcpx";
 export const SKILLS_DIR = "skills";
 export const MCPX_SERVERS_FILENAME = "servers.json";
-export const EMBEDDING_DIMENSION = 1536;
-export const EMBEDDING_MODEL = "text-embedding-3-small";
+export const EMBEDDING_DIMENSION = 384;
+export const EMBEDDING_MODEL = "Xenova/bge-small-en-v1.5";
 
 export function getBotholomewDir(projectDir: string): string {
   return join(projectDir, BOTHOLOMEW_DIR);

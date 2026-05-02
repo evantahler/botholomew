@@ -638,6 +638,10 @@ describe("context edge cases", () => {
   });
 
   test("write file with very long single line", async () => {
+    // contextWriteTool triggers ingestion which chunks content > the short
+    // threshold via the LLM chunker. That requires anthropic_api_key — the
+    // chunker is the only LLM hop in this code path.
+    ctx.config.anthropic_api_key = "test-key";
     const longLine = "x".repeat(10000);
     await contextWriteTool.execute(
       { drive: D, path: "/long.txt", content: longLine },

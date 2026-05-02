@@ -88,9 +88,9 @@ bun run dev -- --help
 # 1. Initialize a project in the current directory
 botholomew init
 
-# 2. Add your API keys to .botholomew/config.json, or export env vars
+# 2. Add your Anthropic key to .botholomew/config.json, or export it
 export ANTHROPIC_API_KEY=sk-ant-...
-export OPENAI_API_KEY=sk-...     # used for embeddings
+# Embeddings run locally — no API key required.
 
 # 3. Queue some work
 botholomew task add "Summarize every markdown file in ~/notes"
@@ -144,7 +144,7 @@ Everything the agent can touch is here. No surprises.
 | `botholomew chat` | Interactive Ink/React TUI |
 | `botholomew task list\|add\|view\|update\|reset\|delete` | Manage the task queue |
 | `botholomew schedule list\|add\|view\|enable\|disable\|trigger\|delete` | Recurring work |
-| `botholomew context add\|list\|search\|chunks\|refresh\|delete` | Ingest & browse knowledge (files, folders, URLs); also exposes the agent's `read`/`write`/`tree`/`edit`/… tools as subcommands |
+| `botholomew context add\|list\|search\|chunks\|refresh\|reembed\|delete` | Ingest & browse knowledge (files, folders, URLs); `reembed` rebuilds every vector after upgrading the embedding model; also exposes the agent's `read`/`write`/`tree`/`edit`/… tools as subcommands |
 | `botholomew capabilities` | Rescan built-in + MCPX tools and rewrite `.botholomew/capabilities.md` |
 | `botholomew mcpx servers\|list\|add\|remove\|info\|search\|exec\|ping\|auth\|deauth\|import-global\|…` | Configure external MCP servers (passthrough to `mcpx`) |
 | `botholomew skill list\|show\|create\|validate` | Manage slash-command skills |
@@ -236,8 +236,9 @@ Topics worth understanding in detail:
   built-in FTS extension for BM25 keyword search
 - **[Anthropic SDK](https://docs.anthropic.com/en/api/client-sdks)** for
   Claude — the reasoning model
-- **OpenAI embeddings API** (`text-embedding-3-small`, 1536-dim) for
-  semantic search
+- **[`@huggingface/transformers`](https://huggingface.co/docs/transformers.js)**
+  for local embeddings (default `Xenova/bge-small-en-v1.5`, 384-dim) —
+  no API key, weights cached on first run
 - **[MCPX](https://github.com/evantahler/mcpx)** for external tools
 - **[Ink 6](https://github.com/vadimdemedes/ink)** + **React 19** for the
   terminal UI

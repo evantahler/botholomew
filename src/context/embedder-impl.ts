@@ -1,18 +1,36 @@
+import {
+  type FeatureExtractionPipeline,
+  pipeline,
+} from "@huggingface/transformers";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import { logger } from "../utils/logger.ts";
 
 type EmbedFn = (
   texts: string[],
   config: Required<BotholomewConfig>,
 ) => Promise<number[][]>;
 
-interface OpenAIEmbeddingResponse {
-  data: { embedding: number[]; index: number }[];
-  usage: { total_tokens: number };
+// Singleton pipeline keyed by model name. Loading the model is expensive
+// (downloads weights on first run, then ~hundreds of ms to instantiate the
+// ONNX runtime), so we hold one per model for the life of the process.
+const pipelinePromises = new Map<string, Promise<FeatureExtractionPipeline>>();
+
+async function getPipeline(model: string): Promise<FeatureExtractionPipeline> {
+  let p = pipelinePromises.get(model);
+  if (!p) {
+    logger.info(
+      `Loading embedding model ${model} (first run downloads weights)`,
+    );
+    p = pipeline("feature-extraction", model);
+    pipelinePromises.set(model, p);
+  }
+  return p;
 }
 
 /**
- * Embed multiple texts using the OpenAI embeddings API.
- * Returns an array of float vectors with the configured dimension.
+ * Embed multiple texts using a local @huggingface/transformers feature-extraction
+ * pipeline. Returns an array of L2-normalized float vectors with the model's
+ * native dimension (must match `config.embedding_dimension`).
  */
 export async function embed(
   texts: string[],
@@ -20,37 +38,17 @@ export async function embed(
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
 
-  if (!config.openai_api_key) {
+  const extractor = await getPipeline(config.embedding_model);
+  const output = await extractor(texts, { pooling: "mean", normalize: true });
+  const data = output.tolist() as number[][];
+
+  if (data[0] && data[0].length !== config.embedding_dimension) {
     throw new Error(
-      "OpenAI API key is required for embeddings. Set openai_api_key in config or OPENAI_API_KEY env var.",
+      `Embedding model ${config.embedding_model} returned ${data[0].length}-dim vectors, but embedding_dimension is set to ${config.embedding_dimension}. Update embedding_dimension in config and re-embed.`,
     );
   }
 
-  const response = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.openai_api_key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      input: texts,
-      model: config.embedding_model,
-      dimensions: config.embedding_dimension,
-    }),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(
-      `OpenAI embeddings API error (${response.status}): ${body}`,
-    );
-  }
-
-  const result = (await response.json()) as OpenAIEmbeddingResponse;
-
-  // Sort by index to ensure order matches input
-  const sorted = result.data.sort((a, b) => a.index - b.index);
-  return sorted.map((d) => d.embedding);
+  return data;
 }
 
 /**

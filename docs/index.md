@@ -55,9 +55,8 @@ bun install -g botholomew
 # 2. Initialize a project
 botholomew init
 
-# 3. Set your API keys
+# 3. Set your Anthropic API key (embeddings run locally — no other key needed)
 export ANTHROPIC_API_KEY=sk-ant-...
-export OPENAI_API_KEY=sk-...   # used for embeddings
 
 # 4. Queue some work and run a worker
 botholomew task add "Summarize every markdown file in ~/notes"

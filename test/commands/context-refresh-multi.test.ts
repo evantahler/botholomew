@@ -21,11 +21,10 @@ const CLI = join(import.meta.dir, "..", "..", "src", "cli.ts");
 async function run(
   args: string[],
 ): Promise<{ code: number; stdout: string; stderr: string }> {
-  const { OPENAI_API_KEY: _omit, ...envWithoutKey } = process.env;
   const proc = Bun.spawn(["bun", CLI, "--dir", tempDir, ...args], {
     stdout: "pipe",
     stderr: "pipe",
-    env: { ...envWithoutKey, NO_COLOR: "1", BOTHOLOMEW_LOG_LEVEL: "info" },
+    env: { ...process.env, NO_COLOR: "1", BOTHOLOMEW_LOG_LEVEL: "info" },
   });
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
