@@ -19,7 +19,7 @@ export interface BotholomewConfig {
 
 export const DEFAULT_CONFIG: Required<BotholomewConfig> = {
   anthropic_api_key: "",
-  model: "claude-opus-4-20250514",
+  model: "claude-opus-4-6",
   chunker_model: "claude-haiku-4-5-20251001",
   embedding_model: "Xenova/bge-small-en-v1.5",
   embedding_dimension: 384,

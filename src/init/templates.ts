@@ -1,3 +1,5 @@
+import { DEFAULT_CONFIG as SCHEMA_DEFAULT_CONFIG } from "../config/schemas.ts";
+
 export const SOUL_MD = `---
 loading: always
 agent-modification: false
@@ -85,11 +87,8 @@ and currently in progress) and format a brief standup-style update with:
 `;
 
 export const DEFAULT_CONFIG = {
+  ...SCHEMA_DEFAULT_CONFIG,
   anthropic_api_key: "your-api-key-here",
-  model: "claude-opus-4-20250514",
-  tick_interval_seconds: 300,
-  max_tick_duration_seconds: 120,
-  max_turns: 0,
 };
 
 export const DEFAULT_MCPX_SERVERS = {

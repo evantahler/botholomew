@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 import { initProject } from "../../src/init/index.ts";
 import { parseSkillFile } from "../../src/skills/parser.ts";
 import { parseContextFile } from "../../src/utils/frontmatter.ts";
@@ -94,9 +95,14 @@ describe("initProject", () => {
     const config = JSON.parse(
       await Bun.file(join(tempDir, ".botholomew", "config.json")).text(),
     );
-    expect(config.model).toBe("claude-opus-4-20250514");
+    expect(config.model).toBe("claude-opus-4-6");
     expect(config.tick_interval_seconds).toBe(300);
     expect(config.anthropic_api_key).toBe("your-api-key-here");
+    // Every schema key is present so users can discover and tune all options
+    // without grepping the source.
+    expect(Object.keys(config).sort()).toEqual(
+      Object.keys(DEFAULT_CONFIG).sort(),
+    );
   });
 
   test("throws if already initialized without --force", async () => {
