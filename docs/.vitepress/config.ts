@@ -88,7 +88,26 @@ export default defineConfig({
 
   head: [
     ["link", { rel: "icon", href: "/favicon.ico" }],
-    ["meta", { name: "theme-color", content: "#3c8772" }],
+    ["meta", { name: "theme-color", content: "#4a7c59" }],
+    [
+      "link",
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+    ],
+    [
+      "link",
+      {
+        rel: "preconnect",
+        href: "https://fonts.gstatic.com",
+        crossorigin: "",
+      },
+    ],
+    [
+      "link",
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,400..700,50&display=swap",
+      },
+    ],
     ["meta", { property: "og:title", content: "Botholomew" }],
     [
       "meta",
@@ -120,6 +139,10 @@ export default defineConfig({
   ],
 
   markdown: {
+    languageAlias: {
+      tape: "bash",
+      cron: "bash",
+    },
     config: (md) => {
       md.use(copyOrDownloadAsMarkdownButtons);
     },

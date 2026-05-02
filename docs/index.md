@@ -5,9 +5,6 @@ hero:
   name: Botholomew
   text: An AI agent for knowledge work.
   tagline: An autonomous agent that works your task queue — reading email, summarizing documents, researching topics, organizing notes, and maintaining context over time — while you sleep, work, or chat with it.
-  image:
-    src: /full-tour.gif
-    alt: Botholomew chat TUI tour
   actions:
     - theme: brand
       text: Get started
@@ -32,6 +29,12 @@ features:
   - title: Self-modifying
     details: The agent maintains its own `beliefs.md` and `goals.md` — it learns, updates its priors, and revises its goals as it works. It can also author its own slash-command skills mid-conversation.
 ---
+
+<div class="full-tour">
+
+![Botholomew chat TUI tour](/full-tour.gif)
+
+</div>
 
 ## Why Botholomew?
 

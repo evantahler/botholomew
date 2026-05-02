@@ -1,6 +1,7 @@
 <script setup>
 import DefaultTheme from "vitepress/theme";
 import GitHubStars from "./GitHubStars.vue";
+import HeroOwl from "./HeroOwl.vue";
 
 const { Layout } = DefaultTheme;
 </script>
@@ -11,6 +12,9 @@ const { Layout } = DefaultTheme;
       <div class="hero-ctas">
         <GitHubStars />
       </div>
+    </template>
+    <template #home-hero-image>
+      <HeroOwl />
     </template>
   </Layout>
 </template>
@@ -24,7 +28,7 @@ const { Layout } = DefaultTheme;
   margin-top: 20px;
 }
 
-@media (max-width: 639px) {
+@media (max-width: 959px) {
   .hero-ctas {
     justify-content: center;
   }
