@@ -52,18 +52,22 @@ export function parseSkillFile(raw: string, filePath: string): SkillDefinition {
 }
 
 /**
- * Split a raw argument string into positional tokens,
- * respecting double-quoted strings.
+ * Split a raw argument string into positional tokens, respecting both
+ * single- and double-quoted strings. A closing quote must match the
+ * opening quote; the other quote character is treated as a literal
+ * inside the run.
  */
 export function tokenize(raw: string): string[] {
   const tokens: string[] = [];
   let current = "";
-  let inQuote = false;
+  let quoteChar: '"' | "'" | null = null;
 
   for (const ch of raw) {
-    if (ch === '"') {
-      inQuote = !inQuote;
-    } else if (!inQuote && /\s/.test(ch)) {
+    if (quoteChar === null && (ch === '"' || ch === "'")) {
+      quoteChar = ch;
+    } else if (quoteChar !== null && ch === quoteChar) {
+      quoteChar = null;
+    } else if (quoteChar === null && /\s/.test(ch)) {
       if (current) {
         tokens.push(current);
         current = "";
@@ -77,12 +81,75 @@ export function tokenize(raw: string): string[] {
   return tokens;
 }
 
+/**
+ * Schema-aware tokenizer used by skill rendering. When a skill declares
+ * N >= 1 positional arguments, the first N - 1 tokens are split with
+ * `tokenize()` and the **last** token captures the entire remaining
+ * input verbatim (with surrounding whitespace trimmed and a single
+ * surrounding pair of matched quotes stripped). This makes the common
+ * case of an unquoted multi-word final argument "just work" — e.g.
+ * `/write-as-evan why are avocados good?` for a single-arg skill puts
+ * the whole sentence into `$1`.
+ *
+ * When N === 0 (no declared arguments), behaves exactly like
+ * `tokenize()`.
+ */
+export function tokenizeForSkill(
+  raw: string,
+  skill: SkillDefinition,
+): string[] {
+  const n = skill.arguments.length;
+  if (n === 0) return tokenize(raw);
+
+  const tokens: string[] = [];
+  let current = "";
+  let quoteChar: '"' | "'" | null = null;
+  let i = 0;
+
+  for (; i < raw.length && tokens.length < n - 1; i++) {
+    const ch = raw[i] as string;
+    if (quoteChar === null && (ch === '"' || ch === "'")) {
+      quoteChar = ch;
+    } else if (quoteChar !== null && ch === quoteChar) {
+      quoteChar = null;
+    } else if (quoteChar === null && /\s/.test(ch)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+    } else {
+      current += ch;
+    }
+  }
+
+  // Flush any in-progress token if we hit the N-1 cap mid-run.
+  if (current) {
+    tokens.push(current);
+    current = "";
+  }
+
+  let remainder = raw.slice(i).trim();
+  if (remainder.length >= 2) {
+    const first = remainder[0];
+    const last = remainder[remainder.length - 1];
+    if ((first === '"' || first === "'") && first === last) {
+      // Strip surrounding quotes only when the entire remainder is a
+      // single quoted string with no interior unescaped same-quote.
+      const inner = remainder.slice(1, -1);
+      if (!inner.includes(first)) remainder = inner;
+    }
+  }
+  if (remainder.length > 0) tokens.push(remainder);
+
+  return tokens;
+}
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export function renderSkill(skill: SkillDefinition, rawArgs: string): string {
-  const tokens = tokenize(rawArgs);
+  const tokens = tokenizeForSkill(rawArgs, skill);
   let result = skill.body;
 
   // Replace $<argName> placeholders first, longest names first so a `$start`
@@ -123,7 +190,7 @@ export function validateSkillArgs(
   skill: SkillDefinition,
   rawArgs: string,
 ): { missing: string[] } {
-  const tokens = tokenize(rawArgs);
+  const tokens = tokenizeForSkill(rawArgs, skill);
   const missing: string[] = [];
   skill.arguments.forEach((argDef, i) => {
     if (!argDef.required) return;

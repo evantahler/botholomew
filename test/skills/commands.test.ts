@@ -212,4 +212,105 @@ describe("handleSlashCommand", () => {
     expect(ctx.clearCalls).toBe(0);
     expect(ctx.systemMessages[0]).toContain("only available in the chat TUI");
   });
+
+  test("1-arg skill: unquoted multi-word input is rendered into $1", () => {
+    const writeSkill: SkillDefinition = {
+      name: "write",
+      description: "",
+      arguments: [{ name: "topic", description: "", required: true }],
+      body: "Topic: $1",
+      filePath: "/skills/write.md",
+    };
+    const ctx = makeCtx(makeSkillMap(writeSkill));
+    const result = handleSlashCommand("/write why are avocados good?", ctx);
+    expect(result).toBe(true);
+    expect(ctx.systemMessages).toHaveLength(0);
+    expect(ctx.queuedMessages).toHaveLength(1);
+    expect(ctx.queuedMessages[0]?.content).toBe(
+      "Topic: why are avocados good?",
+    );
+  });
+
+  test("2-arg skill: unquoted multi-word input is blocked with hint", () => {
+    const writeAsEvan: SkillDefinition = {
+      name: "write-as-evan",
+      description: "",
+      arguments: [
+        { name: "topic", description: "", required: true },
+        {
+          name: "format",
+          description: "",
+          required: false,
+          default: "blog-post",
+        },
+      ],
+      body: "About `$1` (**$2**)",
+      filePath: "/skills/write-as-evan.md",
+    };
+    const ctx = makeCtx(makeSkillMap(writeAsEvan));
+    const result = handleSlashCommand(
+      "/write-as-evan why are avocados good?",
+      ctx,
+    );
+    expect(result).toBe(true);
+    expect(ctx.queuedMessages).toHaveLength(0);
+    expect(ctx.systemMessages).toHaveLength(1);
+    const hint = ctx.systemMessages[0] ?? "";
+    expect(hint).toContain("ambiguous input");
+    expect(hint).toContain("topic");
+    expect(hint).toContain("format");
+    expect(hint).toContain("why");
+    expect(hint).toContain("are avocados good?");
+    expect(hint).toContain('"why are avocados good?"');
+  });
+
+  test("2-arg skill: quoted multi-word input proceeds normally", () => {
+    const writeAsEvan: SkillDefinition = {
+      name: "write-as-evan",
+      description: "",
+      arguments: [
+        { name: "topic", description: "", required: true },
+        {
+          name: "format",
+          description: "",
+          required: false,
+          default: "blog-post",
+        },
+      ],
+      body: "About `$1` (**$2**)",
+      filePath: "/skills/write-as-evan.md",
+    };
+    const ctx = makeCtx(makeSkillMap(writeAsEvan));
+    const result = handleSlashCommand(
+      "/write-as-evan 'why are avocados good?'",
+      ctx,
+    );
+    expect(result).toBe(true);
+    expect(ctx.systemMessages).toHaveLength(0);
+    expect(ctx.queuedMessages).toHaveLength(1);
+    expect(ctx.queuedMessages[0]?.content).toBe(
+      "About `why are avocados good?` (**blog-post**)",
+    );
+  });
+
+  test("2-arg skill: clean two-word input proceeds normally", () => {
+    const skill: SkillDefinition = {
+      name: "review",
+      description: "",
+      arguments: [
+        { name: "file", description: "", required: true },
+        { name: "focus", description: "", required: false, default: "all" },
+      ],
+      body: "Review $1 focusing on $2.",
+      filePath: "/skills/review.md",
+    };
+    const ctx = makeCtx(makeSkillMap(skill));
+    const result = handleSlashCommand("/review src/cli.ts security", ctx);
+    expect(result).toBe(true);
+    expect(ctx.systemMessages).toHaveLength(0);
+    expect(ctx.queuedMessages).toHaveLength(1);
+    expect(ctx.queuedMessages[0]?.content).toBe(
+      "Review src/cli.ts focusing on security.",
+    );
+  });
 });

@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
   parseSkillFile,
   renderSkill,
+  type SkillDefinition,
   tokenize,
+  tokenizeForSkill,
   validateSkillArgs,
 } from "../../src/skills/parser.ts";
 
@@ -173,6 +175,40 @@ describe("renderSkill", () => {
     };
     expect(renderSkill(skill, '"src/my file.ts" performance')).toBe(
       "File: src/my file.ts, Focus: performance",
+    );
+  });
+
+  test("1-arg skill renders multi-word unquoted input into $1", () => {
+    const skill = {
+      name: "test",
+      description: "",
+      arguments: [{ name: "topic", description: "", required: true }],
+      body: "Topic: $1",
+      filePath: "/test.md",
+    };
+    expect(renderSkill(skill, "why are avocados good?")).toBe(
+      "Topic: why are avocados good?",
+    );
+  });
+
+  test("2-arg skill (write-as-evan shape) with quoted multi-word topic", () => {
+    const skill = {
+      name: "write-as-evan",
+      description: "",
+      arguments: [
+        { name: "topic", description: "", required: true },
+        {
+          name: "format",
+          description: "",
+          required: false,
+          default: "blog-post",
+        },
+      ],
+      body: "About `$1` in format **$2**.",
+      filePath: "/test.md",
+    };
+    expect(renderSkill(skill, "'why are avocados good?'")).toBe(
+      "About `why are avocados good?` in format **blog-post**.",
     );
   });
 
@@ -349,8 +385,101 @@ describe("tokenize", () => {
     expect(tokenize('"a b" c')).toEqual(["a b", "c"]);
   });
 
+  test("respects single-quoted strings", () => {
+    expect(tokenize("'a b' c")).toEqual(["a b", "c"]);
+  });
+
+  test("treats single quotes inside double quotes as literal", () => {
+    expect(tokenize('"can\'t stop" now')).toEqual(["can't stop", "now"]);
+  });
+
+  test("treats double quotes inside single quotes as literal", () => {
+    expect(tokenize(`'he said "hi"'`)).toEqual([`he said "hi"`]);
+  });
+
   test("returns empty array for empty input", () => {
     expect(tokenize("")).toEqual([]);
+  });
+});
+
+describe("tokenizeForSkill", () => {
+  function skillWithArgs(n: number): SkillDefinition {
+    return {
+      name: "t",
+      description: "",
+      arguments: Array.from({ length: n }, (_, i) => ({
+        name: `arg${i + 1}`,
+        description: "",
+        required: false,
+      })),
+      body: "",
+      filePath: "/t.md",
+    };
+  }
+
+  test("falls back to tokenize() when no args declared", () => {
+    expect(tokenizeForSkill("a b c", skillWithArgs(0))).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  test("1-arg skill: unquoted multi-word input becomes one token", () => {
+    expect(
+      tokenizeForSkill("why are avocados good?", skillWithArgs(1)),
+    ).toEqual(["why are avocados good?"]);
+  });
+
+  test("1-arg skill: surrounding single quotes are stripped", () => {
+    expect(
+      tokenizeForSkill("'why are avocados good?'", skillWithArgs(1)),
+    ).toEqual(["why are avocados good?"]);
+  });
+
+  test("1-arg skill: surrounding double quotes are stripped", () => {
+    expect(
+      tokenizeForSkill('"why are avocados good?"', skillWithArgs(1)),
+    ).toEqual(["why are avocados good?"]);
+  });
+
+  test("2-arg skill: first quoted token then remainder", () => {
+    expect(tokenizeForSkill('"a b c" d', skillWithArgs(2))).toEqual([
+      "a b c",
+      "d",
+    ]);
+  });
+
+  test("2-arg skill: greedy last consumes the rest unquoted", () => {
+    expect(tokenizeForSkill("a b c d", skillWithArgs(2))).toEqual([
+      "a",
+      "b c d",
+    ]);
+  });
+
+  test("2-arg skill: single token leaves last slot undefined", () => {
+    expect(tokenizeForSkill("a", skillWithArgs(2))).toEqual(["a"]);
+  });
+
+  test("empty input returns empty array", () => {
+    expect(tokenizeForSkill("", skillWithArgs(2))).toEqual([]);
+  });
+
+  test("strips surrounding quotes from remainder only when matched", () => {
+    // Mismatched: leading single, trailing double → no strip.
+    expect(tokenizeForSkill("a 'foo bar\"", skillWithArgs(2))).toEqual([
+      "a",
+      "'foo bar\"",
+    ]);
+  });
+
+  test("does not strip when remainder contains the same quote inside", () => {
+    // 'a'b' — surrounding quotes match but inner has same quote, so the
+    // remainder is treated as a literal multi-word string.
+    expect(tokenizeForSkill("x 'a'b'", skillWithArgs(2))).toEqual([
+      "x",
+      "'a'b'",
+    ]);
   });
 });
 
@@ -410,5 +539,18 @@ describe("validateSkillArgs", () => {
       filePath: "/test.md",
     };
     expect(validateSkillArgs(skill, "src/main.ts")).toEqual({ missing: [] });
+  });
+
+  test("1 required arg + multi-word input passes (greedy last)", () => {
+    const skill = {
+      name: "test",
+      description: "",
+      arguments: [{ name: "topic", description: "", required: true }],
+      body: "",
+      filePath: "/test.md",
+    };
+    expect(validateSkillArgs(skill, "why are avocados good?")).toEqual({
+      missing: [],
+    });
   });
 });
