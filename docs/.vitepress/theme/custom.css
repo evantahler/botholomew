@@ -1,3 +1,122 @@
+/* Woodland palette — moss/pine primary, warm bark accents, parchment soft bg.
+   Overrides VitePress design tokens; component CSS picks these up automatically. */
+:root {
+  --vp-c-brand-1: #3a6b4a;
+  --vp-c-brand-2: #4a7c59;
+  --vp-c-brand-3: #5a8d68;
+  --vp-c-brand-soft: rgba(74, 124, 89, 0.16);
+
+  --vp-c-tip-1: var(--vp-c-brand-1);
+  --vp-c-tip-2: var(--vp-c-brand-2);
+  --vp-c-tip-3: var(--vp-c-brand-3);
+  --vp-c-tip-soft: var(--vp-c-brand-soft);
+
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(
+    120deg,
+    #3a6b4a 0%,
+    #8a5a3c 100%
+  );
+  --vp-home-hero-image-background-image: linear-gradient(
+    -45deg,
+    rgba(74, 124, 89, 0.22) 30%,
+    rgba(170, 130, 90, 0.22) 70%
+  );
+  --vp-home-hero-image-filter: blur(48px);
+}
+
+.dark {
+  --vp-c-brand-1: #9bc4a4;
+  --vp-c-brand-2: #7fb893;
+  --vp-c-brand-3: #5a8d68;
+  --vp-c-brand-soft: rgba(127, 184, 147, 0.18);
+
+  --vp-c-tip-1: var(--vp-c-brand-1);
+  --vp-c-tip-2: var(--vp-c-brand-2);
+  --vp-c-tip-3: var(--vp-c-brand-3);
+  --vp-c-tip-soft: var(--vp-c-brand-soft);
+
+  --vp-home-hero-name-background: linear-gradient(
+    120deg,
+    #9bc4a4 0%,
+    #d4a878 100%
+  );
+  --vp-home-hero-image-background-image: linear-gradient(
+    -45deg,
+    rgba(127, 184, 147, 0.22) 30%,
+    rgba(212, 168, 120, 0.22) 70%
+  );
+}
+
+/* Humanist serif on the home hero only — body type stays default. */
+.VPHero .name,
+.VPHero .text {
+  font-family:
+    "Fraunces", "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.VPHero .tagline {
+  font-family:
+    "Fraunces", "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* Center the slot content inside the hero's circular blur background.
+   Default VitePress puts a small image at the top of a tall container; the
+   ASCII owl is shorter, so it floats out of the blur on narrow viewports. */
+.VPHero .image-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ASCII owl mascot in the hero image slot. */
+.hero-owl {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-family:
+    ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  line-height: 1.05;
+  letter-spacing: 0;
+  color: var(--vp-c-brand-1);
+  white-space: pre;
+  text-align: center;
+  user-select: none;
+}
+
+.dark .hero-owl {
+  color: var(--vp-c-brand-2);
+  text-shadow: 0 0 24px rgba(127, 184, 147, 0.25);
+}
+
+/* Full-width tour GIF section — sits between the hero and the prose. */
+.full-tour {
+  max-width: 960px;
+  margin: 32px auto 48px;
+  padding: 0 24px;
+}
+
+.full-tour img {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 12px 32px rgba(0, 0, 0, 0.16);
+}
+
+.dark .full-tour img {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
 .llm-callout {
   border: 1px dashed var(--vp-c-divider);
   border-radius: 8px;
