@@ -8,7 +8,9 @@ processing tasks. For deeper background, see
 
 - **[Bun](https://bun.sh) 1.1+** — Botholomew is a Bun-native CLI.
 - **An Anthropic API key** — Claude is the reasoning model.
-- **An OpenAI API key** — used for embeddings (`text-embedding-3-small`).
+- Embeddings run locally via `@huggingface/transformers` (default
+  `Xenova/bge-small-en-v1.5`, 384-dim). The first call downloads ~33 MB
+  of weights to `~/.cache/huggingface/`; no API key is required.
 - Optional: any [MCP servers](./mcpx.md) you want to expose to the agent
   (Gmail, Slack, GitHub, etc.) — managed through
   [MCPX](https://github.com/evantahler/mcpx).
@@ -58,14 +60,13 @@ Everything the agent can touch is here — see
 
 ## Configure API keys
 
-Either export environment variables:
+Either export the environment variable:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-export OPENAI_API_KEY=sk-...
 ```
 
-…or set them in `.botholomew/config.json`. See
+…or set it in `.botholomew/config.json`. See
 [Configuration](./configuration.md) for every key and its default.
 
 ## Queue work and run a worker

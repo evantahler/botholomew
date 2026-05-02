@@ -19,9 +19,6 @@ export async function loadConfig(
   if (process.env.ANTHROPIC_API_KEY) {
     config.anthropic_api_key = process.env.ANTHROPIC_API_KEY;
   }
-  if (process.env.OPENAI_API_KEY) {
-    config.openai_api_key = process.env.OPENAI_API_KEY;
-  }
 
   setLogLevel(config.log_level);
 

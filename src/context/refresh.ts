@@ -132,8 +132,7 @@ export async function refreshContextItems(
   const unchanged = results.filter((r) => r.status === "unchanged").length;
   const missing = results.filter((r) => r.status === "missing").length;
 
-  const hasEmbedder = !!embedFn || !!config.openai_api_key;
-  if (toReembed.length === 0 || !hasEmbedder) {
+  if (toReembed.length === 0) {
     return {
       checked: refreshable.length,
       updated,
@@ -141,7 +140,7 @@ export async function refreshContextItems(
       missing,
       reembedded: 0,
       chunks: 0,
-      embeddings_skipped: toReembed.length > 0 && !hasEmbedder,
+      embeddings_skipped: false,
       items: results,
     };
   }

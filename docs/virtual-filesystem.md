@@ -166,7 +166,7 @@ Every mutation cascades into the embeddings table:
 - `context_move` → no embedding changes (embeddings reference the item id, not the path).
 - `context_delete` → cascade delete embedding rows.
 
-Embeddings are stored as `FLOAT[1536]` and queried by linear scan via
+Embeddings are stored as `FLOAT[384]` and queried by linear scan via
 `array_cosine_distance()` — no HNSW index, no VSS extension. The FTS
 index over `chunk_content` and `title` is rebuilt by
 `rebuildSearchIndex()` after every ingest write. See

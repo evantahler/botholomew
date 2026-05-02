@@ -126,17 +126,6 @@ describe("context_refresh tool", () => {
     expect(result.updated).toBe(2);
   });
 
-  test("message surfaces embeddings_skipped when no OpenAI key", async () => {
-    await seedDiskItem("drift2.md", "new", "old");
-
-    const result = await contextRefreshTool.execute({ all: true }, ctx);
-    expect(result.is_error).toBe(false);
-    expect(result.updated).toBe(1);
-    expect(result.reembedded).toBe(0);
-    expect(result.embeddings_skipped).toBe(true);
-    expect(result.message).toContain("embeddings skipped");
-  });
-
   test("returns a tree snapshot on successful refresh", async () => {
     await seedDiskItem("drift.md", "new disk content", "old stored");
     const result = await contextRefreshTool.execute({ all: true }, ctx);

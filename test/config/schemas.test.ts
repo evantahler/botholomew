@@ -4,7 +4,6 @@ import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 describe("DEFAULT_CONFIG", () => {
   test("has all expected fields", () => {
     expect(DEFAULT_CONFIG).toHaveProperty("anthropic_api_key");
-    expect(DEFAULT_CONFIG).toHaveProperty("openai_api_key");
     expect(DEFAULT_CONFIG).toHaveProperty("model");
     expect(DEFAULT_CONFIG).toHaveProperty("chunker_model");
     expect(DEFAULT_CONFIG).toHaveProperty("embedding_model");
@@ -36,7 +35,6 @@ describe("DEFAULT_CONFIG", () => {
 
   test("API keys default to empty strings", () => {
     expect(DEFAULT_CONFIG.anthropic_api_key).toBe("");
-    expect(DEFAULT_CONFIG.openai_api_key).toBe("");
   });
 
   test("system_prompt_override defaults to empty string", () => {

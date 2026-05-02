@@ -86,7 +86,7 @@ export async function buildChatSystemPrompt(
 
   const dbPath = options?.dbPath;
   const config = options?.config;
-  if (dbPath && config?.openai_api_key && keywordSource) {
+  if (dbPath && config && keywordSource) {
     try {
       const queryVec = await embedSingle(keywordSource, config);
       const results = await withDb(dbPath, (conn) =>

@@ -44,16 +44,7 @@ export async function prepareIngestion(
     return null;
   }
 
-  // Resolve the embed function before chunking — if we can't embed, skip early
-  const doEmbed =
-    embedFn ??
-    (config.openai_api_key
-      ? (texts: string[]) => defaultEmbed(texts, config)
-      : null);
-  if (!doEmbed) {
-    logger.debug("ingest: skipping embeddings (no OpenAI API key configured)");
-    return null;
-  }
+  const doEmbed = embedFn ?? ((texts: string[]) => defaultEmbed(texts, config));
 
   const chunks = await chunk(item.content, item.mime_type, config);
   if (chunks.length === 0) return null;
