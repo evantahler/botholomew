@@ -1,4 +1,7 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import {
+  env,
   type FeatureExtractionPipeline,
   pipeline,
 } from "@huggingface/transformers";
@@ -15,11 +18,23 @@ type EmbedFn = (
 // ONNX runtime), so we hold one per model for the life of the process.
 const pipelinePromises = new Map<string, Promise<FeatureExtractionPipeline>>();
 
+export function setEmbeddingCacheDir(dir: string): void {
+  // Trailing separator matters: transformers.js builds paths as `${cacheDir}${rel}` (no separator).
+  env.cacheDir = dir.endsWith("/") ? dir : `${dir}/`;
+}
+
+function isModelCached(model: string): boolean {
+  if (!env.cacheDir) return false;
+  return existsSync(join(env.cacheDir, model));
+}
+
 async function getPipeline(model: string): Promise<FeatureExtractionPipeline> {
   let p = pipelinePromises.get(model);
   if (!p) {
     logger.info(
-      `Loading embedding model ${model} (first run downloads weights)`,
+      isModelCached(model)
+        ? `Loading embedding model ${model}`
+        : `Loading embedding model ${model} (first run, downloading weights)`,
     );
     p = pipeline("feature-extraction", model);
     pipelinePromises.set(model, p);

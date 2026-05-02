@@ -16,6 +16,7 @@ export const DB_FILENAME = "data.duckdb";
 export const LOGS_DIR = "logs";
 export const CONFIG_FILENAME = "config.json";
 export const MCPX_DIR = "mcpx";
+export const MODELS_DIR = "models";
 export const SKILLS_DIR = "skills";
 export const MCPX_SERVERS_FILENAME = "servers.json";
 export const EMBEDDING_DIMENSION = 384;
@@ -43,6 +44,13 @@ export function getConfigPath(projectDir: string): string {
 
 export function getMcpxDir(projectDir: string): string {
   return join(projectDir, BOTHOLOMEW_DIR, MCPX_DIR);
+}
+
+export function getModelsDir(projectDir: string): string {
+  return (
+    process.env.BOTHOLOMEW_MODELS_DIR_OVERRIDE ??
+    join(projectDir, BOTHOLOMEW_DIR, MODELS_DIR)
+  );
 }
 
 export function getSkillsDir(projectDir: string): string {

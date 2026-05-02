@@ -33,7 +33,7 @@ schema lives in `src/config/schemas.ts`.
 | `anthropic_api_key` | `""` | Anthropic key. `ANTHROPIC_API_KEY` env var overrides. |
 | `model` | `claude-opus-4-20250514` | Claude model for the main agent loop (workers + chat). |
 | `chunker_model` | `claude-haiku-4-5-20251001` | Smaller/cheaper model used to propose chunk boundaries during ingestion and evaluate schedules. |
-| `embedding_model` | `Xenova/bge-small-en-v1.5` | A local [`@huggingface/transformers`](https://huggingface.co/docs/transformers.js) feature-extraction model. Weights are downloaded on first use and cached under `~/.cache/huggingface/`. Any feature-extraction model in the Xenova/* namespace works — e.g. `Xenova/multilingual-e5-small` (also 384-dim) for non-English content. |
+| `embedding_model` | `Xenova/bge-small-en-v1.5` | A local [`@huggingface/transformers`](https://huggingface.co/docs/transformers.js) feature-extraction model. Weights are downloaded on first use and cached under `.botholomew/models/`. Any feature-extraction model in the Xenova/* namespace works — e.g. `Xenova/multilingual-e5-small` (also 384-dim) for non-English content. |
 | `embedding_dimension` | `384` | Vector dimension. Must match the model. Changing model + dimension requires running `botholomew context reembed` to recompute every stored vector — old and new vectors aren't comparable. |
 | `tick_interval_seconds` | `300` | Seconds a `--persist` worker sleeps between ticks **when there's no work**. It ticks back-to-back while a backlog exists. |
 | `max_tick_duration_seconds` | `120` | Soft cap per tick. Stale-task reset fires at `3×` this value. |
