@@ -29,7 +29,7 @@ import {
 
 registerAllTools();
 
-/** Tools available in chat mode — no worker terminal tools, no destructive file tools */
+/** Tools available in chat mode — no worker terminal tools (complete/fail/wait), no bulk-destructive file tools (delete, copy/move, dir ops) */
 const CHAT_TOOL_NAMES = new Set([
   "create_task",
   "list_tasks",
@@ -39,6 +39,9 @@ const CHAT_TOOL_NAMES = new Set([
   "context_refresh",
   "context_tree",
   "context_list_drives",
+  "context_read",
+  "context_write",
+  "context_edit",
   "search_grep",
   "search_semantic",
   "list_threads",
