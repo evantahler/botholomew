@@ -38,6 +38,7 @@
     "protobufjs",
   ],
   "patchedDependencies": {
+    "@huggingface/transformers@3.8.1": "patches/@huggingface%2Ftransformers@3.8.1.patch",
     "@huggingface/transformers@4.2.0": "patches/@huggingface%2Ftransformers@4.2.0.patch",
   },
   "packages": {

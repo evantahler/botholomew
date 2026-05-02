@@ -69,8 +69,9 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 ## Embeddings
 
 - Embeddings run via `@huggingface/transformers` in **WASM** (`onnxruntime-web`), not the native `onnxruntime-node` bindings. The native bindings segfault under Bun when DuckDB is also loaded in the same process (see [oven-sh/bun#26081](https://github.com/oven-sh/bun/issues/26081)).
-- The switch is enforced by a `bun patch` at `patches/@huggingface%2Ftransformers@<version>.patch` plus a `wasmPaths` override in `src/context/embedder-impl.ts` that points at the local `onnxruntime-web/dist/` files (no CDN fetch).
-- **Bumping `@huggingface/transformers`**: re-run `bun patch '@huggingface/transformers@<version>'`, reapply the three edits to `src/backends/onnx.js` (kill the static `onnxruntime-node` import; in the `IS_NODE_ENV` branch, set `ONNX = ONNX_WEB` and use `['wasm']` for `supportedDevices`/`defaultDevices`), then `bun patch --commit`. The "coexists with DuckDB native module" test in `test/context/embedder.test.ts` is the regression guard.
+- **Two patches, not one.** Botholomew uses transformers directly (`@huggingface/transformers@4.x`); `@evantahler/mcpx` ships its own nested `@huggingface/transformers@3.x` for `mcp_search`'s semantic tool index. Both copies have to be patched — see `patches/@huggingface%2Ftransformers@*.patch`. Bumping mcpx can bring in a new transformers version, in which case its patch needs to be redone too.
+- The switch is enforced by `bun patch` plus a `wasmPaths` override in `src/context/embedder-impl.ts` that points at the local `onnxruntime-web/dist/` files (no CDN fetch).
+- **Bumping `@huggingface/transformers`** (either the top-level one or the one nested under mcpx): re-run `bun patch '@huggingface/transformers@<version>'`, reapply the two edits to `src/backends/onnx.js` (kill the static `onnxruntime-node` import; in the `IS_NODE_ENV` branch, set `ONNX = ONNX_WEB` and use `['wasm']` for `supportedDevices`/`defaultDevices`), then `bun patch --commit`. The "coexists with DuckDB native module" test in `test/context/embedder.test.ts` is the regression guard for the top-level patch; chat-time crashes inside `mcp_search` are the signal for the mcpx one.
 
 ## Testing
 

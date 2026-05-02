@@ -1,0 +1,52 @@
+diff --git a/src/backends/onnx.js b/src/backends/onnx.js
+index 3e49ece2367ba4286014c4dc6ab65ee75c378451..6e6a66e19c8d158a472160e466775b36e385af2d 100644
+--- a/src/backends/onnx.js
++++ b/src/backends/onnx.js
+@@ -20,7 +20,10 @@ import { env, apis } from '../env.js';
+ 
+ // NOTE: Import order matters here. We need to import `onnxruntime-node` before `onnxruntime-web`.
+ // In either case, we select the default export if it exists, otherwise we use the named export.
+-import * as ONNX_NODE from 'onnxruntime-node';
++// PATCHED (botholomew): the static `import 'onnxruntime-node'` segfaults under Bun
++// (oven-sh/bun#26081). We never want the native bindings — `onnxruntime-web` (WASM) runs
++// fine on Bun + Node + browsers. The IS_NODE_ENV branch below is rerouted to ONNX_WEB.
++const ONNX_NODE = undefined;
+ import * as ONNX_WEB from 'onnxruntime-web';
+ 
+ export { Tensor } from 'onnxruntime-common';
+@@ -61,30 +64,11 @@ if (ORT_SYMBOL in globalThis) {
+     ONNX = globalThis[ORT_SYMBOL];
+ 
+ } else if (apis.IS_NODE_ENV) {
+-    ONNX = ONNX_NODE.default ?? ONNX_NODE;
+-
+-    // Updated as of ONNX Runtime 1.20.1
+-    // The following table lists the supported versions of ONNX Runtime Node.js binding provided with pre-built binaries.
+-    // | EPs/Platforms | Windows x64 | Windows arm64 | Linux x64         | Linux arm64 | MacOS x64 | MacOS arm64 |
+-    // | ------------- | ----------- | ------------- | ----------------- | ----------- | --------- | ----------- |
+-    // | CPU           | ✔️          | ✔️            | ✔️                | ✔️          | ✔️        | ✔️          |
+-    // | DirectML      | ✔️          | ✔️            | ❌                | ❌          | ❌        | ❌          |
+-    // | CUDA          | ❌          | ❌            | ✔️ (CUDA v11.8)   | ❌          | ❌        | ❌          |
+-    switch (process.platform) {
+-        case 'win32': // Windows x64 and Windows arm64
+-            supportedDevices.push('dml');
+-            break;
+-        case 'linux': // Linux x64 and Linux arm64
+-            if (process.arch === 'x64') {
+-                supportedDevices.push('cuda');
+-            }
+-            break;
+-        case 'darwin': // MacOS x64 and MacOS arm64
+-            break;
+-    }
+-
+-    supportedDevices.push('cpu');
+-    defaultDevices = ['cpu'];
++    // PATCHED (botholomew): force the WASM backend in node-like envs to avoid
++    // loading onnxruntime-node native bindings (segfaults under Bun).
++    ONNX = ONNX_WEB;
++    supportedDevices.push('wasm');
++    defaultDevices = ['wasm'];
+ } else {
+     ONNX = ONNX_WEB;
+ 
