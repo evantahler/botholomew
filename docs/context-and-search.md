@@ -305,6 +305,21 @@ On success, `context_write` also returns a `tree` field — a
 `context_tree` snapshot of the current drive — so the agent can see
 what else is nearby without a follow-up call.
 
+### Piping a tool's output straight into context
+
+When the agent wants a *large* tool output to be searchable for later but
+does not need to read the bytes itself, `pipe_to_context` is the
+recommended path. It dispatches another tool (e.g. `search_grep`,
+`mcp_exec`, `context_refresh`), captures the stringified result, and
+feeds it into the same `upsertContextItem` + `ingestByPath` pipeline
+`context_write` uses — chunked, embedded, and indexed for hybrid search.
+The model only sees a small ack (id, drive, path, byte count, 200-char
+preview), so a multi-megabyte payload doesn't burn the conversation
+budget. Terminal tools and `pipe_to_context` itself are rejected; if the
+inner tool errors, nothing is written. See
+[tools.md](tools.md#pipe_to_context--pipe-a-tools-output-straight-into-context)
+for the full contract.
+
 ### Refreshing stale content
 
 ```bash

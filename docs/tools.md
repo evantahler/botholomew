@@ -163,6 +163,46 @@ command to wire. The Zod schema is the source of truth.
 
 ---
 
+## `pipe_to_context` — pipe a tool's output straight into context
+
+Sometimes the agent wants a tool's full output to be searchable later but
+doesn't actually need to *read* it. A web fetch, an `mcp_exec` that returns a
+big JSON dump, a `search_grep` over a wide pattern — all of these can blow
+through the conversation budget if the bytes round-trip through the LLM.
+
+`pipe_to_context` is a meta-tool: you give it the *name and arguments* of
+another tool, plus a destination `(drive, path)`, and it dispatches the inner
+tool, captures the stringified result, and writes it directly to a context
+item via the same ingest pipeline `context_write` uses (chunked + embedded +
+indexed). The model only ever sees a small acknowledgment — id, drive, path,
+byte count, and a 200-char preview — never the raw bytes.
+
+```text
+agent → pipe_to_context(tool_name="search_grep",
+                         tool_input={...},
+                         drive="agent",
+                         path="/research/grep-results.txt")
+        → { id, ref: "agent:/research/grep-results.txt",
+            bytes_written: 184321, preview: "…" }
+agent → context_search("the thing I actually wanted to know")
+```
+
+Two guards apply at the dispatch site:
+
+- Terminal tools (`complete_task`, `fail_task`, `wait_task`) and
+  `pipe_to_context` itself are rejected with `error_type: "forbidden_tool"`.
+  Piping a terminal tool would let the loop end without the orchestrator
+  seeing the result; recursion is meaningless.
+- The inner tool's input is validated against its own `inputSchema` before
+  dispatch, so bad arguments come back as `error_type: "invalid_input"`
+  with field-level detail instead of an opaque crash.
+
+If the inner tool returns `is_error: true`, **nothing is written** — the pipe
+returns `error_type: "inner_tool_error"` with the inner message inlined (capped
+at 2KB), so the agent can retry with different arguments.
+
+---
+
 ## `capabilities_refresh` — the meta-tool
 
 The `capabilities`-group tool `capabilities_refresh` exists so the

@@ -55,6 +55,7 @@ const CHAT_TOOL_NAMES = new Set([
   "mcp_info",
   "mcp_exec",
   "read_large_result",
+  "pipe_to_context",
   "spawn_worker",
   "skill_list",
   "skill_read",
