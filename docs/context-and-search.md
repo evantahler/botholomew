@@ -305,7 +305,7 @@ Botholomew runs embeddings locally via
 [`@huggingface/transformers`](https://huggingface.co/docs/transformers.js).
 The default model is `Xenova/bge-small-en-v1.5` (384-dim, ~33 MB). Weights
 are downloaded the first time the model is used and cached under
-`~/.cache/huggingface/` — subsequent runs load from disk in milliseconds.
+`.botholomew/models/` — subsequent runs load from disk in milliseconds.
 
 No API key, no per-token cost, no network dependency at query time. The
 model loads lazily on the first embed call, so CLI startup stays fast.

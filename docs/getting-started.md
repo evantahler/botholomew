@@ -10,7 +10,7 @@ processing tasks. For deeper background, see
 - **An Anthropic API key** — Claude is the reasoning model.
 - Embeddings run locally via `@huggingface/transformers` (default
   `Xenova/bge-small-en-v1.5`, 384-dim). The first call downloads ~33 MB
-  of weights to `~/.cache/huggingface/`; no API key is required.
+  of weights to `.botholomew/models/`; no API key is required.
 - Optional: any [MCP servers](./mcpx.md) you want to expose to the agent
   (Gmail, Slack, GitHub, etc.) — managed through
   [MCPX](https://github.com/evantahler/mcpx).

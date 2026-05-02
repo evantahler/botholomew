@@ -1,4 +1,5 @@
-import { getConfigPath } from "../constants.ts";
+import { mkdirSync } from "node:fs";
+import { getConfigPath, getModelsDir } from "../constants.ts";
 import { setLogLevel } from "../utils/logger.ts";
 import { type BotholomewConfig, DEFAULT_CONFIG } from "./schemas.ts";
 
@@ -21,6 +22,12 @@ export async function loadConfig(
   }
 
   setLogLevel(config.log_level);
+
+  const modelsDir = getModelsDir(projectDir);
+  mkdirSync(modelsDir, { recursive: true });
+  // Dynamic import keeps @huggingface/transformers (heavy, pulls ONNX runtime) out of commands that never embed.
+  const { setEmbeddingCacheDir } = await import("../context/embedder-impl.ts");
+  setEmbeddingCacheDir(modelsDir);
 
   return config;
 }
