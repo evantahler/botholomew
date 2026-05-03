@@ -4,7 +4,12 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Command } from "commander";
+import { createSpinner } from "nanospinner";
+import { loadConfig } from "../config/loader.ts";
 import { getMcpxDir } from "../constants.ts";
+import { writeCapabilitiesFile } from "../context/capabilities.ts";
+import { createMcpxClient } from "../mcpx/client.ts";
+import { registerAllTools } from "../tools/registry.ts";
 import { logger } from "../utils/logger.ts";
 
 const require = createRequire(import.meta.url);
@@ -137,10 +142,34 @@ export function registerMcpxCommand(program: Command) {
 
       if (copied === 0) {
         logger.warn("No config files found in ~/.mcpx to copy.");
-      } else {
-        logger.success(
-          `Imported ${copied} file(s) from ~/.mcpx into ${projectMcpxDir}`,
+        return;
+      }
+
+      logger.success(
+        `Imported ${copied} file(s) from ~/.mcpx into ${projectMcpxDir}`,
+      );
+
+      const projectDir = getDir(program);
+      registerAllTools();
+      const config = await loadConfig(projectDir);
+      const mcpxClient = await createMcpxClient(projectDir);
+      const spinner = createSpinner("Rebuilding capabilities.md").start();
+      try {
+        const result = await writeCapabilitiesFile(
+          projectDir,
+          mcpxClient,
+          config,
+          (phase) => spinner.update({ text: phase }),
         );
+        spinner.success({
+          text: `Rebuilt ${result.path} (${result.counts.internal} built-in, ${result.counts.mcp} MCPX)`,
+        });
+      } catch (err) {
+        spinner.error({
+          text: `Failed to rebuild capabilities.md: ${(err as Error).message}`,
+        });
+      } finally {
+        await mcpxClient?.close();
       }
     });
 }

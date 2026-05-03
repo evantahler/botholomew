@@ -438,7 +438,7 @@ export async function generateCapabilitiesMarkdown(
       config.anthropic_api_key !== "your-api-key-here";
     if (canSummarize) {
       onPhase?.(
-        `Summarizing ${inv.internalTotal} internal + ${inv.mcpTotal} MCPX tools with Claude`,
+        `Summarizing ${inv.internalTotal} internal + ${inv.mcpTotal} MCPX tools`,
       );
     }
     summary = await summarizeViaLLM(inv, config);
