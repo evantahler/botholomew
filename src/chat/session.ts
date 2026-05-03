@@ -1,3 +1,4 @@
+import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { loadConfig } from "../config/loader.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
@@ -27,6 +28,24 @@ export interface ChatSession {
   // biome-ignore lint/suspicious/noExplicitAny: mcpx client
   mcpxClient: any;
   cleanup: () => Promise<void>;
+  /** Set by `runChatTurn` while a `messages.stream(...)` is in flight. */
+  activeStream: MessageStream | null;
+  /** Esc-driven steer signal — checked at safe points in the chat agent loop. */
+  aborted: boolean;
+}
+
+/**
+ * Abort the in-flight LLM stream (if any) and set the steer flag so the chat
+ * agent loop short-circuits before issuing another `messages.stream(...)` call.
+ * Safe to call when no stream is active. Returns true if a live stream was aborted.
+ */
+export function abortActiveStream(session: ChatSession): boolean {
+  session.aborted = true;
+  if (session.activeStream && !session.activeStream.aborted) {
+    session.activeStream.abort();
+    return true;
+  }
+  return false;
 }
 
 export async function startChatSession(
@@ -96,6 +115,8 @@ export async function startChatSession(
     skills,
     mcpxClient,
     cleanup,
+    activeStream: null,
+    aborted: false,
   };
 }
 
@@ -104,6 +125,9 @@ export async function sendMessage(
   userMessage: string,
   callbacks: ChatTurnCallbacks,
 ): Promise<void> {
+  // Reset steer flag so a previous turn's Esc doesn't poison this one.
+  session.aborted = false;
+
   // Hot-reload skills so any skill the agent created/edited last turn (or any
   // out-of-band edit) is visible to slash-command dispatch this turn.
   session.skills = await loadSkills(session.projectDir);
@@ -137,6 +161,7 @@ export async function sendMessage(
     threadId: session.threadId,
     mcpxClient: session.mcpxClient,
     callbacks,
+    session,
   });
 }
 
@@ -161,5 +186,7 @@ export async function clearChatSession(
   });
   session.threadId = newThreadId;
   session.messages.length = 0;
+  session.activeStream = null;
+  session.aborted = false;
   return { previousThreadId, newThreadId };
 }
