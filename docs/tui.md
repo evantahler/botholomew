@@ -216,6 +216,16 @@ On the Chat tab, when at least one message is queued:
 The queue is ephemeral (in-memory, not persisted) — it's a way to
 batch follow-ups without interrupting a tool loop mid-flight.
 
+### Steering (Esc to interrupt)
+
+If the agent is heading in the wrong direction, press `Esc` while it's
+streaming a response. Whatever has streamed so far is preserved in the
+chat with a `(steered — response interrupted)` marker, and the next
+queued message — or your next typed prompt — becomes a normal
+follow-up turn. Tool calls that are already in flight finish normally
+(no `AbortSignal` is threaded into tools), but no further LLM turn is
+started after the abort.
+
 ---
 
 ## Tool-call visualization
@@ -275,7 +285,7 @@ just shows the summary to keep the chat view compact.
 | `/` | Open slash-command popup |
 | `Return` | Run highlighted command (popup open, no-arg) / insert `/<name> ` if args needed |
 | `Tab` | Insert highlighted command as `/<name> ` without submitting |
-| `Esc` | Close popup |
+| `Esc` | Close popup, or interrupt a streaming response (steer) |
 | `Ctrl+J` / `Ctrl+K` | Select queued message |
 | `Ctrl+E` | Edit queued message |
 | `Ctrl+X` | Delete queued message |
@@ -338,6 +348,11 @@ A few choices worth knowing if you're reading or modifying the TUI:
 - **Streaming is throttled.** `App.tsx` flushes `streamingText` every
   50 ms max during a response, not per-token. Per-token flushing
   caused visible flicker and ~30× the React commits.
+- **Esc aborts at the SDK layer.** `Esc` on the Chat tab (while a turn
+  is in flight) calls `MessageStream.abort()` on the Anthropic SDK
+  stream. Partial text is persisted to the thread DB and the agent
+  loop short-circuits before the next LLM turn. In-flight tool calls
+  are *not* cancelled — no `AbortSignal` is threaded into tools.
 - **Scroll state lives at the root.** Each list panel (`TaskPanel`,
   `ThreadPanel`, etc.) keeps its scroll offset lifted up so that
   switching tabs doesn't reset your position.

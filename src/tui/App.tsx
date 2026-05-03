@@ -1,6 +1,7 @@
 import { Box, Static, Text, useApp, useInput } from "ink";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  abortActiveStream,
   type ChatSession,
   clearChatSession,
   endChatSession,
@@ -273,8 +274,20 @@ export function App({
         return;
       }
 
-      // Queue manipulation keybindings (only when queue has items on Chat tab)
       const tab = activeTabRef.current;
+
+      // Esc on Chat tab while a turn is in flight: steer / interrupt.
+      // Calls MessageStream.abort() at the SDK layer; tools already running
+      // finish normally, but no further LLM turn is started.
+      if (key.escape && tab === 1 && processingRef.current) {
+        const session = sessionRef.current;
+        if (session) {
+          abortActiveStream(session);
+          return;
+        }
+      }
+
+      // Queue manipulation keybindings (only when queue has items on Chat tab)
       const queue = queuedMessagesRef.current;
       if (tab === 1 && queue.length > 0 && key.ctrl) {
         if (input === "j") {
@@ -405,8 +418,35 @@ export function App({
             }
             setActiveToolCalls([...pendingToolCalls]);
           },
+          takeInjections: () => {
+            // Drain queued messages into the running turn so the agent sees
+            // them on the next LLM call instead of after the whole tool loop.
+            // Finalize the in-flight assistant segment first so the new user
+            // bubbles render in the right order in the chat view.
+            if (queueRef.current.length === 0) return [];
+            if (currentText || pendingToolCalls.length > 0) {
+              finalizeSegment();
+            }
+            const drained = queueRef.current.splice(0);
+            syncQueue();
+            for (const e of drained) {
+              const userMsg: ChatMessage = {
+                id: msgId(),
+                role: "user",
+                content: e.display,
+                timestamp: new Date(),
+              };
+              setMessages((prev) => [...prev, userMsg]);
+            }
+            return drained.map((e) => e.content);
+          },
         });
 
+        if (sessionRef.current?.aborted) {
+          currentText += currentText
+            ? "\n\n_(steered — response interrupted)_"
+            : "_(steered — no response)_";
+        }
         finalizeSegment();
       } catch (err) {
         const errorMsg: ChatMessage = {
