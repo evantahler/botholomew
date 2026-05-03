@@ -89,9 +89,11 @@ every option and argument for that command. The only exception is
 handing it to the agent. `mcpx auth` runs the OAuth flow for HTTP
 servers that need it (most Arcade gateways do), and `mcpx
 import-global` is the usual way to bootstrap a new project from your
-global `~/.mcpx/` configuration. Note that `--args` and `--env` take
-**comma-separated** values — quote them so your shell doesn't split
-them (e.g. `--args "-y,@scope/pkg"`).
+global `~/.mcpx/` configuration — after copying the files it
+automatically rebuilds `.botholomew/capabilities.md` so the freshly
+imported MCPX tools show up alongside the built-ins. Note that
+`--args` and `--env` take **comma-separated** values — quote them so
+your shell doesn't split them (e.g. `--args "-y,@scope/pkg"`).
 
 ---
 
