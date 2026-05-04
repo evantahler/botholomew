@@ -1,6 +1,7 @@
 // Capabilities tools
 import { capabilitiesRefreshTool } from "./capabilities/refresh.ts";
 // Context tools
+import { pipeToContextTool } from "./context/pipe.ts";
 import { readLargeResultTool } from "./context/read-large-result.ts";
 import { updateBeliefsTool } from "./context/update-beliefs.ts";
 import { updateGoalsTool } from "./context/update-goals.ts";
@@ -26,6 +27,8 @@ import { mcpSearchTool } from "./mcp/search.ts";
 // Schedule tools
 import { createScheduleTool } from "./schedule/create.ts";
 import { listSchedulesTool } from "./schedule/list.ts";
+// Search tools
+import { searchTool } from "./search/index.ts";
 // Skill tools
 import { skillDeleteTool } from "./skill/delete.ts";
 import { skillEditTool } from "./skill/edit.ts";
@@ -76,6 +79,7 @@ export function registerAllTools(): void {
   registerTool(updateBeliefsTool);
   registerTool(updateGoalsTool);
   registerTool(readLargeResultTool);
+  registerTool(pipeToContextTool);
 
   // Capabilities
   registerTool(capabilitiesRefreshTool);
@@ -83,6 +87,9 @@ export function registerAllTools(): void {
   // Schedule
   registerTool(createScheduleTool);
   registerTool(listSchedulesTool);
+
+  // Search
+  registerTool(searchTool);
 
   // Skill
   registerTool(skillListTool);

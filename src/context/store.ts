@@ -10,9 +10,10 @@ import {
   unlink,
 } from "node:fs/promises";
 import { dirname, join, posix, relative, sep } from "node:path";
-import { CONTEXT_DIR, getContextDir, PROTECTED_AREAS } from "../constants.ts";
+import { CONTEXT_DIR, PROTECTED_AREAS } from "../constants.ts";
 import { atomicWrite } from "../fs/atomic.ts";
 import {
+  getCanonicalRoot,
   PathEscapeError,
   resolveInRoot,
   toRelativePath,
@@ -177,6 +178,17 @@ async function resolveContext(
 async function hashFile(absolutePath: string): Promise<string> {
   const buf = await fsReadFile(absolutePath);
   return createHash("sha256").update(buf).digest("hex");
+}
+
+/**
+ * The canonical (symlink-resolved) absolute path of `<projectDir>/context/`.
+ * Always use this — not `getContextDir(projectDir)` — when computing relative
+ * paths from absolute fs results, because macOS tmp dirs symlink
+ * /var/folders → /private/var/folders and `resolveInRoot` returns the
+ * canonical form.
+ */
+function canonicalContextRoot(projectDir: string): string {
+  return join(getCanonicalRoot(projectDir), CONTEXT_DIR);
 }
 
 export async function fileExists(
@@ -393,9 +405,13 @@ export async function listContextDir(
   if (!st.isDirectory()) {
     throw new NotDirectoryError(normalizeContextPath(path));
   }
-  const root = getContextDir(projectDir);
   const out: ContextEntry[] = [];
-  await walk(abs, root, opts.recursive ?? false, out);
+  await walk(
+    abs,
+    canonicalContextRoot(projectDir),
+    opts.recursive ?? false,
+    out,
+  );
   out.sort((a, b) => a.path.localeCompare(b.path));
   return out;
 }
@@ -487,7 +503,7 @@ export async function buildTree(
     }
     throw err;
   }
-  const root = getContextDir(projectDir);
+  const root = canonicalContextRoot(projectDir);
   const rel = abs === root ? "" : toPosix(relative(root, abs));
   const name = rel === "" ? "." : posix.basename(rel);
   if (!st.isDirectory()) {
