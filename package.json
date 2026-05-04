@@ -28,7 +28,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
     "@duckdb/node-api": "^1.5.2-r.1",
-    "@evantahler/mcpx": "0.19.1",
+    "@evantahler/mcpx": "0.21.0",
     "@huggingface/transformers": "^4.2.0",
     "ansis": "^4.2.0",
     "commander": "^14.0.0",

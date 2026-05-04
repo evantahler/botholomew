@@ -1,4 +1,7 @@
+import type Anthropic from "@anthropic-ai/sdk";
+import { APIUserAbortError } from "@anthropic-ai/sdk";
 import type {
+  Message,
   MessageParam,
   ToolResultBlockParam,
   ToolUseBlock,
@@ -23,6 +26,7 @@ import {
   loadPersistentContext,
   STYLE_RULES,
 } from "../worker/prompt.ts";
+import type { ChatSession } from "./session.ts";
 
 registerAllTools();
 
@@ -146,6 +150,11 @@ export interface ChatTurnCallbacks {
     isError: boolean,
     meta?: ToolEndMeta,
   ) => void;
+  /** Called between LLM turns. The TUI returns any queued user messages so
+   *  the agent can inject them into the running turn instead of waiting for
+   *  the entire tool loop to finish. Each returned message is logged + pushed
+   *  to `messages` before the next `messages.stream(...)` call. */
+  takeInjections?: () => string[];
 }
 
 /**
@@ -175,6 +184,14 @@ export async function runChatTurn(input: {
   threadId: string;
   mcpxClient: McpxClient | null;
   callbacks: ChatTurnCallbacks;
+  /** When supplied, the loop honors `session.aborted` (set by Esc in the TUI)
+   *  and writes the live `MessageStream` to `session.activeStream` so it can
+   *  be aborted from outside. */
+  session?: ChatSession;
+  /** Test seam: inject a pre-built client and skip the model-info fetch.
+   *  Production callers should leave both unset. */
+  _testClient?: Anthropic;
+  _testMaxInputTokens?: number;
 }): Promise<void> {
   const {
     messages,
@@ -184,18 +201,35 @@ export async function runChatTurn(input: {
     threadId,
     mcpxClient,
     callbacks,
+    session,
   } = input;
 
-  const client = createLlmClient(config);
+  const client = input._testClient ?? createLlmClient(config);
 
   const chatTools = getChatTools();
-  const maxInputTokens = await getMaxInputTokens(
-    config.anthropic_api_key,
-    config.model,
-  );
+  const maxInputTokens =
+    input._testMaxInputTokens ??
+    (await getMaxInputTokens(config.anthropic_api_key, config.model));
   const maxTurns = config.max_turns;
 
   for (let turn = 0; !maxTurns || turn < maxTurns; turn++) {
+    if (session?.aborted) return;
+
+    // Steering: drain any user messages the TUI queued during the previous
+    // iteration so they land in the next LLM call rather than waiting for
+    // the whole tool loop to finish.
+    const injections = callbacks.takeInjections?.() ?? [];
+    for (const text of injections) {
+      await withDb(dbPath, (conn) =>
+        logInteraction(conn, threadId, {
+          role: "user",
+          kind: "message",
+          content: text,
+        }),
+      );
+      messages.push({ role: "user", content: text });
+    }
+
     const startTime = Date.now();
 
     // Rebuild the system prompt every iteration so that:
@@ -219,6 +253,7 @@ export async function runChatTurn(input: {
       messages,
       tools: chatTools,
     });
+    if (session) session.activeStream = stream;
 
     // Collect the full response
     let assistantText = "";
@@ -252,7 +287,31 @@ export async function runChatTurn(input: {
       }
     });
 
-    const response = await stream.finalMessage();
+    let response: Message;
+    try {
+      response = await stream.finalMessage();
+    } catch (err) {
+      if (!(err instanceof APIUserAbortError)) throw err;
+      // Esc was pressed mid-stream. Persist whatever text the user already saw
+      // (the `'text'` event has fired for everything reaching us, so
+      // `assistantText` is the right partial value). Deliberately drop any
+      // partial tool_use blocks — they would be unmatched on the next turn.
+      if (assistantText) {
+        await withDb(dbPath, (conn) =>
+          logInteraction(conn, threadId, {
+            role: "assistant",
+            kind: "message",
+            content: assistantText,
+            durationMs: Date.now() - startTime,
+            tokenCount: 0,
+          }),
+        );
+        messages.push({ role: "assistant", content: assistantText });
+      }
+      return;
+    } finally {
+      if (session) session.activeStream = null;
+    }
     const durationMs = Date.now() - startTime;
     const tokenCount =
       response.usage.input_tokens + response.usage.output_tokens;
@@ -352,6 +411,7 @@ export async function runChatTurn(input: {
     }
 
     messages.push({ role: "user", content: toolResults });
+    if (session?.aborted) return;
     // Loop to get the model's next response after tool results
   }
 }
