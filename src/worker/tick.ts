@@ -1,7 +1,5 @@
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { withDb } from "../db/connection.ts";
-import { createThread, endThread, logInteraction } from "../db/threads.ts";
 import type { Task } from "../tasks/schema.ts";
 import {
   claimNextTask,
@@ -10,6 +8,7 @@ import {
   resetStaleTasks,
   updateTaskStatus,
 } from "../tasks/store.ts";
+import { createThread, endThread, logInteraction } from "../threads/store.ts";
 import { logger } from "../utils/logger.ts";
 import { generateThreadTitle } from "../utils/title.ts";
 import type { WorkerStreamCallbacks } from "./llm.ts";
@@ -139,8 +138,11 @@ async function runClaimedTask(opts: {
   }
   callbacks?.onTaskStart(task);
 
-  const threadId = await withDb(dbPath, (conn) =>
-    createThread(conn, "worker_tick", task.id, `Working: ${task.name}`),
+  const threadId = await createThread(
+    projectDir,
+    "worker_tick",
+    task.id,
+    `Working: ${task.name}`,
   );
 
   const systemPrompt = await buildSystemPrompt(
@@ -172,36 +174,32 @@ async function runClaimedTask(opts: {
       isComplete ? result.reason : null,
     );
 
-    await withDb(dbPath, (conn) =>
-      logInteraction(conn, threadId, {
-        role: "system",
-        kind: "status_change",
-        content: `Task ${task.id} -> ${result.status}${result.reason ? `: ${result.reason}` : ""}`,
-      }),
-    );
+    await logInteraction(projectDir, threadId, {
+      role: "system",
+      kind: "status_change",
+      content: `Task ${task.id} -> ${result.status}${result.reason ? `: ${result.reason}` : ""}`,
+    });
 
     logger.info(`Task ${task.id} -> ${result.status}`);
 
     void generateThreadTitle(
       config,
-      dbPath,
+      projectDir,
       threadId,
       `Task: ${task.name}\nDescription: ${task.description}\nOutcome: ${result.status}${result.reason ? ` — ${result.reason}` : ""}`,
     );
   } catch (err) {
     await updateTaskStatus(projectDir, task.id, "failed", String(err), null);
 
-    await withDb(dbPath, (conn) =>
-      logInteraction(conn, threadId, {
-        role: "system",
-        kind: "status_change",
-        content: `Task ${task.id} failed: ${err}`,
-      }),
-    );
+    await logInteraction(projectDir, threadId, {
+      role: "system",
+      kind: "status_change",
+      content: `Task ${task.id} failed: ${err}`,
+    });
 
     logger.error(`Task ${task.id} failed: ${err}`);
   } finally {
     await releaseTaskLock(projectDir, task.id);
-    await withDb(dbPath, (conn) => endThread(conn, threadId));
+    await endThread(projectDir, threadId);
   }
 }

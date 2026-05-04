@@ -9,7 +9,7 @@ import type {
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { withDb } from "../db/connection.ts";
-import { logInteraction } from "../db/threads.ts";
+import { logInteraction } from "../threads/store.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
   getAllTools,
@@ -220,13 +220,11 @@ export async function runChatTurn(input: {
     // the whole tool loop to finish.
     const injections = callbacks.takeInjections?.() ?? [];
     for (const text of injections) {
-      await withDb(dbPath, (conn) =>
-        logInteraction(conn, threadId, {
-          role: "user",
-          kind: "message",
-          content: text,
-        }),
-      );
+      await logInteraction(projectDir, threadId, {
+        role: "user",
+        kind: "message",
+        content: text,
+      });
       messages.push({ role: "user", content: text });
     }
 
@@ -297,15 +295,13 @@ export async function runChatTurn(input: {
       // `assistantText` is the right partial value). Deliberately drop any
       // partial tool_use blocks — they would be unmatched on the next turn.
       if (assistantText) {
-        await withDb(dbPath, (conn) =>
-          logInteraction(conn, threadId, {
-            role: "assistant",
-            kind: "message",
-            content: assistantText,
-            durationMs: Date.now() - startTime,
-            tokenCount: 0,
-          }),
-        );
+        await logInteraction(projectDir, threadId, {
+          role: "assistant",
+          kind: "message",
+          content: assistantText,
+          durationMs: Date.now() - startTime,
+          tokenCount: 0,
+        });
         messages.push({ role: "assistant", content: assistantText });
       }
       return;
@@ -318,15 +314,13 @@ export async function runChatTurn(input: {
 
     // Log assistant text
     if (assistantText) {
-      await withDb(dbPath, (conn) =>
-        logInteraction(conn, threadId, {
-          role: "assistant",
-          kind: "message",
-          content: assistantText,
-          durationMs,
-          tokenCount,
-        }),
-      );
+      await logInteraction(projectDir, threadId, {
+        role: "assistant",
+        kind: "message",
+        content: assistantText,
+        durationMs,
+        tokenCount,
+      });
     }
 
     // Check for tool calls
@@ -350,15 +344,13 @@ export async function runChatTurn(input: {
         callbacks.onToolStart(toolUse.id, toolUse.name, toolInput);
       }
 
-      await withDb(dbPath, (conn) =>
-        logInteraction(conn, threadId, {
-          role: "assistant",
-          kind: "tool_use",
-          content: `Calling ${toolUse.name}`,
-          toolName: toolUse.name,
-          toolInput,
-        }),
-      );
+      await logInteraction(projectDir, threadId, {
+        role: "assistant",
+        kind: "tool_use",
+        content: `Calling ${toolUse.name}`,
+        toolName: toolUse.name,
+        toolInput,
+      });
     }
 
     // Execute all tools in parallel. Each tool call opens its own short-lived
@@ -392,15 +384,13 @@ export async function runChatTurn(input: {
     // Log results and collect tool_result messages
     const toolResults: ToolResultBlockParam[] = [];
     for (const { toolUse, result, durationMs, stored } of execResults) {
-      await withDb(dbPath, (conn) =>
-        logInteraction(conn, threadId, {
-          role: "tool",
-          kind: "tool_result",
-          content: result.output,
-          toolName: toolUse.name,
-          durationMs,
-        }),
-      );
+      await logInteraction(projectDir, threadId, {
+        role: "tool",
+        kind: "tool_result",
+        content: result.output,
+        toolName: toolUse.name,
+        durationMs,
+      });
 
       toolResults.push({
         type: "tool_result",

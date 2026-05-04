@@ -5,13 +5,10 @@ import { join } from "node:path";
 import { getConnection, withDb } from "../../src/db/connection.ts";
 import { migrate } from "../../src/db/schema.ts";
 
-const EXPECTED_TABLES = [
-  "_migrations",
-  "context_index",
-  "interactions",
-  "threads",
-  "workers",
-];
+// After migration 20 the only DuckDB tables left are _migrations and
+// context_index. Tasks/schedules are markdown files, threads are CSVs
+// under context/threads/, and workers are JSON pidfiles in workers/.
+const EXPECTED_TABLES = ["_migrations", "context_index"];
 
 describe("schema migrations", () => {
   test("migrate runs cleanly on a fresh database", async () => {
@@ -26,13 +23,24 @@ describe("schema migrations", () => {
     for (const expected of EXPECTED_TABLES) {
       expect(tables).toContain(expected);
     }
-    // Tables we explicitly retired: tasks/schedules → files on disk;
-    // context_items/embeddings → replaced by context_index; daemon_state → unused.
-    expect(tables).not.toContain("tasks");
-    expect(tables).not.toContain("schedules");
-    expect(tables).not.toContain("context_items");
-    expect(tables).not.toContain("embeddings");
-    expect(tables).not.toContain("daemon_state");
+    // Every table we retired:
+    //   tasks/schedules         → markdown frontmatter files
+    //   threads/interactions    → CSV under context/threads/
+    //   workers                 → JSON pidfiles under workers/
+    //   context_items/embeddings → replaced by context_index
+    //   daemon_state            → unused, dropped
+    for (const retired of [
+      "tasks",
+      "schedules",
+      "threads",
+      "interactions",
+      "workers",
+      "context_items",
+      "embeddings",
+      "daemon_state",
+    ]) {
+      expect(tables).not.toContain(retired);
+    }
 
     db.close();
   });

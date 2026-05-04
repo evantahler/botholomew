@@ -7,9 +7,9 @@ import type {
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { withDb } from "../db/connection.ts";
-import { logInteraction } from "../db/threads.ts";
 import type { Task } from "../tasks/schema.ts";
 import { getTask } from "../tasks/store.ts";
+import { logInteraction } from "../threads/store.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import { getTool, type ToolContext, toAnthropicTools } from "../tools/tool.ts";
 import { logger } from "../utils/logger.ts";
@@ -90,13 +90,11 @@ export async function runAgentLoop(input: {
   const messages: MessageParam[] = [{ role: "user", content: userMessage }];
 
   // Log the initial user message
-  await withDb(dbPath, (conn) =>
-    logInteraction(conn, threadId, {
-      role: "user",
-      kind: "message",
-      content: userMessage,
-    }),
-  );
+  await logInteraction(projectDir, threadId, {
+    role: "user",
+    kind: "message",
+    content: userMessage,
+  });
 
   clearLargeResults();
   const workerTools = toAnthropicTools();
@@ -150,15 +148,13 @@ export async function runAgentLoop(input: {
     // Log assistant text blocks
     for (const block of response.content) {
       if (block.type === "text" && block.text) {
-        await withDb(dbPath, (conn) =>
-          logInteraction(conn, threadId, {
-            role: "assistant",
-            kind: "message",
-            content: block.text,
-            durationMs,
-            tokenCount,
-          }),
-        );
+        await logInteraction(projectDir, threadId, {
+          role: "assistant",
+          kind: "message",
+          content: block.text,
+          durationMs,
+          tokenCount,
+        });
         if (!callbacks) {
           logger.phase("assistant", block.text);
         }
@@ -190,15 +186,13 @@ export async function runAgentLoop(input: {
           `${toolUse.name} ${truncate(toolInput, 200)}`,
         );
       }
-      await withDb(dbPath, (conn) =>
-        logInteraction(conn, threadId, {
-          role: "assistant",
-          kind: "tool_use",
-          content: `Calling ${toolUse.name}`,
-          toolName: toolUse.name,
-          toolInput,
-        }),
-      );
+      await logInteraction(projectDir, threadId, {
+        role: "assistant",
+        kind: "tool_use",
+        content: `Calling ${toolUse.name}`,
+        toolName: toolUse.name,
+        toolInput,
+      });
     }
 
     // Execute all tools in parallel. Each tool call opens its own short-lived
@@ -228,15 +222,13 @@ export async function runAgentLoop(input: {
     // Log results and collect tool_result messages
     const toolResults: ToolResultBlockParam[] = [];
     for (const { toolUse, result, durationMs } of execResults) {
-      await withDb(dbPath, (conn) =>
-        logInteraction(conn, threadId, {
-          role: "tool",
-          kind: "tool_result",
-          content: result.output,
-          toolName: toolUse.name,
-          durationMs,
-        }),
-      );
+      await logInteraction(projectDir, threadId, {
+        role: "tool",
+        kind: "tool_result",
+        content: result.output,
+        toolName: toolUse.name,
+        durationMs,
+      });
       if (!callbacks) {
         const seconds = (durationMs / 1000).toFixed(1);
         const status = result.isError ? "err" : "ok";

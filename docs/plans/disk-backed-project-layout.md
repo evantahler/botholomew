@@ -2,15 +2,16 @@
 
 ## Context
 
-Today, agent-writable files live in DuckDB (`context_items` table); tasks and schedules live in `tasks` / `schedules` rows. This makes the project opaque to the user — they can't `vim`, `grep`, or `git diff` their work.
+Originally everything lived in DuckDB — `context_items`, `tasks`, `schedules`, `threads`, `interactions`, `workers`. That made the project opaque: no `vim`, no `grep`, no `git diff`.
 
-We're flipping the model:
+We flipped every entity that's logically a record onto disk. The model now:
 
-- **Project directory == cwd.** No more `.botholomew/` wrapper. Top-level folders make the project's anatomy visible.
-- **Agent-writable content** lives in real files under `context/`.
-- **Tasks and schedules** become markdown with strictly-validated frontmatter.
-- **DuckDB** demoted to a **search-index sidecar** — fully derivable from disk, blowable away.
-- **Worker claims** use lockfiles (`O_EXCL`) for both tasks and schedules; status lives in frontmatter; files stay in one canonical location.
+- **Project directory == cwd.** No `.botholomew/` wrapper. Top-level folders make the project's anatomy visible.
+- **Agent-writable content** lives under `context/`.
+- **Tasks** and **schedules** are markdown with strictly-validated frontmatter; workers claim them via `O_EXCL` lockfiles.
+- **Threads + interactions** are CSV files at `context/threads/<id>.csv` (one CSV per conversation), so prior conversations are searchable through the same hybrid index everything else uses.
+- **Workers** are JSON pidfiles at `workers/<id>.json`; the file is the registration record and `last_heartbeat_at` is the liveness signal (atomic-write-via-rename per heartbeat).
+- **DuckDB** is now a **search-index sidecar**. The only tables left are `_migrations` and `context_index`.
 - **Path-accepting tools** are sandboxed to the project root with strict traversal/symlink protection.
 
 Pre-1.0 — **breaking change, no migration.** Users reinit.
@@ -31,16 +32,20 @@ Pre-1.0 — **breaking change, no migration.** Users reinit.
 ├── mcpx/
 │   └── servers.json
 ├── models/                    # embedding model cache
-├── context/                   # NEW — agent-writable tree (was DuckDB context_items)
-│   └── ... arbitrary tree ...
-├── tasks/                     # NEW — markdown w/ frontmatter
+├── context/                   # agent-writable tree
+│   ├── ... arbitrary tree ...
+│   └── threads/               # one CSV per conversation
+│       └── <id>.csv           # 8-column CSV; first row = thread_meta JSON
+├── tasks/                     # markdown w/ frontmatter
 │   ├── <id>.md                # canonical; status in frontmatter
 │   └── .locks/<id>.lock       # O_EXCL claim file (contains worker-id)
-├── schedules/                 # NEW — markdown w/ frontmatter
+├── schedules/                 # markdown w/ frontmatter
 │   ├── <id>.md
 │   └── .locks/<id>.lock
-├── logs/                      # worker logs
-├── .botholomew-index.duckdb   # search index sidecar (rebuildable)
+├── workers/                   # one JSON pidfile per worker (heartbeats)
+│   └── <id>.json
+├── logs/                      # worker logs (stdout/stderr)
+├── .botholomew-index.duckdb   # search index sidecar (rebuildable from disk)
 └── .gitignore                 # written by init (empty new-folder section; user decides what to commit)
 ```
 
@@ -149,6 +154,41 @@ Same logic; reads frontmatter from disk instead of rows. **In-process LRU cache*
 
 Successor reads `blocked_by` IDs, looks up the corresponding `tasks/<id>.md`, parses frontmatter `status` + `output`. Same surface as today.
 
+## Threads + interactions: CSV files under context/threads/
+
+Conversation history (worker ticks and chat sessions) is stored as one CSV file per thread at `context/threads/<id>.csv`. The placement under `context/` is deliberate: the regular `context reindex` walks them, so prior conversations are searchable through the same hybrid index everything else uses.
+
+CSV schema (8 columns, RFC-4180 quoted):
+
+```
+created_at,role,kind,content,tool_name,tool_input,duration_ms,token_count
+```
+
+Thread metadata (title, source_type, parent_task_id, started_at) is encoded as a synthetic first row with `kind="thread_meta"` whose `content` is a JSON blob. End-of-thread is a `kind="thread_ended"` row. The format stays pure CSV — no sidecar files, no frontmatter — at the cost of a full file rewrite when the title changes (cheap, threads are small).
+
+Append is the hot path: `logInteraction` opens the file in 'a' mode and writes one row. Each thread is owned by exactly one writer at a time (the chat session or the worker tick that owns the thread), so we don't need lockfiles around interaction appends.
+
+CRUD lives in `src/threads/store.ts`:
+- `createThread`, `logInteraction`, `endThread`, `reopenThread`
+- `getThread` returns `{ thread, interactions[] }` parsed from the CSV
+- `listThreads` walks `context/threads/`, parses each file's `thread_meta`
+- `updateThreadTitle` rewrites the meta row in place
+- `getInteractionsAfter(threadId, sequence)` for follow-mode (TUI thread panel)
+
+## Workers: JSON pidfiles under workers/
+
+Each worker has one canonical record at `workers/<id>.json`. The file's existence is the pidfile; `last_heartbeat_at` inside is the liveness signal. Heartbeats atomically rewrite the file (write-to-tmp + rename). Reaper:
+
+1. Walk `workers/`, parse each JSON.
+2. For any running worker whose `last_heartbeat_at` is older than `staleAfterSeconds`, rewrite with `status="dead"`.
+3. Then walk `tasks/.locks/` and `schedules/.locks/`; for each lock whose holder isn't running per the worker JSON, `unlink` the lock so the next tick can re-claim.
+4. Optionally prune cleanly-stopped workers older than the retention window. Dead workers are kept as forensic evidence.
+
+CRUD lives in `src/workers/store.ts`:
+- `registerWorker`, `heartbeat`, `markWorkerStopped`, `markWorkerDead`
+- `reapDeadWorkers`, `pruneStoppedWorkers`, `isWorkerRunning`
+- `listWorkers`, `getWorker`, `deleteWorker`
+
 ## Search index
 
 `.botholomew-index.duckdb` keeps the existing `embeddings` table + FTS index. Schema simplified: `(path, chunk_index, chunk_content, title, embedding, content_hash, mtime, size)`. **`title`/heading kept** — it's load-bearing for search ranking.
@@ -165,25 +205,29 @@ If the index DB is missing, recreate empty on next start; first reindex populate
 ## Critical files to change
 
 **New:**
-- `src/fs/sandbox.ts` — `resolveInRoot()` (path validator/resolver).
-- `src/fs/atomic.ts` — `atomicWrite()`, `acquireLock()`, `releaseLock()`, `withLock()`.
-- `src/fs/compat.ts` — unsupported-filesystem detector.
-- `src/tasks/{schema,store,claim}.ts` — Zod schema, file CRUD, lock-based claim.
-- `src/schedules/{schema,store,claim}.ts` — same shape.
+- `src/fs/{sandbox,atomic,compat}.ts` — path resolver, atomic write + lockfiles, iCloud/Dropbox detector.
 - `src/context/store.ts` — disk-backed context CRUD (replaces `src/db/context.ts`).
-- `src/commands/reindex.ts` — `bothy reindex [--full]`.
-- `src/commands/tasks-doctor.ts` — list malformed task/schedule files.
+- `src/tasks/{schema,store}.ts` — Zod-validated frontmatter, lockfile claim.
+- `src/schedules/{schema,store}.ts` — same shape, with min-interval guard.
+- `src/threads/store.ts` — CSV-based threads + interactions under `context/threads/`.
+- `src/workers/store.ts` — JSON pidfiles under `workers/`, atomic-rewrite heartbeats.
+- `src/context/reindex.ts` — walk + hash + chunk + embed sync algorithm.
+- `src/commands/context.ts` — `bothy context` CLI: import / reindex / tree / stats.
+- `src/db/sql/19-disk_backed_index.sql` + `20-drop_db_tables_for_files.sql` — drop retired tables, create `context_index`.
+
+**Deleted:**
+- `src/db/{context,tasks,schedules,threads,workers,daemon-state,reembed}.ts`
+- `src/context/{ingest,refresh,describer,drives}.ts` (search/ingest pipeline rebuilt from scratch around path-keyed `context_index`).
+- `src/commands/tools.ts` (was the old context-tools-as-CLI bridge).
 
 **Major rewrites:**
-- `src/tools/file/*.ts` (9 tools), `src/tools/dir/*.ts` (3 tools) — switch to `src/context/store.ts`; drop/ignore `drive` arg.
-- `src/db/tasks.ts`, `src/db/schedules.ts` — delete; replace callers.
-- `src/db/workers.ts` — `reapDeadWorkers` now walks `tasks/.locks/` and `schedules/.locks/` instead of releasing DB claims.
-- `src/worker/tick.ts`, `src/worker/schedules.ts` — claim via lockfiles.
-- `src/init/index.ts`, `src/init/templates.ts` — write the new tree; refuse incompatible filesystems unless `--force`.
-- `src/constants.ts` — drop `BOTHOLOMEW_DIR`; add area constants (`CONTEXT_DIR`, `TASKS_DIR`, `SCHEDULES_DIR`, etc.) and `INDEX_DB_FILENAME`.
-- `src/db/schema.ts` + `src/db/sql/*.sql` — drop `context_items`, `tasks`, `schedules` tables; embeddings table reduced to `(path, chunk_index, chunk_content, title, embedding, content_hash, mtime, size)`.
-- `src/context/ingest.ts` — write to `context/` first, then index.
-- `src/db/connection.ts` — index DB path is now `<root>/.botholomew-index.duckdb`.
+- All 12 `src/tools/file/*` and `src/tools/dir/*` tools → use `src/context/store.ts`; `drive` arg gone.
+- `src/tools/{thread,task,schedule}/*` and `src/tools/search/*` → use the new file-based stores.
+- `src/worker/{tick,schedules,heartbeat,index,llm}.ts` → claim via lockfiles, register in JSON, log interactions to CSV.
+- `src/chat/{session,agent}.ts`, `src/utils/title.ts` → write threads to CSV.
+- `src/tui/components/{StatusBar,WorkerPanel,ThreadPanel,ContextPanel,TaskPanel,SchedulePanel}.tsx` → all read disk stores.
+- `src/init/index.ts`, `src/constants.ts` — write the new tree; refuse incompatible filesystems unless `--force`.
+- `src/db/schema.ts` + SQL migrations — only `_migrations` and `context_index` survive.
 
 **Documentation** (each listed in CLAUDE.md):
 - `docs/virtual-filesystem.md` → rename to `docs/files.md` (or `docs/context.md`); rewrite for real disk + sandbox.
@@ -196,15 +240,18 @@ If the index DB is missing, recreate empty on next start; first reindex populate
 - `README.md` — CLI table, layout description.
 - New `CHANGELOG.md` entry — breaking change.
 
-## Phasing (5 PRs)
+## Phasing — what actually shipped
 
-1. **PR-1**: FS detector + sandbox helper + new init layout + constants reorg. Move skills, persistent-context, config, mcpx to top-level. (Sandbox has a real caller from day one.)
-2. **PR-2**: Tasks-as-files. Lockfile claim. Worker tick + reaper updated.
-3. **PR-3**: Schedules-as-files. Same model.
-4. **PR-4**: Context store + 12 file/dir tools + `bothy reindex` + 30s background reindex pass. Embeddings schema simplified.
-5. **PR-5**: Docs sweep + CHANGELOG.
+This was scoped as 5 PRs but landed as a single mega-branch (`evantahler/real-fs-project-layout`) because the entities are tightly coupled. The branch accumulated through these passes:
 
-Each PR ships green tests and a working CLI.
+1. FS primitives (sandbox, atomic, compat) + new init layout + constants reorg.
+2. Tasks- and schedules-as-files with lockfile claim. Worker tick + reaper updated.
+3. Context store + 12 file/dir tool rewrites.
+4. Search restored: regexp + semantic search tool over disk; `pipe_to_context` rebuilt.
+5. `bothy context` CLI (import / reindex / tree / stats) + path-keyed `context_index` table.
+6. Threads + interactions → CSV under `context/threads/`. Workers → JSON pidfiles under `workers/`. Migration 20 drops the last DB tables.
+
+After all of this the only DuckDB tables remaining are `_migrations` and `context_index`.
 
 ## Verification
 
@@ -224,9 +271,12 @@ End-to-end smoke (Phase 4 complete):
 12. `rm .botholomew-index.duckdb && bothy reindex --full` → search still works.
 13. **Filesystem compat**: cd into `~/Library/Mobile Documents/...` and run `bothy init` → refuses; `--force` works with warning.
 
-Tests:
-- New: `test/fs/sandbox.test.ts` (every attack vector incl. NFC/NFD), `test/fs/atomic.test.ts` (lock contention, atomic write, mtime conflict), `test/tasks/claim-race.test.ts` (multi-worker), `test/schedules/claim.test.ts`, `test/fs/compat.test.ts`.
-- Port: `test/tools/file/*`, `test/tools/dir/*` to use `setupProjectDir()` (new helper) instead of `setupTestDb()`.
-- Update/delete: `test/db/tasks-claim-race.test.ts`, `test/db/schedules-claim.test.ts` — rewrite against fs.
+Tests landed:
+- `test/tools/search.test.ts` (regexp side, scope, glob, traversal rejection).
+- `test/tools/pipe.test.ts` (capture, inner-tool error, terminal-tool rejection, conflict + overwrite).
+- `test/context/reindex.test.ts` (add / update / unchanged / removed / binary-skip with injectable embedder).
+- `test/threads/store.test.ts` (CSV escaping, append, end/reopen, title rewrite, list filters, malformed quarantine).
+- `test/workers/store.test.ts` (heartbeat, reap stale, prune stopped, status filters, delete).
+- `test/db/schema.test.ts` asserts only `_migrations` + `context_index` survive.
 
 `bun test && bun run lint` must pass.

@@ -5,16 +5,17 @@ import type { BotholomewConfig } from "../config/schemas.ts";
 import { getDbPath } from "../constants.ts";
 import { withDb } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
-import {
-  createThread,
-  endThread,
-  getThread,
-  logInteraction,
-  reopenThread,
-} from "../db/threads.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
 import { loadSkills } from "../skills/loader.ts";
 import type { SkillDefinition } from "../skills/parser.ts";
+import {
+  createThread,
+  endThread,
+  ensureThreadsDir,
+  getThread,
+  logInteraction,
+  reopenThread,
+} from "../threads/store.ts";
 import { generateThreadTitle } from "../utils/title.ts";
 import { type ChatTurnCallbacks, runChatTurn } from "./agent.ts";
 
@@ -62,20 +63,19 @@ export async function startChatSession(
 
   const dbPath = getDbPath(projectDir);
   await withDb(dbPath, (conn) => migrate(conn));
+  await ensureThreadsDir(projectDir);
 
   let threadId: string;
   const messages: MessageParam[] = [];
 
   if (existingThreadId) {
     // Resume existing thread
-    const result = await withDb(dbPath, (conn) =>
-      getThread(conn, existingThreadId),
-    );
+    const result = await getThread(projectDir, existingThreadId);
     if (!result) {
       throw new Error(`Thread not found: ${existingThreadId}`);
     }
     threadId = existingThreadId;
-    await withDb(dbPath, (conn) => reopenThread(conn, threadId));
+    await reopenThread(projectDir, threadId);
 
     // Rebuild message history from interactions
     let firstUserMessage: string | undefined;
@@ -91,11 +91,14 @@ export async function startChatSession(
 
     // Backfill title for threads that still have the default
     if (result.thread.title === "New chat" && firstUserMessage) {
-      void generateThreadTitle(config, dbPath, threadId, firstUserMessage);
+      void generateThreadTitle(config, projectDir, threadId, firstUserMessage);
     }
   } else {
-    threadId = await withDb(dbPath, (conn) =>
-      createThread(conn, "chat_session", undefined, "New chat"),
+    threadId = await createThread(
+      projectDir,
+      "chat_session",
+      undefined,
+      "New chat",
     );
   }
 
@@ -133,13 +136,11 @@ export async function sendMessage(
   session.skills = await loadSkills(session.projectDir);
 
   // Log and append user message
-  await withDb(session.dbPath, (conn) =>
-    logInteraction(conn, session.threadId, {
-      role: "user",
-      kind: "message",
-      content: userMessage,
-    }),
-  );
+  await logInteraction(session.projectDir, session.threadId, {
+    role: "user",
+    kind: "message",
+    content: userMessage,
+  });
 
   session.messages.push({ role: "user", content: userMessage });
 
@@ -147,7 +148,7 @@ export async function sendMessage(
   if (session.messages.length === 1) {
     void generateThreadTitle(
       session.config,
-      session.dbPath,
+      session.projectDir,
       session.threadId,
       userMessage,
     );
@@ -166,7 +167,7 @@ export async function sendMessage(
 }
 
 export async function endChatSession(session: ChatSession): Promise<void> {
-  await withDb(session.dbPath, (conn) => endThread(conn, session.threadId));
+  await endThread(session.projectDir, session.threadId);
   await session.cleanup();
 }
 
@@ -180,10 +181,13 @@ export async function clearChatSession(
   session: ChatSession,
 ): Promise<{ previousThreadId: string; newThreadId: string }> {
   const previousThreadId = session.threadId;
-  const newThreadId = await withDb(session.dbPath, async (conn) => {
-    await endThread(conn, previousThreadId);
-    return createThread(conn, "chat_session", undefined, "New chat");
-  });
+  await endThread(session.projectDir, previousThreadId);
+  const newThreadId = await createThread(
+    session.projectDir,
+    "chat_session",
+    undefined,
+    "New chat",
+  );
   session.threadId = newThreadId;
   session.messages.length = 0;
   session.activeStream = null;

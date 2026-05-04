@@ -1,15 +1,14 @@
 import ansis from "ansis";
 import type { Command } from "commander";
 import { getDbPath } from "../constants.ts";
-import { withDb as coreWithDb } from "../db/connection.ts";
 import {
   isPidAlive,
   type ProbeResult,
   probeAllTables,
   repairDatabase,
 } from "../db/doctor.ts";
-import { listWorkers, type Worker } from "../db/workers.ts";
 import { logger } from "../utils/logger.ts";
+import { listWorkers, type Worker } from "../workers/store.ts";
 
 function statusBadge(status: ProbeResult["status"]): string {
   switch (status) {
@@ -81,17 +80,14 @@ async function doctor(program: Command, repair: boolean): Promise<void> {
 
   // Repair requires exclusive access — refuse if any worker is actually
   // running, otherwise the EXPORT would race with the worker's writes.
-  // Stale `status='running'` rows whose PID is dead (the exact case that
-  // tends to coexist with workers-table corruption) are reported but do
-  // not block repair: trying to flip them to `stopped` would just trip
-  // the same corruption we're about to fix.
-  const running = await coreWithDb(dbPath, async (conn) => {
-    try {
-      return await listWorkers(conn, { status: "running" });
-    } catch {
-      return [] as Worker[];
-    }
-  });
+  // Stale 'running' worker JSON files whose PID is dead are reported but
+  // don't block repair.
+  let running: Worker[];
+  try {
+    running = await listWorkers(dir, { status: "running" });
+  } catch {
+    running = [];
+  }
   const live = running.filter((w) => isPidAlive(w.pid));
   const stale = running.filter((w) => !isPidAlive(w.pid));
   if (live.length > 0) {

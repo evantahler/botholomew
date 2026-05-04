@@ -6,19 +6,18 @@ import {
   getContextDir,
   SCHEDULES_DIR,
   TASKS_DIR,
+  THREADS_SUBDIR,
 } from "../constants.ts";
-import type { DbConnection } from "../db/connection.ts";
-import { deleteAllThreads } from "../db/threads.ts";
-import { listWorkers } from "../db/workers.ts";
 import { deleteAllSchedules } from "../schedules/store.ts";
 import { deleteAllTasks } from "../tasks/store.ts";
+import { deleteAllThreads } from "../threads/store.ts";
 import { logger } from "../utils/logger.ts";
-import { withDb } from "./with-db.ts";
+import { listWorkers } from "../workers/store.ts";
 
 type NukeScope = "context" | "tasks" | "schedules" | "threads" | "all";
 
-async function ensureNoRunningWorkers(conn: DbConnection): Promise<boolean> {
-  const running = await listWorkers(conn, { status: "running" });
+async function ensureNoRunningWorkers(projectDir: string): Promise<boolean> {
+  const running = await listWorkers(projectDir, { status: "running" });
   if (running.length > 0) {
     logger.error(
       `${running.length} worker(s) running. Stop them first: botholomew worker stop <id>`,
@@ -31,11 +30,7 @@ async function ensureNoRunningWorkers(conn: DbConnection): Promise<boolean> {
   return true;
 }
 
-async function runNuke(
-  conn: DbConnection,
-  projectDir: string,
-  scope: NukeScope,
-): Promise<void> {
+async function runNuke(projectDir: string, scope: NukeScope): Promise<void> {
   if (scope === "context" || scope === "all") {
     await rm(getContextDir(projectDir), { recursive: true, force: true });
     logger.success(`Removed ${CONTEXT_DIR}/ directory`);
@@ -49,8 +44,10 @@ async function runNuke(
     logger.success(`Deleted ${n} schedule file(s) from ${SCHEDULES_DIR}/`);
   }
   if (scope === "threads" || scope === "all") {
-    const { threads, interactions } = await deleteAllThreads(conn);
-    logger.success(`Deleted ${threads} threads, ${interactions} interactions`);
+    const { threads, interactions } = await deleteAllThreads(projectDir);
+    logger.success(
+      `Deleted ${threads} threads (${interactions} interactions) from ${CONTEXT_DIR}/${THREADS_SUBDIR}/`,
+    );
   }
 }
 
@@ -64,25 +61,24 @@ function registerScope(
     .command(scope)
     .description(description)
     .option("-y, --yes", "confirm the deletion (required)")
-    .action((opts) =>
-      withDb(program, async (conn, dir) => {
-        if (!(await ensureNoRunningWorkers(conn))) {
-          process.exit(1);
-        }
+    .action(async (opts) => {
+      const dir = program.opts().dir;
+      if (!(await ensureNoRunningWorkers(dir))) {
+        process.exit(1);
+      }
 
-        if (!opts.yes) {
-          console.log(ansis.red.bold(`Nuke scope: ${scope}`));
-          console.log(
-            ansis.yellow(
-              `Re-run with --yes to confirm. This will delete files on disk; cannot be undone.`,
-            ),
-          );
-          process.exit(1);
-        }
+      if (!opts.yes) {
+        console.log(ansis.red.bold(`Nuke scope: ${scope}`));
+        console.log(
+          ansis.yellow(
+            `Re-run with --yes to confirm. This will delete files on disk; cannot be undone.`,
+          ),
+        );
+        process.exit(1);
+      }
 
-        await runNuke(conn, dir, scope);
-      }),
-    );
+      await runNuke(dir, scope);
+    });
 }
 
 export function registerNukeCommand(program: Command) {
@@ -94,7 +90,7 @@ export function registerNukeCommand(program: Command) {
     program,
     nuke,
     "context",
-    `Erase the entire ${CONTEXT_DIR}/ directory`,
+    `Erase the entire ${CONTEXT_DIR}/ directory (includes ${THREADS_SUBDIR}/)`,
   );
   registerScope(
     program,
@@ -112,12 +108,12 @@ export function registerNukeCommand(program: Command) {
     program,
     nuke,
     "threads",
-    "Erase all threads and interactions (worker + chat history)",
+    `Delete all conversation history in ${CONTEXT_DIR}/${THREADS_SUBDIR}/`,
   );
   registerScope(
     program,
     nuke,
     "all",
-    "Erase all agent-writable data: context/, tasks/, schedules/, threads, daemon state",
+    "Erase all agent-writable data: context/ (incl. threads), tasks/, schedules/",
   );
 }

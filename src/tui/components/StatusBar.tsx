@@ -1,13 +1,16 @@
 import { Box, Text } from "ink";
 import { useEffect, useState } from "react";
-import { withDb } from "../../db/connection.ts";
-import { listWorkers } from "../../db/workers.ts";
 import { listTasks } from "../../tasks/store.ts";
+import { listWorkers } from "../../workers/store.ts";
 import { LogoChar } from "./Logo.tsx";
 
 interface StatusBarProps {
   projectDir: string;
-  dbPath: string;
+  /**
+   * Retained for callers that pass it; unused now that workers + tasks
+   * both live on disk. Drop on the next TUI cleanup pass.
+   */
+  dbPath?: string;
   chatTitle?: string;
   onWorkerStatusChange?: (running: boolean) => void;
 }
@@ -20,7 +23,7 @@ interface Status {
 
 export function StatusBar({
   projectDir,
-  dbPath,
+  dbPath: _dbPath,
   chatTitle,
   onWorkerStatusChange,
 }: StatusBarProps) {
@@ -42,7 +45,7 @@ export function StatusBar({
         const [pending, inProgress, workers] = await Promise.all([
           listTasks(projectDir, { status: "pending" }),
           listTasks(projectDir, { status: "in_progress" }),
-          withDb(dbPath, (conn) => listWorkers(conn, { status: "running" })),
+          listWorkers(projectDir, { status: "running" }),
         ]);
         if (mounted) {
           setStatus({
@@ -63,7 +66,7 @@ export function StatusBar({
       mounted = false;
       clearInterval(interval);
     };
-  }, [projectDir, dbPath, onWorkerStatusChange]);
+  }, [projectDir, onWorkerStatusChange]);
 
   return (
     <Box paddingX={0}>

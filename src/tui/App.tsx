@@ -8,14 +8,12 @@ import {
   sendMessage,
   startChatSession,
 } from "../chat/session.ts";
-import { withDb } from "../db/connection.ts";
-import type { Interaction } from "../db/threads.ts";
-import { getThread } from "../db/threads.ts";
 import {
   BUILTIN_SLASH_COMMANDS,
   handleSlashCommand,
   type SlashCommand,
 } from "../skills/commands.ts";
+import { getThread, type Interaction } from "../threads/store.ts";
 import { MAX_INLINE_CHARS, PAGE_SIZE_CHARS } from "../worker/large-results.ts";
 import { ContextPanel } from "./components/ContextPanel.tsx";
 import { HelpPanel } from "./components/HelpPanel.tsx";
@@ -172,8 +170,9 @@ export function App({
         sessionRef.current = session;
 
         if (session.messages.length > 0) {
-          const threadData = await withDb(session.dbPath, (conn) =>
-            getThread(conn, session.threadId),
+          const threadData = await getThread(
+            session.projectDir,
+            session.threadId,
           );
           if (threadData) {
             setMessages(
@@ -490,9 +489,7 @@ export function App({
     const refreshTitle = async () => {
       const session = sessionRef.current;
       if (!session) return;
-      const result = await withDb(session.dbPath, (conn) =>
-        getThread(conn, session.threadId),
-      );
+      const result = await getThread(session.projectDir, session.threadId);
       if (mounted && result?.thread.title) {
         setChatTitle(result.thread.title);
       }
@@ -726,7 +723,7 @@ export function App({
     );
   }
 
-  const dbPath = sessionRef.current.dbPath;
+  const _dbPath = sessionRef.current.dbPath;
   const threadId = sessionRef.current.threadId;
 
   return (
@@ -782,7 +779,7 @@ export function App({
         flexGrow={1}
       >
         <ThreadPanel
-          dbPath={dbPath}
+          projectDir={projectDir}
           activeThreadId={threadId}
           isActive={activeTab === 5}
         />
@@ -799,7 +796,7 @@ export function App({
         flexDirection="column"
         flexGrow={1}
       >
-        <WorkerPanel dbPath={dbPath} isActive={activeTab === 7} />
+        <WorkerPanel projectDir={projectDir} isActive={activeTab === 7} />
       </Box>
       <Box
         display={activeTab === 8 ? "flex" : "none"}

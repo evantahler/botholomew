@@ -11,9 +11,6 @@ import { withDb } from "./connection.ts";
  * append-only, and rebuilding it would defeat its purpose.
  */
 export const PROBE_TABLES: ReadonlyArray<{ name: string; pk: string }> = [
-  { name: "workers", pk: "id" },
-  { name: "threads", pk: "id" },
-  { name: "interactions", pk: "id" },
   { name: "context_index", pk: "path" },
 ];
 

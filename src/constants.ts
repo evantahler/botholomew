@@ -42,6 +42,8 @@ export const TASKS_DIR = "tasks";
 export const SCHEDULES_DIR = "schedules";
 export const LOCKS_SUBDIR = ".locks";
 export const LOGS_DIR = "logs";
+export const WORKERS_DIR = "workers";
+export const THREADS_SUBDIR = "threads";
 export const MCPX_SERVERS_FILENAME = "servers.json";
 export const EMBEDDING_DIMENSION = 384;
 export const EMBEDDING_MODEL = "Xenova/bge-small-en-v1.5";
@@ -109,4 +111,12 @@ export function getSchedulesDir(projectDir: string): string {
 
 export function getSchedulesLockDir(projectDir: string): string {
   return join(projectDir, SCHEDULES_DIR, LOCKS_SUBDIR);
+}
+
+export function getWorkersDir(projectDir: string): string {
+  return join(projectDir, WORKERS_DIR);
+}
+
+export function getThreadsDir(projectDir: string): string {
+  return join(projectDir, CONTEXT_DIR, THREADS_SUBDIR);
 }

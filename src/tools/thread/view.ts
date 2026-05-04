@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getThread } from "../../db/threads.ts";
+import { getThread } from "../../threads/store.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
@@ -39,7 +39,7 @@ export const viewThreadTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const result = await getThread(ctx.conn, input.id);
+    const result = await getThread(ctx.projectDir, input.id);
     if (!result) return { thread: null, interactions: [], is_error: false };
     return {
       thread: {

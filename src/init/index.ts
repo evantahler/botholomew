@@ -14,6 +14,8 @@ import {
   getSkillsDir,
   getTasksDir,
   getTasksLockDir,
+  getThreadsDir,
+  getWorkersDir,
   LOCKS_SUBDIR,
   LOGS_DIR,
   MCPX_SERVERS_FILENAME,
@@ -66,6 +68,8 @@ export async function initProject(
   await mkdir(getTasksLockDir(projectDir), { recursive: true });
   await mkdir(getSchedulesDir(projectDir), { recursive: true });
   await mkdir(getSchedulesLockDir(projectDir), { recursive: true });
+  await mkdir(getWorkersDir(projectDir), { recursive: true });
+  await mkdir(getThreadsDir(projectDir), { recursive: true });
   await mkdir(join(projectDir, LOGS_DIR), { recursive: true });
 
   // Persistent-context template files
@@ -118,6 +122,10 @@ export async function initProject(
   logger.dim(`  ${TASKS_DIR}/          one markdown file per task`);
   logger.dim(`    ${LOCKS_SUBDIR}/        worker claim lockfiles`);
   logger.dim(`  ${SCHEDULES_DIR}/      one markdown file per schedule`);
+  logger.dim(`  workers/         one JSON pidfile per worker (heartbeats)`);
+  logger.dim(
+    `  ${CONTEXT_DIR}/threads/  one CSV per conversation (searchable)`,
+  );
   logger.dim(`  skills/, mcpx/, models/, logs/`);
   logger.dim("");
   logger.dim("Next steps:");
