@@ -23,7 +23,7 @@ const outputSchema = z.object({
 export const capabilitiesRefreshTool = {
   name: "capabilities_refresh",
   description:
-    "[[ bash equivalent command: which ]] Rescan every available tool (built-in + configured MCPX servers) and rewrite `.botholomew/capabilities.md`. Call this when you think the inventory is stale — new MCP servers were added, tools were renamed, or the capabilities file was deleted. The regenerated file is automatically loaded into every subsequent system prompt.",
+    "[[ bash equivalent command: which ]] Rescan every available tool (built-in + configured MCPX servers) and rewrite `persistent-context/capabilities.md`. Call this when you think the inventory is stale — new MCP servers were added, tools were renamed, or the capabilities file was deleted. The regenerated file is automatically loaded into every subsequent system prompt.",
   group: "capabilities",
   inputSchema,
   outputSchema,

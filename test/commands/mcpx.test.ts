@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { runMcpx } from "../../src/commands/mcpx.ts";
 
 const TMP_DIR = join(import.meta.dir, ".tmp-mcpx-cmd-test");
-const MCPX_DIR = join(TMP_DIR, ".botholomew", "mcpx");
+const MCPX_DIR = join(TMP_DIR, "mcpx");
 const CLI_PATH = join(import.meta.dir, "..", "..", "src", "cli.ts");
 
 afterEach(() => {

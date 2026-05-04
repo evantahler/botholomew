@@ -2,14 +2,28 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { loadConfig } from "../config/loader.ts";
 import {
-  getBotholomewDir,
+  CONFIG_DIR,
+  CONFIG_FILENAME,
+  CONTEXT_DIR,
+  getConfigPath,
   getDbPath,
   getMcpxDir,
+  getPersistentContextDir,
+  getSchedulesDir,
+  getSchedulesLockDir,
   getSkillsDir,
+  getTasksDir,
+  getTasksLockDir,
+  LOCKS_SUBDIR,
+  LOGS_DIR,
+  MCPX_SERVERS_FILENAME,
+  SCHEDULES_DIR,
+  TASKS_DIR,
 } from "../constants.ts";
 import { writeCapabilitiesFile } from "../context/capabilities.ts";
 import { getConnection } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
+import { assertCompatibleFilesystem } from "../fs/compat.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import { logger } from "../utils/logger.ts";
@@ -29,56 +43,60 @@ export async function initProject(
   projectDir: string,
   opts: { force?: boolean } = {},
 ): Promise<void> {
-  const dotDir = getBotholomewDir(projectDir);
-  const mcpxDir = getMcpxDir(projectDir);
-  const skillsDir = getSkillsDir(projectDir);
+  // Refuse to operate inside iCloud/Dropbox/etc unless --force is passed.
+  // Sync overlays break atomic rename / O_EXCL semantics that tasks and
+  // schedules depend on.
+  assertCompatibleFilesystem(projectDir, !!opts.force);
 
-  // Check if already initialized
-  const dirExists = await Bun.file(join(dotDir, "soul.md")).exists();
-  if (dirExists && !opts.force) {
+  const configPath = getConfigPath(projectDir);
+  const alreadyInitialized = await Bun.file(configPath).exists();
+  if (alreadyInitialized && !opts.force) {
     throw new Error(
-      `.botholomew already initialized in ${projectDir}. Use --force to reinitialize.`,
+      `Botholomew project already initialized in ${projectDir} (found ${CONFIG_DIR}/${CONFIG_FILENAME}). Use --force to reinitialize.`,
     );
   }
 
-  // Create directories
-  await mkdir(dotDir, { recursive: true });
-  await mkdir(mcpxDir, { recursive: true });
-  await mkdir(skillsDir, { recursive: true });
+  // Top-level directories
+  await mkdir(join(projectDir, CONFIG_DIR), { recursive: true });
+  await mkdir(getPersistentContextDir(projectDir), { recursive: true });
+  await mkdir(getSkillsDir(projectDir), { recursive: true });
+  await mkdir(getMcpxDir(projectDir), { recursive: true });
+  await mkdir(join(projectDir, CONTEXT_DIR), { recursive: true });
+  await mkdir(getTasksDir(projectDir), { recursive: true });
+  await mkdir(getTasksLockDir(projectDir), { recursive: true });
+  await mkdir(getSchedulesDir(projectDir), { recursive: true });
+  await mkdir(getSchedulesLockDir(projectDir), { recursive: true });
+  await mkdir(join(projectDir, LOGS_DIR), { recursive: true });
 
-  // Write template files
-  await Bun.write(join(dotDir, "soul.md"), SOUL_MD);
-  await Bun.write(join(dotDir, "beliefs.md"), BELIEFS_MD);
-  await Bun.write(join(dotDir, "goals.md"), GOALS_MD);
-  await Bun.write(join(dotDir, "capabilities.md"), CAPABILITIES_MD);
+  // Persistent-context template files
+  const pcDir = getPersistentContextDir(projectDir);
+  await Bun.write(join(pcDir, "soul.md"), SOUL_MD);
+  await Bun.write(join(pcDir, "beliefs.md"), BELIEFS_MD);
+  await Bun.write(join(pcDir, "goals.md"), GOALS_MD);
+  await Bun.write(join(pcDir, "capabilities.md"), CAPABILITIES_MD);
 
-  // Write default skills
+  // Default skills
+  const skillsDir = getSkillsDir(projectDir);
   await Bun.write(join(skillsDir, "summarize.md"), SUMMARIZE_SKILL);
   await Bun.write(join(skillsDir, "standup.md"), STANDUP_SKILL);
   await Bun.write(join(skillsDir, "capabilities.md"), CAPABILITIES_SKILL);
 
-  // Write config (with placeholder API key)
-  await Bun.write(
-    join(dotDir, "config.json"),
-    `${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`,
-  );
+  // Config
+  await Bun.write(configPath, `${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`);
 
-  // Write mcpx servers config
+  // mcpx servers config
   await Bun.write(
-    join(mcpxDir, "servers.json"),
+    join(getMcpxDir(projectDir), MCPX_SERVERS_FILENAME),
     `${JSON.stringify(DEFAULT_MCPX_SERVERS, null, 2)}\n`,
   );
 
-  // Initialize database
+  // Initialize the index database (search index sidecar; rebuildable).
   const dbPath = getDbPath(projectDir);
   const conn = await getConnection(dbPath);
   await migrate(conn);
   conn.close();
 
-  // Populate capabilities.md with the real tool inventory. Seeded mcpx
-  // servers.json has no entries on first init, so this lists only the
-  // built-in tools; running `botholomew capabilities` later after
-  // adding MCPX servers picks those up.
+  // Populate capabilities.md with the real tool inventory.
   registerAllTools();
   const config = await loadConfig(projectDir);
   const mcpxClient = await createMcpxClient(projectDir);
@@ -88,33 +106,26 @@ export async function initProject(
     await mcpxClient?.close();
   }
 
-  // Update .gitignore
-  await updateGitignore(projectDir);
-
   logger.success("Initialized Botholomew project");
-  logger.dim(`  Directory: ${dotDir}`);
-  logger.dim(`  Database: ${dbPath}`);
+  logger.dim(`  Project root: ${projectDir}`);
+  logger.dim(`  Config:       ${CONFIG_DIR}/${CONFIG_FILENAME}`);
+  logger.dim(`  Index DB:     ${dbPath}`);
+  logger.dim("");
+  logger.dim("Layout:");
+  logger.dim(`  ${CONFIG_DIR}/         settings`);
+  logger.dim(`  persistent-context/   soul, beliefs, goals, capabilities`);
+  logger.dim(`  ${CONTEXT_DIR}/        agent-writable knowledge tree`);
+  logger.dim(`  ${TASKS_DIR}/          one markdown file per task`);
+  logger.dim(`    ${LOCKS_SUBDIR}/        worker claim lockfiles`);
+  logger.dim(`  ${SCHEDULES_DIR}/      one markdown file per schedule`);
+  logger.dim(`  skills/, mcpx/, models/, logs/`);
   logger.dim("");
   logger.dim("Next steps:");
-  logger.dim("  1. Set ANTHROPIC_API_KEY or add it to .botholomew/config.json");
+  logger.dim(
+    `  1. Set ANTHROPIC_API_KEY or add it to ${CONFIG_DIR}/${CONFIG_FILENAME}`,
+  );
   logger.dim("  2. Run 'botholomew task add' to create your first task");
   logger.dim(
     "  3. Run 'botholomew worker start --persist' to start a background worker",
   );
-}
-
-async function updateGitignore(projectDir: string): Promise<void> {
-  const gitignorePath = join(projectDir, ".gitignore");
-  const file = Bun.file(gitignorePath);
-
-  let content = "";
-  if (await file.exists()) {
-    content = await file.text();
-  }
-
-  const entry = ".botholomew/";
-  if (content.includes(entry)) return;
-
-  const section = `\n# Botholomew (auto-generated)\n${entry}\n`;
-  await Bun.write(gitignorePath, `${content.trimEnd()}\n${section}`);
 }

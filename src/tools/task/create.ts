@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { createTask, TASK_PRIORITIES } from "../../db/tasks.ts";
+import { TASK_PRIORITIES } from "../../tasks/schema.ts";
+import { createTask } from "../../tasks/store.ts";
 import { logger } from "../../utils/logger.ts";
 import type { ToolDefinition } from "../tool.ts";
 
@@ -21,6 +22,12 @@ const inputSchema = z.object({
     .array(z.string())
     .optional()
     .describe("IDs of tasks that must complete first"),
+  context_paths: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Project-relative paths under context/ that the task should reference",
+    ),
 });
 
 const outputSchema = z.object({
@@ -38,11 +45,12 @@ export const createTaskTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const newTask = await createTask(ctx.conn, {
+    const newTask = await createTask(ctx.projectDir, {
       name: input.name,
       description: input.description,
       priority: input.priority,
       blocked_by: input.blocked_by,
+      context_paths: input.context_paths,
     });
     logger.info(`Created subtask: ${newTask.name} (${newTask.id})`);
     return {

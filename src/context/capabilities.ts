@@ -2,7 +2,7 @@ import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { getBotholomewDir } from "../constants.ts";
+import { getPersistentContextDir } from "../constants.ts";
 import { getAllTools, type ToolDefinition } from "../tools/tool.ts";
 import {
   type ContextFileMeta,
@@ -461,9 +461,9 @@ export interface WriteResult {
 }
 
 /**
- * Regenerate and write `.botholomew/capabilities.md`. Preserves any existing
- * frontmatter (so a human-edited `loading:` flag survives). On first write
- * the default frontmatter is `loading: always`, `agent-modification: true`.
+ * Regenerate and write `persistent-context/capabilities.md`. Preserves any
+ * existing frontmatter (so a human-edited `loading:` flag survives). On first
+ * write the default frontmatter is `loading: always`, `agent-modification: true`.
  */
 export async function writeCapabilitiesFile(
   projectDir: string,
@@ -471,7 +471,10 @@ export async function writeCapabilitiesFile(
   config: Required<BotholomewConfig>,
   onPhase?: ProgressCallback,
 ): Promise<WriteResult> {
-  const filePath = join(getBotholomewDir(projectDir), CAPABILITIES_FILENAME);
+  const filePath = join(
+    getPersistentContextDir(projectDir),
+    CAPABILITIES_FILENAME,
+  );
   const file = Bun.file(filePath);
 
   let meta: ContextFileMeta = {

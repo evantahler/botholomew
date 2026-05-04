@@ -9,7 +9,7 @@ export function registerCapabilitiesCommand(program: Command) {
   program
     .command("capabilities")
     .description(
-      "Regenerate .botholomew/capabilities.md by scanning built-in tools and MCPX tools",
+      "Regenerate persistent-context/capabilities.md by scanning built-in tools and MCPX tools",
     )
     .option("--no-mcp", "Skip MCPX tool enumeration (built-in tools only)")
     .action((opts: { mcp?: boolean }) =>

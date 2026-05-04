@@ -107,9 +107,10 @@ export async function markWorkerDead(
 }
 
 /**
- * Find running workers whose heartbeat is older than `staleAfterSeconds`,
- * mark them dead, and release any tasks/schedule claims they held back
- * to the pool. Returns the ids of reaped workers.
+ * Find running workers whose heartbeat is older than `staleAfterSeconds`
+ * and mark them dead. Tasks and schedules they held are now reclaimed via
+ * filesystem lockfile reaping (see src/tasks/store.ts::reapOrphanLocks),
+ * which is driven by `isWorkerAlive` checks against this table.
  */
 export async function reapDeadWorkers(
   db: DbConnection,
@@ -125,28 +126,23 @@ export async function reapDeadWorkers(
      RETURNING id`,
     staleAfterSeconds,
   );
-  const reapedIds = stale.map((r) => r.id);
-  if (reapedIds.length === 0) return reapedIds;
+  return stale.map((r) => r.id);
+}
 
-  for (const reapedId of reapedIds) {
-    await db.queryRun(
-      `UPDATE tasks
-       SET status = 'pending',
-           claimed_by = NULL,
-           claimed_at = NULL,
-           updated_at = current_timestamp::VARCHAR
-       WHERE claimed_by = ?1 AND status = 'in_progress'`,
-      reapedId,
-    );
-    await db.queryRun(
-      `UPDATE schedules
-       SET claimed_by = NULL,
-           claimed_at = NULL
-       WHERE claimed_by = ?1`,
-      reapedId,
-    );
-  }
-  return reapedIds;
+/**
+ * Returns true if the given worker id is currently in `running` state. Used
+ * by file-based lock reapers to decide whether an orphan lock can be
+ * released.
+ */
+export async function isWorkerRunning(
+  db: DbConnection,
+  workerId: string,
+): Promise<boolean> {
+  const row = await db.queryGet<{ status: string }>(
+    "SELECT status FROM workers WHERE id = ?1",
+    workerId,
+  );
+  return row?.status === "running";
 }
 
 /**

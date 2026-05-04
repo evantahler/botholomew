@@ -1,8 +1,8 @@
 import { Box, Text } from "ink";
 import { useEffect, useState } from "react";
 import { withDb } from "../../db/connection.ts";
-import { listTasks } from "../../db/tasks.ts";
 import { listWorkers } from "../../db/workers.ts";
+import { listTasks } from "../../tasks/store.ts";
 import { LogoChar } from "./Logo.tsx";
 
 interface StatusBarProps {
@@ -19,7 +19,7 @@ interface Status {
 }
 
 export function StatusBar({
-  projectDir: _projectDir,
+  projectDir,
   dbPath,
   chatTitle,
   onWorkerStatusChange,
@@ -39,14 +39,11 @@ export function StatusBar({
     // because logger writes to stdout and would corrupt the Ink render.
     const refresh = async () => {
       try {
-        const [pending, inProgress, workers] = await withDb(
-          dbPath,
-          async (conn) => [
-            await listTasks(conn, { status: "pending" }),
-            await listTasks(conn, { status: "in_progress" }),
-            await listWorkers(conn, { status: "running" }),
-          ],
-        );
+        const [pending, inProgress, workers] = await Promise.all([
+          listTasks(projectDir, { status: "pending" }),
+          listTasks(projectDir, { status: "in_progress" }),
+          withDb(dbPath, (conn) => listWorkers(conn, { status: "running" })),
+        ]);
         if (mounted) {
           setStatus({
             workerCount: workers.length,
@@ -66,7 +63,7 @@ export function StatusBar({
       mounted = false;
       clearInterval(interval);
     };
-  }, [dbPath, onWorkerStatusChange]);
+  }, [projectDir, dbPath, onWorkerStatusChange]);
 
   return (
     <Box paddingX={0}>

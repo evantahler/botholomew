@@ -7,8 +7,9 @@ import type {
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { withDb } from "../db/connection.ts";
-import { getTask, type Task } from "../db/tasks.ts";
 import { logInteraction } from "../db/threads.ts";
+import type { Task } from "../tasks/schema.ts";
+import { getTask } from "../tasks/store.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import { getTool, type ToolContext, toAnthropicTools } from "../tools/tool.ts";
 import { logger } from "../utils/logger.ts";
@@ -72,7 +73,7 @@ export async function runAgentLoop(input: {
   if (task.blocked_by.length > 0) {
     const predecessorOutputs: string[] = [];
     for (const blockerId of task.blocked_by) {
-      const blocker = await withDb(dbPath, (conn) => getTask(conn, blockerId));
+      const blocker = await getTask(projectDir, blockerId);
       if (blocker?.output) {
         predecessorOutputs.push(
           `### ${blocker.name} (${blocker.id})\n${blocker.output}`,

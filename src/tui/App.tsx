@@ -484,11 +484,7 @@ export function App({
             );
           }
         } else {
-          skillLines.push(
-            "",
-            "Skills:",
-            "  (none — add .md files to .botholomew/skills/)",
-          );
+          skillLines.push("", "Skills:", "  (none — add .md files to skills/)");
         }
 
         const helpMsg: ChatMessage = {
@@ -738,7 +734,7 @@ export function App({
         flexDirection="column"
         flexGrow={1}
       >
-        <TaskPanel dbPath={dbPath} isActive={activeTab === 4} />
+        <TaskPanel projectDir={projectDir} isActive={activeTab === 4} />
       </Box>
       <Box
         display={activeTab === 5 ? "flex" : "none"}
@@ -756,7 +752,7 @@ export function App({
         flexDirection="column"
         flexGrow={1}
       >
-        <SchedulePanel dbPath={dbPath} isActive={activeTab === 6} />
+        <SchedulePanel projectDir={projectDir} isActive={activeTab === 6} />
       </Box>
       <Box
         display={activeTab === 7 ? "flex" : "none"}

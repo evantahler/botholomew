@@ -1,9 +1,12 @@
 import { withDb } from "../db/connection.ts";
 import {
   heartbeat,
+  isWorkerRunning,
   pruneStoppedWorkers,
   reapDeadWorkers,
 } from "../db/workers.ts";
+import { reapOrphanScheduleLocks } from "../schedules/store.ts";
+import { reapOrphanLocks as reapOrphanTaskLocks } from "../tasks/store.ts";
 import { logger } from "../utils/logger.ts";
 
 /**
@@ -13,10 +16,6 @@ import { logger } from "../utils/logger.ts";
  * while the worker is blocked inside a long LLM call. We `unref` the timer
  * so it doesn't keep the Bun event loop alive on its own — the main tick
  * loop (or the awaited one-shot task) is what keeps the process running.
- *
- * Errors are swallowed with a warning: a transient DB lock shouldn't crash
- * a worker that's otherwise doing useful work. If every heartbeat fails the
- * worker will eventually be reaped, which is the correct outcome.
  */
 export function startHeartbeat(
   dbPath: string,
@@ -36,12 +35,13 @@ export function startHeartbeat(
 }
 
 /**
- * Start a periodic reaper that marks stale workers dead and releases any
- * tasks / schedule claims they held. Only persist workers need this — a
- * one-shot worker does a single reap pass before claiming its task.
+ * Start a periodic reaper. Marks stale workers dead in the workers table,
+ * then walks tasks/.locks and schedules/.locks and unlinks any lockfile
+ * whose holder is dead. The next tick reclaims those tasks/schedules.
  */
 export function startReaper(
   dbPath: string,
+  projectDir: string,
   intervalSeconds: number,
   staleAfterSeconds: number,
   stoppedRetentionSeconds: number,
@@ -60,6 +60,32 @@ export function startReaper(
     } catch (err) {
       logger.warn(`worker reap failed: ${err}`);
     }
+
+    const isAlive = async (id: string) =>
+      withDb(dbPath, (conn) => isWorkerRunning(conn, id));
+
+    try {
+      const released = await reapOrphanTaskLocks(projectDir, isAlive);
+      if (released.length > 0) {
+        logger.warn(
+          `released ${released.length} orphan task lock(s): ${released.join(", ")}`,
+        );
+      }
+    } catch (err) {
+      logger.warn(`task lock reap failed: ${err}`);
+    }
+
+    try {
+      const released = await reapOrphanScheduleLocks(projectDir, isAlive);
+      if (released.length > 0) {
+        logger.warn(
+          `released ${released.length} orphan schedule lock(s): ${released.join(", ")}`,
+        );
+      }
+    } catch (err) {
+      logger.warn(`schedule lock reap failed: ${err}`);
+    }
+
     try {
       const pruned = await withDb(dbPath, (conn) =>
         pruneStoppedWorkers(conn, stoppedRetentionSeconds),

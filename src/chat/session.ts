@@ -37,7 +37,7 @@ export async function startChatSession(
 
   if (!config.anthropic_api_key) {
     throw new Error(
-      "no API key found. add anthropic_api_key to .botholomew/config.json",
+      "no API key found. add anthropic_api_key to config/config.json",
     );
   }
 

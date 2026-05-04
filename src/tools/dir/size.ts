@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { listContextItemsByPrefix } from "../../db/context.ts";
+import {
+  dirSizeBytes,
+  NotDirectoryError,
+  NotFoundError,
+} from "../../context/store.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 function formatBytes(bytes: number): string {
@@ -11,38 +15,63 @@ function formatBytes(bytes: number): string {
 }
 
 const inputSchema = z.object({
-  drive: z.string().describe("Drive name"),
-  path: z.string().optional().describe("Directory path (defaults to /)"),
-  recursive: z
-    .boolean()
+  path: z
+    .string()
     .optional()
-    .describe("Include subdirectories (defaults to true)"),
+    .default("")
+    .describe("Directory path under context/ (defaults to context root)"),
 });
 
 const outputSchema = z.object({
+  files: z.number(),
   bytes: z.number(),
   formatted: z.string(),
   is_error: z.boolean(),
+  error_type: z.string().optional(),
+  message: z.string().optional(),
 });
 
 export const contextDirSizeTool = {
   name: "context_dir_size",
   description:
-    "[[ bash equivalent command: du -s ]] Get the total size of context items under a drive/directory.",
+    "[[ bash equivalent command: du -s ]] Get the total size of files under a directory in context/.",
   group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const path = input.path ?? "/";
-    const items = await listContextItemsByPrefix(ctx.conn, input.drive, path, {
-      recursive: input.recursive !== false,
-    });
-
-    let bytes = 0;
-    for (const item of items) {
-      if (item.content != null) bytes += item.content.length;
+    try {
+      const { files, bytes } = await dirSizeBytes(
+        ctx.projectDir,
+        input.path ?? "",
+      );
+      return {
+        files,
+        bytes,
+        formatted: formatBytes(bytes),
+        is_error: false,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        return {
+          files: 0,
+          bytes: 0,
+          formatted: formatBytes(0),
+          is_error: true,
+          error_type: "not_found",
+          message: `No directory at context/${err.path}`,
+        };
+      }
+      if (err instanceof NotDirectoryError) {
+        return {
+          files: 0,
+          bytes: 0,
+          formatted: formatBytes(0),
+          is_error: true,
+          error_type: "not_a_directory",
+          message: `context/${err.path} is not a directory`,
+        };
+      }
+      throw err;
     }
-
-    return { bytes, formatted: formatBytes(bytes), is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

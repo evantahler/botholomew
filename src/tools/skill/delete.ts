@@ -19,7 +19,7 @@ const outputSchema = z.object({
 export const skillDeleteTool = {
   name: "skill_delete",
   description:
-    "[[ bash equivalent command: rm ]] Delete a skill file (user-defined slash command) by name. The file is removed from .botholomew/skills/. Returns a not_found error with the list of available names when the skill doesn't exist.",
+    "[[ bash equivalent command: rm ]] Delete a skill file (user-defined slash command) by name. The file is removed from skills/. Returns a not_found error with the list of available names when the skill doesn't exist.",
   group: "skill",
   inputSchema,
   outputSchema,

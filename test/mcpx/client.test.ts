@@ -7,7 +7,7 @@ import {
 } from "../../src/mcpx/client.ts";
 
 const TMP_DIR = join(import.meta.dir, ".tmp-mcpx-test");
-const MCPX_DIR = join(TMP_DIR, ".botholomew", "mcpx");
+const MCPX_DIR = join(TMP_DIR, "mcpx");
 
 async function writeTmpServers(content: unknown) {
   mkdirSync(MCPX_DIR, { recursive: true });

@@ -60,7 +60,7 @@ description: "Refresh capabilities.md — rescan internal and MCPX tools"
 arguments: []
 ---
 
-Call \`capabilities_refresh\` to rescan every available tool (built-in and MCPX) and rewrite \`.botholomew/capabilities.md\`. After it finishes, give me a one-line summary of the counts.
+Call \`capabilities_refresh\` to rescan every available tool (built-in and MCPX) and rewrite \`persistent-context/capabilities.md\`. After it finishes, give me a one-line summary of the counts.
 `;
 
 export const SUMMARIZE_SKILL = `---

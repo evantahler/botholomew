@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { z } from "zod";
-import { getBotholomewDir } from "../../constants.ts";
+import { getPersistentContextDir } from "../../constants.ts";
 import {
   type ContextFileMeta,
   parseContextFile,
@@ -25,12 +25,12 @@ const outputSchema = z.object({
 export const updateGoalsTool = {
   name: "update_goals",
   description:
-    "Update the agent's goals file (.botholomew/goals.md). Preserves frontmatter, replaces content body.",
+    "Update the agent's goals file (persistent-context/goals.md). Preserves frontmatter, replaces content body.",
   group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const filePath = join(getBotholomewDir(ctx.projectDir), "goals.md");
+    const filePath = join(getPersistentContextDir(ctx.projectDir), "goals.md");
     const file = Bun.file(filePath);
 
     let meta: ContextFileMeta = {

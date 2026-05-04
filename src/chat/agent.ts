@@ -5,9 +5,7 @@ import type {
 } from "@anthropic-ai/sdk/resources/messages";
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { embedSingle } from "../context/embedder.ts";
 import { withDb } from "../db/connection.ts";
-import { hybridSearch } from "../db/embeddings.ts";
 import { logInteraction } from "../db/threads.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
@@ -34,15 +32,11 @@ const CHAT_TOOL_NAMES = new Set([
   "create_task",
   "list_tasks",
   "view_task",
-  "context_search",
   "context_info",
-  "context_refresh",
   "context_tree",
-  "context_list_drives",
   "context_read",
   "context_write",
   "context_edit",
-  "search",
   "list_threads",
   "view_thread",
   "create_schedule",
@@ -55,7 +49,6 @@ const CHAT_TOOL_NAMES = new Set([
   "mcp_info",
   "mcp_exec",
   "read_large_result",
-  "pipe_to_context",
   "spawn_worker",
   "skill_list",
   "skill_read",
@@ -86,32 +79,8 @@ export async function buildChatSystemPrompt(
   const taskKeywords = keywordSource ? extractKeywords(keywordSource) : null;
 
   prompt += await loadPersistentContext(projectDir, taskKeywords);
-
-  const dbPath = options?.dbPath;
-  const config = options?.config;
-  if (dbPath && config && keywordSource) {
-    try {
-      const queryVec = await embedSingle(keywordSource, config);
-      const results = await withDb(dbPath, (conn) =>
-        hybridSearch(conn, keywordSource, queryVec, 5),
-      );
-
-      if (results.length > 0) {
-        prompt += "## Relevant Context\n";
-        for (const r of results) {
-          const ref =
-            r.drive && r.path ? `${r.drive}:${r.path}` : r.context_item_id;
-          prompt += `### ${r.title} (${ref})\n`;
-          if (r.chunk_content) {
-            prompt += `${r.chunk_content.slice(0, 1000)}\n`;
-          }
-          prompt += "\n";
-        }
-      }
-    } catch (err) {
-      logger.debug(`Failed to load contextual embeddings: ${err}`);
-    }
-  }
+  // Note: hybrid context search is being rewritten to operate on disk-backed
+  // files. Re-enable here once the new index is in place.
 
   prompt += `## Instructions
 You are Botholomew, an AI agent personified by a wise owl. This is your interactive chat interface. Help the user manage tasks, review results from background worker activity, search context, and answer questions.
@@ -119,7 +88,7 @@ You do NOT execute long-running work directly — enqueue tasks for a background
 Use the available tools to look up tasks, threads, schedules, and context when the user asks about them. Context items live under a drive (disk / url / agent / google-docs / github / …); use \`context_list_drives\` to discover which drives have content, then \`context_tree\`, \`context_info\`, \`context_search\`, or \`context_refresh\` as needed.
 When multiple tool calls are independent of each other (i.e., one does not depend on the result of another), call them all in a single response. They will be executed in parallel, which is faster than calling them one at a time.
 You can update the agent's beliefs and goals files when the user asks you to.
-You can author and refine slash-command skills (reusable prompt templates stored in \`.botholomew/skills/\`) via \`skill_list\`, \`skill_search\`, \`skill_read\`, \`skill_write\`, \`skill_edit\`, and \`skill_delete\`. New or edited skills are usable as \`/<name>\` on the user's next message.
+You can author and refine slash-command skills (reusable prompt templates stored in \`skills/\`) via \`skill_list\`, \`skill_search\`, \`skill_read\`, \`skill_write\`, \`skill_edit\`, and \`skill_delete\`. New or edited skills are usable as \`/<name>\` on the user's next message.
 Format your responses using Markdown. Use headings, bold, italic, lists, and code blocks to make your responses clear and well-structured.
 `;
 

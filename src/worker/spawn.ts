@@ -1,7 +1,6 @@
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
 import {
-  getBotholomewDir,
+  getConfigPath,
   getWorkerLogPath,
   getWorkerLogsDir,
 } from "../constants.ts";
@@ -26,9 +25,9 @@ export async function spawnWorker(
   projectDir: string,
   options: SpawnWorkerOptions = {},
 ): Promise<{ pid: number; workerId: string; logPath: string }> {
-  const dotDir = getBotholomewDir(projectDir);
-  const dirExists = await Bun.file(join(dotDir, "config.json")).exists();
-  if (!dirExists) {
+  const configPath = getConfigPath(projectDir);
+  const initialized = await Bun.file(configPath).exists();
+  if (!initialized) {
     logger.error("Project not initialized. Run 'botholomew init' first.");
     process.exit(1);
   }

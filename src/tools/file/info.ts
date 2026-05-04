@@ -1,41 +1,20 @@
 import { z } from "zod";
-import { formatDriveRef, parseDriveRef } from "../../context/drives.ts";
-import {
-  findNearbyContextPaths,
-  getContextItem,
-  getContextItemById,
-} from "../../db/context.ts";
-import { isUuid } from "../../db/uuid.ts";
+import { getInfo, readContextFile } from "../../context/store.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
-  drive: z
-    .string()
-    .optional()
-    .describe(
-      "Drive name (e.g. 'disk', 'url', 'agent'). Optional when `path` is a UUID or already in `drive:/...` form.",
-    ),
-  path: z
-    .string()
-    .describe(
-      "Path within the drive (starts with /), or a bare UUID / 'drive:/path' ref.",
-    ),
+  path: z.string().describe("Path under context/"),
 });
 
 const fileSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string(),
-  mime_type: z.string(),
+  path: z.string(),
+  is_directory: z.boolean(),
   is_textual: z.boolean(),
+  mime_type: z.string(),
   size: z.number(),
   lines: z.number(),
-  drive: z.string(),
-  path: z.string(),
-  ref: z.string(),
-  indexed_at: z.string().nullable(),
-  created_at: z.string(),
-  updated_at: z.string(),
+  mtime: z.string(),
+  content_hash: z.string().nullable(),
 });
 
 const outputSchema = z.object({
@@ -49,74 +28,35 @@ const outputSchema = z.object({
 export const contextInfoTool = {
   name: "context_info",
   description:
-    "[[ bash equivalent command: stat ]] Show context item metadata: size, MIME type, line count, etc.",
+    "[[ bash equivalent command: stat ]] Show metadata for a path under context/: size, MIME type, line count, mtime, content hash.",
   group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    let drive = input.drive;
-    let path = input.path;
-    if (isUuid(input.path)) {
-      const byId = await getContextItemById(ctx.conn, input.path);
-      if (byId) {
-        drive = byId.drive;
-        path = byId.path;
-      }
-    } else {
-      const parsed = parseDriveRef(input.path);
-      if (parsed) {
-        drive = parsed.drive;
-        path = parsed.path;
-      }
-    }
-
-    if (!drive) {
-      return {
-        is_error: true,
-        error_type: "missing_drive",
-        message: `Cannot resolve context item: no drive provided and \`${input.path}\` is not a UUID or \`drive:/path\` ref.`,
-        next_action_hint:
-          "Pass `drive` explicitly, or use a `drive:/path` ref. Call context_list_drives to see which drives exist.",
-      };
-    }
-
-    if (!path.startsWith("/")) path = `/${path}`;
-
-    const item = await getContextItem(ctx.conn, { drive, path });
-    if (!item) {
-      const { parent, siblings, walkedUp } = await findNearbyContextPaths(
-        ctx.conn,
-        drive,
-        path,
-      );
-      const hint =
-        siblings.length > 0
-          ? `${walkedUp ? `Parent ${parent} has no direct entries; ` : ""}Nearby items under ${parent}: ${siblings.join(", ")}. Call context_tree({drive:"${drive}",path:"${parent.replace(/^[^:]*:/, "")}"}) to see more.`
-          : `No items found under ${parent}. Call context_list_drives to see which drives exist.`;
+    const info = await getInfo(ctx.projectDir, input.path);
+    if (!info) {
       return {
         is_error: true,
         error_type: "not_found",
-        message: `No context item at ${formatDriveRef({ drive, path })}`,
-        next_action_hint: hint,
+        message: `No path at context/${input.path}`,
+        next_action_hint: "Call context_tree to browse.",
       };
     }
-
-    const content = item.content ?? "";
+    let lines = 0;
+    if (info.is_textual && !info.is_directory) {
+      const content = await readContextFile(ctx.projectDir, input.path);
+      lines = content === "" ? 0 : content.split("\n").length;
+    }
     return {
       file: {
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        mime_type: item.mime_type,
-        is_textual: item.is_textual,
-        size: content.length,
-        lines: content ? content.split("\n").length : 0,
-        drive: item.drive,
-        path: item.path,
-        ref: formatDriveRef(item),
-        indexed_at: item.indexed_at?.toISOString() ?? null,
-        created_at: item.created_at.toISOString(),
-        updated_at: item.updated_at.toISOString(),
+        path: info.path,
+        is_directory: info.is_directory,
+        is_textual: info.is_textual,
+        mime_type: info.mime_type,
+        size: info.size,
+        lines,
+        mtime: info.mtime.toISOString(),
+        content_hash: info.content_hash,
       },
       is_error: false,
     };

@@ -1,13 +1,9 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { getBotholomewDir } from "../constants.ts";
-import { embedSingle } from "../context/embedder.ts";
-import { withDb } from "../db/connection.ts";
-import { hybridSearch } from "../db/embeddings.ts";
-import type { Task } from "../db/tasks.ts";
+import { getPersistentContextDir } from "../constants.ts";
+import type { Task } from "../tasks/schema.ts";
 import { parseContextFile } from "../utils/frontmatter.ts";
-import { logger } from "../utils/logger.ts";
 
 const pkg = await Bun.file(
   new URL("../../package.json", import.meta.url),
@@ -37,23 +33,23 @@ export function extractKeywords(text: string): Set<string> {
 }
 
 /**
- * Load persistent context files from .botholomew/ directory as a single
- * formatted string. Includes "always" files unconditionally and "contextual"
- * files whose content overlaps the provided taskKeywords.
+ * Load persistent context files from persistent-context/ as a single formatted
+ * string. Includes "always" files unconditionally and "contextual" files
+ * whose content overlaps the provided taskKeywords.
  */
 export async function loadPersistentContext(
   projectDir: string,
   taskKeywords?: Set<string> | null,
 ): Promise<string> {
-  const dotDir = getBotholomewDir(projectDir);
+  const dir = getPersistentContextDir(projectDir);
   let out = "";
 
   try {
-    const files = await readdir(dotDir);
+    const files = await readdir(dir);
     const mdFiles = files.filter((f) => f.endsWith(".md"));
 
     for (const filename of mdFiles) {
-      const filePath = join(dotDir, filename);
+      const filePath = join(dir, filename);
       const raw = await Bun.file(filePath).text();
       const { meta, content } = parseContextFile(raw);
 
@@ -70,7 +66,7 @@ export async function loadPersistentContext(
       }
     }
   } catch {
-    // .botholomew dir might not have md files yet
+    // persistent-context/ might not have md files yet
   }
 
   return out;
@@ -104,30 +100,12 @@ export async function buildSystemPrompt(
 
   prompt += await loadPersistentContext(projectDir, taskKeywords);
 
-  if (task && dbPath && _config) {
-    try {
-      const query = `${task.name} ${task.description}`;
-      const queryVec = await embedSingle(query, _config);
-      const results = await withDb(dbPath, (conn) =>
-        hybridSearch(conn, query, queryVec, 5),
-      );
-
-      if (results.length > 0) {
-        prompt += "## Relevant Context\n";
-        for (const r of results) {
-          const ref =
-            r.drive && r.path ? `${r.drive}:${r.path}` : r.context_item_id;
-          prompt += `### ${r.title} (${ref})\n`;
-          if (r.chunk_content) {
-            prompt += `${r.chunk_content.slice(0, 1000)}\n`;
-          }
-          prompt += "\n";
-        }
-      }
-    } catch (err) {
-      logger.debug(`Failed to load contextual embeddings: ${err}`);
-    }
-  }
+  // Hybrid context search is being rewritten to operate on disk-backed files.
+  // Re-enable here once the new index is in place. (`task`, `dbPath`, `_config`
+  // remain in the signature so we can re-introduce without churn.)
+  void task;
+  void dbPath;
+  void _config;
 
   prompt += `## Instructions
 You are Botholomew, a wise-owl worker that works through tasks. Use available tools to complete your assigned task, then call complete_task, fail_task, or wait_task. Use create_task for subtasks and update_task to refine pending tasks. Batch independent tool calls in a single response for parallel execution.

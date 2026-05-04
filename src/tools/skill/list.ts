@@ -33,7 +33,7 @@ const outputSchema = z.object({
 export const skillListTool = {
   name: "skill_list",
   description:
-    "[[ bash equivalent command: ls ]] List skills (user-defined slash commands) loaded from .botholomew/skills/. Returns name, description, argument names, and file path for each.",
+    "[[ bash equivalent command: ls ]] List skills (user-defined slash commands) loaded from skills/. Returns name, description, argument names, and file path for each.",
   group: "skill",
   inputSchema,
   outputSchema,

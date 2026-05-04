@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { deleteTask, getTask } from "../../db/tasks.ts";
+import { deleteTask, getTask } from "../../tasks/store.ts";
 import { logger } from "../../utils/logger.ts";
 import type { ToolDefinition } from "../tool.ts";
 
@@ -21,7 +21,7 @@ export const deleteTaskTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const existing = await getTask(ctx.conn, input.id);
+    const existing = await getTask(ctx.projectDir, input.id);
     if (!existing) {
       return {
         deleted_id: null,
@@ -36,7 +36,7 @@ export const deleteTaskTool = {
         is_error: true,
       };
     }
-    const ok = await deleteTask(ctx.conn, input.id);
+    const ok = await deleteTask(ctx.projectDir, input.id);
     if (!ok) {
       return {
         deleted_id: null,

@@ -1,17 +1,15 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { withDb } from "../../db/connection.ts";
 import {
-  deleteTask,
-  listTasks,
   TASK_PRIORITIES,
   TASK_STATUSES,
   type Task,
-} from "../../db/tasks.ts";
+} from "../../tasks/schema.ts";
+import { deleteTask, listTasks } from "../../tasks/store.ts";
 import { ansi, theme } from "../theme.ts";
 
 interface TaskPanelProps {
-  dbPath: string;
+  projectDir: string;
   isActive: boolean;
 }
 
@@ -60,6 +58,17 @@ const PRIORITY_ANSI: Record<Task["priority"], string> = {
   low: ansi.muted,
 };
 
+function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function buildTaskDetailAnsi(task: Task): string {
   const lines: string[] = [];
 
@@ -80,23 +89,11 @@ function buildTaskDetailAnsi(task: Task): string {
     `${ansi.bold}${ansi.primary}Claimed${ansi.reset}   ${task.claimed_by ? task.claimed_by : `${ansi.dim}(unclaimed)${ansi.reset}`}`,
   );
 
-  const created = task.created_at.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const updated = task.updated_at.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
   lines.push(
-    `${ansi.bold}${ansi.primary}Created${ansi.reset}   ${ansi.dim}${created}${ansi.reset}`,
+    `${ansi.bold}${ansi.primary}Created${ansi.reset}   ${ansi.dim}${formatTimestamp(task.created_at)}${ansi.reset}`,
   );
   lines.push(
-    `${ansi.bold}${ansi.primary}Updated${ansi.reset}   ${ansi.dim}${updated}${ansi.reset}`,
+    `${ansi.bold}${ansi.primary}Updated${ansi.reset}   ${ansi.dim}${formatTimestamp(task.updated_at)}${ansi.reset}`,
   );
   lines.push("");
 
@@ -126,17 +123,16 @@ function buildTaskDetailAnsi(task: Task): string {
     lines.push("");
   }
 
-  if (task.context_ids.length > 0) {
-    lines.push(`${ansi.bold}${ansi.primary}Context IDs${ansi.reset}`);
-    for (const id of task.context_ids) {
-      lines.push(`  ${ansi.dim}• ${id}${ansi.reset}`);
+  if (task.context_paths.length > 0) {
+    lines.push(`${ansi.bold}${ansi.primary}Context Paths${ansi.reset}`);
+    for (const p of task.context_paths) {
+      lines.push(`  ${ansi.dim}• ${p}${ansi.reset}`);
     }
   }
 
   return lines.join("\n");
 }
 
-// Cycle through filter options: null -> ...values -> null
 function cycleFilter<T>(current: T | null, values: readonly T[]): T | null {
   if (current === null) return values[0] ?? null;
   const idx = values.indexOf(current);
@@ -145,7 +141,7 @@ function cycleFilter<T>(current: T | null, values: readonly T[]): T | null {
 }
 
 export const TaskPanel = memo(function TaskPanel({
-  dbPath,
+  projectDir,
   isActive,
 }: TaskPanelProps) {
   const { stdout } = useStdout();
@@ -159,7 +155,6 @@ export const TaskPanel = memo(function TaskPanel({
   );
   const [refreshTick, setRefreshTick] = useState(0);
 
-  // Fetch tasks on mount, filter change, and every 5 seconds
   // biome-ignore lint/correctness/useExhaustiveDependencies: refreshTick triggers manual refresh
   useEffect(() => {
     let mounted = true;
@@ -171,12 +166,16 @@ export const TaskPanel = memo(function TaskPanel({
       } = {};
       if (statusFilter) filters.status = statusFilter;
       if (priorityFilter) filters.priority = priorityFilter;
-      const result = await withDb(dbPath, (conn) => listTasks(conn, filters));
-      if (mounted) {
-        setTasks(result);
-        setSelectedIndex((prev) =>
-          Math.min(prev, Math.max(0, result.length - 1)),
-        );
+      try {
+        const result = await listTasks(projectDir, filters);
+        if (mounted) {
+          setTasks(result);
+          setSelectedIndex((prev) =>
+            Math.min(prev, Math.max(0, result.length - 1)),
+          );
+        }
+      } catch {
+        // ignore — next tick retries
       }
     };
 
@@ -186,7 +185,7 @@ export const TaskPanel = memo(function TaskPanel({
       mounted = false;
       clearInterval(interval);
     };
-  }, [dbPath, statusFilter, priorityFilter, refreshTick]);
+  }, [projectDir, statusFilter, priorityFilter, refreshTick]);
 
   const selectedTask = tasks[selectedIndex];
 
@@ -210,7 +209,6 @@ export const TaskPanel = memo(function TaskPanel({
     ),
   );
 
-  // Reset detail scroll when selection changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedIndex is the intentional trigger
   useEffect(() => {
     setDetailScroll(0);
@@ -275,7 +273,7 @@ export const TaskPanel = memo(function TaskPanel({
         return;
       }
       if (input === "d" && selectedTask) {
-        withDb(dbPath, (conn) => deleteTask(conn, selectedTask.id)).then(() => {
+        deleteTask(projectDir, selectedTask.id).then(() => {
           forceRefresh();
         });
         return;
@@ -323,7 +321,6 @@ export const TaskPanel = memo(function TaskPanel({
 
   return (
     <Box flexGrow={1} height={visibleRows + 1} overflow="hidden">
-      {/* Left sidebar: task list */}
       <Box
         flexDirection="column"
         width={SIDEBAR_WIDTH}
@@ -350,7 +347,7 @@ export const TaskPanel = memo(function TaskPanel({
           const isSelected = i === selectedIndex;
           const icon = STATUS_ICONS[task.status];
           const priorityLabel = PRIORITY_LABELS[task.priority];
-          const maxName = SIDEBAR_WIDTH - 11; // icon + priority + padding
+          const maxName = SIDEBAR_WIDTH - 11;
           const nameDisplay =
             task.name.length > maxName
               ? `${task.name.slice(0, maxName - 1)}…`
@@ -381,7 +378,6 @@ export const TaskPanel = memo(function TaskPanel({
         })}
       </Box>
 
-      {/* Right detail pane */}
       <Box
         flexDirection="column"
         flexGrow={1}

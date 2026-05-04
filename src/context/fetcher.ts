@@ -138,7 +138,7 @@ export async function fetchUrl(
 ): Promise<FetchedContent> {
   if (!config.anthropic_api_key) {
     throw new Error(
-      "Anthropic API key is required for URL fetching. Set ANTHROPIC_API_KEY or configure it in .botholomew/config.json",
+      "Anthropic API key is required for URL fetching. Set ANTHROPIC_API_KEY or configure it in config/config.json",
     );
   }
 

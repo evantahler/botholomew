@@ -6,7 +6,10 @@ export function registerInitCommand(program: Command) {
   program
     .command("init")
     .description("Initialize a new Botholomew project in the current directory")
-    .option("--force", "overwrite existing .botholomew directory")
+    .option(
+      "--force",
+      "overwrite existing project files; also bypass the unsupported-filesystem check (iCloud/Dropbox/etc)",
+    )
     .action(async (opts) => {
       const dir = program.opts().dir;
       try {

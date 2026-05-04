@@ -1,16 +1,15 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { withDb } from "../../db/connection.ts";
+import type { Schedule } from "../../schedules/schema.ts";
 import {
   deleteSchedule,
   listSchedules,
-  type Schedule,
   updateSchedule,
-} from "../../db/schedules.ts";
+} from "../../schedules/store.ts";
 import { ansi, theme } from "../theme.ts";
 
 interface SchedulePanelProps {
-  dbPath: string;
+  projectDir: string;
   isActive: boolean;
 }
 
@@ -39,6 +38,18 @@ const ENABLED_LABELS: Record<string, string> = {
   false: "disabled",
 };
 
+function formatTimestamp(iso: string | null): string {
+  if (!iso) return "(never)";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function buildScheduleDetailAnsi(schedule: Schedule): string {
   const lines: string[] = [];
 
@@ -55,35 +66,15 @@ function buildScheduleDetailAnsi(schedule: Schedule): string {
     `${ansi.bold}${ansi.primary}Frequency${ansi.reset}   ${ansi.accent}${schedule.frequency}${ansi.reset}`,
   );
 
-  const created = schedule.created_at.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const updated = schedule.updated_at.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
   lines.push(
-    `${ansi.bold}${ansi.primary}Created${ansi.reset}     ${ansi.dim}${created}${ansi.reset}`,
+    `${ansi.bold}${ansi.primary}Created${ansi.reset}     ${ansi.dim}${formatTimestamp(schedule.created_at)}${ansi.reset}`,
   );
   lines.push(
-    `${ansi.bold}${ansi.primary}Updated${ansi.reset}     ${ansi.dim}${updated}${ansi.reset}`,
+    `${ansi.bold}${ansi.primary}Updated${ansi.reset}     ${ansi.dim}${formatTimestamp(schedule.updated_at)}${ansi.reset}`,
   );
 
-  const lastRunDisplay = schedule.last_run_at
-    ? schedule.last_run_at.toLocaleString([], {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "(never)";
   lines.push(
-    `${ansi.bold}${ansi.primary}Last Run${ansi.reset}    ${lastRunDisplay}`,
+    `${ansi.bold}${ansi.primary}Last Run${ansi.reset}    ${formatTimestamp(schedule.last_run_at)}`,
   );
   lines.push("");
 
@@ -108,7 +99,7 @@ function cycleFilter<T>(current: T | null, values: readonly T[]): T | null {
 }
 
 export const SchedulePanel = memo(function SchedulePanel({
-  dbPath,
+  projectDir,
   isActive,
 }: SchedulePanelProps) {
   const { stdout } = useStdout();
@@ -127,14 +118,16 @@ export const SchedulePanel = memo(function SchedulePanel({
     const refresh = async () => {
       const filters: { enabled?: boolean } = {};
       if (enabledFilter !== null) filters.enabled = enabledFilter;
-      const result = await withDb(dbPath, (conn) =>
-        listSchedules(conn, filters),
-      );
-      if (mounted) {
-        setSchedules(result);
-        setSelectedIndex((prev) =>
-          Math.min(prev, Math.max(0, result.length - 1)),
-        );
+      try {
+        const result = await listSchedules(projectDir, filters);
+        if (mounted) {
+          setSchedules(result);
+          setSelectedIndex((prev) =>
+            Math.min(prev, Math.max(0, result.length - 1)),
+          );
+        }
+      } catch {
+        // ignore — next tick retries
       }
     };
 
@@ -144,7 +137,7 @@ export const SchedulePanel = memo(function SchedulePanel({
       mounted = false;
       clearInterval(interval);
     };
-  }, [dbPath, enabledFilter, refreshTick]);
+  }, [projectDir, enabledFilter, refreshTick]);
 
   const selectedSchedule = schedules[selectedIndex];
 
@@ -180,13 +173,10 @@ export const SchedulePanel = memo(function SchedulePanel({
 
   useInput(
     (input, key) => {
-      // Delete confirmation mode
       if (confirmDelete) {
         if (input === "y" || input === "d") {
           if (selectedSchedule) {
-            withDb(dbPath, (conn) =>
-              deleteSchedule(conn, selectedSchedule.id),
-            ).then(() => {
+            deleteSchedule(projectDir, selectedSchedule.id).then(() => {
               forceRefresh();
             });
           }
@@ -246,11 +236,9 @@ export const SchedulePanel = memo(function SchedulePanel({
         return;
       }
       if (input === "e" && selectedSchedule) {
-        withDb(dbPath, (conn) =>
-          updateSchedule(conn, selectedSchedule.id, {
-            enabled: !selectedSchedule.enabled,
-          }),
-        ).then(() => {
+        updateSchedule(projectDir, selectedSchedule.id, {
+          enabled: !selectedSchedule.enabled,
+        }).then(() => {
           forceRefresh();
         });
         return;
@@ -299,7 +287,6 @@ export const SchedulePanel = memo(function SchedulePanel({
 
   return (
     <Box flexGrow={1} height={visibleRows + 1} overflow="hidden">
-      {/* Left sidebar: schedule list */}
       <Box
         flexDirection="column"
         width={SIDEBAR_WIDTH}
@@ -361,7 +348,6 @@ export const SchedulePanel = memo(function SchedulePanel({
         })}
       </Box>
 
-      {/* Right detail pane */}
       <Box
         flexDirection="column"
         flexGrow={1}
