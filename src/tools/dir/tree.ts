@@ -26,8 +26,9 @@ function renderTree(node: TreeNode, prefix = "", isLast = true): string[] {
   if (node.is_directory && node.children) {
     const childPrefix =
       prefix + (prefix === "" ? "" : isLast ? "    " : "│   ");
-    node.children.forEach((c, i) => {
-      const last = i === node.children!.length - 1;
+    const children = node.children;
+    children.forEach((c, i) => {
+      const last = i === children.length - 1;
       lines.push(...renderTree(c, childPrefix, last));
     });
   }

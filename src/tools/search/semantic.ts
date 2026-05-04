@@ -1,6 +1,8 @@
 import type { BotholomewConfig } from "../../config/schemas.ts";
 import { embed, embedSingle } from "../../context/embedder.ts";
 import { listContextDir, readContextFile } from "../../context/store.ts";
+import { withDb } from "../../db/connection.ts";
+import { indexStats, searchSemantic } from "../../db/embeddings.ts";
 import { globToRegex } from "./regexp.ts";
 
 export interface SemanticHit {
@@ -17,14 +19,78 @@ export interface SemanticOptions {
   limit?: number;
 }
 
-// Each file is embedded as a single chunk truncated to MAX_CHARS. Good enough
-// for short notes; long files only match against their head until the indexed
-// search pipeline lands. The follow-on "Disk-Backed Project Layout" milestone
-// adds proper chunked + persistent indexing.
+// On-the-fly fallback (used when the index sidecar is empty / stale).
+// One chunk per file truncated to MAX_CHARS; the indexed path is much faster
+// and supports proper chunking via `botholomew context reindex`.
 const MAX_CHARS = 4_000;
 const MAX_FILES_TO_EMBED = 200;
 
+/**
+ * Semantic search over `context/`. Prefers the persistent index sidecar
+ * (`context_index` table, populated by `botholomew context reindex`) when
+ * it has rows. Falls back to embedding files on the fly so a fresh project
+ * still gets useful results before the user has reindexed once.
+ */
 export async function runSemantic(
+  projectDir: string,
+  config: Required<BotholomewConfig>,
+  dbPath: string | null,
+  options: SemanticOptions,
+): Promise<SemanticHit[]> {
+  if (dbPath) {
+    const indexed = await tryIndexedSearch(dbPath, config, options);
+    if (indexed) return indexed;
+  }
+  return runOnTheFly(projectDir, config, options);
+}
+
+async function tryIndexedSearch(
+  dbPath: string,
+  config: Required<BotholomewConfig>,
+  options: SemanticOptions,
+): Promise<SemanticHit[] | null> {
+  let stats: Awaited<ReturnType<typeof indexStats>>;
+  try {
+    stats = await withDb(dbPath, indexStats);
+  } catch {
+    return null;
+  }
+  if (stats.embedded === 0) return null;
+
+  const queryVec = await embedSingle(options.query, config);
+  const limit = options.limit ?? 100;
+  const rows = await withDb(dbPath, (conn) =>
+    searchSemantic(conn, queryVec, limit * 4),
+  );
+
+  const globRegex = options.glob ? globToRegex(options.glob) : null;
+  const scope = options.scope
+    ? options.scope.endsWith("/")
+      ? options.scope
+      : `${options.scope}/`
+    : null;
+
+  const filtered: SemanticHit[] = [];
+  for (const r of rows) {
+    if (scope && !r.path.startsWith(scope) && r.path !== options.scope) {
+      continue;
+    }
+    if (globRegex) {
+      const filename = r.path.split("/").pop() ?? "";
+      if (!globRegex.test(filename)) continue;
+    }
+    filtered.push({
+      path: r.path,
+      chunk_index: r.chunk_index,
+      chunk_content: r.chunk_content,
+      score: r.score,
+    });
+    if (filtered.length >= limit) break;
+  }
+  return filtered;
+}
+
+async function runOnTheFly(
   projectDir: string,
   config: Required<BotholomewConfig>,
   options: SemanticOptions,
@@ -49,7 +115,10 @@ export async function runSemantic(
       continue;
     }
     if (content.trim().length === 0) continue;
-    candidates.push({ path: entry.path, content: content.slice(0, MAX_CHARS) });
+    candidates.push({
+      path: entry.path,
+      content: content.slice(0, MAX_CHARS),
+    });
     if (candidates.length >= MAX_FILES_TO_EMBED) break;
   }
 

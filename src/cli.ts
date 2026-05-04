@@ -5,9 +5,7 @@ import { program } from "commander";
 import { registerCapabilitiesCommand } from "./commands/capabilities.ts";
 import { registerChatCommand } from "./commands/chat.ts";
 import { registerCheckUpdateCommand } from "./commands/check-update.ts";
-// `context` CLI removed during disk-backed context refactor; the agent
-// surface (context_read/write/edit/etc) lives in src/tools/file/* and
-// src/tools/dir/*.
+import { registerContextCommand } from "./commands/context.ts";
 import { registerDbCommand } from "./commands/db.ts";
 import { registerInitCommand } from "./commands/init.ts";
 import { registerMcpxCommand } from "./commands/mcpx.ts";
@@ -42,6 +40,7 @@ registerTaskCommand(program);
 registerThreadCommand(program);
 registerScheduleCommand(program);
 registerChatCommand(program);
+registerContextCommand(program);
 registerDbCommand(program);
 registerCapabilitiesCommand(program);
 registerMcpxCommand(program);

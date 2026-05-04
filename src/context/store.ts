@@ -539,6 +539,7 @@ async function treeRecurse(
   }
   names.sort((a, b) => a.localeCompare(b));
   const { lstat } = await import("node:fs/promises");
+  const children = node.children ?? [];
   for (const name of names) {
     if (name.startsWith(".")) continue;
     const childAbs = join(abs, name);
@@ -546,11 +547,11 @@ async function treeRecurse(
     if (st.isSymbolicLink()) continue;
     const childRel = toPosix(relative(contextRoot, childAbs));
     if (st.isDirectory()) {
-      node.children!.push(
+      children.push(
         await treeRecurse(childAbs, childRel, name, contextRoot, depthLeft - 1),
       );
     } else if (st.isFile()) {
-      node.children!.push({
+      children.push({
         name,
         path: childRel,
         is_directory: false,
@@ -558,6 +559,7 @@ async function treeRecurse(
       });
     }
   }
+  node.children = children;
   return node;
 }
 

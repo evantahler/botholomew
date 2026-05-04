@@ -727,7 +727,7 @@ export function App({
         flexDirection="column"
         flexGrow={1}
       >
-        <ContextPanel dbPath={dbPath} isActive={activeTab === 3} />
+        <ContextPanel projectDir={projectDir} isActive={activeTab === 3} />
       </Box>
       <Box
         display={activeTab === 4 ? "flex" : "none"}

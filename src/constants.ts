@@ -53,8 +53,8 @@ export const EMBEDDING_MODEL = "Xenova/bge-small-en-v1.5";
 export const PROTECTED_AREAS: ReadonlySet<string> = new Set([
   MODELS_DIR,
   LOGS_DIR,
-  TASKS_DIR + "/" + LOCKS_SUBDIR,
-  SCHEDULES_DIR + "/" + LOCKS_SUBDIR,
+  `${TASKS_DIR}/${LOCKS_SUBDIR}`,
+  `${SCHEDULES_DIR}/${LOCKS_SUBDIR}`,
 ]);
 
 export function getDbPath(projectDir: string): string {

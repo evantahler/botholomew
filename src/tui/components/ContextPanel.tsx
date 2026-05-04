@@ -1,179 +1,91 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { formatDriveRef } from "../../context/drives.ts";
-import { withDb } from "../../db/connection.ts";
 import {
-  type ContextItem,
-  deleteContextItem,
-  deleteContextItemsByPrefix,
-  getDistinctDirectories,
-  listContextItemsByPrefix,
-  listDriveSummaries,
-  searchContextByKeyword,
-} from "../../db/context.ts";
-import { isMarkdownItem, renderMarkdown } from "../markdown.ts";
+  type ContextEntry,
+  listContextDir,
+  readContextFile,
+} from "../../context/store.ts";
+import { isMarkdownPath, renderMarkdown } from "../markdown.ts";
 
 interface ContextPanelProps {
-  dbPath: string;
+  projectDir: string;
   isActive: boolean;
 }
-
-interface DriveEntry {
-  type: "drive";
-  drive: string;
-  count: number;
-}
-
-interface DirEntry {
-  type: "directory";
-  name: string;
-  path: string;
-}
-
-interface FileEntry {
-  type: "file";
-  item: ContextItem;
-}
-
-type Entry = DriveEntry | DirEntry | FileEntry;
 
 const CHROME_LINES = 8;
 
 export const ContextPanel = memo(function ContextPanel({
-  dbPath,
+  projectDir,
   isActive,
 }: ContextPanelProps) {
   const { stdout } = useStdout();
   const termRows = stdout?.rows ?? 24;
 
-  // currentDrive === null means we're at the "pick a drive" level.
-  const [currentDrive, setCurrentDrive] = useState<string | null>(null);
-  const [currentPath, setCurrentPath] = useState("/");
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [currentPath, setCurrentPath] = useState("");
+  const [entries, setEntries] = useState<ContextEntry[]>([]);
   const [cursor, setCursor] = useState(0);
   const [scrollOffset, setScrollOffset] = useState(0);
-  const [preview, setPreview] = useState<ContextItem | null>(null);
+  const [preview, setPreview] = useState<{
+    entry: ContextEntry;
+    content: string;
+  } | null>(null);
   const [previewScroll, setPreviewScroll] = useState(0);
-  const [searchMode, setSearchMode] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<ContextItem[] | null>(
-    null,
-  );
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const visibleRows = Math.max(1, termRows - CHROME_LINES);
 
   useEffect(() => {
-    if (cursor < scrollOffset) {
-      setScrollOffset(cursor);
-    } else if (cursor >= scrollOffset + visibleRows) {
+    if (cursor < scrollOffset) setScrollOffset(cursor);
+    else if (cursor >= scrollOffset + visibleRows) {
       setScrollOffset(cursor - visibleRows + 1);
     }
   }, [cursor, scrollOffset, visibleRows]);
 
-  const loadEntries = useCallback(
-    async (drive: string | null, path: string) => {
-      if (drive === null) {
-        const summaries = await withDb(dbPath, (conn) =>
-          listDriveSummaries(conn),
-        );
-        const driveEntries: DriveEntry[] = summaries.map((s) => ({
-          type: "drive",
-          drive: s.drive,
-          count: s.count,
-        }));
-        setEntries(driveEntries);
+  const refresh = useCallback(
+    async (path: string) => {
+      try {
+        const list = await listContextDir(projectDir, path, {
+          recursive: false,
+        });
+        list.sort((a, b) => {
+          if (a.is_directory !== b.is_directory) return a.is_directory ? -1 : 1;
+          return a.path.localeCompare(b.path);
+        });
+        setEntries(list);
         setCursor(0);
         setScrollOffset(0);
         setPreview(null);
-        return;
+      } catch {
+        setEntries([]);
+        setCursor(0);
+        setScrollOffset(0);
+        setPreview(null);
       }
-
-      const [dirs, files] = await withDb(dbPath, async (conn) => [
-        await getDistinctDirectories(conn, drive, path),
-        await listContextItemsByPrefix(conn, drive, path, { recursive: false }),
-      ]);
-
-      const dirEntries: DirEntry[] = dirs.map((d) => ({
-        type: "directory",
-        name: d,
-        path: `${d}/`,
-      }));
-
-      const fileEntries: FileEntry[] = files
-        .filter((f) => !dirs.some((d) => f.path.startsWith(`${d}/`)))
-        .map((f) => ({ type: "file", item: f }));
-
-      setEntries([...dirEntries, ...fileEntries]);
-      setCursor(0);
-      setScrollOffset(0);
-      setPreview(null);
     },
-    [dbPath],
+    [projectDir],
   );
 
   useEffect(() => {
-    if (searchResults === null) {
-      loadEntries(currentDrive, currentPath);
-    }
-  }, [currentDrive, currentPath, loadEntries, searchResults]);
+    refresh(currentPath);
+  }, [currentPath, refresh]);
 
-  const executeSearch = useCallback(
-    async (query: string) => {
-      if (!query.trim()) {
-        setSearchResults(null);
-        return;
-      }
-      const results = await withDb(dbPath, (conn) =>
-        searchContextByKeyword(conn, query.trim(), 50),
-      );
-      setSearchResults(results);
-      setCursor(0);
-      setScrollOffset(0);
-      setPreview(null);
-    },
-    [dbPath],
-  );
+  const previewLines = useMemo(() => {
+    if (!preview) return [];
+    const body =
+      isMarkdownPath(preview.entry.path) && preview.entry.is_textual
+        ? renderMarkdown(preview.content)
+        : preview.content;
+    return body.split("\n");
+  }, [preview]);
 
-  const items = searchResults ?? entries;
+  const items = entries;
   const itemCount = items.length;
   const visibleItems = useMemo(
     () => items.slice(scrollOffset, scrollOffset + visibleRows),
     [items, scrollOffset, visibleRows],
   );
 
-  const previewLines = useMemo(() => {
-    if (!preview?.content) return [];
-    const body = isMarkdownItem(preview)
-      ? renderMarkdown(preview.content)
-      : preview.content;
-    return body.split("\n");
-  }, [preview]);
-
   useInput(
     (input, key) => {
-      if (searchMode) {
-        if (key.return) {
-          setSearchMode(false);
-          executeSearch(searchQuery);
-          return;
-        }
-        if (key.escape) {
-          setSearchMode(false);
-          setSearchQuery("");
-          setSearchResults(null);
-          return;
-        }
-        if (key.backspace || key.delete) {
-          setSearchQuery((q) => q.slice(0, -1));
-          return;
-        }
-        if (input && !key.ctrl && !key.meta) {
-          setSearchQuery((q) => q + input);
-        }
-        return;
-      }
-
       if (preview) {
         if (key.upArrow) {
           setPreviewScroll((s) => Math.max(0, s - 1));
@@ -184,56 +96,11 @@ export const ContextPanel = memo(function ContextPanel({
           setPreviewScroll((s) => Math.min(maxScroll, s + 1));
           return;
         }
-        if (key.escape) {
+        if (key.escape || input === "q") {
           setPreview(null);
           setPreviewScroll(0);
-          return;
         }
         return;
-      }
-
-      if (confirmDelete) {
-        if (input === "y" || input === "d") {
-          const entry = entries[cursor];
-          if (entry) {
-            void withDb(dbPath, async (conn) => {
-              if (entry.type === "directory" && currentDrive) {
-                await deleteContextItemsByPrefix(
-                  conn,
-                  currentDrive,
-                  entry.path,
-                );
-              } else if (entry.type === "file") {
-                await deleteContextItem(conn, entry.item.id);
-              }
-            });
-            setConfirmDelete(false);
-            loadEntries(currentDrive, currentPath);
-          }
-        } else {
-          setConfirmDelete(false);
-        }
-        return;
-      }
-
-      if (input === "d" && itemCount > 0 && searchResults === null) {
-        setConfirmDelete(true);
-        return;
-      }
-
-      if (input === "/") {
-        setSearchMode(true);
-        setSearchQuery("");
-        return;
-      }
-
-      if (key.escape) {
-        if (searchResults !== null) {
-          setSearchResults(null);
-          setPreview(null);
-          setScrollOffset(0);
-          return;
-        }
       }
 
       if (key.upArrow) {
@@ -244,83 +111,30 @@ export const ContextPanel = memo(function ContextPanel({
         setCursor((c) => Math.min(itemCount - 1, c + 1));
         return;
       }
-
       if (key.return) {
-        if (searchResults !== null) {
-          const item = searchResults[cursor];
-          if (item) {
-            setPreview(item);
-            setPreviewScroll(0);
-          }
-          return;
-        }
         const entry = entries[cursor];
         if (!entry) return;
-        if (entry.type === "drive") {
-          setCurrentDrive(entry.drive);
-          setCurrentPath("/");
-        } else if (entry.type === "directory") {
+        if (entry.is_directory) {
           setCurrentPath(entry.path);
-        } else {
-          setPreview(entry.item);
-          setPreviewScroll(0);
+          return;
         }
+        if (!entry.is_textual) return;
+        readContextFile(projectDir, entry.path).then((content) => {
+          setPreview({ entry, content });
+          setPreviewScroll(0);
+        });
         return;
       }
-
-      if (key.backspace || key.delete) {
-        if (currentPath !== "/") {
-          const parts = currentPath.replace(/\/$/, "").split("/");
-          parts.pop();
-          const parent = parts.length <= 1 ? "/" : `${parts.join("/")}/`;
-          setCurrentPath(parent);
-        } else if (currentDrive !== null) {
-          setCurrentDrive(null);
-        }
+      if (key.backspace || key.delete || input === "h") {
+        if (currentPath === "") return;
+        const parts = currentPath.split("/");
+        parts.pop();
+        setCurrentPath(parts.join("/"));
       }
+      if (input === "r") refresh(currentPath);
     },
     { isActive },
   );
-
-  if (searchResults !== null && !preview) {
-    return (
-      <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
-        <Box>
-          <Text bold color="cyan">
-            Search results for: &quot;{searchQuery}&quot;
-          </Text>
-          <Text dimColor> ({searchResults.length} matches · esc to clear)</Text>
-        </Box>
-        <Box flexDirection="column" marginTop={1} flexGrow={1}>
-          {searchResults.length === 0 && <Text dimColor>No results found</Text>}
-          {visibleItems.map((item, vi) => {
-            const i = vi + scrollOffset;
-            const ci = item as ContextItem;
-            const ref = formatDriveRef(ci);
-            return (
-              <Box key={ci.id}>
-                <Text
-                  backgroundColor={i === cursor ? "#333" : undefined}
-                  color={i === cursor ? "cyan" : undefined}
-                >
-                  {"  "}📄 <Text dimColor>{ref}</Text> — {ci.title}
-                  <Text dimColor> ({ci.mime_type})</Text>
-                </Text>
-              </Box>
-            );
-          })}
-        </Box>
-        {itemCount > visibleRows && (
-          <Box>
-            <Text dimColor>
-              [{scrollOffset + 1}–
-              {Math.min(scrollOffset + visibleRows, itemCount)} of {itemCount}]
-            </Text>
-          </Box>
-        )}
-      </Box>
-    );
-  }
 
   if (preview) {
     const visiblePreviewLines = previewLines.slice(
@@ -331,18 +145,14 @@ export const ContextPanel = memo(function ContextPanel({
       <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
         <Box>
           <Text bold color="cyan">
-            {formatDriveRef(preview)}
+            context/{preview.entry.path}
           </Text>
-          <Text dimColor> (esc to go back · ↑↓ to scroll)</Text>
+          <Text dimColor> (esc/q to go back · ↑↓ to scroll)</Text>
         </Box>
         <Box marginTop={1} flexDirection="column">
           <Text dimColor>
-            Type: {preview.mime_type} · Title: {preview.title}
-            {preview.description ? ` · ${preview.description}` : ""}
-          </Text>
-          <Text dimColor>
-            {preview.indexed_at ? "Indexed" : "Not indexed"} · Updated:{" "}
-            {preview.updated_at.toLocaleDateString()}
+            {preview.entry.mime_type} · {preview.entry.size} bytes · updated{" "}
+            {preview.entry.mtime.toLocaleDateString()}
           </Text>
         </Box>
         <Box
@@ -351,14 +161,10 @@ export const ContextPanel = memo(function ContextPanel({
           flexGrow={1}
           overflow="hidden"
         >
-          {preview.content ? (
-            visiblePreviewLines.map((line, i) => {
-              const lineNum = previewScroll + i;
-              return <Text key={lineNum}>{line || " "}</Text>;
-            })
-          ) : (
-            <Text dimColor>(binary or empty content)</Text>
-          )}
+          {visiblePreviewLines.map((line, i) => {
+            const lineNum = previewScroll + i;
+            return <Text key={lineNum}>{line || " "}</Text>;
+          })}
         </Box>
         {previewLines.length > visibleRows - 2 && (
           <Box>
@@ -374,9 +180,7 @@ export const ContextPanel = memo(function ContextPanel({
   }
 
   const headerLabel =
-    currentDrive === null
-      ? "(drives)"
-      : formatDriveRef({ drive: currentDrive, path: currentPath });
+    currentPath === "" ? "context/" : `context/${currentPath}/`;
 
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
@@ -386,69 +190,32 @@ export const ContextPanel = memo(function ContextPanel({
         </Text>
         <Text dimColor>
           {" "}
-          ({entries.length} items · / search · d delete · backspace up)
+          ({entries.length} entries · ↑↓ select · ⏎ open · backspace up · r
+          refresh)
         </Text>
       </Box>
-      {searchMode && (
-        <Box marginTop={1}>
-          <Text color="green">search: </Text>
-          <Text>{searchQuery}</Text>
-          <Text dimColor>█</Text>
-        </Box>
-      )}
-      {confirmDelete && entries[cursor] && (
-        <Box marginTop={1}>
-          <Text color="red" bold>
-            Delete{" "}
-            {entries[cursor].type === "directory"
-              ? `${(entries[cursor] as DirEntry).name}/ and all contents`
-              : entries[cursor].type === "file"
-                ? (entries[cursor] as FileEntry).item.title
-                : "(pick a file first)"}
-            ? (y/n)
-          </Text>
-        </Box>
-      )}
       <Box flexDirection="column" marginTop={1} flexGrow={1}>
-        {entries.length === 0 && <Text dimColor>No context items found</Text>}
-        {visibleItems.map((raw, vi) => {
+        {entries.length === 0 && <Text dimColor>(empty)</Text>}
+        {visibleItems.map((entry, vi) => {
           const i = vi + scrollOffset;
-          const entry = raw as Entry;
           const isSelected = i === cursor;
-          if (entry.type === "drive") {
-            return (
-              <Box key={entry.drive}>
-                <Text
-                  backgroundColor={isSelected ? "#333" : undefined}
-                  color={isSelected ? "cyan" : "magenta"}
-                  bold={isSelected}
-                >
-                  {"  "}🗄 {entry.drive}:/ <Text dimColor>({entry.count})</Text>
-                </Text>
-              </Box>
-            );
-          }
-          if (entry.type === "directory") {
-            return (
-              <Box key={entry.path}>
-                <Text
-                  backgroundColor={isSelected ? "#333" : undefined}
-                  color={isSelected ? "cyan" : "blue"}
-                  bold={isSelected}
-                >
-                  {"  "}📁 {entry.name}/
-                </Text>
-              </Box>
-            );
-          }
+          const name = entry.path.split("/").pop() ?? entry.path;
+          const icon = entry.is_directory ? "📁" : "📄";
           return (
-            <Box key={entry.item.id}>
+            <Box key={entry.path}>
               <Text
                 backgroundColor={isSelected ? "#333" : undefined}
-                color={isSelected ? "cyan" : undefined}
+                color={
+                  isSelected ? "cyan" : entry.is_directory ? "blue" : undefined
+                }
+                bold={isSelected}
               >
-                {"  "}📄 {entry.item.title}
-                <Text dimColor> ({entry.item.mime_type})</Text>
+                {"  "}
+                {icon} {name}
+                {entry.is_directory ? "/" : ""}
+                {!entry.is_directory && (
+                  <Text dimColor> ({entry.mime_type})</Text>
+                )}
               </Text>
             </Box>
           );

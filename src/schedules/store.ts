@@ -202,7 +202,7 @@ export async function withScheduleLock<T>(
   fn: (s: Schedule) => Promise<T>,
 ): Promise<T | null> {
   const s = await getSchedule(projectDir, id);
-  if (!s || !s.enabled) return null;
+  if (!s?.enabled) return null;
   if (s.last_run_at) {
     const last = Date.parse(s.last_run_at);
     if (Date.now() - last < opts.minIntervalSeconds * 1000) return null;

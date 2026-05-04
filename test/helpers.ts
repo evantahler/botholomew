@@ -5,7 +5,6 @@ import type { BotholomewConfig } from "../src/config/schemas.ts";
 import { DEFAULT_CONFIG } from "../src/config/schemas.ts";
 import { EMBEDDING_DIMENSION } from "../src/constants.ts";
 import { type DbConnection, getConnection } from "../src/db/connection.ts";
-import { createContextItem } from "../src/db/context.ts";
 import { migrate } from "../src/db/schema.ts";
 import type { ToolContext } from "../src/tools/tool.ts";
 
@@ -183,58 +182,17 @@ export async function setupToolContext(): Promise<{
 }
 
 /**
- * Seed a text file into context.
- * Accepts either `seedFile(conn, path, content)` — defaults to drive='agent' —
- * or `seedFile(conn, { drive, path }, content)` for an explicit drive.
+ * Seed a textual file under `<projectDir>/context/`. The legacy `(drive, path)`
+ * form is gone; pass a project-relative path string.
  */
 export async function seedFile(
-  conn: DbConnection,
-  ref: string | { drive: string; path: string },
+  projectDir: string,
+  path: string,
   content: string,
-  opts?: { title?: string; description?: string },
-) {
-  const { drive, path } =
-    typeof ref === "string" ? { drive: "agent", path: ref } : ref;
-  return createContextItem(conn, {
-    title: opts?.title ?? path.split("/").pop() ?? path,
-    description: opts?.description,
-    content,
-    drive,
-    path,
-    mimeType: "text/plain",
-    isTextual: true,
-  });
-}
-
-/** Seed a binary (non-textual) file. */
-export async function seedBinaryFile(
-  conn: DbConnection,
-  ref: string | { drive: string; path: string },
-) {
-  const { drive, path } =
-    typeof ref === "string" ? { drive: "agent", path: ref } : ref;
-  return createContextItem(conn, {
-    title: path.split("/").pop() ?? path,
-    content: undefined,
-    drive,
-    path,
-    mimeType: "application/octet-stream",
-    isTextual: false,
-  });
-}
-
-/** Seed a directory entry. */
-export async function seedDir(
-  conn: DbConnection,
-  ref: string | { drive: string; path: string },
-) {
-  const { drive, path } =
-    typeof ref === "string" ? { drive: "agent", path: ref } : ref;
-  return createContextItem(conn, {
-    title: path.split("/").pop() ?? path,
-    drive,
-    path,
-    mimeType: "inode/directory",
-    isTextual: false,
-  });
+): Promise<void> {
+  const { mkdir } = await import("node:fs/promises");
+  const { dirname } = await import("node:path");
+  const target = join(projectDir, "context", path);
+  await mkdir(dirname(target), { recursive: true });
+  await Bun.write(target, content);
 }

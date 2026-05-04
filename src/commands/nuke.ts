@@ -4,13 +4,10 @@ import type { Command } from "commander";
 import {
   CONTEXT_DIR,
   getContextDir,
-  getSchedulesDir,
-  getTasksDir,
   SCHEDULES_DIR,
   TASKS_DIR,
 } from "../constants.ts";
 import type { DbConnection } from "../db/connection.ts";
-import { deleteAllDaemonState } from "../db/daemon-state.ts";
 import { deleteAllThreads } from "../db/threads.ts";
 import { listWorkers } from "../db/workers.ts";
 import { deleteAllSchedules } from "../schedules/store.ts";
@@ -54,10 +51,6 @@ async function runNuke(
   if (scope === "threads" || scope === "all") {
     const { threads, interactions } = await deleteAllThreads(conn);
     logger.success(`Deleted ${threads} threads, ${interactions} interactions`);
-  }
-  if (scope === "all") {
-    const n = await deleteAllDaemonState(conn);
-    logger.success(`Deleted ${n} daemon_state entries`);
   }
 }
 

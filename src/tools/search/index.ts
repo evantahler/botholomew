@@ -92,7 +92,7 @@ export const searchTool = {
       : [];
 
     const semanticHits = input.query
-      ? await runSemantic(ctx.projectDir, ctx.config, {
+      ? await runSemantic(ctx.projectDir, ctx.config, ctx.dbPath, {
           query: input.query,
           scope: input.scope,
           glob: input.glob,

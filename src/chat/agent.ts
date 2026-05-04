@@ -14,7 +14,6 @@ import {
   type ToolContext,
   toAnthropicTool,
 } from "../tools/tool.ts";
-import { logger } from "../utils/logger.ts";
 import { fitToContextWindow, getMaxInputTokens } from "../worker/context.ts";
 import { maybeStoreResult } from "../worker/large-results.ts";
 import { createLlmClient } from "../worker/llm-client.ts";
