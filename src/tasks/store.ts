@@ -217,9 +217,15 @@ export async function updateTask(
   if (updates.blocked_by !== undefined) {
     await validateBlockedBy(projectDir, id, updates.blocked_by);
   }
+  // Drop undefined keys so a `Partial` that omits a field doesn't overwrite
+  // the on-disk value with `undefined` (YAML can't serialize undefined and
+  // we'd lose the field anyway).
+  const definedUpdates = Object.fromEntries(
+    Object.entries(updates).filter(([, v]) => v !== undefined),
+  );
   const fm: TaskFrontmatter = {
     ...t,
-    ...updates,
+    ...definedUpdates,
     updated_at: new Date().toISOString(),
   };
   await atomicWriteIfUnchanged(

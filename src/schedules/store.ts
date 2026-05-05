@@ -147,9 +147,14 @@ export async function updateSchedule(
 ): Promise<Schedule | null> {
   const s = await getSchedule(projectDir, id);
   if (!s) return null;
+  // Drop undefined keys so an omitted field doesn't overwrite the on-disk
+  // value with `undefined` (YAML can't serialize undefined).
+  const definedUpdates = Object.fromEntries(
+    Object.entries(updates).filter(([, v]) => v !== undefined),
+  );
   const fm: ScheduleFrontmatter = {
     ...s,
-    ...updates,
+    ...definedUpdates,
     updated_at: new Date().toISOString(),
   };
   await atomicWriteIfUnchanged(
