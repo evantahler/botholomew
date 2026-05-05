@@ -18,7 +18,7 @@ const outputSchema = z.object({
 export const contextCreateDirTool = {
   name: "context_create_dir",
   description:
-    "[[ bash equivalent command: mkdir -p ]] Create a directory (recursively) under context/.",
+    "[[ bash equivalent command: mkdir -p ]] Create a directory (recursively) under context/. Paths that traverse a user symlink fail with PathEscapeError.",
   group: "context",
   inputSchema,
   outputSchema,

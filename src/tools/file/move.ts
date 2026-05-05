@@ -25,7 +25,7 @@ const outputSchema = z.object({
 export const contextMoveTool = {
   name: "context_move",
   description:
-    "[[ bash equivalent command: mv ]] Move or rename a file/directory under context/.",
+    "[[ bash equivalent command: mv ]] Move or rename a file/directory under context/. Source/destination paths that traverse a user symlink fail with PathEscapeError.",
   group: "context",
   inputSchema,
   outputSchema,

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CONTEXT_DIR, getDbPath } from "../../src/constants.ts";
@@ -111,6 +111,42 @@ describe("reindexContext", () => {
 
     const afterRows = await withDb(dbPath, listIndexedPaths);
     expect(afterRows.some((r) => r.path === "doomed.md")).toBe(false);
+  });
+
+  test("indexes content reachable through user-placed symlinks", async () => {
+    // Seed external content outside the context tree, then symlink it in.
+    const externalDir = await mkdtemp(join(tmpdir(), "both-reindex-ext-"));
+    try {
+      await writeFile(join(externalDir, "ext.md"), "shared knowledge");
+      await mkdir(join(externalDir, "sub"), { recursive: true });
+      await writeFile(
+        join(externalDir, "sub", "deep.md"),
+        "buried in a symlinked subtree",
+      );
+
+      await symlink(
+        join(externalDir, "ext.md"),
+        join(projectDir, CONTEXT_DIR, "ref.md"),
+      );
+      await symlink(
+        join(externalDir, "sub"),
+        join(projectDir, CONTEXT_DIR, "linked"),
+      );
+
+      const summary = await reindexContext(projectDir, TEST_CONFIG, dbPath, {
+        embedFn: fakeEmbedFn,
+      });
+      expect(summary.added).toBe(2);
+
+      const rows = await withDb(dbPath, listIndexedPaths);
+      const paths = rows.map((r) => r.path).sort();
+      // The index stores the user-visible (symlink) path, not the resolved
+      // target — a symlinked file at `ref.md` indexes as `ref.md`, and a
+      // symlinked directory's children appear under the link's path.
+      expect(paths).toEqual(["linked/deep.md", "ref.md"]);
+    } finally {
+      await rm(externalDir, { recursive: true, force: true });
+    }
   });
 
   test("ignores binary files", async () => {

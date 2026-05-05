@@ -62,6 +62,7 @@ const CHAT_TOOL_NAMES = new Set([
   "skill_edit",
   "skill_search",
   "skill_delete",
+  "sleep",
 ]);
 
 export function getChatTools() {
@@ -364,6 +365,7 @@ export async function runChatTurn(input: {
           projectDir,
           config,
           mcpxClient,
+          shouldAbort: session ? () => session.aborted : undefined,
         });
         const durationMs = Date.now() - start;
         const stored = maybeStoreResult(toolUse.name, result.output);
@@ -411,6 +413,7 @@ interface ChatToolCallCtx {
   projectDir: string;
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;
+  shouldAbort?: () => boolean;
 }
 
 async function executeChatToolCall(
@@ -434,10 +437,20 @@ async function executeChatToolCall(
   }
 
   try {
-    const result = await withDb(baseCtx.dbPath, (conn) => {
-      const ctx: ToolContext = { ...baseCtx, conn };
-      return tool.execute(parsed.data, ctx);
-    });
+    // `sleep` deliberately yields for up to an hour; opening a DuckDB
+    // connection for that whole window would hold the instance-level file
+    // lock and block any worker that also wants the DB. Run it without a
+    // connection — the tool doesn't touch the DB.
+    const runWithoutDb = tool.name === "sleep";
+    const result = runWithoutDb
+      ? await tool.execute(parsed.data, {
+          ...baseCtx,
+          conn: undefined as unknown as ToolContext["conn"],
+        })
+      : await withDb(baseCtx.dbPath, (conn) => {
+          const ctx: ToolContext = { ...baseCtx, conn };
+          return tool.execute(parsed.data, ctx);
+        });
     const isError =
       typeof result === "object" && result !== null && "is_error" in result
         ? (result as { is_error: boolean }).is_error

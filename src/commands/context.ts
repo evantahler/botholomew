@@ -221,9 +221,10 @@ function renderTreeAnsi(
 ): string {
   const lines: string[] = [];
   const connector = isRoot ? "" : isLast ? "└── " : "├── ";
-  const label = node.is_directory
+  const base = node.is_directory
     ? ansis.blue(node.name === "." ? "context/" : `${node.name}/`)
     : node.name;
+  const label = node.is_symlink ? `${base} ${ansis.cyan("→")}` : base;
   lines.push(`${prefix}${connector}${label}`);
   if (node.is_directory && node.children) {
     const childPrefix = isRoot ? "" : prefix + (isLast ? "    " : "│   ");
