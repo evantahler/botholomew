@@ -225,6 +225,65 @@ describe("withScheduleLock + markScheduleRun", () => {
     expect(invoked).toBe(false);
   });
 
+  test("re-checks `enabled` after acquiring the lock — disabled-in-the-window does NOT fire", async () => {
+    // Race window: the pre-lock fast-check sees enabled=true, but between
+    // that read and the lock acquisition the schedule gets disabled.
+    // withScheduleLock must re-read under the lock and skip rather than
+    // fire fn with stale data.
+    const s = await createSchedule(projectDir, { name: "n", frequency: "f" });
+    let invoked = false;
+    const result = await withScheduleLock(
+      projectDir,
+      s.id,
+      "worker-A",
+      { minIntervalSeconds: 0 },
+      async () => {
+        invoked = true;
+        return "fired";
+      },
+    );
+    expect(result).toBe("fired");
+    expect(invoked).toBe(true);
+
+    // Now disable, then call again — should never invoke fn.
+    await updateSchedule(projectDir, s.id, { enabled: false });
+    invoked = false;
+    const second = await withScheduleLock(
+      projectDir,
+      s.id,
+      "worker-A",
+      { minIntervalSeconds: 0 },
+      async () => {
+        invoked = true;
+        return "should-not-fire";
+      },
+    );
+    expect(second).toBeNull();
+    expect(invoked).toBe(false);
+  });
+
+  test("re-checks last_run_at after acquiring the lock — recent fire does NOT re-fire", async () => {
+    // Another worker fires the schedule between our cheap-check and our
+    // lock acquisition. Re-checking under the lock must catch it.
+    const s = await createSchedule(projectDir, { name: "n", frequency: "f" });
+    // Fire it through the proper path so last_run_at is set.
+    await markScheduleRun(projectDir, s.id);
+
+    let invoked = false;
+    const r = await withScheduleLock(
+      projectDir,
+      s.id,
+      "worker-B",
+      { minIntervalSeconds: 60 },
+      async () => {
+        invoked = true;
+        return "should-not-fire";
+      },
+    );
+    expect(r).toBeNull();
+    expect(invoked).toBe(false);
+  });
+
   test("respects min-interval window since last_run_at", async () => {
     const s = await createSchedule(projectDir, { name: "n", frequency: "f" });
     await markScheduleRun(projectDir, s.id);

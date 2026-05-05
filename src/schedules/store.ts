@@ -198,6 +198,12 @@ export interface ClaimOptions {
  * locked Schedule. The caller mutates last_run_at via `markScheduleRun`
  * before the lock is dropped. If another worker holds the lock or the
  * schedule ran too recently, returns null without calling `fn`.
+ *
+ * Important: enabled and last_run_at are checked BOTH before and after lock
+ * acquisition. The pre-lock read is a cheap fast-fail; the post-lock read
+ * is what `fn` actually receives, so a schedule that gets disabled, deleted,
+ * or just-fired between the cheap-check and the lock acquisition does not
+ * leak through.
  */
 export async function withScheduleLock<T>(
   projectDir: string,
@@ -206,12 +212,14 @@ export async function withScheduleLock<T>(
   opts: ClaimOptions,
   fn: (s: Schedule) => Promise<T>,
 ): Promise<T | null> {
-  const s = await getSchedule(projectDir, id);
-  if (!s?.enabled) return null;
-  if (s.last_run_at) {
-    const last = Date.parse(s.last_run_at);
+  // Pre-lock fast path: skip work if obviously not eligible.
+  const pre = await getSchedule(projectDir, id);
+  if (!pre?.enabled) return null;
+  if (pre.last_run_at) {
+    const last = Date.parse(pre.last_run_at);
     if (Date.now() - last < opts.minIntervalSeconds * 1000) return null;
   }
+
   const lockPath = scheduleLockPath(projectDir, id);
   try {
     await acquireLock(lockPath, workerId);
@@ -220,7 +228,15 @@ export async function withScheduleLock<T>(
     throw err;
   }
   try {
-    return await fn(s);
+    // Re-read under the lock. The schedule may have been disabled, deleted,
+    // or fired by another worker between the pre-check and the lock.
+    const fresh = await getSchedule(projectDir, id);
+    if (!fresh?.enabled) return null;
+    if (fresh.last_run_at) {
+      const last = Date.parse(fresh.last_run_at);
+      if (Date.now() - last < opts.minIntervalSeconds * 1000) return null;
+    }
+    return await fn(fresh);
   } finally {
     await releaseLock(lockPath);
   }

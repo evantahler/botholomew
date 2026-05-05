@@ -183,6 +183,26 @@ describe("updateTask + updateTaskStatus", () => {
     ).rejects.toThrow(TaskNotFoundError);
   });
 
+  test("updateTaskStatus refuses to resurrect a task deleted between read and write", async () => {
+    // Worker reads the task, then a concurrent deleteTask runs, then the
+    // worker tries to commit its status update. atomicWriteIfUnchanged sees
+    // the file is gone and must throw rather than silently re-create it.
+    const t = await createTask(projectDir, { name: "n" });
+    await claimSpecificTask(projectDir, t.id, "worker-A");
+    // Snapshot the in-progress task (this is what runAgentLoop holds).
+    const claimed = await getTask(projectDir, t.id);
+    if (!claimed) throw new Error("missing");
+    // Concurrent delete drops the file.
+    await deleteTask(projectDir, t.id);
+    expect(await getTask(projectDir, t.id)).toBeNull();
+    // Worker tries to land its terminal status — must reject; the task
+    // should NOT spring back into existence.
+    await expect(
+      updateTaskStatus(projectDir, t.id, "complete", null, "done"),
+    ).rejects.toThrow(TaskNotFoundError);
+    expect(await getTask(projectDir, t.id)).toBeNull();
+  });
+
   test("updateTaskStatus clears claimed_by/at on terminal status", async () => {
     const t = await createTask(projectDir, { name: "n" });
     await claimSpecificTask(projectDir, t.id, "worker-A");

@@ -198,15 +198,17 @@ export async function searchKeyword(
   query: string,
   limit = 10,
 ): Promise<SearchResult[]> {
-  const rows = await conn.queryAll<IndexRow & { score: number; rowid: string }>(
+  // The FTS index is created with `path` as input_id (see
+  // rebuildSearchIndex), so match_bm25's first argument must be the path
+  // value, not rowid. Passing rowid silently returns no hits — searchHybrid
+  // would then degrade to semantic-only.
+  const rows = await conn.queryAll<IndexRow & { score: number }>(
     `SELECT context_index.*,
-            fts_main_context_index.match_bm25(rowid, ?1) AS score
-       FROM context_index, (SELECT rowid, path, chunk_index FROM context_index) AS keys
-       WHERE context_index.path = keys.path
-         AND context_index.chunk_index = keys.chunk_index
-         AND fts_main_context_index.match_bm25(keys.rowid, ?1) IS NOT NULL
-       ORDER BY score DESC
-       LIMIT ?2`,
+            fts_main_context_index.match_bm25(context_index.path, ?1) AS score
+       FROM context_index
+      WHERE fts_main_context_index.match_bm25(context_index.path, ?1) IS NOT NULL
+      ORDER BY score DESC
+      LIMIT ?2`,
     query,
     limit,
   );

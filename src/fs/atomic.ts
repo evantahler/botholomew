@@ -77,6 +77,10 @@ export class MtimeConflictError extends Error {
  * commit; if it has changed since `expectedMtimeMs`, throws MtimeConflictError
  * without touching the file. Use for read-modify-write of user-editable files
  * (tasks, schedules) so a concurrent vim save doesn't get clobbered.
+ *
+ * A target that has been deleted between the caller's read and the rename
+ * is also a conflict (the row is gone — we must not silently resurrect it),
+ * so an ENOENT raises MtimeConflictError too.
  */
 export async function atomicWriteIfUnchanged(
   targetPath: string,
@@ -101,10 +105,13 @@ export async function atomicWriteIfUnchanged(
       throw new MtimeConflictError(targetPath, expectedMtimeMs, st.mtimeMs);
     }
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      await unlink(tmp).catch(() => {});
-      throw err;
+    await unlink(tmp).catch(() => {});
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      // Target was deleted between the caller's read and our write. Refuse
+      // to resurrect it — this is a conflict, the same as a stale mtime.
+      throw new MtimeConflictError(targetPath, expectedMtimeMs, 0);
     }
+    throw err;
   }
   await rename(tmp, targetPath);
 }

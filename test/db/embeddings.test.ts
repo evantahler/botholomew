@@ -17,6 +17,7 @@ import {
   listIndexedPaths,
   rebuildSearchIndex,
   searchHybrid,
+  searchKeyword,
   searchSemantic,
   upsertChunksForPath,
 } from "../../src/db/embeddings.ts";
@@ -172,6 +173,40 @@ describe("searchSemantic", () => {
     const queryVec = fakeEmbed("content");
     const results = await searchSemantic(conn, queryVec, 2);
     expect(results).toHaveLength(2);
+  });
+});
+
+describe("searchKeyword (BM25)", () => {
+  test("finds chunks by keyword once the FTS index is built", async () => {
+    await seed("paternity.md", [
+      { index: 0, text: "paternity leave parental time off newborn" },
+    ]);
+    await seed("k8s.md", [
+      { index: 0, text: "kubernetes helm deployment rollout" },
+    ]);
+    await rebuildSearchIndex(conn);
+
+    const results = await searchKeyword(conn, "paternity", 10);
+    expect(results.map((r) => r.path)).toContain("paternity.md");
+    // Only the paternity chunk matches "paternity"; k8s should be absent.
+    expect(results.map((r) => r.path)).not.toContain("k8s.md");
+  });
+
+  test("returns the empty list when no chunks match the query", async () => {
+    await seed("paternity.md", [{ index: 0, text: "paternity leave plan" }]);
+    await rebuildSearchIndex(conn);
+
+    const results = await searchKeyword(conn, "kubernetes", 10);
+    expect(results).toEqual([]);
+  });
+
+  test("respects the limit parameter", async () => {
+    for (const path of ["a.md", "b.md", "c.md"]) {
+      await seed(path, [{ index: 0, text: "kubernetes deployment rollout" }]);
+    }
+    await rebuildSearchIndex(conn);
+    const results = await searchKeyword(conn, "kubernetes", 2);
+    expect(results.length).toBeLessThanOrEqual(2);
   });
 });
 

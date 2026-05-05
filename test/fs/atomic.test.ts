@@ -114,10 +114,26 @@ describe("atomicWriteIfUnchanged", () => {
     expect(await readFile(path, "utf-8")).toBe("racy-update");
   });
 
-  test("commits when the target doesn't exist (first-write-wins)", async () => {
-    const path = join(dir, "fresh.md");
-    await atomicWriteIfUnchanged(path, "first", /*expected mtime*/ 0);
-    expect(await readFile(path, "utf-8")).toBe("first");
+  test("refuses to resurrect a deleted file (ENOENT is a conflict)", async () => {
+    // Real callers always pass a non-zero mtime read from the file before
+    // their update; a missing target between read and write means another
+    // writer (e.g. deleteTask) ran in the gap. Resurrecting it would make
+    // delete-vs-update lose silently.
+    const path = join(dir, "ghost.md");
+    await expect(
+      atomicWriteIfUnchanged(path, "should-not-stick", /*expected mtime*/ 100),
+    ).rejects.toBeInstanceOf(MtimeConflictError);
+    expect(await Bun.file(path).exists()).toBe(false);
+  });
+
+  test("does not leave a temp file behind after the ENOENT conflict", async () => {
+    const path = join(dir, "ghost.md");
+    await atomicWriteIfUnchanged(path, "x", 100).catch(() => null);
+    const { readdir } = await import("node:fs/promises");
+    const tmps = (await readdir(dir)).filter((e) =>
+      e.startsWith("ghost.md.tmp"),
+    );
+    expect(tmps).toEqual([]);
   });
 
   test("temp file is cleaned up after a conflict", async () => {
