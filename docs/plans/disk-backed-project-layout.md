@@ -9,7 +9,7 @@ We flipped every entity that's logically a record onto disk. The model now:
 - **Project directory == cwd.** No `.botholomew/` wrapper. Top-level folders make the project's anatomy visible.
 - **Agent-writable content** lives under `context/`.
 - **Tasks** and **schedules** are markdown with strictly-validated frontmatter; workers claim them via `O_EXCL` lockfiles.
-- **Threads + interactions** are CSV files at `context/threads/<id>.csv` (one CSV per conversation), so prior conversations are searchable through the same hybrid index everything else uses.
+- **Threads + interactions** are CSV files at `context/threads/<YYYY-MM-DD>/<id>.csv` (one CSV per conversation, grouped by UTC creation date), so prior conversations are searchable through the same hybrid index everything else uses.
 - **Workers** are JSON pidfiles at `workers/<id>.json`; the file is the registration record and `last_heartbeat_at` is the liveness signal (atomic-write-via-rename per heartbeat).
 - **DuckDB** is now a **search-index sidecar**. The only tables left are `_migrations` and `context_index`.
 - **Path-accepting tools** are sandboxed to the project root with strict traversal/symlink protection.
@@ -34,8 +34,9 @@ Pre-1.0 — **breaking change, no migration.** Users reinit.
 ├── models/                    # embedding model cache
 ├── context/                   # agent-writable tree
 │   ├── ... arbitrary tree ...
-│   └── threads/               # one CSV per conversation
-│       └── <id>.csv           # 8-column CSV; first row = thread_meta JSON
+│   └── threads/               # one CSV per conversation, grouped by UTC date
+│       └── <YYYY-MM-DD>/
+│           └── <id>.csv       # 8-column CSV; first row = thread_meta JSON
 ├── tasks/                     # markdown w/ frontmatter
 │   ├── <id>.md                # canonical; status in frontmatter
 │   └── .locks/<id>.lock       # O_EXCL claim file (contains worker-id)
@@ -156,7 +157,11 @@ Successor reads `blocked_by` IDs, looks up the corresponding `tasks/<id>.md`, pa
 
 ## Threads + interactions: CSV files under context/threads/
 
-Conversation history (worker ticks and chat sessions) is stored as one CSV file per thread at `context/threads/<id>.csv`. The placement under `context/` is deliberate: the regular `context reindex` walks them, so prior conversations are searchable through the same hybrid index everything else uses.
+Conversation history (worker ticks and chat sessions) is stored as one CSV file per thread at `context/threads/<YYYY-MM-DD>/<id>.csv`. Files are grouped under the UTC date the thread was created on so the directory stays browsable as conversations accumulate. UTC (not local time) keeps the path stable across machines and timezone moves.
+
+The thread id is a uuidv7 — the first 48 bits are a unix-millis timestamp — so the date subdir is a pure function of the id: writes know where to go, reads predict the path without scanning. For non-v7 ids (legacy or hand-written), reads fall back to walking the date subdirs.
+
+The placement under `context/` is deliberate: the regular `context reindex` walks them, so prior conversations are searchable through the same hybrid index everything else uses.
 
 CSV schema (8 columns, RFC-4180 quoted):
 
