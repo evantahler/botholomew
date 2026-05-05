@@ -331,6 +331,33 @@ describe("applyPatches", () => {
     ]);
     expect(await readContextFile(projectDir, "x.md")).toBe("A\nb\nc\nd\nE");
   });
+
+  test("replaces a single line with multiple lines", async () => {
+    await seed("x.md", "a\nb\nc");
+    await applyPatches(projectDir, "x.md", [
+      { start_line: 2, end_line: 2, content: "B1\nB2\nB3" },
+    ]);
+    expect(await readContextFile(projectDir, "x.md")).toBe("a\nB1\nB2\nB3\nc");
+  });
+
+  test("out-of-bounds start_line appends rather than throwing", async () => {
+    // splice(index >= length) inserts at the end; this lets the agent append
+    // safely without first reading the file's line count.
+    await seed("x.md", "a\nb");
+    await applyPatches(projectDir, "x.md", [
+      { start_line: 99, end_line: 0, content: "Z" },
+    ]);
+    const after = await readContextFile(projectDir, "x.md");
+    expect(after.endsWith("Z")).toBe(true);
+  });
+
+  test("throws NotFoundError when the file doesn't exist", async () => {
+    await expect(
+      applyPatches(projectDir, "no-such-file.md", [
+        { start_line: 1, end_line: 1, content: "x" },
+      ]),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
 });
 
 describe("relativeFromContext", () => {

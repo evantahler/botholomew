@@ -210,6 +210,55 @@ describe("searchKeyword (BM25)", () => {
   });
 });
 
+describe("content-aware retrieval quality", () => {
+  // The fakeEmbed in helpers.ts maps known vocab words (paternity, leave,
+  // kubernetes, helm, …) to dedicated hot dimensions and unit-normalizes
+  // the result, so cosine similarity tracks word overlap across docs.
+  // These tests pin specific behaviors the original `hybridSearch end-to-end`
+  // suite cared about: BM25 ranks more matching tokens higher, semantic
+  // recall finds docs even with zero keyword overlap, and an unrelated
+  // query does NOT surface a strong-on-other-tokens doc.
+
+  test("BM25: a chunk matching more query tokens ranks higher than one matching fewer", async () => {
+    await seed("strong.md", [
+      { index: 0, text: "paternity leave parental time off newborn" },
+    ]);
+    await seed("weak.md", [{ index: 0, text: "paternity legal note only" }]);
+    await rebuildSearchIndex(conn);
+
+    const results = await searchKeyword(conn, "paternity leave parental", 10);
+    expect(results.length).toBeGreaterThanOrEqual(2);
+    expect(results[0]?.path).toBe("strong.md");
+  });
+
+  test("semantic recall: a doc with zero query-token overlap is still retrieved by meaning", async () => {
+    await seed("paternity.md", [
+      { index: 0, text: "newborn parental time off childcare plan" },
+    ]);
+    await seed("revenue.md", [{ index: 0, text: "revenue forecast quota" }]);
+
+    // Query has no literal overlap with paternity.md's chunk text.
+    const queryVec = fakeEmbed("paternity leave");
+    const results = await searchSemantic(conn, queryVec, 10);
+    expect(results[0]?.path).toBe("paternity.md");
+  });
+
+  test("an unrelated query does NOT surface the paternity doc on top", async () => {
+    await seed("paternity.md", [
+      { index: 0, text: "paternity leave parental newborn" },
+    ]);
+    await seed("k8s.md", [
+      { index: 0, text: "kubernetes helm deployment rollout" },
+    ]);
+
+    const queryVec = fakeEmbed("kubernetes deployment");
+    const results = await searchSemantic(conn, queryVec, 10);
+    // Semantic similarity on the kubernetes-themed query must rank k8s.md
+    // ahead of the unrelated paternity doc.
+    expect(results[0]?.path).toBe("k8s.md");
+  });
+});
+
 describe("searchHybrid (RRF over BM25 + cosine)", () => {
   test("returns relevant chunks with a per-row score", async () => {
     await seed("paternity.md", [
