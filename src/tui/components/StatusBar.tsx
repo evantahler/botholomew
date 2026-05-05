@@ -1,13 +1,16 @@
 import { Box, Text } from "ink";
 import { useEffect, useState } from "react";
-import { withDb } from "../../db/connection.ts";
-import { listTasks } from "../../db/tasks.ts";
-import { listWorkers } from "../../db/workers.ts";
+import { listTasks } from "../../tasks/store.ts";
+import { listWorkers } from "../../workers/store.ts";
 import { LogoChar } from "./Logo.tsx";
 
 interface StatusBarProps {
   projectDir: string;
-  dbPath: string;
+  /**
+   * Retained for callers that pass it; unused now that workers + tasks
+   * both live on disk. Drop on the next TUI cleanup pass.
+   */
+  dbPath?: string;
   chatTitle?: string;
   onWorkerStatusChange?: (running: boolean) => void;
 }
@@ -19,8 +22,8 @@ interface Status {
 }
 
 export function StatusBar({
-  projectDir: _projectDir,
-  dbPath,
+  projectDir,
+  dbPath: _dbPath,
   chatTitle,
   onWorkerStatusChange,
 }: StatusBarProps) {
@@ -39,14 +42,11 @@ export function StatusBar({
     // because logger writes to stdout and would corrupt the Ink render.
     const refresh = async () => {
       try {
-        const [pending, inProgress, workers] = await withDb(
-          dbPath,
-          async (conn) => [
-            await listTasks(conn, { status: "pending" }),
-            await listTasks(conn, { status: "in_progress" }),
-            await listWorkers(conn, { status: "running" }),
-          ],
-        );
+        const [pending, inProgress, workers] = await Promise.all([
+          listTasks(projectDir, { status: "pending" }),
+          listTasks(projectDir, { status: "in_progress" }),
+          listWorkers(projectDir, { status: "running" }),
+        ]);
         if (mounted) {
           setStatus({
             workerCount: workers.length,
@@ -66,7 +66,7 @@ export function StatusBar({
       mounted = false;
       clearInterval(interval);
     };
-  }, [dbPath, onWorkerStatusChange]);
+  }, [projectDir, onWorkerStatusChange]);
 
   return (
     <Box paddingX={0}>

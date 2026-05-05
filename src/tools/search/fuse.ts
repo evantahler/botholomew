@@ -2,8 +2,6 @@ import type { RegexpHit } from "./regexp.ts";
 import type { SemanticHit } from "./semantic.ts";
 
 export interface FusedMatch {
-  ref: string;
-  drive: string;
   path: string;
   line: number | null;
   content: string;
@@ -16,17 +14,14 @@ export interface FusedMatch {
 const SNIPPET_MAX = 300;
 
 /**
- * Reciprocal rank fusion of regexp line hits and semantic chunk hits.
+ * Reciprocal rank fusion of regexp line hits and semantic file hits.
  *
- * Each regexp hit becomes its own row. If the file (drive + path) also has a
- * semantic hit, the regexp row picks up that semantic side's RRF contribution
- * and is tagged `match_type: "both"` — exact-line + semantic agreement is
- * the strongest signal.
+ * Each regexp hit becomes its own row. If the same file also has a semantic
+ * hit, the regexp row picks up that semantic side's RRF contribution and is
+ * tagged `match_type: "both"` — exact-line + semantic agreement is the
+ * strongest signal.
  *
- * Semantic hits are emitted as their own rows only for paths with no regexp
- * hit; otherwise the regexp row already represents that file (and is more
- * locatable). This keeps the result list focused without losing pure
- * semantic matches in files the regexp didn't touch.
+ * Semantic hits emit their own rows only for paths with no regexp hit.
  */
 export function fuseRRF(
   regexpHits: RegexpHit[],
@@ -42,26 +37,21 @@ export function fuseRRF(
   for (let i = 0; i < semanticHits.length; i++) {
     const hit = semanticHits[i];
     if (!hit) continue;
-    const key = pathKey(hit.drive, hit.path);
-    if (key == null) continue;
-    const existing = bestSemByPath.get(key);
+    const existing = bestSemByPath.get(hit.path);
     if (!existing || i < existing.rank) {
-      bestSemByPath.set(key, { rank: i, score: hit.score, hit });
+      bestSemByPath.set(hit.path, { rank: i, score: hit.score, hit });
     }
   }
 
   const regexpPaths = new Set<string>();
-  for (const hit of regexpHits) {
-    regexpPaths.add(pathKey(hit.drive, hit.path) ?? "");
-  }
+  for (const hit of regexpHits) regexpPaths.add(hit.path);
 
   const fused: FusedMatch[] = [];
 
   for (let i = 0; i < regexpHits.length; i++) {
     const rx = regexpHits[i];
     if (!rx) continue;
-    const key = pathKey(rx.drive, rx.path) ?? "";
-    const sem = bestSemByPath.get(key);
+    const sem = bestSemByPath.get(rx.path);
     let score = 1 / (k + i + 1);
     let matchType: FusedMatch["match_type"] = "regexp";
     let semanticScore: number | null = null;
@@ -71,8 +61,6 @@ export function fuseRRF(
       semanticScore = round(sem.score);
     }
     fused.push({
-      ref: rx.ref,
-      drive: rx.drive,
       path: rx.path,
       line: rx.line,
       content: rx.content,
@@ -86,14 +74,10 @@ export function fuseRRF(
   for (let i = 0; i < semanticHits.length; i++) {
     const sem = semanticHits[i];
     if (!sem) continue;
-    const key = pathKey(sem.drive, sem.path);
-    if (key == null) continue;
-    if (regexpPaths.has(key)) continue;
+    if (regexpPaths.has(sem.path)) continue;
     const score = 1 / (k + i + 1);
     fused.push({
-      ref: sem.ref,
-      drive: sem.drive ?? "",
-      path: sem.path ?? "",
+      path: sem.path,
       line: null,
       content: sem.chunk_content.slice(0, SNIPPET_MAX),
       context_lines: [],
@@ -105,11 +89,6 @@ export function fuseRRF(
 
   fused.sort((a, b) => b.score - a.score);
   return fused.slice(0, options.limit);
-}
-
-function pathKey(drive: string | null, path: string | null): string | null {
-  if (!drive || !path) return null;
-  return `${drive}:${path}`;
 }
 
 function round(n: number): number {

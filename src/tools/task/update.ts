@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { getTask, TASK_PRIORITIES, updateTask } from "../../db/tasks.ts";
+import { TASK_PRIORITIES } from "../../tasks/schema.ts";
+import {
+  CircularDependencyError,
+  getTask,
+  updateTask,
+} from "../../tasks/store.ts";
 import { logger } from "../../utils/logger.ts";
 import type { ToolDefinition } from "../tool.ts";
 
@@ -28,6 +33,8 @@ const outputSchema = z.object({
     .nullable(),
   message: z.string(),
   is_error: z.boolean(),
+  error_type: z.string().optional(),
+  next_action_hint: z.string().optional(),
 });
 
 export const updateTaskTool = {
@@ -38,7 +45,7 @@ export const updateTaskTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const existing = await getTask(ctx.conn, input.id);
+    const existing = await getTask(ctx.projectDir, input.id);
     if (!existing) {
       return {
         task: null,
@@ -54,12 +61,27 @@ export const updateTaskTool = {
       };
     }
 
-    const updated = await updateTask(ctx.conn, input.id, {
-      name: input.name,
-      description: input.description,
-      priority: input.priority,
-      blocked_by: input.blocked_by,
-    });
+    let updated: Awaited<ReturnType<typeof updateTask>>;
+    try {
+      updated = await updateTask(ctx.projectDir, input.id, {
+        name: input.name,
+        description: input.description,
+        priority: input.priority,
+        blocked_by: input.blocked_by,
+      });
+    } catch (err) {
+      if (err instanceof CircularDependencyError) {
+        return {
+          task: null,
+          message: err.message,
+          is_error: true,
+          error_type: "circular_dependency",
+          next_action_hint:
+            "Pick blockers that don't transitively depend on this task.",
+        };
+      }
+      throw err;
+    }
 
     if (!updated) {
       return {
@@ -78,7 +100,7 @@ export const updateTaskTool = {
         status: updated.status,
         priority: updated.priority,
         blocked_by: updated.blocked_by,
-        updated_at: updated.updated_at.toISOString(),
+        updated_at: updated.updated_at,
       },
       message: `Updated task "${updated.name}"`,
       is_error: false,

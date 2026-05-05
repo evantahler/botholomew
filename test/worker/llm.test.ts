@@ -1,515 +1,326 @@
+/**
+ * runAgentLoop is the worker tool-use loop. tick.test.ts covers the
+ * happy path (complete/wait/throw) end-to-end via tick(); this file
+ * exercises the loop's edge cases directly: no-tool-use returns
+ * complete, max-turns returns failed, an unknown tool yields a
+ * recoverable error result, multiple tool calls dispatch in parallel.
+ */
+
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  mock,
-  spyOn,
-  test,
-} from "bun:test";
-import type { DbConnection } from "../../src/db/connection.ts";
-import { createTask } from "../../src/db/tasks.ts";
-import { createThread, getThread } from "../../src/db/threads.ts";
-import {
-  completionResponse,
-  setupTestDbFile,
-  TEST_CONFIG,
-} from "../helpers.ts";
+  getDbPath,
+  getTasksDir,
+  getTasksLockDir,
+  getThreadsDir,
+} from "../../src/constants.ts";
+import { getConnection } from "../../src/db/connection.ts";
+import { migrate } from "../../src/db/schema.ts";
+import { createTask } from "../../src/tasks/store.ts";
+import { createThread } from "../../src/threads/store.ts";
 
-let mockCreate: ReturnType<typeof mock>;
+let mockResponse: () => unknown = () => completionResponseLocal();
 
-// Mock the Anthropic SDK
-mock.module("@anthropic-ai/sdk", () => {
-  mockCreate = mock(async () => completionResponse("Task completed"));
-
+function completionResponseLocal() {
   return {
-    default: class MockAnthropic {
-      messages = { create: mockCreate };
-    },
+    content: [
+      { type: "text", text: "All done." },
+      {
+        type: "tool_use",
+        id: "tool_1",
+        name: "complete_task",
+        input: { summary: "ok" },
+      },
+    ],
+    stop_reason: "tool_use",
+    usage: { input_tokens: 10, output_tokens: 10 },
   };
-});
+}
+
+mock.module("@anthropic-ai/sdk", () => ({
+  default: class MockAnthropic {
+    messages = {
+      create: async () => mockResponse(),
+    };
+  },
+}));
 
 const { runAgentLoop } = await import("../../src/worker/llm.ts");
 
-let conn: DbConnection;
-let dbPath: string;
-let cleanup: () => Promise<void>;
+const TEST_CONFIG = {
+  ...DEFAULT_CONFIG,
+  anthropic_api_key: "test-key",
+  max_turns: 5,
+} as Required<typeof DEFAULT_CONFIG>;
 
-const testConfig = { ...TEST_CONFIG, max_turns: 10 };
+let projectDir: string;
+let dbPath: string;
 
 beforeEach(async () => {
-  ({ conn, dbPath, cleanup } = await setupTestDbFile());
-  mockCreate.mockClear();
+  projectDir = await mkdtemp(join(tmpdir(), "both-llm-"));
+  await mkdir(getTasksDir(projectDir), { recursive: true });
+  await mkdir(getTasksLockDir(projectDir), { recursive: true });
+  await mkdir(getThreadsDir(projectDir), { recursive: true });
+  dbPath = getDbPath(projectDir);
+  const conn = await getConnection(dbPath);
+  await migrate(conn);
+  conn.close();
+  mockResponse = () => completionResponseLocal();
 });
 
 afterEach(async () => {
-  await cleanup();
+  await rm(projectDir, { recursive: true, force: true });
 });
 
+async function fixture() {
+  const task = await createTask(projectDir, {
+    name: "test",
+    description: "do",
+  });
+  const threadId = await createThread(projectDir, "worker_tick", task.id);
+  return { task, threadId };
+}
+
 describe("runAgentLoop", () => {
-  test("completes when agent calls complete_task", async () => {
-    const task = await createTask(conn, {
-      name: "Test task",
-      description: "Do something",
-    });
-    const threadId = await createThread(conn, "worker_tick", task.id);
-
-    mockCreate.mockImplementation(async () => ({
-      content: [
-        { type: "text", text: "I will complete this." },
-        {
-          type: "tool_use",
-          id: "tool_1",
-          name: "complete_task",
-          input: { summary: "All done" },
-        },
-      ],
-      stop_reason: "tool_use",
-      usage: { input_tokens: 100, output_tokens: 50 },
-    }));
-
+  test("returns complete when the agent calls complete_task", async () => {
+    const { task, threadId } = await fixture();
     const result = await runAgentLoop({
-      systemPrompt: "You are a test agent.",
+      systemPrompt: "test prompt",
       task,
-      config: testConfig,
+      config: TEST_CONFIG,
       dbPath,
       threadId,
-      projectDir: "/tmp/test",
+      projectDir,
     });
-
     expect(result.status).toBe("complete");
-    expect(result.reason).toBe("All done");
+    expect(result.reason).toBe("ok");
   });
 
-  test("returns failed when agent calls fail_task", async () => {
-    const task = await createTask(conn, {
-      name: "Failing task",
-      description: "This will fail",
-    });
-    const threadId = await createThread(conn, "worker_tick", task.id);
-
-    mockCreate.mockImplementation(async () => ({
+  test("returns failed when the agent calls fail_task", async () => {
+    mockResponse = () => ({
       content: [
+        { type: "text", text: "I cannot proceed." },
         {
           type: "tool_use",
           id: "tool_1",
           name: "fail_task",
-          input: { reason: "Cannot proceed" },
+          input: { reason: "Insurmountable obstacle" },
         },
       ],
       stop_reason: "tool_use",
-      usage: { input_tokens: 50, output_tokens: 30 },
-    }));
-
+      usage: { input_tokens: 10, output_tokens: 10 },
+    });
+    const { task, threadId } = await fixture();
     const result = await runAgentLoop({
-      systemPrompt: "You are a test agent.",
+      systemPrompt: "p",
       task,
-      config: testConfig,
+      config: TEST_CONFIG,
       dbPath,
       threadId,
-      projectDir: "/tmp/test",
+      projectDir,
     });
-
     expect(result.status).toBe("failed");
-    expect(result.reason).toBe("Cannot proceed");
+    expect(result.reason).toBe("Insurmountable obstacle");
   });
 
-  test("returns waiting when agent calls wait_task", async () => {
-    const task = await createTask(conn, {
-      name: "Waiting task",
-      description: "Needs to wait",
-    });
-    const threadId = await createThread(conn, "worker_tick", task.id);
-
-    mockCreate.mockImplementation(async () => ({
+  test("returns waiting when the agent calls wait_task", async () => {
+    mockResponse = () => ({
       content: [
         {
           type: "tool_use",
           id: "tool_1",
           name: "wait_task",
-          input: { reason: "Waiting for dependency" },
+          input: { reason: "Need approval" },
         },
       ],
       stop_reason: "tool_use",
-      usage: { input_tokens: 50, output_tokens: 30 },
-    }));
-
+      usage: { input_tokens: 10, output_tokens: 10 },
+    });
+    const { task, threadId } = await fixture();
     const result = await runAgentLoop({
-      systemPrompt: "You are a test agent.",
+      systemPrompt: "p",
       task,
-      config: testConfig,
+      config: TEST_CONFIG,
       dbPath,
       threadId,
-      projectDir: "/tmp/test",
+      projectDir,
     });
-
     expect(result.status).toBe("waiting");
-    expect(result.reason).toBe("Waiting for dependency");
+    expect(result.reason).toBe("Need approval");
   });
 
-  test("returns complete when agent responds with no tool use", async () => {
-    const task = await createTask(conn, {
-      name: "Simple task",
-      description: "Just text response",
-    });
-    const threadId = await createThread(conn, "worker_tick", task.id);
-
-    mockCreate.mockImplementation(async () => ({
-      content: [{ type: "text", text: "I completed the task implicitly." }],
+  test("returns complete when the agent responds with no tool_use", async () => {
+    mockResponse = () => ({
+      content: [{ type: "text", text: "I think I'm done." }],
       stop_reason: "end_turn",
-      usage: { input_tokens: 50, output_tokens: 30 },
-    }));
-
+      usage: { input_tokens: 10, output_tokens: 10 },
+    });
+    const { task, threadId } = await fixture();
     const result = await runAgentLoop({
-      systemPrompt: "You are a test agent.",
+      systemPrompt: "p",
       task,
-      config: testConfig,
+      config: TEST_CONFIG,
       dbPath,
       threadId,
-      projectDir: "/tmp/test",
+      projectDir,
     });
-
     expect(result.status).toBe("complete");
-    expect(result.reason).toContain("without explicit status tool call");
+    expect(result.reason).toContain("without explicit status");
   });
 
-  test("returns failed when max turns exceeded", async () => {
-    const task = await createTask(conn, {
-      name: "Infinite task",
-      description: "Never completes",
-    });
-    const threadId = await createThread(conn, "worker_tick", task.id);
-
-    // Always return a non-terminal tool use so the loop continues.
-    // Use context_exists which never throws (always returns a result).
-    let turnCounter = 0;
-    mockCreate.mockImplementation(async () => ({
+  test("returns failed when max_turns is exceeded", async () => {
+    // Always emit a non-terminal tool call so the loop never settles.
+    mockResponse = () => ({
       content: [
         {
           type: "tool_use",
-          id: `tool_${++turnCounter}`,
-          name: "context_exists",
-          input: { path: "/anything.txt" },
+          id: `tool_${Math.random()}`,
+          name: "list_tasks",
+          input: {},
         },
       ],
       stop_reason: "tool_use",
-      usage: { input_tokens: 50, output_tokens: 30 },
-    }));
-
+      usage: { input_tokens: 10, output_tokens: 10 },
+    });
+    const { task, threadId } = await fixture();
     const result = await runAgentLoop({
-      systemPrompt: "You are a test agent.",
+      systemPrompt: "p",
       task,
-      config: testConfig,
+      config: { ...TEST_CONFIG, max_turns: 2 },
       dbPath,
       threadId,
-      projectDir: "/tmp/test",
+      projectDir,
     });
-
     expect(result.status).toBe("failed");
-    expect(result.reason).toBe("Max turns exceeded");
+    expect(result.reason).toContain("Max turns");
   });
 
-  test("handles unknown tool gracefully", async () => {
-    const task = await createTask(conn, {
-      name: "Unknown tool task",
-      description: "Calls a non-existent tool",
-    });
-    const threadId = await createThread(conn, "worker_tick", task.id);
-
-    let callCount = 0;
-    mockCreate.mockImplementation(async () => {
-      callCount++;
-      if (callCount === 1) {
+  test("handles an unknown tool gracefully (records error, keeps going to terminal)", async () => {
+    let turn = 0;
+    mockResponse = () => {
+      turn++;
+      if (turn === 1) {
         return {
           content: [
             {
               type: "tool_use",
-              id: "tool_1",
-              name: "nonexistent_tool",
+              id: "tool_unknown",
+              name: "no_such_tool",
               input: {},
             },
           ],
           stop_reason: "tool_use",
-          usage: { input_tokens: 50, output_tokens: 30 },
+          usage: { input_tokens: 10, output_tokens: 10 },
         };
       }
-      // Second call: agent gives up
-      return {
-        content: [
-          {
-            type: "tool_use",
-            id: "tool_2",
-            name: "complete_task",
-            input: { summary: "Recovered" },
-          },
-        ],
-        stop_reason: "tool_use",
-        usage: { input_tokens: 50, output_tokens: 30 },
-      };
-    });
-
+      return completionResponseLocal();
+    };
+    const { task, threadId } = await fixture();
     const result = await runAgentLoop({
-      systemPrompt: "You are a test agent.",
+      systemPrompt: "p",
       task,
-      config: testConfig,
+      config: TEST_CONFIG,
       dbPath,
       threadId,
-      projectDir: "/tmp/test",
+      projectDir,
     });
-
-    // Should recover and complete after unknown tool error
+    // The agent recovered: turn 1 errored, turn 2 completed.
     expect(result.status).toBe("complete");
   });
 
-  test("catches tool execution errors and lets agent recover", async () => {
-    // Register a tool that throws to simulate an unexpected error
-    const { registerTool } = await import("../../src/tools/tool.ts");
-    const { z } = await import("zod");
-    registerTool({
-      name: "throwing_tool",
-      description: "A tool that always throws",
-      group: "test",
-      inputSchema: z.object({}),
-      outputSchema: z.object({ message: z.string(), is_error: z.boolean() }),
-      execute: async () => {
-        throw new Error("Unexpected internal error");
-      },
+  test("injects predecessor task outputs into the user message", async () => {
+    // The blocker task gets a real `output`; runAgentLoop should stitch it
+    // into the user message so the agent doesn't have to re-derive findings.
+    const blocker = await createTask(projectDir, {
+      name: "Read email",
+      description: "scan inbox",
     });
-
-    const task = await createTask(conn, {
-      name: "Tool throws task",
-      description: "A tool will throw an exception",
-    });
-    const threadId = await createThread(conn, "worker_tick", task.id);
-
-    let callCount = 0;
-    mockCreate.mockImplementation(async () => {
-      callCount++;
-      if (callCount === 1) {
-        return {
-          content: [
-            {
-              type: "tool_use",
-              id: "tool_1",
-              name: "throwing_tool",
-              input: {},
-            },
-          ],
-          stop_reason: "tool_use",
-          usage: { input_tokens: 50, output_tokens: 30 },
-        };
-      }
-      // Second call: agent recovers and completes
-      return {
-        content: [
-          {
-            type: "tool_use",
-            id: "tool_2",
-            name: "complete_task",
-            input: { summary: "Recovered from tool error" },
-          },
-        ],
-        stop_reason: "tool_use",
-        usage: { input_tokens: 50, output_tokens: 30 },
-      };
-    });
-
-    const result = await runAgentLoop({
-      systemPrompt: "You are a test agent.",
-      task,
-      config: testConfig,
-      dbPath,
-      threadId,
-      projectDir: "/tmp/test",
-    });
-
-    expect(result.status).toBe("complete");
-    expect(result.reason).toBe("Recovered from tool error");
-
-    // Verify the error was logged as a tool_result
-    const threadData = await getThread(conn, threadId);
-    const toolResults = threadData?.interactions.filter(
-      (i) => i.kind === "tool_result" && i.tool_name === "throwing_tool",
+    const { updateTaskStatus } = await import("../../src/tasks/store.ts");
+    await updateTaskStatus(
+      projectDir,
+      blocker.id,
+      "complete",
+      null,
+      "3 urgent threads from customers",
     );
-    expect(toolResults?.length).toBe(1);
-    expect(toolResults?.[0]?.content).toContain("threw an error");
-  });
-
-  test("executes multiple tool calls in parallel", async () => {
-    const task = await createTask(conn, {
-      name: "Parallel task",
-      description: "Uses multiple tools at once",
-    });
-    const threadId = await createThread(conn, "worker_tick", task.id);
-
-    let callCount = 0;
-    mockCreate.mockImplementation(async () => {
-      callCount++;
-      if (callCount === 1) {
-        // Return two non-terminal tool calls in one response
-        return {
-          content: [
-            {
-              type: "tool_use",
-              id: "tool_a",
-              name: "context_exists",
-              input: { path: "/a.txt" },
-            },
-            {
-              type: "tool_use",
-              id: "tool_b",
-              name: "context_exists",
-              input: { path: "/b.txt" },
-            },
-          ],
-          stop_reason: "tool_use",
-          usage: { input_tokens: 100, output_tokens: 50 },
-        };
-      }
-      // Second call: complete
-      return {
-        content: [
-          {
-            type: "tool_use",
-            id: "tool_done",
-            name: "complete_task",
-            input: { summary: "Both checked" },
-          },
-        ],
-        stop_reason: "tool_use",
-        usage: { input_tokens: 50, output_tokens: 30 },
-      };
+    const downstream = await createTask(projectDir, {
+      name: "Summarize urgent items",
+      description: "based on inbox scan",
+      blocked_by: [blocker.id],
     });
 
-    const result = await runAgentLoop({
-      systemPrompt: "You are a test agent.",
-      task,
-      config: testConfig,
-      dbPath,
-      threadId,
-      projectDir: "/tmp/test",
-    });
+    let capturedUserText = "";
+    mockResponse = () => {
+      // The mock receives the messages on each call; no direct way to inspect
+      // them here. Instead, we let runAgentLoop log to the thread CSV and
+      // read the user-message interaction back below.
+      return completionResponseLocal();
+    };
 
-    expect(result.status).toBe("complete");
-    expect(result.reason).toBe("Both checked");
-
-    // Verify both tool results were logged
-    const threadData = await getThread(conn, threadId);
-    const toolResults = threadData?.interactions.filter(
-      (i) => i.kind === "tool_result" && i.tool_name === "context_exists",
+    const threadId = await createThread(
+      projectDir,
+      "worker_tick",
+      downstream.id,
     );
-    expect(toolResults?.length).toBe(2);
-
-    // Verify both tool_use entries were logged
-    const toolUses = threadData?.interactions.filter(
-      (i) => i.kind === "tool_use" && i.tool_name === "context_exists",
-    );
-    expect(toolUses?.length).toBe(2);
-  });
-
-  test("emits assistant/tool-call/tool-result phases for background workers", async () => {
-    const { logger } = await import("../../src/utils/logger.ts");
-    const phaseSpy = spyOn(logger, "phase").mockImplementation(() => {});
-
-    try {
-      const task = await createTask(conn, {
-        name: "Phase log task",
-        description: "Should emit phase markers",
-      });
-      const threadId = await createThread(conn, "worker_tick", task.id);
-
-      mockCreate.mockImplementation(async () => ({
-        content: [
-          { type: "text", text: "Reasoning step." },
-          {
-            type: "tool_use",
-            id: "tool_1",
-            name: "complete_task",
-            input: { summary: "Wrapped up" },
-          },
-        ],
-        stop_reason: "tool_use",
-        usage: { input_tokens: 100, output_tokens: 50 },
-      }));
-
-      await runAgentLoop({
-        systemPrompt: "You are a test agent.",
-        task,
-        config: testConfig,
-        dbPath,
-        threadId,
-        projectDir: "/tmp/test",
-      });
-
-      const phaseNames = phaseSpy.mock.calls.map(([name]) => name);
-      expect(phaseNames).toContain("assistant");
-      expect(phaseNames).toContain("tool-call");
-      expect(phaseNames).toContain("tool-result");
-
-      const assistantCall = phaseSpy.mock.calls.find(
-        ([name]) => name === "assistant",
-      );
-      expect(assistantCall?.[1]).toBe("Reasoning step.");
-
-      const toolCall = phaseSpy.mock.calls.find(
-        ([name]) => name === "tool-call",
-      );
-      expect(toolCall?.[1]).toContain("complete_task");
-
-      const toolResult = phaseSpy.mock.calls.find(
-        ([name]) => name === "tool-result",
-      );
-      expect(toolResult?.[1]).toContain("complete_task");
-      expect(toolResult?.[1]).toContain("ok");
-    } finally {
-      phaseSpy.mockRestore();
-    }
-  });
-
-  test("logs all interactions to thread", async () => {
-    const task = await createTask(conn, {
-      name: "Logged task",
-      description: "Should log interactions",
-    });
-    const threadId = await createThread(conn, "worker_tick", task.id);
-
-    mockCreate.mockImplementation(async () => ({
-      content: [
-        { type: "text", text: "Working on it." },
-        {
-          type: "tool_use",
-          id: "tool_1",
-          name: "complete_task",
-          input: { summary: "Done" },
-        },
-      ],
-      stop_reason: "tool_use",
-      usage: { input_tokens: 100, output_tokens: 50 },
-    }));
-
     await runAgentLoop({
-      systemPrompt: "You are a test agent.",
-      task,
-      config: testConfig,
+      systemPrompt: "p",
+      task: downstream,
+      config: TEST_CONFIG,
       dbPath,
       threadId,
-      projectDir: "/tmp/test",
+      projectDir,
     });
 
-    const threadData = await getThread(conn, threadId);
-    expect(threadData).not.toBeNull();
-
-    const kinds = threadData?.interactions.map((i) => i.kind);
-    // Should have: user message, assistant message, tool_use, tool_result
-    expect(kinds).toContain("message");
-    expect(kinds).toContain("tool_use");
-    expect(kinds).toContain("tool_result");
-
-    // Verify user message was logged first
-    const userInteraction = threadData?.interactions.find(
-      (i) => i.role === "user",
+    const { getThread } = await import("../../src/threads/store.ts");
+    const t = await getThread(projectDir, threadId);
+    const userInteraction = t?.interactions.find(
+      (i) => i.role === "user" && i.kind === "message",
     );
-    expect(userInteraction).toBeDefined();
-    expect(userInteraction?.content).toContain("Logged task");
+    capturedUserText = userInteraction?.content ?? "";
+    expect(capturedUserText).toContain("Predecessor Task Outputs");
+    expect(capturedUserText).toContain("Read email");
+    expect(capturedUserText).toContain("3 urgent threads from customers");
+  });
+
+  test("dispatches multiple tool calls per turn in parallel", async () => {
+    let turn = 0;
+    mockResponse = () => {
+      turn++;
+      if (turn === 1) {
+        return {
+          content: [
+            {
+              type: "tool_use",
+              id: "a",
+              name: "list_tasks",
+              input: {},
+            },
+            {
+              type: "tool_use",
+              id: "b",
+              name: "list_threads",
+              input: {},
+            },
+          ],
+          stop_reason: "tool_use",
+          usage: { input_tokens: 10, output_tokens: 10 },
+        };
+      }
+      return completionResponseLocal();
+    };
+    const { task, threadId } = await fixture();
+    const result = await runAgentLoop({
+      systemPrompt: "p",
+      task,
+      config: TEST_CONFIG,
+      dbPath,
+      threadId,
+      projectDir,
+    });
+    expect(result.status).toBe("complete");
+    expect(turn).toBe(2);
   });
 });

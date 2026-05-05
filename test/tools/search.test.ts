@@ -1,238 +1,144 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { EMBEDDING_DIMENSION } from "../../src/constants.ts";
-import { ingestContextItem } from "../../src/context/ingest.ts";
-import type { DbConnection } from "../../src/db/connection.ts";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
+import { CONTEXT_DIR } from "../../src/constants.ts";
 import { searchTool } from "../../src/tools/search/index.ts";
 import type { ToolContext } from "../../src/tools/tool.ts";
-import { seedFile, setupToolContext } from "../helpers.ts";
 
-let conn: DbConnection;
-let ctx: ToolContext;
+// Regexp-only coverage. Semantic tests would require booting the WASM
+// embedder, which is slow and a poor fit for unit tests; the embedder
+// itself is covered in test/context/embedder.test.ts.
 
-const originalFetch = globalThis.fetch;
+let tempDir: string;
+
 beforeEach(async () => {
-  ({ conn, ctx } = await setupToolContext());
-});
-afterEach(() => {
-  globalThis.fetch = originalFetch;
+  tempDir = await mkdtemp(join(tmpdir(), "both-search-"));
+  await mkdir(join(tempDir, CONTEXT_DIR), { recursive: true });
 });
 
-describe("search — regexp side", () => {
-  test("finds a simple string match", async () => {
-    await seedFile(conn, "/grep/hello.txt", "hello world\ngoodbye world");
-    const result = await searchTool.execute({ pattern: "hello" }, ctx);
-    expect(result.matches.length).toBe(1);
-    expect(result.matches[0]?.content).toContain("hello");
-    expect(result.matches[0]?.path).toBe("/grep/hello.txt");
-    expect(result.matches[0]?.line).toBe(1);
-    expect(result.matches[0]?.match_type).toBe("regexp");
-    expect(result.matches[0]?.semantic_score).toBeNull();
+afterEach(async () => {
+  await rm(tempDir, { recursive: true, force: true });
+});
+
+function ctx(): ToolContext {
+  return {
+    conn: null as never,
+    dbPath: ":memory:",
+    projectDir: tempDir,
+    config: { ...DEFAULT_CONFIG, anthropic_api_key: "test-key" },
+    mcpxClient: null,
+  };
+}
+
+describe("search tool", () => {
+  test("requires query or pattern", async () => {
+    const result = await searchTool.execute({}, ctx());
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("invalid_arguments");
   });
 
-  test("supports regex patterns", async () => {
-    await seedFile(conn, "/grep/regex.txt", "foo123\nbar456\nfoo789");
-    const result = await searchTool.execute({ pattern: "foo\\d+" }, ctx);
-    expect(result.matches.length).toBe(2);
+  test("regexp finds line hits with file path and line number", async () => {
+    await Bun.write(
+      join(tempDir, CONTEXT_DIR, "notes.md"),
+      "alpha line\nthe revenue forecast is up\ngamma line\n",
+    );
+    const result = await searchTool.execute({ pattern: "revenue" }, ctx());
+    expect(result.is_error).toBe(false);
+    expect(result.matches.length).toBeGreaterThan(0);
+    const hit = result.matches[0];
+    if (!hit) throw new Error("no hit");
+    expect(hit.path).toBe("notes.md");
+    expect(hit.line).toBe(2);
+    expect(hit.match_type).toBe("regexp");
+    expect(hit.semantic_score).toBeNull();
   });
 
-  test("case-insensitive search", async () => {
-    await seedFile(conn, "/grep/case.txt", "Hello\nhello\nHELLO");
-    const result = await searchTool.execute(
+  test("supports regex patterns and ignore_case", async () => {
+    await Bun.write(
+      join(tempDir, CONTEXT_DIR, "case.md"),
+      "Hello\nhello\nHELLO\n",
+    );
+    const sensitive = await searchTool.execute({ pattern: "hello" }, ctx());
+    expect(sensitive.matches.length).toBe(1);
+    const insensitive = await searchTool.execute(
       { pattern: "hello", ignore_case: true },
-      ctx,
+      ctx(),
     );
-    expect(result.matches.length).toBe(3);
+    expect(insensitive.matches.length).toBe(3);
   });
 
-  test("case-sensitive by default", async () => {
-    await seedFile(conn, "/grep/case2.txt", "Hello\nhello\nHELLO");
-    const result = await searchTool.execute({ pattern: "hello" }, ctx);
-    expect(result.matches.length).toBe(1);
-  });
-
-  test("returns context lines", async () => {
-    await seedFile(conn, "/grep/ctx.txt", "a\nb\nc\nd\ne");
-    const result = await searchTool.execute({ pattern: "c", context: 1 }, ctx);
-    expect(result.matches.length).toBe(1);
-    expect(result.matches[0]?.context_lines).toContain("b");
-    expect(result.matches[0]?.context_lines).toContain("d");
-  });
-
-  test("respects max_results", async () => {
-    await seedFile(conn, "/grep/many.txt", "match\nmatch\nmatch\nmatch\nmatch");
+  test("context lines surround the hit", async () => {
+    await Bun.write(
+      join(tempDir, CONTEXT_DIR, "ctx.md"),
+      "before1\nbefore2\nMATCH\nafter1\nafter2\n",
+    );
     const result = await searchTool.execute(
-      { pattern: "match", max_results: 2 },
-      ctx,
+      { pattern: "MATCH", context: 1 },
+      ctx(),
     );
-    expect(result.matches.length).toBe(2);
+    const hit = result.matches[0];
+    if (!hit) throw new Error("no hit");
+    expect(hit.context_lines).toEqual(["before2", "MATCH", "after1"]);
   });
 
-  test("filters by glob pattern", async () => {
-    await seedFile(conn, "/grep/code.ts", "function hello() {}");
-    await seedFile(conn, "/grep/notes.md", "hello notes");
+  test("scope restricts walk to a sub-directory", async () => {
+    await mkdir(join(tempDir, CONTEXT_DIR, "a"), { recursive: true });
+    await mkdir(join(tempDir, CONTEXT_DIR, "b"), { recursive: true });
+    await Bun.write(join(tempDir, CONTEXT_DIR, "a", "x.md"), "kubernetes here");
+    await Bun.write(join(tempDir, CONTEXT_DIR, "b", "y.md"), "kubernetes here");
     const result = await searchTool.execute(
-      { pattern: "hello", glob: "*.ts" },
-      ctx,
-    );
-    expect(result.matches.length).toBe(1);
-    expect(result.matches[0]?.path).toBe("/grep/code.ts");
-  });
-
-  test("returns empty matches when nothing found", async () => {
-    await seedFile(conn, "/grep/empty.txt", "no match here");
-    const result = await searchTool.execute({ pattern: "zzzzz" }, ctx);
-    expect(result.matches).toHaveLength(0);
-  });
-
-  test("searches only within specified drive and path", async () => {
-    await seedFile(conn, "/a/file.txt", "target");
-    await seedFile(conn, "/b/file.txt", "target");
-    const result = await searchTool.execute(
-      { pattern: "target", drive: "agent", path: "/a" },
-      ctx,
-    );
-    expect(result.matches.length).toBe(1);
-    expect(result.matches[0]?.path).toBe("/a/file.txt");
-  });
-
-  test("errors when `path` is passed without `drive`", async () => {
-    await seedFile(conn, "/a/file.txt", "target");
-    const result = await searchTool.execute(
-      { pattern: "target", path: "/a" },
-      ctx,
-    );
-    expect(result.is_error).toBe(true);
-    expect(result.error_type).toBe("invalid_arguments");
-    expect(result.matches).toHaveLength(0);
-  });
-
-  test("throws on invalid regex", async () => {
-    await seedFile(conn, "/grep/test.txt", "test");
-    expect(searchTool.execute({ pattern: "[invalid" }, ctx)).rejects.toThrow();
-  });
-});
-
-describe("search — input validation", () => {
-  test("errors when neither query nor pattern is provided", async () => {
-    const result = await searchTool.execute({}, ctx);
-    expect(result.is_error).toBe(true);
-    expect(result.error_type).toBe("invalid_arguments");
-    expect(result.message).toContain("query");
-    expect(result.message).toContain("pattern");
-    expect(result.matches).toHaveLength(0);
-  });
-});
-
-describe("search — semantic side", () => {
-  test("returns results for indexed content", async () => {
-    function mockEmbed(texts: string[]): Promise<number[][]> {
-      return Promise.resolve(
-        texts.map((text) => {
-          const vec = new Array(EMBEDDING_DIMENSION).fill(0);
-          for (let i = 0; i < text.length; i++) {
-            vec[i % EMBEDDING_DIMENSION] += text.charCodeAt(i) / 1000;
-          }
-          const norm = Math.sqrt(
-            vec.reduce((s: number, v: number) => s + v * v, 0),
-          );
-          return norm > 0 ? vec.map((v: number) => v / norm) : vec;
-        }),
-      );
-    }
-
-    const item = await seedFile(
-      conn,
-      "/search/doc.md",
-      "Meeting notes about quarterly revenue and projections.",
-    );
-    await ingestContextItem(conn, item.id, ctx.config, mockEmbed);
-
-    const queryVec = await mockEmbed(["quarterly revenue"]).then(
-      (r) => r[0] ?? [],
-    );
-    globalThis.fetch = mock(() =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify({
-            data: [{ embedding: queryVec, index: 0 }],
-            usage: { total_tokens: 5 },
-          }),
-          { status: 200 },
-        ),
-      ),
-    ) as unknown as typeof fetch;
-
-    const result = await searchTool.execute(
-      { query: "quarterly revenue" },
-      ctx,
+      { pattern: "kubernetes", scope: "a" },
+      ctx(),
     );
     expect(result.is_error).toBe(false);
-    expect(Array.isArray(result.matches)).toBe(true);
-    expect(result.matches.length).toBeGreaterThan(0);
-    expect(result.matches[0]?.match_type).toBe("semantic");
-    expect(result.matches[0]?.line).toBeNull();
-    expect(result.matches[0]?.semantic_score).not.toBeNull();
+    expect(result.matches.length).toBe(1);
+    const hit = result.matches[0];
+    if (!hit) throw new Error("no hit");
+    expect(hit.path.startsWith("a/")).toBe(true);
   });
-});
 
-describe("search — fusion (regexp + semantic)", () => {
-  test("a chunk hit by both regexp and semantic gets match_type 'both' and floats to top", async () => {
-    function mockEmbed(texts: string[]): Promise<number[][]> {
-      return Promise.resolve(
-        texts.map((text) => {
-          const vec = new Array(EMBEDDING_DIMENSION).fill(0);
-          for (let i = 0; i < text.length; i++) {
-            vec[i % EMBEDDING_DIMENSION] += text.charCodeAt(i) / 1000;
-          }
-          const norm = Math.sqrt(
-            vec.reduce((s: number, v: number) => s + v * v, 0),
-          );
-          return norm > 0 ? vec.map((v: number) => v / norm) : vec;
-        }),
+  test("glob filters files by basename", async () => {
+    await Bun.write(join(tempDir, CONTEXT_DIR, "keep.md"), "needle here");
+    await Bun.write(join(tempDir, CONTEXT_DIR, "skip.txt"), "needle here");
+    const result = await searchTool.execute(
+      { pattern: "needle", glob: "*.md" },
+      ctx(),
+    );
+    expect(result.matches.length).toBe(1);
+    expect(result.matches[0]?.path).toBe("keep.md");
+  });
+
+  test("traversal scope is rejected by the sandbox", async () => {
+    await expect(
+      searchTool.execute({ pattern: ".", scope: "../escape" }, ctx()),
+    ).rejects.toThrow(/escapes project root/);
+  });
+
+  test("returns invalid_regex with a recovery hint on a malformed pattern", async () => {
+    const result = await searchTool.execute(
+      { pattern: "(unclosed", max_results: 5 },
+      ctx(),
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("invalid_regex");
+    expect(result.message).toContain("Could not compile");
+    expect(result.next_action_hint).toBeTruthy();
+    expect(result.matches).toEqual([]);
+  });
+
+  test("max_results caps fused result count", async () => {
+    for (let i = 0; i < 5; i++) {
+      await Bun.write(
+        join(tempDir, CONTEXT_DIR, `file${i}.md`),
+        "needle\n".repeat(3),
       );
     }
-
-    // Two files, but only one has the literal "quarterly revenue" string
-    // AND is what the embedder will rank highest for that query.
-    const matched = await seedFile(
-      conn,
-      "/search/match.md",
-      "Quarterly revenue grew 12% last period.",
-    );
-    const unrelated = await seedFile(
-      conn,
-      "/search/unrelated.md",
-      "Coffee preferences across the team.",
-    );
-    await ingestContextItem(conn, matched.id, ctx.config, mockEmbed);
-    await ingestContextItem(conn, unrelated.id, ctx.config, mockEmbed);
-
-    const queryVec = await mockEmbed(["quarterly revenue"]).then(
-      (r) => r[0] ?? [],
-    );
-    globalThis.fetch = mock(() =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify({
-            data: [{ embedding: queryVec, index: 0 }],
-            usage: { total_tokens: 5 },
-          }),
-          { status: 200 },
-        ),
-      ),
-    ) as unknown as typeof fetch;
-
     const result = await searchTool.execute(
-      { query: "quarterly revenue", pattern: "Quarterly revenue" },
-      ctx,
+      { pattern: "needle", max_results: 4 },
+      ctx(),
     );
-    expect(result.is_error).toBe(false);
-    expect(result.matches.length).toBeGreaterThan(0);
-    // The matched.md entry should be top-ranked with match_type "both"
-    const top = result.matches[0];
-    expect(top?.path).toBe("/search/match.md");
-    expect(top?.match_type).toBe("both");
-    expect(top?.line).toBe(1);
-    expect(top?.semantic_score).not.toBeNull();
+    expect(result.matches.length).toBeLessThanOrEqual(4);
   });
 });

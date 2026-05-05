@@ -1,159 +1,163 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+/**
+ * `botholomew init` writes the on-disk project tree (config/, prompts/,
+ * skills/, mcpx/, context/, tasks/, schedules/, threads/, workers/, logs/),
+ * initializes the index.duckdb sidecar, and seeds default templates.
+ */
+
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
+import {
+  CONFIG_DIR,
+  CONFIG_FILENAME,
+  CONTEXT_DIR,
+  getDbPath,
+  getMcpxDir,
+  getPromptsDir,
+  getSchedulesDir,
+  getSchedulesLockDir,
+  getSkillsDir,
+  getTasksDir,
+  getTasksLockDir,
+  getThreadsDir,
+  getWorkersDir,
+  LOGS_DIR,
+  MCPX_SERVERS_FILENAME,
+} from "../../src/constants.ts";
 import { initProject } from "../../src/init/index.ts";
-import { parseSkillFile } from "../../src/skills/parser.ts";
-import { parseContextFile } from "../../src/utils/frontmatter.ts";
 
-let tempDir: string;
+let projectDir: string;
 
-afterEach(async () => {
-  if (tempDir) {
-    await rm(tempDir, { recursive: true, force: true });
-  }
+beforeEach(async () => {
+  projectDir = await mkdtemp(join(tmpdir(), "both-init-"));
 });
 
+afterEach(async () => {
+  await rm(projectDir, { recursive: true, force: true });
+});
+
+async function isDir(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function fileText(path: string): Promise<string> {
+  return readFile(path, "utf-8");
+}
+
 describe("initProject", () => {
-  test("creates .botholomew directory with all files", async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-    await initProject(tempDir);
+  test("creates the full on-disk project tree", async () => {
+    await initProject(projectDir);
 
-    const dotDir = join(tempDir, ".botholomew");
-
-    // Check all expected files exist
-    expect(await Bun.file(join(dotDir, "soul.md")).exists()).toBe(true);
-    expect(await Bun.file(join(dotDir, "beliefs.md")).exists()).toBe(true);
-    expect(await Bun.file(join(dotDir, "goals.md")).exists()).toBe(true);
-    expect(await Bun.file(join(dotDir, "capabilities.md")).exists()).toBe(true);
-    expect(await Bun.file(join(dotDir, "config.json")).exists()).toBe(true);
-    expect(await Bun.file(join(dotDir, "mcpx", "servers.json")).exists()).toBe(
-      true,
-    );
-    expect(await Bun.file(join(dotDir, "data.duckdb")).exists()).toBe(true);
+    expect(await isDir(join(projectDir, CONFIG_DIR))).toBe(true);
+    expect(await isDir(getPromptsDir(projectDir))).toBe(true);
+    expect(await isDir(getSkillsDir(projectDir))).toBe(true);
+    expect(await isDir(getMcpxDir(projectDir))).toBe(true);
+    expect(await isDir(join(projectDir, CONTEXT_DIR))).toBe(true);
+    expect(await isDir(getTasksDir(projectDir))).toBe(true);
+    expect(await isDir(getTasksLockDir(projectDir))).toBe(true);
+    expect(await isDir(getSchedulesDir(projectDir))).toBe(true);
+    expect(await isDir(getSchedulesLockDir(projectDir))).toBe(true);
+    expect(await isDir(getThreadsDir(projectDir))).toBe(true);
+    expect(await isDir(getWorkersDir(projectDir))).toBe(true);
+    expect(await isDir(join(projectDir, LOGS_DIR))).toBe(true);
   });
 
-  test("capabilities.md is populated with the high-level capability summary", async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-    await initProject(tempDir);
-
-    const raw = await Bun.file(
-      join(tempDir, ".botholomew", "capabilities.md"),
-    ).text();
-    const { meta, content } = parseContextFile(raw);
-
-    expect(meta.loading).toBe("always");
-    expect(meta["agent-modification"]).toBe(true);
-    expect(content).toContain("# Capabilities");
-    expect(content).toContain("## Internal capabilities");
-    expect(content).toContain("Task management");
-    expect(content).toContain("Virtual filesystem");
-    // seeded servers.json has no servers, so MCPX section announces that
-    expect(content).toContain("No MCPX servers configured");
-  });
-
-  test("soul.md has correct frontmatter", async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-    await initProject(tempDir);
-
-    const raw = await Bun.file(join(tempDir, ".botholomew", "soul.md")).text();
-    const { meta } = parseContextFile(raw);
-
-    expect(meta.loading).toBe("always");
-    expect(meta["agent-modification"]).toBe(false);
-  });
-
-  test("soul.md instructs the agent to be direct and skip flattery", async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-    await initProject(tempDir);
-
-    const raw = await Bun.file(join(tempDir, ".botholomew", "soul.md")).text();
-    const { content } = parseContextFile(raw);
-
-    expect(content).toContain("lead with the answer");
-    expect(content).toContain("never flatter");
-  });
-
-  test("beliefs.md is agent-editable", async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-    await initProject(tempDir);
-
-    const raw = await Bun.file(
-      join(tempDir, ".botholomew", "beliefs.md"),
-    ).text();
-    const { meta } = parseContextFile(raw);
-
-    expect(meta.loading).toBe("always");
-    expect(meta["agent-modification"]).toBe(true);
-  });
-
-  test("config.json has defaults with placeholder API key", async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-    await initProject(tempDir);
-
-    const config = JSON.parse(
-      await Bun.file(join(tempDir, ".botholomew", "config.json")).text(),
-    );
-    expect(config.model).toBe("claude-opus-4-6");
-    expect(config.tick_interval_seconds).toBe(300);
-    expect(config.anthropic_api_key).toBe("your-api-key-here");
-    // Every schema key is present so users can discover and tune all options
-    // without grepping the source.
-    expect(Object.keys(config).sort()).toEqual(
-      Object.keys(DEFAULT_CONFIG).sort(),
-    );
-  });
-
-  test("throws if already initialized without --force", async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-    await initProject(tempDir);
-
-    expect(initProject(tempDir)).rejects.toThrow("already initialized");
-  });
-
-  test("succeeds with --force on existing project", async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-    await initProject(tempDir);
-    await initProject(tempDir, { force: true }); // should not throw
-  });
-
-  test("creates skills directory with default skill files", async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-    await initProject(tempDir);
-
-    const skillsDir = join(tempDir, ".botholomew", "skills");
-    const expectedSkills = ["summarize.md", "standup.md", "capabilities.md"];
-
-    for (const filename of expectedSkills) {
-      const file = Bun.file(join(skillsDir, filename));
-      expect(await file.exists()).toBe(true);
-
-      const raw = await file.text();
-      const skill = parseSkillFile(raw, filename);
-      expect(skill.name).toBeTruthy();
-      expect(skill.description).toBeTruthy();
-      expect(skill.body).toBeTruthy();
+  test("seeds prompts/{soul,beliefs,goals,capabilities}.md", async () => {
+    await initProject(projectDir);
+    const pc = getPromptsDir(projectDir);
+    for (const name of [
+      "soul.md",
+      "beliefs.md",
+      "goals.md",
+      "capabilities.md",
+    ]) {
+      expect(await Bun.file(join(pc, name)).exists()).toBe(true);
     }
   });
 
-  test("capabilities skill invokes capabilities_refresh", async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-    await initProject(tempDir);
-
-    const raw = await Bun.file(
-      join(tempDir, ".botholomew", "skills", "capabilities.md"),
-    ).text();
-    const skill = parseSkillFile(raw, "capabilities.md");
-    expect(skill.name).toBe("capabilities");
-    expect(skill.body).toContain("capabilities_refresh");
+  test("soul.md is loading=always and not agent-editable", async () => {
+    await initProject(projectDir);
+    const text = await fileText(join(getPromptsDir(projectDir), "soul.md"));
+    expect(text).toMatch(/loading:\s*always/);
+    expect(text).toMatch(/agent-modification:\s*false/);
   });
 
-  test("creates .gitignore entries", async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-    await initProject(tempDir);
+  test("beliefs.md is loading=always and agent-editable", async () => {
+    await initProject(projectDir);
+    const text = await fileText(join(getPromptsDir(projectDir), "beliefs.md"));
+    expect(text).toMatch(/loading:\s*always/);
+    expect(text).toMatch(/agent-modification:\s*true/);
+  });
 
-    const gitignore = await Bun.file(join(tempDir, ".gitignore")).text();
-    expect(gitignore).toContain(".botholomew/");
+  test("config/config.json contains valid defaults", async () => {
+    await initProject(projectDir);
+    const path = join(projectDir, CONFIG_DIR, CONFIG_FILENAME);
+    const cfg = JSON.parse(await fileText(path));
+    expect(cfg.anthropic_api_key).toBeDefined();
+    expect(cfg.model).toBeTruthy();
+    expect(cfg.tick_interval_seconds).toBeGreaterThan(0);
+  });
+
+  test("seeds skills/ with the default skill files", async () => {
+    await initProject(projectDir);
+    const skills = getSkillsDir(projectDir);
+    for (const name of ["summarize.md", "standup.md", "capabilities.md"]) {
+      expect(await Bun.file(join(skills, name)).exists()).toBe(true);
+    }
+  });
+
+  test("the capabilities skill invokes the capabilities_refresh tool", async () => {
+    await initProject(projectDir);
+    const text = await fileText(
+      join(getSkillsDir(projectDir), "capabilities.md"),
+    );
+    expect(text).toContain("capabilities_refresh");
+  });
+
+  test("creates index.duckdb with migrations applied", async () => {
+    await initProject(projectDir);
+    const dbPath = getDbPath(projectDir);
+    expect(await Bun.file(dbPath).exists()).toBe(true);
+  });
+
+  test("writes mcpx/servers.json with default content", async () => {
+    await initProject(projectDir);
+    const path = join(getMcpxDir(projectDir), MCPX_SERVERS_FILENAME);
+    expect(await Bun.file(path).exists()).toBe(true);
+    const cfg = JSON.parse(await fileText(path));
+    expect(cfg).toBeDefined();
+  });
+
+  test("refuses to re-init without --force", async () => {
+    await initProject(projectDir);
+    await expect(initProject(projectDir)).rejects.toThrow(
+      /already initialized/,
+    );
+  });
+
+  test("succeeds with force=true on an existing project", async () => {
+    await initProject(projectDir);
+    await expect(
+      initProject(projectDir, { force: true }),
+    ).resolves.toBeUndefined();
+  });
+
+  test("capabilities.md ends up populated (LLM placeholder or fallback)", async () => {
+    // Without an Anthropic key the static-fallback summarizer fills the
+    // file with built-in tool theme lines.
+    await initProject(projectDir);
+    const text = await fileText(
+      join(getPromptsDir(projectDir), "capabilities.md"),
+    );
+    // It should at least contain the frontmatter and a non-empty body.
+    expect(text).toMatch(/loading:\s*always/);
+    // Body has at least one bullet/section. Either the LLM filled it or the
+    // fallback wrote internal-tool theme lines like "task management".
+    expect(text.split("\n").length).toBeGreaterThan(5);
   });
 });

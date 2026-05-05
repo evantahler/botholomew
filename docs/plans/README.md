@@ -12,6 +12,7 @@
 | 8 | [Remote Context](milestone-8-remote-context.md) | **Done** | Ingest context from URLs via LLM-driven MCPX tool selection |
 | 9 | [Worker Agents](milestone-9-worker-agents.md) | **Done** | Replace OS watchdog with in-DB worker registration + heartbeats; multi-worker support; chat-dispatched one-shot workers |
 | 10 | [Simplify Context Paths](milestone-10-simplify-context-paths.md) | **Done** | Collapse `source_path` + `context_path` into a single `drive:/path`; drop LLM path placement |
+| 11 | [Disk-Backed Project Layout](disk-backed-project-layout.md) | **In progress** | Move context, tasks, and schedules out of DuckDB onto real disk; lockfile claim; sandbox helper |
 
 ## Stub/TODO Coverage
 

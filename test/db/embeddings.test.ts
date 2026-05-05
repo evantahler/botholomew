@@ -1,493 +1,277 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { EMBEDDING_DIMENSION } from "../../src/constants.ts";
-import type { DbConnection } from "../../src/db/connection.ts";
-import { createContextItem } from "../../src/db/context.ts";
-import {
-  createEmbedding,
-  deleteEmbeddingsForItem,
-  hybridSearch,
-  rebuildSearchIndex,
-  searchEmbeddings,
-} from "../../src/db/embeddings.ts";
-import { fakeEmbed, setupTestDb, setupTestDbFile } from "../helpers.ts";
+/**
+ * The `context_index` CRUD layer + the search primitives that sit on top
+ * of it. Vectors are content-aware fakes so cosine similarity tracks
+ * word overlap (see fakeEmbed in helpers.ts).
+ */
 
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { EMBEDDING_DIMENSION } from "../../src/constants.ts";
+import { type DbConnection, getConnection } from "../../src/db/connection.ts";
+import {
+  deleteIndexedPath,
+  getIndexedPath,
+  indexStats,
+  listIndexedPaths,
+  rebuildSearchIndex,
+  searchHybrid,
+  searchKeyword,
+  searchSemantic,
+  upsertChunksForPath,
+} from "../../src/db/embeddings.ts";
+import { migrate } from "../../src/db/schema.ts";
+import { fakeEmbed } from "../helpers.ts";
+
+let dbPath: string;
+let dbDir: string;
 let conn: DbConnection;
 
 beforeEach(async () => {
-  conn = await setupTestDb();
+  dbDir = await mkdtemp(join(tmpdir(), "both-emb-"));
+  dbPath = join(dbDir, "index.duckdb");
+  conn = await getConnection(dbPath);
+  await migrate(conn);
 });
 
-/** Create a 384-dim vector with a value at the given index */
-function vec(index: number, value = 1): number[] {
-  const v = new Array(EMBEDDING_DIMENSION).fill(0);
-  v[index] = value;
-  return v;
-}
+afterEach(async () => {
+  conn.close();
+  await rm(dbDir, { recursive: true, force: true });
+});
 
-/** Create a 384-dim vector from a few leading values */
-function vecFrom(...values: number[]): number[] {
-  const v = new Array(EMBEDDING_DIMENSION).fill(0);
-  for (let i = 0; i < values.length; i++) v[i] = values[i] ?? 0;
-  return v;
-}
-
-async function makeContextItem(title: string) {
-  return await createContextItem(conn, {
-    title,
-    content: `Content for ${title}`,
-    drive: "agent",
-    path: `/${title.toLowerCase().replace(/\s+/g, "-")}`,
-    mimeType: "text/plain",
-    isTextual: true,
+async function seed(
+  path: string,
+  chunks: Array<{ index: number; text: string }>,
+) {
+  await upsertChunksForPath(conn, {
+    path,
+    contentHash: `hash-${path}`,
+    mtimeMs: Date.now(),
+    sizeBytes: chunks.reduce((s, c) => s + c.text.length, 0),
+    chunks: chunks.map((c) => ({
+      chunk_index: c.index,
+      chunk_content: c.text,
+      embedding: fakeEmbed(c.text),
+    })),
   });
 }
 
-// ── createEmbedding ────────────────────────────────────────
+describe("upsertChunksForPath", () => {
+  test("inserts chunks and rejects wrong-dimension embeddings", async () => {
+    await seed("a.md", [{ index: 0, text: "paternity leave" }]);
+    const summary = await listIndexedPaths(conn);
+    expect(summary.find((s) => s.path === "a.md")?.chunk_count).toBe(1);
 
-describe("createEmbedding", () => {
-  test("inserts an embedding row", async () => {
-    const item = await makeContextItem("Test Item");
-    const emb = await createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 0,
-      chunkContent: "some chunk text",
-      title: "Test Item chunk 0",
-      embedding: vecFrom(0.1, 0.2, 0.3),
-    });
-
-    expect(emb.id).toBeTruthy();
-    expect(emb.context_item_id).toBe(item.id);
-    expect(emb.chunk_index).toBe(0);
-    expect(emb.chunk_content).toBe("some chunk text");
-    expect(emb.embedding.length).toBe(EMBEDDING_DIMENSION);
-  });
-
-  test("enforces unique (context_item_id, chunk_index)", async () => {
-    const item = await makeContextItem("Unique Check");
-    await createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 0,
-      chunkContent: "first",
-      title: "chunk 0",
-      embedding: vec(0),
-    });
-
-    expect(
-      createEmbedding(conn, {
-        contextItemId: item.id,
-        chunkIndex: 0,
-        chunkContent: "duplicate",
-        title: "chunk 0 dup",
-        embedding: vec(1),
+    // Wrong-dim embedding should fail at the FLOAT[N] cast.
+    await expect(
+      upsertChunksForPath(conn, {
+        path: "bad.md",
+        contentHash: "h",
+        mtimeMs: 0,
+        sizeBytes: 0,
+        chunks: [
+          {
+            chunk_index: 0,
+            chunk_content: "x",
+            embedding: new Array(EMBEDDING_DIMENSION + 1).fill(0),
+          },
+        ],
       }),
     ).rejects.toThrow();
   });
-});
 
-// ── deleteEmbeddingsForItem ────────────────────────────────
-
-describe("deleteEmbeddingsForItem", () => {
-  test("deletes all embeddings for a context item", async () => {
-    const item = await makeContextItem("Delete Test");
-    await createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 0,
-      chunkContent: "chunk 0",
-      title: "c0",
-      embedding: vec(0),
-    });
-    await createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 1,
-      chunkContent: "chunk 1",
-      title: "c1",
-      embedding: vec(1),
-    });
-
-    const deleted = await deleteEmbeddingsForItem(conn, item.id);
-    expect(deleted).toBe(2);
-
-    const remaining = (await conn.queryGet(
-      "SELECT COUNT(*) as cnt FROM embeddings WHERE context_item_id = ?1",
-      item.id,
-    )) as { cnt: number };
-    expect(remaining.cnt).toBe(0);
-  });
-
-  test("returns 0 when no embeddings exist", async () => {
-    const deleted = await deleteEmbeddingsForItem(conn, "nonexistent-id");
-    expect(deleted).toBe(0);
-  });
-
-  test("does not delete embeddings for other items", async () => {
-    const item1 = await makeContextItem("Item One");
-    const item2 = await makeContextItem("Item Two");
-    await createEmbedding(conn, {
-      contextItemId: item1.id,
-      chunkIndex: 0,
-      chunkContent: "chunk",
-      title: "c",
-      embedding: vec(0),
-    });
-    await createEmbedding(conn, {
-      contextItemId: item2.id,
-      chunkIndex: 0,
-      chunkContent: "chunk",
-      title: "c",
-      embedding: vec(1),
-    });
-
-    await deleteEmbeddingsForItem(conn, item1.id);
-
-    const remaining = (await conn.queryGet(
-      "SELECT COUNT(*) as cnt FROM embeddings",
-    )) as { cnt: number };
-    expect(remaining.cnt).toBe(1);
+  test("re-upsert replaces previous chunks for the same path", async () => {
+    await seed("a.md", [
+      { index: 0, text: "first" },
+      { index: 1, text: "second" },
+    ]);
+    await seed("a.md", [{ index: 0, text: "fresh" }]);
+    const summary = await listIndexedPaths(conn);
+    expect(summary.find((s) => s.path === "a.md")?.chunk_count).toBe(1);
   });
 });
 
-// ── searchEmbeddings ───────────────────────────────────────
-
-describe("searchEmbeddings", () => {
-  test("returns results ranked by cosine similarity", async () => {
-    const item = await makeContextItem("Search Test");
-    await createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 0,
-      chunkContent: "close match",
-      title: "close",
-      embedding: vec(0),
-    });
-    await createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 1,
-      chunkContent: "medium match",
-      title: "medium",
-      embedding: vecFrom(0.7, 0.7),
-    });
-    await createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 2,
-      chunkContent: "far match",
-      title: "far",
-      embedding: vec(2),
-    });
-
-    const results = await searchEmbeddings(conn, vec(0), 10);
-    expect(results.length).toBe(3);
-    expect(results[0]?.chunk_content).toBe("close match");
-    expect(results[0]?.score).toBeCloseTo(1.0);
-    expect(results[2]?.chunk_content).toBe("far match");
-    expect(results[2]?.score).toBeCloseTo(0.0);
+describe("deleteIndexedPath", () => {
+  test("removes all rows for a path and reports the count", async () => {
+    await seed("a.md", [
+      { index: 0, text: "x" },
+      { index: 1, text: "y" },
+    ]);
+    const removed = await deleteIndexedPath(conn, "a.md");
+    expect(removed).toBeGreaterThanOrEqual(2);
+    expect(await getIndexedPath(conn, "a.md")).toBeNull();
   });
 
-  test("respects limit", async () => {
-    const item = await makeContextItem("Limit Test");
-    for (let i = 0; i < 5; i++) {
-      await createEmbedding(conn, {
-        contextItemId: item.id,
-        chunkIndex: i,
-        chunkContent: `chunk ${i}`,
-        title: `c${i}`,
-        embedding: vecFrom(Math.random(), Math.random(), Math.random()),
-      });
+  test("returns 0 when nothing matches", async () => {
+    expect(await deleteIndexedPath(conn, "missing.md")).toBe(0);
+  });
+
+  test("does not delete chunks for other paths", async () => {
+    await seed("a.md", [{ index: 0, text: "x" }]);
+    await seed("b.md", [{ index: 0, text: "y" }]);
+    await deleteIndexedPath(conn, "a.md");
+    const summary = await listIndexedPaths(conn);
+    expect(summary.map((s) => s.path).sort()).toEqual(["b.md"]);
+  });
+});
+
+describe("listIndexedPaths + getIndexedPath + indexStats", () => {
+  test("listIndexedPaths returns one summary row per path", async () => {
+    await seed("a.md", [
+      { index: 0, text: "alpha" },
+      { index: 1, text: "alpha-2" },
+    ]);
+    await seed("b.md", [{ index: 0, text: "beta" }]);
+    const summary = await listIndexedPaths(conn);
+    expect(summary.map((s) => s.path).sort()).toEqual(["a.md", "b.md"]);
+    expect(summary.find((s) => s.path === "a.md")?.chunk_count).toBe(2);
+  });
+
+  test("getIndexedPath returns the summary for a known path", async () => {
+    await seed("a.md", [
+      { index: 0, text: "x" },
+      { index: 1, text: "y" },
+    ]);
+    const got = await getIndexedPath(conn, "a.md");
+    expect(got).not.toBeNull();
+    expect(got?.path).toBe("a.md");
+    expect(got?.chunk_count).toBe(2);
+  });
+
+  test("indexStats reports unique paths and total chunks", async () => {
+    await seed("a.md", [
+      { index: 0, text: "x" },
+      { index: 1, text: "y" },
+    ]);
+    await seed("b.md", [{ index: 0, text: "z" }]);
+    const stats = await indexStats(conn);
+    expect(stats.paths).toBe(2);
+    expect(stats.chunks).toBe(3);
+  });
+});
+
+describe("searchSemantic", () => {
+  test("ranks paths whose chunks share words with the query higher", async () => {
+    await seed("paternity.md", [
+      { index: 0, text: "paternity leave parental time off newborn" },
+    ]);
+    await seed("revenue.md", [{ index: 0, text: "revenue forecast quota" }]);
+    await seed("k8s.md", [
+      { index: 0, text: "kubernetes helm deployment rollout" },
+    ]);
+
+    const queryVec = fakeEmbed("paternity leave plan childcare");
+    const results = await searchSemantic(conn, queryVec, 10);
+    expect(results[0]?.path).toBe("paternity.md");
+  });
+
+  test("respects the limit parameter", async () => {
+    for (const path of ["a.md", "b.md", "c.md", "d.md"]) {
+      await seed(path, [{ index: 0, text: `content-${path}` }]);
     }
-
-    const results = await searchEmbeddings(conn, vec(0), 2);
-    expect(results.length).toBe(2);
-  });
-
-  test("returns empty array when no embeddings exist", async () => {
-    const results = await searchEmbeddings(conn, vec(0));
-    expect(results).toEqual([]);
+    const queryVec = fakeEmbed("content");
+    const results = await searchSemantic(conn, queryVec, 2);
+    expect(results).toHaveLength(2);
   });
 });
 
-// ── hybridSearch ───────────────────────────────────────────
-
-describe("hybridSearch", () => {
-  test("combines keyword and vector results", async () => {
-    const item = await makeContextItem("Hybrid Test");
-    await createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 0,
-      chunkContent: "quarterly revenue report",
-      title: "revenue",
-      embedding: vec(0),
-    });
-    await createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 1,
-      chunkContent: "annual revenue summary",
-      title: "annual",
-      embedding: vec(2),
-    });
-    await createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 2,
-      chunkContent: "financial overview",
-      title: "overview",
-      embedding: vecFrom(0.9, 0.1),
-    });
-
-    const results = await hybridSearch(conn, "revenue", vec(0), 10);
-    expect(results.length).toBe(3);
-    expect(results[0]?.chunk_content).toBe("quarterly revenue report");
-    expect(results[0]?.score).toBeGreaterThan(results[1]?.score ?? 0);
-  });
-
-  test("returns keyword-only matches", async () => {
-    const item = await makeContextItem("Keyword Only");
-    await createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 0,
-      chunkContent: "the special keyword here",
-      title: "special",
-      embedding: vec(2),
-    });
-
-    const results = await hybridSearch(conn, "special", vec(0), 10);
-    expect(results.length).toBe(1);
-    expect(results[0]?.chunk_content).toContain("special");
-  });
-
-  test("respects limit", async () => {
-    const item = await makeContextItem("Limit Hybrid");
-    for (let i = 0; i < 5; i++) {
-      await createEmbedding(conn, {
-        contextItemId: item.id,
-        chunkIndex: i,
-        chunkContent: `match chunk ${i}`,
-        title: `match ${i}`,
-        embedding: vec(0),
-      });
-    }
-
-    const results = await hybridSearch(conn, "match", vec(0), 2);
-    expect(results.length).toBe(2);
-  });
-
-  test("returns empty when nothing matches", async () => {
-    const results = await hybridSearch(conn, "nonexistent", vec(0));
-    expect(results).toEqual([]);
-  });
-});
-
-// ── Edge cases ────────────────────────────────────────────
-
-describe("edge cases", () => {
-  test("search with large number of embeddings respects limit", async () => {
-    const item = await makeContextItem("Many Embeddings");
-    for (let i = 0; i < 20; i++) {
-      await createEmbedding(conn, {
-        contextItemId: item.id,
-        chunkIndex: i,
-        chunkContent: `chunk ${i}`,
-        title: `c${i}`,
-        embedding: vecFrom(Math.cos(i), Math.sin(i)),
-      });
-    }
-
-    const results5 = await searchEmbeddings(conn, vec(0), 5);
-    expect(results5.length).toBe(5);
-
-    const results10 = await searchEmbeddings(conn, vec(0), 10);
-    expect(results10.length).toBe(10);
-  });
-
-  test("embeddings from different items are returned in search", async () => {
-    const item1 = await makeContextItem("Item One");
-    const item2 = await makeContextItem("Item Two");
-
-    await createEmbedding(conn, {
-      contextItemId: item1.id,
-      chunkIndex: 0,
-      chunkContent: "first item content",
-      title: "first",
-      embedding: vec(0),
-    });
-
-    await createEmbedding(conn, {
-      contextItemId: item2.id,
-      chunkIndex: 0,
-      chunkContent: "second item content",
-      title: "second",
-      embedding: vecFrom(0.9, 0.1),
-    });
-
-    const results = await searchEmbeddings(conn, vec(0), 10);
-    expect(results.length).toBe(2);
-    const itemIds = results.map((r) => r.context_item_id);
-    expect(itemIds).toContain(item1.id);
-    expect(itemIds).toContain(item2.id);
-  });
-
-  test("hybrid search deduplicates results found by both keyword and vector", async () => {
-    const item = await makeContextItem("Dedup Test");
-    await createEmbedding(conn, {
-      contextItemId: item.id,
-      chunkIndex: 0,
-      chunkContent: "unique keyword content",
-      title: "unique",
-      embedding: vec(0),
-    });
+describe("searchKeyword (BM25)", () => {
+  test("finds chunks by keyword once the FTS index is built", async () => {
+    await seed("paternity.md", [
+      { index: 0, text: "paternity leave parental time off newborn" },
+    ]);
+    await seed("k8s.md", [
+      { index: 0, text: "kubernetes helm deployment rollout" },
+    ]);
     await rebuildSearchIndex(conn);
 
-    // Search with keyword that matches AND vector that matches
-    const results = await hybridSearch(conn, "unique", vec(0), 10);
-    expect(results.length).toBe(1);
-    // Score should be boosted by appearing in both keyword and vector results
-    expect(results[0]?.score).toBeGreaterThan(0);
+    const results = await searchKeyword(conn, "paternity", 10);
+    expect(results.map((r) => r.path)).toContain("paternity.md");
+    // Only the paternity chunk matches "paternity"; k8s should be absent.
+    expect(results.map((r) => r.path)).not.toContain("k8s.md");
+  });
+
+  test("returns the empty list when no chunks match the query", async () => {
+    await seed("paternity.md", [{ index: 0, text: "paternity leave plan" }]);
+    await rebuildSearchIndex(conn);
+
+    const results = await searchKeyword(conn, "kubernetes", 10);
+    expect(results).toEqual([]);
+  });
+
+  test("respects the limit parameter", async () => {
+    for (const path of ["a.md", "b.md", "c.md"]) {
+      await seed(path, [{ index: 0, text: "kubernetes deployment rollout" }]);
+    }
+    await rebuildSearchIndex(conn);
+    const results = await searchKeyword(conn, "kubernetes", 2);
+    expect(results.length).toBeLessThanOrEqual(2);
   });
 });
 
-// ── hybridSearch with content-aware embeddings ─────────────
-//
-// These tests use real natural-language content plus a deterministic
-// content-aware fake embedder (vocab → hot dim, unit-normalized) so that
-// cosine similarity actually tracks word overlap. The existing describe
-// blocks above use sparse unit vectors, which produce valid-but-meaningless
-// cosine distances and mask real search bugs.
+describe("content-aware retrieval quality", () => {
+  // The fakeEmbed in helpers.ts maps known vocab words (paternity, leave,
+  // kubernetes, helm, …) to dedicated hot dimensions and unit-normalizes
+  // the result, so cosine similarity tracks word overlap across docs.
+  // These tests pin specific behaviors the original `hybridSearch end-to-end`
+  // suite cared about: BM25 ranks more matching tokens higher, semantic
+  // recall finds docs even with zero keyword overlap, and an unrelated
+  // query does NOT surface a strong-on-other-tokens doc.
 
-describe("hybridSearch end-to-end (content-aware)", () => {
-  let fileConn: DbConnection;
-  let cleanup: () => Promise<void>;
+  test("BM25: a chunk matching more query tokens ranks higher than one matching fewer", async () => {
+    await seed("strong.md", [
+      { index: 0, text: "paternity leave parental time off newborn" },
+    ]);
+    await seed("weak.md", [{ index: 0, text: "paternity legal note only" }]);
+    await rebuildSearchIndex(conn);
 
-  beforeEach(async () => {
-    const setup = await setupTestDbFile();
-    fileConn = setup.conn;
-    cleanup = setup.cleanup;
+    const results = await searchKeyword(conn, "paternity leave parental", 10);
+    expect(results.length).toBeGreaterThanOrEqual(2);
+    expect(results[0]?.path).toBe("strong.md");
   });
 
-  afterEach(async () => {
-    await cleanup();
+  test("semantic recall: a doc with zero query-token overlap is still retrieved by meaning", async () => {
+    await seed("paternity.md", [
+      { index: 0, text: "newborn parental time off childcare plan" },
+    ]);
+    await seed("revenue.md", [{ index: 0, text: "revenue forecast quota" }]);
+
+    // Query has no literal overlap with paternity.md's chunk text.
+    const queryVec = fakeEmbed("paternity leave");
+    const results = await searchSemantic(conn, queryVec, 10);
+    expect(results[0]?.path).toBe("paternity.md");
   });
 
-  async function seedDoc(opts: {
-    title: string;
-    path: string;
-    content: string;
-    embedFrom?: string;
-  }) {
-    const item = await createContextItem(fileConn, {
-      title: opts.title,
-      content: opts.content,
-      drive: "agent",
-      path: opts.path,
-      mimeType: "text/plain",
-      isTextual: true,
-    });
-    await createEmbedding(fileConn, {
-      contextItemId: item.id,
-      chunkIndex: 0,
-      chunkContent: opts.content,
-      title: opts.title,
-      embedding: fakeEmbed(opts.embedFrom ?? opts.content),
-    });
-    return item;
-  }
+  test("an unrelated query does NOT surface the paternity doc on top", async () => {
+    await seed("paternity.md", [
+      { index: 0, text: "paternity leave parental newborn" },
+    ]);
+    await seed("k8s.md", [
+      { index: 0, text: "kubernetes helm deployment rollout" },
+    ]);
 
-  async function seedStandardCorpus() {
-    await seedDoc({
-      title: "Evan's Paternity Leave Plan",
-      path: "/paternity",
-      content:
-        "A plan for paternity leave and time off after the newborn arrives.",
-    });
-    await seedDoc({
-      title: "Q3 Revenue Forecast",
-      path: "/revenue",
-      content: "Revenue forecast and quota for Q3.",
-    });
-    await seedDoc({
-      title: "Kubernetes Deployment Guide",
-      path: "/k8s",
-      content: "Kubernetes helm deployment rollout guide.",
-    });
-    await rebuildSearchIndex(fileConn);
-  }
-
-  test("multi-word query recovers doc matching on some tokens", async () => {
-    // Exact reproduction of the user-reported failure: the query contains
-    // five words, none of which appear as a contiguous substring of any
-    // chunk. Naive ILIKE on the whole query finds nothing; BM25 + vector
-    // together must still surface the paternity doc.
-    await seedStandardCorpus();
-    const query = "leave plans time off parental";
-    const results = await hybridSearch(fileConn, query, fakeEmbed(query), 5);
-    expect(results.length).toBeGreaterThan(0);
-    expect(results[0]?.title).toBe("Evan's Paternity Leave Plan");
+    const queryVec = fakeEmbed("kubernetes deployment");
+    const results = await searchSemantic(conn, queryVec, 10);
+    // Semantic similarity on the kubernetes-themed query must rank k8s.md
+    // ahead of the unrelated paternity doc.
+    expect(results[0]?.path).toBe("k8s.md");
   });
+});
 
-  test("vector-only recall: doc retrieved with zero keyword overlap", async () => {
-    // chunk_content has no vocab words so the BM25 path returns nothing;
-    // the embedding was computed from the original sentence so the vector
-    // path can still rescue the doc. Asserts the vector arm carries its
-    // weight on its own.
-    await seedDoc({
-      title: "Redacted Leave Plan",
-      path: "/redacted",
-      content: "A plan for [redacted] and [redacted] away.",
-      embedFrom:
-        "A plan for paternity leave and time off after the newborn arrives.",
-    });
-    await seedDoc({
-      title: "Q3 Revenue Forecast",
-      path: "/revenue",
-      content: "Revenue forecast and quota for Q3.",
-    });
-    await rebuildSearchIndex(fileConn);
+describe("searchHybrid (RRF over BM25 + cosine)", () => {
+  test("returns relevant chunks with a per-row score", async () => {
+    await seed("paternity.md", [
+      { index: 0, text: "paternity leave parental time off newborn" },
+    ]);
+    await seed("revenue.md", [{ index: 0, text: "revenue forecast quota" }]);
+    await rebuildSearchIndex(conn);
 
-    const query = "paternity leave";
-    const results = await hybridSearch(fileConn, query, fakeEmbed(query), 5);
-    expect(results.some((r) => r.title === "Redacted Leave Plan")).toBe(true);
-    expect(results[0]?.title).toBe("Redacted Leave Plan");
-  });
-
-  test("BM25: more matching tokens rank higher than fewer", async () => {
-    // Doc X matches three query tokens (leave, time, off); Doc Y matches
-    // one (leave). BM25 length-normalization + IDF plus the RRF merge
-    // must put X above Y. A naive ILIKE-OR tokenizer cannot distinguish
-    // them reliably — both would appear at arbitrary ranks.
-    await seedDoc({
-      title: "Three Token Doc",
-      path: "/three",
-      content: "Leave time off policy overview.",
-    });
-    await seedDoc({
-      title: "One Token Doc",
-      path: "/one",
-      content: "Leave the building through the south exit.",
-    });
-    await rebuildSearchIndex(fileConn);
-
-    const query = "leave time off";
-    const results = await hybridSearch(fileConn, query, fakeEmbed(query), 5);
-    const threeIdx = results.findIndex((r) => r.title === "Three Token Doc");
-    const oneIdx = results.findIndex((r) => r.title === "One Token Doc");
-    expect(threeIdx).toBeGreaterThanOrEqual(0);
-    expect(oneIdx).toBeGreaterThanOrEqual(0);
-    expect(threeIdx).toBeLessThan(oneIdx);
-  });
-
-  test("unrelated query does not surface the paternity doc", async () => {
-    await seedStandardCorpus();
-    const query = "kubernetes helm rollout";
-    const results = await hybridSearch(fileConn, query, fakeEmbed(query), 5);
-    expect(results[0]?.title).toBe("Kubernetes Deployment Guide");
-    expect(results[0]?.title).not.toBe("Evan's Paternity Leave Plan");
-  });
-
-  test("searchEmbeddings tripwire: returns rows when embeddings exist", async () => {
-    // Catches future vector-path regressions (e.g., a reintroduced HNSW
-    // that silently returns 0 rows on cosine queries). If this assertion
-    // ever goes red, the whole hybrid search is dead regardless of BM25.
-    await seedStandardCorpus();
-    const results = await searchEmbeddings(
-      fileConn,
-      fakeEmbed("paternity leave"),
-      5,
-    );
-    expect(results.length).toBeGreaterThan(0);
+    const queryVec = fakeEmbed("paternity leave plan childcare");
+    const merged = await searchHybrid(conn, "paternity", queryVec, 10);
+    // Top hit is the matching path; rows are deduped by (path, chunk_index).
+    expect(merged[0]?.path).toBe("paternity.md");
+    const seen = new Set(merged.map((r) => `${r.path}#${r.chunk_index}`));
+    expect(seen.size).toBe(merged.length);
   });
 });

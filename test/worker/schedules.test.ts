@@ -1,201 +1,158 @@
+/**
+ * Worker schedule processing: evaluateSchedule asks an LLM if a schedule
+ * is due and which tasks to fan out; processSchedules applies the
+ * lockfile-based claim, calls the evaluator, and creates tasks (with
+ * blocked_by wiring) on disk. Anthropic SDK is module-mocked.
+ */
+
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import type { DbConnection } from "../../src/db/connection.ts";
-import { createSchedule, getSchedule } from "../../src/db/schedules.ts";
-import { listTasks } from "../../src/db/tasks.ts";
-import { setupTestDbFile, TEST_CONFIG } from "../helpers.ts";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
+import {
+  getSchedulesDir,
+  getSchedulesLockDir,
+  getTasksDir,
+  getTasksLockDir,
+} from "../../src/constants.ts";
+import { createSchedule, getSchedule } from "../../src/schedules/store.ts";
+import { listTasks } from "../../src/tasks/store.ts";
 
+// Mutable response shape so each test can drive the mock.
 let mockResponse: Record<string, unknown> = {};
+// When set, the next mock call returns this raw text instead of JSON.stringify(mockResponse).
+let mockRawText: string | null = null;
 
-// Mock the Anthropic SDK before importing schedules module
-mock.module("@anthropic-ai/sdk", () => {
-  return {
-    default: class MockAnthropic {
-      messages = {
-        create: async () => ({
-          content: [{ type: "text", text: JSON.stringify(mockResponse) }],
-          stop_reason: "end_turn",
-          usage: { input_tokens: 50, output_tokens: 50 },
-        }),
-      };
-    },
-  };
-});
+mock.module("@anthropic-ai/sdk", () => ({
+  default: class MockAnthropic {
+    messages = {
+      create: async () => ({
+        content: [
+          {
+            type: "text",
+            text: mockRawText ?? JSON.stringify(mockResponse),
+          },
+        ],
+        stop_reason: "end_turn",
+        usage: { input_tokens: 50, output_tokens: 50 },
+      }),
+    };
+  },
+}));
 
 const { evaluateSchedule, processSchedules } = await import(
   "../../src/worker/schedules.ts"
 );
 
-let conn: DbConnection;
-let dbPath: string;
-let cleanup: () => Promise<void>;
+const TEST_CONFIG = {
+  ...DEFAULT_CONFIG,
+  anthropic_api_key: "test-key",
+} as Required<typeof DEFAULT_CONFIG>;
+
+let projectDir: string;
 
 beforeEach(async () => {
-  ({ conn, dbPath, cleanup } = await setupTestDbFile());
+  projectDir = await mkdtemp(join(tmpdir(), "both-worker-schedules-"));
+  await mkdir(getSchedulesDir(projectDir), { recursive: true });
+  await mkdir(getSchedulesLockDir(projectDir), { recursive: true });
+  await mkdir(getTasksDir(projectDir), { recursive: true });
+  await mkdir(getTasksLockDir(projectDir), { recursive: true });
   mockResponse = {};
+  mockRawText = null;
 });
 
 afterEach(async () => {
-  await cleanup();
+  await rm(projectDir, { recursive: true, force: true });
 });
 
 describe("evaluateSchedule", () => {
-  test("returns isDue with tasks when schedule is due", async () => {
+  test("returns isDue with parsed tasks when the LLM says due", async () => {
     mockResponse = {
       isDue: true,
-      reasoning: "Last run was over 24 hours ago",
+      reasoning: "Last run was 24 hours ago",
       tasks: [
-        { name: "Check email", description: "Read inbox", priority: "medium" },
+        {
+          name: "Check email",
+          description: "Read inbox",
+          priority: "medium",
+        },
       ],
     };
-
-    const schedule = await createSchedule(conn, {
+    const s = await createSchedule(projectDir, {
       name: "Morning email",
       frequency: "every morning",
     });
-
-    const result = await evaluateSchedule(TEST_CONFIG, schedule);
-    expect(result.isDue).toBe(true);
-    expect(result.tasksToCreate).toHaveLength(1);
-    expect(result.tasksToCreate[0]?.name).toBe("Check email");
+    const r = await evaluateSchedule(TEST_CONFIG, s);
+    expect(r.isDue).toBe(true);
+    expect(r.tasksToCreate).toHaveLength(1);
+    expect(r.tasksToCreate[0]?.name).toBe("Check email");
   });
 
-  test("returns not due when schedule is not due", async () => {
-    mockResponse = {
-      isDue: false,
-      reasoning: "Last run was 1 hour ago, too soon",
-      tasks: [],
-    };
-
-    const schedule = await createSchedule(conn, {
-      name: "Hourly check",
+  test("returns not due when LLM says not due", async () => {
+    mockResponse = { isDue: false, reasoning: "too soon", tasks: [] };
+    const s = await createSchedule(projectDir, {
+      name: "Hourly",
       frequency: "every 4 hours",
     });
-
-    const result = await evaluateSchedule(TEST_CONFIG, schedule);
-    expect(result.isDue).toBe(false);
-    expect(result.tasksToCreate).toHaveLength(0);
+    const r = await evaluateSchedule(TEST_CONFIG, s);
+    expect(r.isDue).toBe(false);
+    expect(r.tasksToCreate).toHaveLength(0);
   });
 
-  test("handles malformed LLM response gracefully", async () => {
-    // Override mock to return invalid JSON
-    mock.module("@anthropic-ai/sdk", () => ({
-      default: class MockAnthropic {
-        messages = {
-          create: async () => ({
-            content: [{ type: "text", text: "not valid json {{{" }],
-            stop_reason: "end_turn",
-            usage: { input_tokens: 50, output_tokens: 50 },
-          }),
-        };
-      },
-    }));
-
-    // Re-import to get the new mock
-    const { evaluateSchedule: evalFresh } = await import(
-      "../../src/worker/schedules.ts"
-    );
-
-    const schedule = await createSchedule(conn, {
+  test("falls back to not-due on malformed JSON", async () => {
+    mockRawText = "not valid json {{{";
+    const s = await createSchedule(projectDir, {
       name: "Test",
       frequency: "daily",
     });
-
-    const result = await evalFresh(TEST_CONFIG, schedule);
-    expect(result.isDue).toBe(false);
-    expect(result.reasoning).toContain("failed");
-
-    // Restore original mock
-    mock.module("@anthropic-ai/sdk", () => ({
-      default: class MockAnthropic {
-        messages = {
-          create: async () => ({
-            content: [{ type: "text", text: JSON.stringify(mockResponse) }],
-            stop_reason: "end_turn",
-            usage: { input_tokens: 50, output_tokens: 50 },
-          }),
-        };
-      },
-    }));
+    const r = await evaluateSchedule(TEST_CONFIG, s);
+    expect(r.isDue).toBe(false);
+    expect(r.reasoning).toContain("failed");
   });
 
-  test("handles LLM response wrapped in markdown code fences", async () => {
-    const jsonBody = JSON.stringify({
+  test("strips ```json fences before parsing", async () => {
+    mockRawText = `\`\`\`json\n${JSON.stringify({
       isDue: true,
       reasoning: "Due now",
       tasks: [
         {
           name: "Fenced task",
-          description: "From code block",
+          description: "from code block",
           priority: "low",
         },
       ],
-    });
-
-    mock.module("@anthropic-ai/sdk", () => ({
-      default: class MockAnthropic {
-        messages = {
-          create: async () => ({
-            content: [
-              { type: "text", text: `\`\`\`json\n${jsonBody}\n\`\`\`` },
-            ],
-            stop_reason: "end_turn",
-            usage: { input_tokens: 50, output_tokens: 50 },
-          }),
-        };
-      },
-    }));
-
-    const { evaluateSchedule: evalFenced } = await import(
-      "../../src/worker/schedules.ts"
-    );
-
-    const schedule = await createSchedule(conn, {
+    })}\n\`\`\``;
+    const s = await createSchedule(projectDir, {
       name: "Fenced",
       frequency: "daily",
     });
-
-    const result = await evalFenced(TEST_CONFIG, schedule);
-    expect(result.isDue).toBe(true);
-    expect(result.tasksToCreate).toHaveLength(1);
-    expect(result.tasksToCreate[0]?.name).toBe("Fenced task");
-
-    // Restore original mock
-    mock.module("@anthropic-ai/sdk", () => ({
-      default: class MockAnthropic {
-        messages = {
-          create: async () => ({
-            content: [{ type: "text", text: JSON.stringify(mockResponse) }],
-            stop_reason: "end_turn",
-            usage: { input_tokens: 50, output_tokens: 50 },
-          }),
-        };
-      },
-    }));
+    const r = await evaluateSchedule(TEST_CONFIG, s);
+    expect(r.isDue).toBe(true);
+    expect(r.tasksToCreate[0]?.name).toBe("Fenced task");
   });
 
-  test("handles tasks with depends_on", async () => {
+  test("forwards depends_on indices", async () => {
     mockResponse = {
       isDue: true,
-      reasoning: "Due now",
+      reasoning: "due",
       tasks: [
-        { name: "Step 1", description: "First", priority: "high" },
+        { name: "Step 1", description: "first", priority: "high" },
         {
           name: "Step 2",
-          description: "Second",
+          description: "second",
           priority: "medium",
           depends_on: [0],
         },
       ],
     };
-
-    const schedule = await createSchedule(conn, {
-      name: "Multi-step",
+    const s = await createSchedule(projectDir, {
+      name: "Multi",
       frequency: "daily",
     });
-
-    const result = await evaluateSchedule(TEST_CONFIG, schedule);
-    expect(result.tasksToCreate).toHaveLength(2);
-    expect(result.tasksToCreate[1]?.depends_on).toEqual([0]);
+    const r = await evaluateSchedule(TEST_CONFIG, s);
+    expect(r.tasksToCreate).toHaveLength(2);
+    expect(r.tasksToCreate[1]?.depends_on).toEqual([0]);
   });
 });
 
@@ -203,119 +160,90 @@ describe("processSchedules", () => {
   test("creates tasks for due schedules", async () => {
     mockResponse = {
       isDue: true,
-      reasoning: "Due now",
+      reasoning: "due",
       tasks: [
-        { name: "Read email", description: "Check inbox", priority: "medium" },
+        { name: "Read email", description: "check inbox", priority: "medium" },
       ],
     };
-
-    await createSchedule(conn, {
-      name: "Morning email",
+    await createSchedule(projectDir, {
+      name: "Morning",
       frequency: "every morning",
     });
-
-    await processSchedules(dbPath, TEST_CONFIG, "test-worker");
-
-    const tasks = await listTasks(conn);
+    await processSchedules(projectDir, TEST_CONFIG, "worker-A");
+    const tasks = await listTasks(projectDir);
     expect(tasks).toHaveLength(1);
     expect(tasks[0]?.name).toBe("Read email");
   });
 
-  test("updates last_run_at for due schedules", async () => {
+  test("updates last_run_at after firing a due schedule", async () => {
     mockResponse = {
       isDue: true,
-      reasoning: "Due",
-      tasks: [{ name: "Task", description: "", priority: "low" }],
+      reasoning: "due",
+      tasks: [{ name: "T", description: "", priority: "low" }],
     };
-
-    const schedule = await createSchedule(conn, {
+    const s = await createSchedule(projectDir, {
       name: "Test",
       frequency: "daily",
     });
-
-    await processSchedules(dbPath, TEST_CONFIG, "test-worker");
-
-    const updated = await getSchedule(conn, schedule.id);
-    expect(updated?.last_run_at).not.toBeNull();
+    expect(s.last_run_at).toBeNull();
+    await processSchedules(projectDir, TEST_CONFIG, "worker-A");
+    const after = await getSchedule(projectDir, s.id);
+    expect(after?.last_run_at).not.toBeNull();
   });
 
-  test("does not create tasks for not-due schedules", async () => {
-    mockResponse = {
-      isDue: false,
-      reasoning: "Not due yet",
-      tasks: [],
-    };
-
-    await createSchedule(conn, {
+  test("skips not-due schedules without creating tasks", async () => {
+    mockResponse = { isDue: false, reasoning: "too soon", tasks: [] };
+    await createSchedule(projectDir, {
       name: "Future",
       frequency: "weekly",
     });
-
-    await processSchedules(dbPath, TEST_CONFIG, "test-worker");
-
-    const tasks = await listTasks(conn);
-    expect(tasks).toHaveLength(0);
+    await processSchedules(projectDir, TEST_CONFIG, "worker-A");
+    expect(await listTasks(projectDir)).toHaveLength(0);
   });
 
-  test("skips disabled schedules", async () => {
+  test("skips disabled schedules entirely", async () => {
     mockResponse = {
       isDue: true,
-      reasoning: "Due",
-      tasks: [{ name: "Task", description: "", priority: "low" }],
+      reasoning: "due",
+      tasks: [{ name: "X", description: "", priority: "low" }],
     };
-
-    const schedule = await createSchedule(conn, {
-      name: "Disabled",
+    await createSchedule(projectDir, {
+      name: "Off",
       frequency: "daily",
+      enabled: false,
     });
-
-    const { updateSchedule } = await import("../../src/db/schedules.ts");
-    await updateSchedule(conn, schedule.id, { enabled: false });
-
-    await processSchedules(dbPath, TEST_CONFIG, "test-worker");
-
-    const tasks = await listTasks(conn);
-    expect(tasks).toHaveLength(0);
+    await processSchedules(projectDir, TEST_CONFIG, "worker-A");
+    expect(await listTasks(projectDir)).toHaveLength(0);
   });
 
-  test("wires depends_on to blocked_by", async () => {
+  test("wires depends_on indices into blocked_by ids on disk", async () => {
     mockResponse = {
       isDue: true,
-      reasoning: "Due",
+      reasoning: "due",
       tasks: [
-        { name: "Step 1", description: "First", priority: "high" },
+        { name: "First", description: "", priority: "medium" },
         {
-          name: "Step 2",
-          description: "Second",
+          name: "Second",
+          description: "",
           priority: "medium",
           depends_on: [0],
         },
       ],
     };
-
-    await createSchedule(conn, {
-      name: "Multi-step",
+    await createSchedule(projectDir, {
+      name: "Chain",
       frequency: "daily",
     });
-
-    await processSchedules(dbPath, TEST_CONFIG, "test-worker");
-
-    const tasks = await listTasks(conn);
-    expect(tasks).toHaveLength(2);
-
-    // Step 2 should be blocked by Step 1
-    const step1 = tasks.find((t) => t.name === "Step 1");
-    const step2 = tasks.find((t) => t.name === "Step 2");
-    expect(step1).toBeDefined();
-    expect(step2).toBeDefined();
-    expect(step2?.blocked_by).toContain(step1?.id);
+    await processSchedules(projectDir, TEST_CONFIG, "worker-A");
+    const tasks = await listTasks(projectDir);
+    const first = tasks.find((t) => t.name === "First");
+    const second = tasks.find((t) => t.name === "Second");
+    expect(first).toBeDefined();
+    expect(second?.blocked_by).toEqual([first?.id ?? ""]);
   });
 
-  test("does nothing with no enabled schedules", async () => {
-    // No schedules at all — should return immediately
-    await processSchedules(dbPath, TEST_CONFIG, "test-worker");
-
-    const tasks = await listTasks(conn);
-    expect(tasks).toHaveLength(0);
+  test("no-ops when there are no enabled schedules", async () => {
+    await processSchedules(projectDir, TEST_CONFIG, "worker-A");
+    expect(await listTasks(projectDir)).toHaveLength(0);
   });
 });

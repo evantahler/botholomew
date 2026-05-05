@@ -1,18 +1,17 @@
 import { z } from "zod";
-import { formatDriveRef } from "../../context/drives.ts";
 import {
-  deleteContextItemByPath,
-  deleteContextItemsByPrefix,
-} from "../../db/context.ts";
+  deleteContextPath,
+  IsDirectoryError,
+  NotFoundError,
+} from "../../context/store.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
-  drive: z.string().describe("Drive name"),
-  path: z.string().describe("Path to delete within the drive"),
+  path: z.string().describe("Path under context/ to delete"),
   recursive: z
     .boolean()
     .optional()
-    .describe("Delete all items under this path prefix"),
+    .describe("Delete a directory and its contents recursively"),
   force: z
     .boolean()
     .optional()
@@ -21,32 +20,54 @@ const inputSchema = z.object({
 
 const outputSchema = z.object({
   deleted: z.number(),
+  was_directory: z.boolean(),
   is_error: z.boolean(),
+  error_type: z.string().optional(),
+  message: z.string().optional(),
+  next_action_hint: z.string().optional(),
 });
 
 export const contextDeleteTool = {
   name: "context_delete",
   description:
-    "[[ bash equivalent command: rm -r ]] Delete a context item or directory.",
+    "[[ bash equivalent command: rm -r ]] Delete a file or (with recursive=true) a directory under context/.",
   group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const target = { drive: input.drive, path: input.path };
-    if (input.recursive) {
-      const count = await deleteContextItemsByPrefix(
-        ctx.conn,
-        target.drive,
-        target.path,
-      );
-      const exact = await deleteContextItemByPath(ctx.conn, target);
-      return { deleted: count + (exact ? 1 : 0), is_error: false };
+    try {
+      const result = await deleteContextPath(ctx.projectDir, input.path, {
+        recursive: input.recursive,
+      });
+      return {
+        deleted: result.removed,
+        was_directory: result.was_directory,
+        is_error: false,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        if (input.force) {
+          return { deleted: 0, was_directory: false, is_error: false };
+        }
+        return {
+          deleted: 0,
+          was_directory: false,
+          is_error: true,
+          error_type: "not_found",
+          message: `No file at context/${err.path}`,
+        };
+      }
+      if (err instanceof IsDirectoryError) {
+        return {
+          deleted: 0,
+          was_directory: true,
+          is_error: true,
+          error_type: "is_directory",
+          message: `context/${err.path} is a directory`,
+          next_action_hint: "Pass recursive=true to delete a directory tree.",
+        };
+      }
+      throw err;
     }
-
-    const deleted = await deleteContextItemByPath(ctx.conn, target);
-    if (!deleted && !input.force) {
-      throw new Error(`Not found: ${formatDriveRef(target)}`);
-    }
-    return { deleted: deleted ? 1 : 0, is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

@@ -40,7 +40,7 @@ One line. Put this in `crontab -e`:
 
 ```cron
 # Every 5 minutes, advance one task in ~/projects/inbox-bot
-*/5 * * * * cd ~/projects/inbox-bot && /usr/local/bin/botholomew worker run >> .botholomew/cron.log 2>&1
+*/5 * * * * cd ~/projects/inbox-bot && /usr/local/bin/botholomew worker run >> logs/cron.log 2>&1
 ```
 
 - Fire as often as you like; each fire is one task at most.
@@ -48,7 +48,7 @@ One line. Put this in `crontab -e`:
   task and the other will exit without work.
 - Resolve `botholomew` with a full path. cron's `PATH` is minimal; `which
   botholomew` from your shell gives you the right answer.
-- Redirect to `.botholomew/cron.log` (or anywhere you like) so you can see
+- Redirect to `logs/cron.log` (or anywhere you like) so you can see
   what happened if a run misbehaves.
 
 ### More aggressive variants
@@ -57,7 +57,7 @@ If you have a backlog you want drained quickly, spawn background workers
 every minute:
 
 ```cron
-* * * * * cd ~/projects/inbox-bot && botholomew worker start >> .botholomew/cron.log 2>&1
+* * * * * cd ~/projects/inbox-bot && botholomew worker start >> logs/cron.log 2>&1
 ```
 
 Each worker still exits after one task; they just overlap freely. A
@@ -109,9 +109,9 @@ looks like:
   </array>
   <key>StartInterval</key><integer>300</integer>
   <key>StandardOutPath</key>
-  <string>/Users/you/projects/inbox-bot/.botholomew/launchd.log</string>
+  <string>/Users/you/projects/inbox-bot/logs/launchd.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/you/projects/inbox-bot/.botholomew/launchd.log</string>
+  <string>/Users/you/projects/inbox-bot/logs/launchd.log</string>
 </dict>
 </plist>
 ```
@@ -143,8 +143,8 @@ Description=Run one Botholomew worker tick
 Type=oneshot
 WorkingDirectory=/home/you/projects/inbox-bot
 ExecStart=/usr/local/bin/botholomew worker run
-StandardOutput=append:/home/you/projects/inbox-bot/.botholomew/systemd.log
-StandardError=append:/home/you/projects/inbox-bot/.botholomew/systemd.log
+StandardOutput=append:/home/you/projects/inbox-bot/logs/systemd.log
+StandardError=append:/home/you/projects/inbox-bot/logs/systemd.log
 ```
 
 `botholomew-inbox.timer`:

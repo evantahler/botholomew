@@ -15,7 +15,6 @@ import { mcpSearchTool } from "../tools/mcp/search.ts";
 import type { ToolContext } from "../tools/tool.ts";
 import { type AnyToolDefinition, toAnthropicTool } from "../tools/tool.ts";
 import { logger } from "../utils/logger.ts";
-import { detectDriveFromUrl } from "./drives.ts";
 import { stripHtmlTags } from "./url-utils.ts";
 
 const MAX_CONTENT_BYTES = 500_000;
@@ -29,8 +28,12 @@ export interface FetchedContent {
   content: string;
   mimeType: string;
   sourceUrl: string;
-  drive: string;
-  path: string;
+  /**
+   * MCP server that produced the content (e.g. "google-docs", "github",
+   * "firecrawl"), or null when we fell back to a plain HTTP fetch. Useful
+   * for `bothy context import` to pick a default destination subdirectory.
+   */
+  source: string | null;
 }
 
 export class FetchFailureError extends Error {
@@ -138,7 +141,7 @@ export async function fetchUrl(
 ): Promise<FetchedContent> {
   if (!config.anthropic_api_key) {
     throw new Error(
-      "Anthropic API key is required for URL fetching. Set ANTHROPIC_API_KEY or configure it in .botholomew/config.json",
+      "Anthropic API key is required for URL fetching. Set ANTHROPIC_API_KEY or configure it in config/config.json",
     );
   }
 
@@ -293,14 +296,12 @@ async function runFetcherLoop(
       logger.dim(
         `  turn ${turn + 1}: accept_content: "${input.title}" (${cached.content.length} chars, ${mimeType}, from ${cached.server}/${cached.tool})`,
       );
-      const { drive, path } = detectDriveFromUrl(url, cached.server);
       return {
         title: input.title,
         content: cached.content.slice(0, MAX_CONTENT_BYTES),
         mimeType,
         sourceUrl: url,
-        drive,
-        path,
+        source: cached.server,
       };
     }
 
@@ -435,13 +436,11 @@ export async function httpFallback(url: string): Promise<FetchedContent> {
     ? "text/markdown"
     : contentType.split(";")[0] || "text/plain";
 
-  const { drive, path } = detectDriveFromUrl(url);
   return {
     title,
     content: text,
     mimeType,
     sourceUrl: url,
-    drive,
-    path,
+    source: null,
   };
 }

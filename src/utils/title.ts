@@ -1,18 +1,16 @@
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { withDb } from "../db/connection.ts";
-import { updateThreadTitle } from "../db/threads.ts";
+import { updateThreadTitle } from "../threads/store.ts";
 import { createLlmClient } from "../worker/llm-client.ts";
 import { logger } from "./logger.ts";
 
 /**
  * Generate a short title for a thread using the chunker model (Haiku).
- * Fire-and-forget — errors are logged at debug level and never propagated.
- * Opens its own short-lived DB connection for the write so callers can
- * safely `void`-chain without holding a connection during the LLM call.
+ * Fire-and-forget — errors are logged and never propagated. Writes the
+ * title back to the thread's CSV file by rewriting the thread_meta row.
  */
 export async function generateThreadTitle(
   config: Required<BotholomewConfig>,
-  dbPath: string,
+  projectDir: string,
   threadId: string,
   context: string,
 ): Promise<void> {
@@ -39,7 +37,7 @@ export async function generateThreadTitle(
       .trim();
 
     if (title) {
-      await withDb(dbPath, (conn) => updateThreadTitle(conn, threadId, title));
+      await updateThreadTitle(projectDir, threadId, title);
     }
   } catch (err) {
     logger.warn(`Failed to generate thread title: ${err}`);

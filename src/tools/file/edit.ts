@@ -1,6 +1,10 @@
 import { z } from "zod";
-import { ingestByPath } from "../../context/ingest.ts";
-import { applyPatchesToContextItem } from "../../db/context.ts";
+import {
+  applyPatches,
+  IsDirectoryError,
+  NotFoundError,
+  readContextFile,
+} from "../../context/store.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const PatchSchema = z.object({
@@ -14,8 +18,7 @@ const PatchSchema = z.object({
 });
 
 const inputSchema = z.object({
-  drive: z.string().describe("Drive name (e.g. 'agent', 'disk')"),
-  path: z.string().describe("Path within the drive (starts with /)"),
+  path: z.string().describe("Project-relative path under context/"),
   patches: z.array(PatchSchema).describe("Patches to apply"),
 });
 
@@ -23,24 +26,46 @@ const outputSchema = z.object({
   applied: z.number(),
   content: z.string(),
   is_error: z.boolean(),
+  error_type: z.string().optional(),
+  message: z.string().optional(),
 });
 
 export const contextEditTool = {
   name: "context_edit",
   description:
-    "[[ bash equivalent command: patch ]] Apply git-style patches to a context item. Each patch specifies a line range to replace.",
+    "[[ bash equivalent command: patch ]] Apply line-range patches to a file under context/. Each patch specifies start_line/end_line/content.",
   group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const target = { drive: input.drive, path: input.path };
-    const { item, applied } = await applyPatchesToContextItem(
-      ctx.conn,
-      target,
-      input.patches,
-    );
-
-    await ingestByPath(ctx.conn, target, ctx.config);
-    return { applied, content: item.content ?? "", is_error: false };
+    try {
+      const { applied } = await applyPatches(
+        ctx.projectDir,
+        input.path,
+        input.patches,
+      );
+      const content = await readContextFile(ctx.projectDir, input.path);
+      return { applied, content, is_error: false };
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        return {
+          applied: 0,
+          content: "",
+          is_error: true,
+          error_type: "not_found",
+          message: `No file at context/${err.path}`,
+        };
+      }
+      if (err instanceof IsDirectoryError) {
+        return {
+          applied: 0,
+          content: "",
+          is_error: true,
+          error_type: "is_directory",
+          message: `context/${err.path} is a directory`,
+        };
+      }
+      throw err;
+    }
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

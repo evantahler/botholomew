@@ -6,7 +6,7 @@ GitHub — comes from MCP servers, managed per project via
 [**MCPX**](https://github.com/evantahler/mcpx).
 
 Think of MCPX as the `package.json` of the agent's tools: a
-project-local manifest (`.botholomew/mcpx/servers.json`) lists the MCP
+project-local manifest (`mcpx/servers.json`) lists the MCP
 servers this project can use, and workers and the chat session connect
 to them at startup.
 
@@ -26,7 +26,7 @@ You have two options for *how* those servers run:
 
 ## Configuration
 
-`.botholomew/mcpx/servers.json` uses the standard MCP client config
+`mcpx/servers.json` uses the standard MCP client config
 format:
 
 ```json
@@ -90,7 +90,7 @@ handing it to the agent. `mcpx auth` runs the OAuth flow for HTTP
 servers that need it (most Arcade gateways do), and `mcpx
 import-global` is the usual way to bootstrap a new project from your
 global `~/.mcpx/` configuration — after copying the files it
-automatically rebuilds `.botholomew/capabilities.md` so the freshly
+automatically rebuilds `prompts/capabilities.md` so the freshly
 imported MCPX tools show up alongside the built-ins. Note that
 `--args` and `--env` take **comma-separated** values — quote them so
 your shell doesn't split them (e.g. `--args "-y,@scope/pkg"`).
@@ -163,7 +163,7 @@ You want an MCP server when:
 
 You don't need a server when:
 
-- The work happens entirely in `.botholomew/` (the virtual filesystem,
-  embeddings, tasks, schedules).
+- The work happens entirely inside the project directory (the
+  `context/` tree, tasks, schedules, embeddings).
 - You just want Claude to *read* something you already put in context —
   `context_read` / `search` are enough.

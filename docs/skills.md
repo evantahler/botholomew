@@ -12,7 +12,7 @@ version-controlled alongside the project.
 
 ## File format
 
-Skills live in `.botholomew/skills/<name>.md`:
+Skills live in `skills/<name>.md`:
 
 ```yaml
 ---
@@ -118,8 +118,8 @@ when the entire remainder is one quoted run.
 in the last 24h + in progress).
 
 **`capabilities.md`** — rescan every built-in and MCPX tool and rewrite
-`.botholomew/capabilities.md` (see
-[persistent-context.md](persistent-context.md#capabilitiesmd--high-level-tool-inventory)).
+`prompts/capabilities.md` (see
+[prompts.md](prompts.md#capabilitiesmd--high-level-tool-inventory)).
 
 More are easy to add; see the quickstart below.
 
@@ -139,7 +139,7 @@ From inside `botholomew chat`:
 
 Typing `/` at the start of the input pops up a menu of matching
 commands (built-ins `/help`, `/skills`, `/clear`, `/exit` plus every
-skill loaded from `.botholomew/skills/`). Each row shows the command
+skill loaded from `skills/`). Each row shows the command
 name and its description.
 
 | Key | Action |
@@ -204,7 +204,7 @@ requires a chat restart — the in-memory cache is only refreshed inside
 botholomew skill list                 # table of all skills (supports --limit / --offset)
 botholomew skill show review          # print the full skill file
 botholomew skill create daily-log     # scaffold a new skill
-botholomew skill validate             # parse every .botholomew/skills/*.md and report errors
+botholomew skill validate             # parse every skills/*.md and report errors
 botholomew skill validate path.md     # validate a single file (handy before committing)
 ```
 

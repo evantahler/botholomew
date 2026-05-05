@@ -5,9 +5,9 @@ import { getDbPath } from "../constants.ts";
 import { withDb } from "../db/connection.ts";
 import { migrate } from "../db/schema.ts";
 import { uuidv7 } from "../db/uuid.ts";
-import { markWorkerStopped, registerWorker } from "../db/workers.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
 import { logger } from "../utils/logger.ts";
+import { markWorkerStopped, registerWorker } from "../workers/store.ts";
 import { startHeartbeat, startReaper } from "./heartbeat.ts";
 import type { WorkerStreamCallbacks } from "./llm.ts";
 import { runSpecificTask, tick } from "./tick.ts";
@@ -100,26 +100,24 @@ export async function startWorker(
   }
 
   const workerId = options.workerId ?? uuidv7();
-  await withDb(dbPath, (conn) =>
-    registerWorker(conn, {
-      id: workerId,
-      pid: process.pid,
-      hostname: hostname(),
-      mode,
-      taskId: taskId ?? null,
-      logPath: options.logPath ?? null,
-    }),
-  );
+  await registerWorker(projectDir, {
+    id: workerId,
+    pid: process.pid,
+    hostname: hostname(),
+    mode,
+    taskId: taskId ?? null,
+    logPath: options.logPath ?? null,
+  });
 
   const stopHeartbeat = startHeartbeat(
-    dbPath,
+    projectDir,
     workerId,
     config.worker_heartbeat_interval_seconds,
   );
   const stopReaper =
     mode === "persist"
       ? startReaper(
-          dbPath,
+          projectDir,
           config.worker_reap_interval_seconds,
           config.worker_dead_after_seconds,
           config.worker_stopped_retention_seconds,
@@ -132,7 +130,7 @@ export async function startWorker(
     stopReaper();
     await mcpxClient?.close();
     try {
-      await withDb(dbPath, (conn) => markWorkerStopped(conn, workerId));
+      await markWorkerStopped(projectDir, workerId);
     } catch (err) {
       logger.warn(`failed to mark worker stopped: ${err}`);
     }
@@ -205,7 +203,7 @@ export async function startWorker(
     stopHeartbeat();
     stopReaper();
     try {
-      await withDb(dbPath, (conn) => markWorkerStopped(conn, workerId));
+      await markWorkerStopped(projectDir, workerId);
     } catch (err) {
       logger.warn(`failed to mark worker stopped: ${err}`);
     }

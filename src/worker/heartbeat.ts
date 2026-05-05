@@ -1,32 +1,28 @@
-import { withDb } from "../db/connection.ts";
+import { reapOrphanScheduleLocks } from "../schedules/store.ts";
+import { reapOrphanLocks as reapOrphanTaskLocks } from "../tasks/store.ts";
+import { logger } from "../utils/logger.ts";
 import {
   heartbeat,
+  isWorkerRunning,
   pruneStoppedWorkers,
   reapDeadWorkers,
-} from "../db/workers.ts";
-import { logger } from "../utils/logger.ts";
+} from "../workers/store.ts";
 
 /**
- * Start a non-blocking heartbeat interval for a running worker.
- *
- * The heartbeat runs on its own `setInterval` timer so it stays live even
- * while the worker is blocked inside a long LLM call. We `unref` the timer
- * so it doesn't keep the Bun event loop alive on its own — the main tick
- * loop (or the awaited one-shot task) is what keeps the process running.
- *
- * Errors are swallowed with a warning: a transient DB lock shouldn't crash
- * a worker that's otherwise doing useful work. If every heartbeat fails the
- * worker will eventually be reaped, which is the correct outcome.
+ * Start a non-blocking heartbeat interval for a running worker. Each tick
+ * atomically rewrites `<projectDir>/workers/<id>.json` with an updated
+ * `last_heartbeat_at`. The setInterval handle is unref'd so the heartbeat
+ * doesn't keep the Bun event loop alive on its own.
  */
 export function startHeartbeat(
-  dbPath: string,
+  projectDir: string,
   workerId: string,
   intervalSeconds: number,
 ): () => void {
   const ms = Math.max(1_000, intervalSeconds * 1_000);
   const handle = setInterval(async () => {
     try {
-      await withDb(dbPath, (conn) => heartbeat(conn, workerId));
+      await heartbeat(projectDir, workerId);
     } catch (err) {
       logger.warn(`worker heartbeat failed: ${err}`);
     }
@@ -36,12 +32,14 @@ export function startHeartbeat(
 }
 
 /**
- * Start a periodic reaper that marks stale workers dead and releases any
- * tasks / schedule claims they held. Only persist workers need this — a
- * one-shot worker does a single reap pass before claiming its task.
+ * Periodic reaper: walk `workers/`, mark any running worker dead whose
+ * heartbeat is older than `staleAfterSeconds`, then walk `tasks/.locks/`
+ * and `schedules/.locks/` and unlink any lockfile whose holder is no
+ * longer running. Cleanly-stopped worker JSON files older than
+ * `stoppedRetentionSeconds` are pruned.
  */
 export function startReaper(
-  dbPath: string,
+  projectDir: string,
   intervalSeconds: number,
   staleAfterSeconds: number,
   stoppedRetentionSeconds: number,
@@ -49,9 +47,7 @@ export function startReaper(
   const ms = Math.max(1_000, intervalSeconds * 1_000);
   const handle = setInterval(async () => {
     try {
-      const reaped = await withDb(dbPath, (conn) =>
-        reapDeadWorkers(conn, staleAfterSeconds),
-      );
+      const reaped = await reapDeadWorkers(projectDir, staleAfterSeconds);
       if (reaped.length > 0) {
         logger.warn(
           `reaped ${reaped.length} stale worker(s): ${reaped.join(", ")}`,
@@ -60,9 +56,35 @@ export function startReaper(
     } catch (err) {
       logger.warn(`worker reap failed: ${err}`);
     }
+
+    const isAlive = (id: string) => isWorkerRunning(projectDir, id);
+
     try {
-      const pruned = await withDb(dbPath, (conn) =>
-        pruneStoppedWorkers(conn, stoppedRetentionSeconds),
+      const released = await reapOrphanTaskLocks(projectDir, isAlive);
+      if (released.length > 0) {
+        logger.warn(
+          `released ${released.length} orphan task lock(s): ${released.join(", ")}`,
+        );
+      }
+    } catch (err) {
+      logger.warn(`task lock reap failed: ${err}`);
+    }
+
+    try {
+      const released = await reapOrphanScheduleLocks(projectDir, isAlive);
+      if (released.length > 0) {
+        logger.warn(
+          `released ${released.length} orphan schedule lock(s): ${released.join(", ")}`,
+        );
+      }
+    } catch (err) {
+      logger.warn(`schedule lock reap failed: ${err}`);
+    }
+
+    try {
+      const pruned = await pruneStoppedWorkers(
+        projectDir,
+        stoppedRetentionSeconds,
       );
       if (pruned.length > 0) {
         logger.debug(

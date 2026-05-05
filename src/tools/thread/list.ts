@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { listThreads } from "../../db/threads.ts";
+import { listThreads } from "../../threads/store.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
@@ -32,7 +32,7 @@ export const listThreadsTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const threads = await listThreads(ctx.conn, {
+    const threads = await listThreads(ctx.projectDir, {
       type: input.type,
       limit: input.limit,
     });

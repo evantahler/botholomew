@@ -1,14 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { withDb } from "../db/connection.ts";
+import type { Schedule } from "../schedules/schema.ts";
 import {
-  claimSchedule,
   listSchedules,
   markScheduleRun,
-  releaseSchedule,
-  type Schedule,
-} from "../db/schedules.ts";
-import { createTask } from "../db/tasks.ts";
+  withScheduleLock,
+} from "../schedules/store.ts";
+import { createTask } from "../tasks/store.ts";
 import { logger } from "../utils/logger.ts";
 
 interface ScheduleTaskDef {
@@ -55,7 +53,7 @@ The "depends_on" array contains indices of other tasks in the array that must co
   const userMessage = `Schedule: "${schedule.name}"
 Description: ${schedule.description || "(none)"}
 Frequency: ${schedule.frequency}
-Last run: ${schedule.last_run_at?.toISOString() ?? "never"}
+Last run: ${schedule.last_run_at ?? "never"}
 Current time: ${new Date().toISOString()}
 
 Is this schedule due to run? If yes, what tasks should be created?`;
@@ -73,7 +71,6 @@ Is this schedule due to run? If yes, what tasks should be created?`;
       .map((b) => b.text)
       .join("");
 
-    // Strip markdown code fences the LLM may wrap around JSON
     text = text
       .replace(/^```(?:json)?\s*\n?/, "")
       .replace(/\n?```\s*$/, "")
@@ -107,75 +104,57 @@ Is this schedule due to run? If yes, what tasks should be created?`;
 }
 
 export async function processSchedules(
-  dbPath: string,
+  projectDir: string,
   config: Required<BotholomewConfig>,
   workerId: string,
 ): Promise<void> {
-  const schedules = await withDb(dbPath, (conn) =>
-    listSchedules(conn, { enabled: true }),
-  );
+  const schedules = await listSchedules(projectDir, { enabled: true });
   if (schedules.length === 0) return;
 
   logger.phase("evaluating-schedules", `${schedules.length} enabled`);
 
   for (const schedule of schedules) {
-    // Only one worker evaluates a schedule per window. claimSchedule is an
-    // atomic UPDATE ... RETURNING guarded by both a claim-stale window and
-    // a minimum-interval-since-last-run window; if it returns null, another
-    // worker already holds the claim or the schedule ran too recently.
-    const claimed = await withDb(dbPath, (conn) =>
-      claimSchedule(conn, schedule.id, workerId, {
-        staleAfterSeconds: config.schedule_claim_stale_seconds,
-        minIntervalSeconds: config.schedule_min_interval_seconds,
-      }),
+    // Lockfile + min-interval guard prevent two workers (or two ticks) from
+    // evaluating the same schedule too closely.
+    await withScheduleLock(
+      projectDir,
+      schedule.id,
+      workerId,
+      { minIntervalSeconds: config.schedule_min_interval_seconds },
+      async (claimed) => {
+        try {
+          const evaluation = await evaluateSchedule(config, claimed);
+
+          if (!evaluation.isDue) {
+            logger.debug(
+              `Schedule "${claimed.name}" not due: ${evaluation.reasoning}`,
+            );
+            return;
+          }
+
+          const createdIds: string[] = [];
+          for (const taskDef of evaluation.tasksToCreate) {
+            const blockedBy = (taskDef.depends_on ?? [])
+              .map((i: number) => createdIds[i])
+              .filter(Boolean) as string[];
+
+            const task = await createTask(projectDir, {
+              name: taskDef.name,
+              description: taskDef.description,
+              priority: taskDef.priority,
+              blocked_by: blockedBy,
+            });
+            createdIds.push(task.id);
+          }
+
+          await markScheduleRun(projectDir, claimed.id);
+          logger.info(
+            `Schedule "${claimed.name}" fired, created ${createdIds.length} task(s)`,
+          );
+        } catch (err) {
+          logger.error(`Error processing schedule "${claimed.name}": ${err}`);
+        }
+      },
     );
-    if (!claimed) {
-      logger.debug(
-        `Schedule "${schedule.name}" skipped: claimed by another worker or too recent`,
-      );
-      continue;
-    }
-
-    try {
-      const evaluation = await evaluateSchedule(config, claimed);
-
-      if (!evaluation.isDue) {
-        logger.debug(
-          `Schedule "${schedule.name}" not due: ${evaluation.reasoning}`,
-        );
-        continue;
-      }
-
-      const createdIds: string[] = [];
-      for (const taskDef of evaluation.tasksToCreate) {
-        const blockedBy = (taskDef.depends_on ?? [])
-          .map((i: number) => createdIds[i])
-          .filter(Boolean) as string[];
-
-        const task = await withDb(dbPath, (conn) =>
-          createTask(conn, {
-            name: taskDef.name,
-            description: taskDef.description,
-            priority: taskDef.priority,
-            blocked_by: blockedBy,
-          }),
-        );
-        createdIds.push(task.id);
-      }
-
-      await withDb(dbPath, (conn) => markScheduleRun(conn, schedule.id));
-      logger.info(
-        `Schedule "${schedule.name}" fired, created ${createdIds.length} task(s)`,
-      );
-    } catch (err) {
-      logger.error(`Error processing schedule "${schedule.name}": ${err}`);
-    } finally {
-      // Release the claim so other workers (or the next tick) can re-evaluate
-      // once the min-interval window has elapsed. markScheduleRun above
-      // updates last_run_at, which is the actual cooldown.
-      await withDb(dbPath, (conn) =>
-        releaseSchedule(conn, schedule.id, workerId),
-      );
-    }
   }
 }

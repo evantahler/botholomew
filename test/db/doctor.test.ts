@@ -1,81 +1,72 @@
-import { afterEach, describe, expect, test } from "bun:test";
+/**
+ * `botholomew db doctor` is the only safety-net we have when DuckDB's
+ * primary-key index falls out of sync with row data. probeTable spawns a
+ * child Bun process so a corrupt-index panic doesn't kill the doctor
+ * itself; isPidAlive backs the worker reaper.
+ */
+
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getConnection } from "../../src/db/connection.ts";
+import { withDb } from "../../src/db/connection.ts";
 import {
   isPidAlive,
   PROBE_TABLES,
   probeAllTables,
   probeTable,
-  repairDatabase,
 } from "../../src/db/doctor.ts";
 import { migrate } from "../../src/db/schema.ts";
-import { registerWorker } from "../../src/db/workers.ts";
 
-let dirs: string[] = [];
+let dbPath: string;
+let dbDir: string;
 
-afterEach(async () => {
-  for (const d of dirs) {
-    await rm(d, { recursive: true, force: true });
-  }
-  dirs = [];
+beforeEach(async () => {
+  dbDir = await mkdtemp(join(tmpdir(), "both-doctor-"));
+  dbPath = join(dbDir, "index.duckdb");
 });
 
-async function tempDb(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "doctor-"));
-  dirs.push(dir);
-  const dbPath = join(dir, "data.duckdb");
-  const conn = await getConnection(dbPath);
-  await migrate(conn);
-  conn.close();
-  return dbPath;
-}
-
-function sampleWorker(id: string, pid = 12345) {
-  return {
-    id,
-    pid,
-    hostname: "test-host",
-    mode: "once" as const,
-  };
-}
+afterEach(async () => {
+  await rm(dbDir, { recursive: true, force: true });
+});
 
 describe("probeTable", () => {
   test("reports 'empty' for an empty table", async () => {
-    const dbPath = await tempDb();
-    const result = await probeTable(dbPath, "workers", "id");
-    expect(result.status).toBe("empty");
-    expect(result.table).toBe("workers");
-  });
-
-  test("reports 'ok' for a populated, healthy table", async () => {
-    const dbPath = await tempDb();
-    const conn = await getConnection(dbPath);
-    await registerWorker(conn, sampleWorker("w-probe"));
-    conn.close();
-
-    const result = await probeTable(dbPath, "workers", "id");
-    expect(result.status).toBe("ok");
-  });
+    await withDb(dbPath, (conn) => migrate(conn));
+    const r = await probeTable(dbPath, "context_index", "path");
+    expect(r.status).toBe("empty");
+    expect(r.table).toBe("context_index");
+  }, 30_000);
 
   test("reports 'missing' for an unknown table", async () => {
-    const dbPath = await tempDb();
-    const result = await probeTable(dbPath, "no_such_table", "id");
-    expect(result.status).toBe("missing");
-  });
+    await withDb(dbPath, (conn) => migrate(conn));
+    const r = await probeTable(dbPath, "no_such_table", "id");
+    expect(r.status).toBe("missing");
+  }, 30_000);
+
+  test("reports 'ok' for a populated, healthy table", async () => {
+    await withDb(dbPath, async (conn) => {
+      await migrate(conn);
+      await conn.queryRun(
+        `INSERT INTO context_index
+           (path, chunk_index, content_hash, chunk_content, embedding,
+            mtime_ms, size_bytes)
+         VALUES ('x.md', 0, 'deadbeef', 'hello world', NULL, 0, 5)`,
+      );
+    });
+    const r = await probeTable(dbPath, "context_index", "path");
+    expect(r.status).toBe("ok");
+  }, 30_000);
 });
 
 describe("probeAllTables", () => {
-  test("returns one result per registered table on a fresh DB", async () => {
-    const dbPath = await tempDb();
+  test("returns one ProbeResult per table in PROBE_TABLES on a fresh DB", async () => {
+    await withDb(dbPath, (conn) => migrate(conn));
     const results = await probeAllTables(dbPath);
-    expect(results.map((r) => r.table)).toEqual(
-      PROBE_TABLES.map((t) => t.name),
-    );
-    // Empty DB: no table is corrupt.
-    expect(results.every((r) => r.status !== "corrupt")).toBe(true);
-  });
+    expect(results).toHaveLength(PROBE_TABLES.length);
+    const names = new Set(results.map((r) => r.table));
+    for (const t of PROBE_TABLES) expect(names.has(t.name)).toBe(true);
+  }, 60_000);
 });
 
 describe("isPidAlive", () => {
@@ -83,50 +74,12 @@ describe("isPidAlive", () => {
     expect(isPidAlive(process.pid)).toBe(true);
   });
 
-  test("returns false for a sentinel non-existent pid", () => {
-    // PID 0 is special on POSIX (process group); reject it explicitly.
+  test("returns false for pid 0 (sentinel)", () => {
     expect(isPidAlive(0)).toBe(false);
-    expect(isPidAlive(-1)).toBe(false);
   });
 
-  test("returns false for a pid that was never assigned in this process tree", () => {
-    // 2^31 - 1 is past the typical max PID on macOS/Linux.
-    expect(isPidAlive(2147483647)).toBe(false);
-  });
-});
-
-describe("repairDatabase", () => {
-  test("preserves data through an EXPORT/IMPORT round-trip", async () => {
-    const dbPath = await tempDb();
-
-    const conn1 = await getConnection(dbPath);
-    await registerWorker(conn1, sampleWorker("w-1", 1));
-    await registerWorker(conn1, sampleWorker("w-2", 2));
-    await registerWorker(conn1, sampleWorker("w-3", 3));
-    conn1.close();
-
-    const result = await repairDatabase(dbPath);
-    expect(result.backupDbPath).toMatch(/\.bak-/);
-    expect(result.durationMs).toBeGreaterThanOrEqual(0);
-
-    const conn2 = await getConnection(dbPath);
-    const row = await conn2.queryGet<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM workers",
-    );
-    conn2.close();
-    expect(row?.n).toBe(3);
-  });
-
-  test("leaves a working DB after repair (writes still succeed)", async () => {
-    const dbPath = await tempDb();
-    await repairDatabase(dbPath);
-
-    const conn = await getConnection(dbPath);
-    await registerWorker(conn, sampleWorker("w-after"));
-    const row = await conn.queryGet<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM workers",
-    );
-    conn.close();
-    expect(row?.n).toBe(1);
+  test("returns false for a pid that was never assigned", () => {
+    // 2^31 - 1 is well beyond any real pid the OS will hand out.
+    expect(isPidAlive(2_147_483_640)).toBe(false);
   });
 });

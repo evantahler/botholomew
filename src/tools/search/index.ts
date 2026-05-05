@@ -1,16 +1,10 @@
 import { z } from "zod";
-import {
-  listContextItems,
-  listContextItemsByPrefix,
-} from "../../db/context.ts";
 import type { ToolDefinition } from "../tool.ts";
 import { fuseRRF } from "./fuse.ts";
 import { runRegexp } from "./regexp.ts";
 import { runSemantic } from "./semantic.ts";
 
 const MatchSchema = z.object({
-  ref: z.string(),
-  drive: z.string(),
   path: z.string(),
   line: z.number().nullable(),
   content: z.string(),
@@ -25,22 +19,20 @@ const inputSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Natural-language query for semantic + keyword (BM25) hybrid search. Provide alongside `pattern` for the strongest signal — chunks matched by both methods are boosted via reciprocal rank fusion.",
+      "Natural-language query for semantic search. Provide alongside `pattern` for the strongest signal — files matched by both methods float to the top via reciprocal rank fusion.",
     ),
   pattern: z
     .string()
     .optional()
-    .describe("Regex pattern for exact text search across context contents."),
-  drive: z
+    .describe(
+      "Regex pattern for exact text search across file contents under context/.",
+    ),
+  scope: z
     .string()
     .optional()
     .describe(
-      "Restrict to a single drive (applies to both `query` and `pattern`).",
+      "Restrict search to a sub-directory under context/ (e.g. 'notes' to only search context/notes/...).",
     ),
-  path: z
-    .string()
-    .optional()
-    .describe("Directory prefix within the drive. Requires `drive`."),
   glob: z
     .string()
     .optional()
@@ -66,12 +58,13 @@ const outputSchema = z.object({
   is_error: z.boolean(),
   error_type: z.string().optional(),
   message: z.string().optional(),
+  next_action_hint: z.string().optional(),
 });
 
 export const searchTool = {
   name: "search",
   description:
-    "[[ bash equivalent command: grep -r ]] Hybrid search over indexed context. At least one of `query` (natural language → semantic + BM25) or `pattern` (regex over file contents) is required. Pass both for the strongest signal: results matched by both methods float to the top via reciprocal rank fusion. Scoping (`drive`, `path`, `glob`) applies to both sides.",
+    "[[ bash equivalent command: grep -r ]] Hybrid search over files under context/. At least one of `query` (natural language → semantic) or `pattern` (regex over file contents) is required. Pass both for the strongest signal: results matched by both methods float to the top via reciprocal rank fusion. Scoping (`scope`, `glob`) applies to both sides. Note: while a persistent index sidecar is being rebuilt, semantic search re-embeds files on every call — keep result sets small.",
   group: "search",
   inputSchema,
   outputSchema,
@@ -85,43 +78,43 @@ export const searchTool = {
           "Provide at least one of `query` (natural language) or `pattern` (regex). Pass both to fuse semantic and exact-match signals.",
       };
     }
-    if (input.path && !input.drive) {
-      return {
-        matches: [],
-        is_error: true,
-        error_type: "invalid_arguments",
-        message:
-          "`path` requires `drive` — call context_list_drives to see which drives exist, then pass `drive` alongside `path`.",
-      };
+
+    // Validate the regex up front so a malformed pattern returns a
+    // structured error instead of bubbling SyntaxError. Match the shape
+    // of search_threads' invalid_regex response so the agent can recover
+    // identically across both tools.
+    if (input.pattern) {
+      try {
+        new RegExp(input.pattern, input.ignore_case ? "i" : "");
+      } catch (err) {
+        return {
+          matches: [],
+          is_error: true,
+          error_type: "invalid_regex",
+          message: `Could not compile pattern: ${err instanceof Error ? err.message : String(err)}`,
+          next_action_hint:
+            "Double-check the regex; remember `.` is a metacharacter — escape it as `\\.` for a literal dot.",
+        };
+      }
     }
 
     const limit = input.max_results ?? 20;
 
     const regexpHits = input.pattern
-      ? runRegexp(
-          input.drive
-            ? await listContextItemsByPrefix(
-                ctx.conn,
-                input.drive,
-                input.path ?? "/",
-                { recursive: true },
-              )
-            : await listContextItems(ctx.conn),
-          {
-            pattern: input.pattern,
-            glob: input.glob,
-            ignore_case: input.ignore_case,
-            context: input.context,
-            max_results: 100,
-          },
-        )
+      ? await runRegexp(ctx.projectDir, {
+          pattern: input.pattern,
+          scope: input.scope,
+          glob: input.glob,
+          ignore_case: input.ignore_case,
+          context: input.context,
+          max_results: 100,
+        })
       : [];
 
     const semanticHits = input.query
-      ? await runSemantic(ctx, {
+      ? await runSemantic(ctx.projectDir, ctx.config, ctx.dbPath, {
           query: input.query,
-          drive: input.drive,
-          path: input.path,
+          scope: input.scope,
           glob: input.glob,
           limit: 100,
         })

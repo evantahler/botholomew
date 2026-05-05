@@ -122,9 +122,7 @@ export function handleSlashCommand(
 
   if (name === "skills") {
     if (ctx.skills.size === 0) {
-      ctx.addSystemMessage(
-        "No skills loaded. Add .md files to .botholomew/skills/",
-      );
+      ctx.addSystemMessage("No skills loaded. Add .md files to skills/");
     } else {
       const lines = ["Available skills:"];
       for (const [skillName, skill] of ctx.skills) {

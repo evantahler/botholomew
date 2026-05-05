@@ -67,7 +67,7 @@ const outputSchema = z.object({
 export const skillWriteTool = {
   name: "skill_write",
   description:
-    "[[ bash equivalent command: tee ]] Create or overwrite a skill file (user-defined slash command) at .botholomew/skills/<name>.md. Fails with path_conflict when the file exists unless on_conflict='overwrite'. Reserved names (help, skills, clear, exit) are rejected. The generated file is parsed to validate before being written.",
+    "[[ bash equivalent command: tee ]] Create or overwrite a skill file (user-defined slash command) at skills/<name>.md. Fails with path_conflict when the file exists unless on_conflict='overwrite'. Reserved names (help, skills, clear, exit) are rejected. The generated file is parsed to validate before being written.",
   group: "skill",
   inputSchema,
   outputSchema,

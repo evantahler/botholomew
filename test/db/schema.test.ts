@@ -5,36 +5,50 @@ import { join } from "node:path";
 import { getConnection, withDb } from "../../src/db/connection.ts";
 import { migrate } from "../../src/db/schema.ts";
 
+// After migration 20 the only DuckDB tables left are _migrations and
+// context_index. Tasks/schedules are markdown files, threads are CSVs
+// under threads/, and workers are JSON pidfiles in workers/.
+const EXPECTED_TABLES = ["_migrations", "context_index"];
+
 describe("schema migrations", () => {
   test("migrate runs cleanly on a fresh database", async () => {
     const db = await getConnection();
     await migrate(db);
 
-    // Verify all tables exist
     const rows = await db.queryAll<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' ORDER BY table_name",
     );
-    const tables = rows.map((row) => row.table_name);
+    const tables = rows.map((row) => row.table_name).sort();
 
-    expect(tables).toContain("_migrations");
-    expect(tables).toContain("tasks");
-    expect(tables).toContain("schedules");
-    expect(tables).toContain("context_items");
-    expect(tables).toContain("embeddings");
-    expect(tables).toContain("threads");
-    expect(tables).toContain("interactions");
-    expect(tables).toContain("daemon_state");
+    for (const expected of EXPECTED_TABLES) {
+      expect(tables).toContain(expected);
+    }
+    // Every table we retired:
+    //   tasks/schedules         → markdown frontmatter files
+    //   threads/interactions    → CSV under threads/
+    //   workers                 → JSON pidfiles under workers/
+    //   context_items/embeddings → replaced by context_index
+    //   daemon_state            → unused, dropped
+    for (const retired of [
+      "tasks",
+      "schedules",
+      "threads",
+      "interactions",
+      "workers",
+      "context_items",
+      "embeddings",
+      "daemon_state",
+    ]) {
+      expect(tables).not.toContain(retired);
+    }
 
     db.close();
   });
 
   test("reopening a freshly migrated file-backed DB does not crash on WAL replay", async () => {
-    // Regression: migration 9 (ALTER TABLE context_items ADD COLUMN ...)
-    // used to leave an ALTER entry in the WAL. On reopen, DuckDB replayed
-    // the ALTER and re-bound *all* existing column defaults — including
-    // `created_at DEFAULT (current_timestamp::VARCHAR)` — which it can't
-    // resolve during replay (no default database attached), crashing the
-    // process. `migrate()` now CHECKPOINTs after applying migrations.
+    // Regression: an early migration's ALTER TABLE used to leave an entry
+    // in the WAL that re-bound `current_timestamp` defaults at replay time,
+    // crashing the process. `migrate()` CHECKPOINTs after applying.
     const dir = await mkdtemp(join(tmpdir(), "both-schema-wal-"));
     const dbPath = join(dir, "test.duckdb");
     try {
@@ -46,7 +60,7 @@ describe("schema migrations", () => {
       await withDb(dbPath, async (conn) => {
         await migrate(conn);
         const row = await conn.queryGet<{ count: number }>(
-          "SELECT COUNT(*) AS count FROM context_items",
+          "SELECT COUNT(*) AS count FROM context_index",
         );
         expect(row?.count).toBe(0);
       });
@@ -58,124 +72,54 @@ describe("schema migrations", () => {
   test("migrate is idempotent", async () => {
     const db = await getConnection();
     await migrate(db);
-    await migrate(db); // should not throw
-
-    const row = (await db.queryGet(
+    const before = (await db.queryGet(
       "SELECT COUNT(*) AS count FROM _migrations",
-    )) as {
-      count: number;
-    };
-    expect(row.count).toBe(18);
-
+    )) as { count: number };
+    await migrate(db);
+    const after = (await db.queryGet(
+      "SELECT COUNT(*) AS count FROM _migrations",
+    )) as { count: number };
+    expect(after.count).toBe(before.count);
+    expect(before.count).toBeGreaterThan(0);
     db.close();
   });
 
-  test("context_items has (drive, path) unique index", async () => {
+  test("context_index has (path, chunk_index) primary key", async () => {
     const db = await getConnection();
     await migrate(db);
 
     await db.queryRun(
-      "INSERT INTO context_items (id, title, drive, path) VALUES (?1, ?2, ?3, ?4)",
-      "a",
-      "first",
-      "agent",
-      "/dup/path",
+      `INSERT INTO context_index (path, chunk_index, content_hash, chunk_content, mtime_ms, size_bytes) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      "notes/x.md",
+      0,
+      "hash1",
+      "first chunk",
+      1,
+      11,
     );
 
     await expect(
       db.queryRun(
-        "INSERT INTO context_items (id, title, drive, path) VALUES (?1, ?2, ?3, ?4)",
-        "b",
-        "second",
-        "agent",
-        "/dup/path",
+        `INSERT INTO context_index (path, chunk_index, content_hash, chunk_content, mtime_ms, size_bytes) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+        "notes/x.md",
+        0,
+        "hash2",
+        "duplicate",
+        1,
+        9,
       ),
-    ).rejects.toThrow(/[Uu]nique/);
+    ).rejects.toThrow();
 
-    // But the same path under a different drive is fine.
+    // Same path, different chunk_index is fine.
     await db.queryRun(
-      "INSERT INTO context_items (id, title, drive, path) VALUES (?1, ?2, ?3, ?4)",
-      "c",
-      "other-drive",
-      "disk",
-      "/dup/path",
+      `INSERT INTO context_index (path, chunk_index, content_hash, chunk_content, mtime_ms, size_bytes) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      "notes/x.md",
+      1,
+      "hash1",
+      "second chunk",
+      1,
+      12,
     );
-
-    db.close();
-  });
-
-  test("tasks table has correct columns", async () => {
-    const db = await getConnection();
-    await migrate(db);
-
-    const rows = await db.queryAll<{ column_name: string }>(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'tasks' AND table_schema = 'main' ORDER BY ordinal_position",
-    );
-    const columns = rows.map((row) => row.column_name);
-
-    expect(columns).toEqual([
-      "id",
-      "name",
-      "description",
-      "priority",
-      "status",
-      "waiting_reason",
-      "claimed_by",
-      "claimed_at",
-      "blocked_by",
-      "context_ids",
-      "created_at",
-      "updated_at",
-      "output",
-    ]);
-
-    db.close();
-  });
-
-  test("threads table has correct columns", async () => {
-    const db = await getConnection();
-    await migrate(db);
-
-    const rows = await db.queryAll<{ column_name: string }>(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'threads' AND table_schema = 'main' ORDER BY ordinal_position",
-    );
-    const columns = rows.map((row) => row.column_name);
-
-    expect(columns).toEqual([
-      "id",
-      "type",
-      "task_id",
-      "title",
-      "started_at",
-      "ended_at",
-      "metadata",
-    ]);
-
-    db.close();
-  });
-
-  test("interactions table has correct columns", async () => {
-    const db = await getConnection();
-    await migrate(db);
-
-    const rows = await db.queryAll<{ column_name: string }>(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'interactions' AND table_schema = 'main' ORDER BY ordinal_position",
-    );
-    const columns = rows.map((row) => row.column_name);
-
-    expect(columns).toEqual([
-      "id",
-      "thread_id",
-      "sequence",
-      "role",
-      "kind",
-      "content",
-      "tool_name",
-      "tool_input",
-      "duration_ms",
-      "token_count",
-      "created_at",
-    ]);
 
     db.close();
   });

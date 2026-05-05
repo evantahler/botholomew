@@ -10,7 +10,8 @@ processing tasks. For deeper background, see
 - **An Anthropic API key** — Claude is the reasoning model.
 - Embeddings run locally via `@huggingface/transformers` (default
   `Xenova/bge-small-en-v1.5`, 384-dim). The first call downloads ~33 MB
-  of weights to `.botholomew/models/`; no API key is required.
+  of weights into the project's `models/` directory; no API key is
+  required.
 - Optional: any [MCP servers](./mcpx.md) you want to expose to the agent
   (Gmail, Slack, GitHub, etc.) — managed through
   [MCPX](https://github.com/evantahler/mcpx).
@@ -38,25 +39,37 @@ In any directory you want Botholomew to operate inside:
 botholomew init
 ```
 
-This creates a `.botholomew/` directory with templates and a fresh
-DuckDB database:
+This creates a project tree in the current directory — every entity
+the agent or worker touches is a real file you can `vim`, `grep`, and
+`git diff`:
 
 ```
 my-project/
-  .botholomew/
-    soul.md               # always-loaded identity (not agent-editable)
-    beliefs.md            # always-loaded, agent-editable priors
-    goals.md              # always-loaded, agent-editable goals
-    capabilities.md       # always-loaded, agent-editable tool inventory
-    config.json           # models, tick interval, API keys
-    data.duckdb           # tasks, schedules, context, embeddings, logs
-    mcpx/servers.json     # external MCP servers (Gmail, Slack, …)
-    skills/               # slash commands (built-ins + user-defined)
-    logs/                 # per-worker log files
+  config/config.json                # models, tick interval, API keys
+  prompts/                          # always-loaded markdown
+    soul.md                         #   identity (not agent-editable)
+    beliefs.md                      #   agent-editable priors
+    goals.md                        #   agent-editable goals
+    capabilities.md                 #   agent-editable tool inventory
+  skills/                           # slash commands (built-ins + user-defined)
+  mcpx/servers.json                 # external MCP servers (Gmail, Slack, …)
+  models/                           # local embedding model cache
+  context/                          # agent-writable knowledge tree
+  tasks/<id>.md                     # tasks (status in frontmatter)
+  schedules/<id>.md                 # schedules
+  threads/<YYYY-MM-DD>/<id>.csv     # conversation history
+  workers/<id>.json                 # worker pidfile + heartbeat
+  logs/<YYYY-MM-DD>/<id>.log        # per-worker logs
+  index.duckdb                      # search-index sidecar (rebuildable)
 ```
 
-Everything the agent can touch is here — see
-[The virtual filesystem](./virtual-filesystem.md) for why.
+The agent can only touch files under `context/`, and only through a
+sandbox that rejects symlinks and traversal — see
+[Files & the sandbox](./files.md) for why.
+
+> `init` refuses to run on iCloud/Dropbox/OneDrive/NFS volumes (they
+> break the atomic-rename and `O_EXCL` guarantees that
+> tasks/schedules depend on). Pass `--force` to override.
 
 ## Configure API keys
 
@@ -66,7 +79,7 @@ Either export the environment variable:
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-…or set it in `.botholomew/config.json`. See
+…or set it in `config/config.json`. See
 [Configuration](./configuration.md) for every key and its default.
 
 ## Queue work and run a worker

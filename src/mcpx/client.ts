@@ -4,7 +4,7 @@ import { type CallToolResult, McpxClient } from "@evantahler/mcpx";
 import { getMcpxDir, MCPX_SERVERS_FILENAME } from "../constants.ts";
 
 /**
- * Create an McpxClient from the project's .botholomew/mcpx/servers.json.
+ * Create an McpxClient from the project's mcpx/servers.json.
  * Returns null if the file is missing or has no servers configured.
  */
 export async function createMcpxClient(

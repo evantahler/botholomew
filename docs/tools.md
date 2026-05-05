@@ -105,11 +105,11 @@ schema to the Anthropic SDK's `Tool` type using `z.toJSONSchema()`:
 {
   name: "context_write",
   description:
-    "Write content to a context item. By default, fails if the (drive, path) already exists — pass on_conflict='overwrite' to replace.",
+    "Write a file under context/. By default, fails if the path already exists — pass on_conflict='overwrite' to replace.",
   input_schema: {
     type: "object",
     properties: { /* derived from Zod */ },
-    required: ["drive", "path", "content"],
+    required: ["path", "content"],
   }
 }
 ```
@@ -137,9 +137,9 @@ any of which transitions the task out of `in_progress`.
 Commander subcommand per tool, grouped by `group`:
 
 ```bash
-botholomew context read disk:/Users/evan/notes/meeting.md --offset 10 --limit 20
-botholomew context tree disk:/Users/evan/notes --max-depth 3
-botholomew search semantic "quarterly revenue"
+botholomew context read notes/meeting.md --offset 10 --limit 20
+botholomew context tree notes --max-depth 3
+botholomew context search "quarterly revenue"
 ```
 
 Positional args and `--options` are derived from the Zod schema shape.
@@ -171,18 +171,17 @@ big JSON dump, a `search_grep` over a wide pattern — all of these can blow
 through the conversation budget if the bytes round-trip through the LLM.
 
 `pipe_to_context` is a meta-tool: you give it the *name and arguments* of
-another tool, plus a destination `(drive, path)`, and it dispatches the inner
-tool, captures the stringified result, and writes it directly to a context
-item via the same ingest pipeline `context_write` uses (chunked + embedded +
-indexed). The model only ever sees a small acknowledgment — id, drive, path,
-byte count, and a 200-char preview — never the raw bytes.
+another tool, plus a destination `path`, and it dispatches the inner tool,
+captures the stringified result, and writes it under `context/` via the same
+ingest pipeline `context_write` uses (chunked + embedded + indexed). The model
+only ever sees a small acknowledgment — path, byte count, and a 200-char
+preview — never the raw bytes.
 
 ```text
 agent → pipe_to_context(tool_name="search_grep",
                          tool_input={...},
-                         drive="agent",
-                         path="/research/grep-results.txt")
-        → { id, ref: "agent:/research/grep-results.txt",
+                         path="research/grep-results.txt")
+        → { path: "research/grep-results.txt",
             bytes_written: 184321, preview: "…" }
 agent → context_search("the thing I actually wanted to know")
 ```
@@ -211,13 +210,13 @@ and `mcpxClient.listTools()`, then asks Claude (via
 `chunker_model`) to produce a **thematic summary** — one line per
 theme (e.g. "Gmail — read, send, draft, search, and reply to emails")
 rather than a line per tool. The result is written to
-`.botholomew/capabilities.md` (preserving frontmatter). Because that
+`prompts/capabilities.md` (preserving frontmatter). Because that
 file is loaded into every system prompt, the next boot picks up the
 new inventory without another round-trip. Specific tool names are
 intentionally absent from the rendered file; the agent uses
 `mcp_list_tools` / `mcp_search` / `mcp_info` to look them up at
 call-time. See
-[persistent-context.md](persistent-context.md#capabilitiesmd--high-level-tool-inventory)
+[prompts.md](prompts.md#capabilitiesmd--high-level-tool-inventory)
 for when the agent should call it. The matching CLI surface is
 `botholomew capabilities`, and the slash command is `/capabilities`.
 

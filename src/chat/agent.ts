@@ -8,10 +8,8 @@ import type {
 } from "@anthropic-ai/sdk/resources/messages";
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { embedSingle } from "../context/embedder.ts";
 import { withDb } from "../db/connection.ts";
-import { hybridSearch } from "../db/embeddings.ts";
-import { logInteraction } from "../db/threads.ts";
+import { logInteraction } from "../threads/store.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
   getAllTools,
@@ -19,7 +17,6 @@ import {
   type ToolContext,
   toAnthropicTool,
 } from "../tools/tool.ts";
-import { logger } from "../utils/logger.ts";
 import { fitToContextWindow, getMaxInputTokens } from "../worker/context.ts";
 import { maybeStoreResult } from "../worker/large-results.ts";
 import { createLlmClient } from "../worker/llm-client.ts";
@@ -38,17 +35,15 @@ const CHAT_TOOL_NAMES = new Set([
   "create_task",
   "list_tasks",
   "view_task",
-  "context_search",
   "context_info",
-  "context_refresh",
   "context_tree",
-  "context_list_drives",
   "context_read",
   "context_write",
   "context_edit",
   "search",
   "list_threads",
   "view_thread",
+  "search_threads",
   "create_schedule",
   "list_schedules",
   "update_beliefs",
@@ -91,39 +86,14 @@ export async function buildChatSystemPrompt(
 
   prompt += await loadPersistentContext(projectDir, taskKeywords);
 
-  const dbPath = options?.dbPath;
-  const config = options?.config;
-  if (dbPath && config && keywordSource) {
-    try {
-      const queryVec = await embedSingle(keywordSource, config);
-      const results = await withDb(dbPath, (conn) =>
-        hybridSearch(conn, keywordSource, queryVec, 5),
-      );
-
-      if (results.length > 0) {
-        prompt += "## Relevant Context\n";
-        for (const r of results) {
-          const ref =
-            r.drive && r.path ? `${r.drive}:${r.path}` : r.context_item_id;
-          prompt += `### ${r.title} (${ref})\n`;
-          if (r.chunk_content) {
-            prompt += `${r.chunk_content.slice(0, 1000)}\n`;
-          }
-          prompt += "\n";
-        }
-      }
-    } catch (err) {
-      logger.debug(`Failed to load contextual embeddings: ${err}`);
-    }
-  }
-
   prompt += `## Instructions
 You are Botholomew, an AI agent personified by a wise owl. This is your interactive chat interface. Help the user manage tasks, review results from background worker activity, search context, and answer questions.
 You do NOT execute long-running work directly — enqueue tasks for a background worker instead using create_task, and spawn a worker via spawn_worker when the user wants the task run now.
-Use the available tools to look up tasks, threads, schedules, and context when the user asks about them. Context items live under a drive (disk / url / agent / google-docs / github / …); use \`context_list_drives\` to discover which drives have content, then \`context_tree\`, \`context_info\`, \`context_search\`, or \`context_refresh\` as needed.
+Use the available tools to look up tasks, threads, schedules, and context when the user asks about them. Files the agent can read and write live under \`context/\` as project-relative paths (e.g. \`notes/foo.md\`). Use \`context_tree\` to see what's there, \`search\` (hybrid regexp + semantic) to find content, then \`context_read\` / \`context_info\` to drill in.
+Past conversations live in CSV files under \`threads/\`; use \`list_threads\`, \`search_threads\`, and \`view_thread\` to find and page through them.
 When multiple tool calls are independent of each other (i.e., one does not depend on the result of another), call them all in a single response. They will be executed in parallel, which is faster than calling them one at a time.
 You can update the agent's beliefs and goals files when the user asks you to.
-You can author and refine slash-command skills (reusable prompt templates stored in \`.botholomew/skills/\`) via \`skill_list\`, \`skill_search\`, \`skill_read\`, \`skill_write\`, \`skill_edit\`, and \`skill_delete\`. New or edited skills are usable as \`/<name>\` on the user's next message.
+You can author and refine slash-command skills (reusable prompt templates stored in \`skills/\`) via \`skill_list\`, \`skill_search\`, \`skill_read\`, \`skill_write\`, \`skill_edit\`, and \`skill_delete\`. New or edited skills are usable as \`/<name>\` on the user's next message.
 Format your responses using Markdown. Use headings, bold, italic, lists, and code blocks to make your responses clear and well-structured.
 `;
 
@@ -133,19 +103,19 @@ Format your responses using Markdown. Use headings, bold, italic, lists, and cod
 
 ### Local context first
 
-**Before any MCP read, search local context.** Drive, Gmail, GitHub, URLs, and prior agent runs are usually already ingested — refetching is slower, costs tokens, and risks rate limits.
+**Before any MCP read, search local context.** Files in \`context/\` (Gmail dumps, GitHub fetches, URL ingests, prior agent outputs) are usually already there — refetching is slower, costs tokens, and risks rate limits.
 
 Workflow for any "look up / find / read" intent:
 
-1. \`search\` (hybrid regexp + semantic) or \`context_search\` (keyword), then \`context_read\` / \`context_tree\` to drill in.
-2. If freshness matters, call \`context_info\` and check \`indexed_at\`. To re-pull a single stale item, use \`context_refresh\` rather than going to MCP for the whole document.
+1. \`search\` (hybrid regexp + semantic) over \`context/\`, then \`context_read\` / \`context_tree\` to drill in.
+2. If freshness matters, call \`context_info\` and check the file's mtime. To re-pull stale content, write fresh into \`context/\` (\`pipe_to_context\` from an \`mcp_exec\` call is the typical path) rather than going to MCP for the whole document on every question.
 3. Only call \`mcp_exec\` for reads when the data is genuinely missing locally **or** must be real-time (e.g., "what's on my calendar right now").
 
 Writes always go through MCP — sending an email, creating an issue, posting to Slack. Don't search context first for those.
 
 Examples:
 - "What does doc X say?" → \`search\` first.
-- "Any new emails from Y?" → check the \`gmail\` drive first; only hit Gmail MCP if the freshest indexed item is too old for the question.
+- "Any new emails from Y?" → \`search\` for the sender under \`context/gmail/\` (or wherever you've been ingesting mail) before hitting Gmail MCP.
 - "Send an email to Y" → MCP write directly; no context lookup.
 
 ### Calling MCP tools
@@ -250,13 +220,11 @@ export async function runChatTurn(input: {
     // the whole tool loop to finish.
     const injections = callbacks.takeInjections?.() ?? [];
     for (const text of injections) {
-      await withDb(dbPath, (conn) =>
-        logInteraction(conn, threadId, {
-          role: "user",
-          kind: "message",
-          content: text,
-        }),
-      );
+      await logInteraction(projectDir, threadId, {
+        role: "user",
+        kind: "message",
+        content: text,
+      });
       messages.push({ role: "user", content: text });
     }
 
@@ -327,15 +295,13 @@ export async function runChatTurn(input: {
       // `assistantText` is the right partial value). Deliberately drop any
       // partial tool_use blocks — they would be unmatched on the next turn.
       if (assistantText) {
-        await withDb(dbPath, (conn) =>
-          logInteraction(conn, threadId, {
-            role: "assistant",
-            kind: "message",
-            content: assistantText,
-            durationMs: Date.now() - startTime,
-            tokenCount: 0,
-          }),
-        );
+        await logInteraction(projectDir, threadId, {
+          role: "assistant",
+          kind: "message",
+          content: assistantText,
+          durationMs: Date.now() - startTime,
+          tokenCount: 0,
+        });
         messages.push({ role: "assistant", content: assistantText });
       }
       return;
@@ -348,15 +314,13 @@ export async function runChatTurn(input: {
 
     // Log assistant text
     if (assistantText) {
-      await withDb(dbPath, (conn) =>
-        logInteraction(conn, threadId, {
-          role: "assistant",
-          kind: "message",
-          content: assistantText,
-          durationMs,
-          tokenCount,
-        }),
-      );
+      await logInteraction(projectDir, threadId, {
+        role: "assistant",
+        kind: "message",
+        content: assistantText,
+        durationMs,
+        tokenCount,
+      });
     }
 
     // Check for tool calls
@@ -380,15 +344,13 @@ export async function runChatTurn(input: {
         callbacks.onToolStart(toolUse.id, toolUse.name, toolInput);
       }
 
-      await withDb(dbPath, (conn) =>
-        logInteraction(conn, threadId, {
-          role: "assistant",
-          kind: "tool_use",
-          content: `Calling ${toolUse.name}`,
-          toolName: toolUse.name,
-          toolInput,
-        }),
-      );
+      await logInteraction(projectDir, threadId, {
+        role: "assistant",
+        kind: "tool_use",
+        content: `Calling ${toolUse.name}`,
+        toolName: toolUse.name,
+        toolInput,
+      });
     }
 
     // Execute all tools in parallel. Each tool call opens its own short-lived
@@ -422,15 +384,13 @@ export async function runChatTurn(input: {
     // Log results and collect tool_result messages
     const toolResults: ToolResultBlockParam[] = [];
     for (const { toolUse, result, durationMs, stored } of execResults) {
-      await withDb(dbPath, (conn) =>
-        logInteraction(conn, threadId, {
-          role: "tool",
-          kind: "tool_result",
-          content: result.output,
-          toolName: toolUse.name,
-          durationMs,
-        }),
-      );
+      await logInteraction(projectDir, threadId, {
+        role: "tool",
+        kind: "tool_result",
+        content: result.output,
+        toolName: toolUse.name,
+        durationMs,
+      });
 
       toolResults.push({
         type: "tool_result",

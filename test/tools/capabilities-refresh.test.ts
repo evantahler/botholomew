@@ -22,7 +22,7 @@ afterEach(async () => {
 
 async function makeProjectDir(): Promise<string> {
   tempDir = await mkdtemp(join(tmpdir(), "both-caps-tool-"));
-  await mkdir(join(tempDir, ".botholomew"), { recursive: true });
+  await mkdir(join(tempDir, "prompts"), { recursive: true });
   return tempDir;
 }
 
@@ -38,9 +38,10 @@ describe("capabilities_refresh tool", () => {
     expect(result.internal_tool_count).toBeGreaterThan(10);
     expect(result.mcp_tool_count).toBe(0);
     expect(result.path).toBe(
-      join(ctx.projectDir, ".botholomew", "capabilities.md"),
+      join(ctx.projectDir, "prompts", "capabilities.md"),
     );
 
+    if (!result.path) throw new Error("expected non-null path");
     const raw = await Bun.file(result.path).text();
     const { meta, content } = parseContextFile(raw);
     expect(meta.loading).toBe("always");
@@ -62,6 +63,7 @@ describe("capabilities_refresh tool", () => {
 
     const result = await capabilitiesRefreshTool.execute({}, ctx);
     expect(result.mcp_tool_count).toBe(1);
+    if (!result.path) throw new Error("expected non-null path");
     const body = await Bun.file(result.path).text();
     // Fallback mode (no API key in test config): renders the server name
     // with a tool count, not individual tool names.
@@ -86,6 +88,7 @@ describe("capabilities_refresh tool", () => {
       ctx,
     );
     expect(result.mcp_tool_count).toBe(0);
+    if (!result.path) throw new Error("expected non-null path");
     const body = await Bun.file(result.path).text();
     expect(body).toContain("No MCPX servers configured");
   });

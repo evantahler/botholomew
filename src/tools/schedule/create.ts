@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createSchedule } from "../../db/schedules.ts";
+import { createSchedule } from "../../schedules/store.ts";
 import { logger } from "../../utils/logger.ts";
 import type { ToolDefinition } from "../tool.ts";
 
@@ -28,7 +28,7 @@ export const createScheduleTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const schedule = await createSchedule(ctx.conn, {
+    const schedule = await createSchedule(ctx.projectDir, {
       name: input.name,
       description: input.description,
       frequency: input.frequency,

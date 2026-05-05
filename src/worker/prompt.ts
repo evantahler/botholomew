@@ -1,13 +1,9 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { getBotholomewDir } from "../constants.ts";
-import { embedSingle } from "../context/embedder.ts";
-import { withDb } from "../db/connection.ts";
-import { hybridSearch } from "../db/embeddings.ts";
-import type { Task } from "../db/tasks.ts";
+import { getPromptsDir } from "../constants.ts";
+import type { Task } from "../tasks/schema.ts";
 import { parseContextFile } from "../utils/frontmatter.ts";
-import { logger } from "../utils/logger.ts";
 
 const pkg = await Bun.file(
   new URL("../../package.json", import.meta.url),
@@ -37,23 +33,23 @@ export function extractKeywords(text: string): Set<string> {
 }
 
 /**
- * Load persistent context files from .botholomew/ directory as a single
- * formatted string. Includes "always" files unconditionally and "contextual"
- * files whose content overlaps the provided taskKeywords.
+ * Load persistent context files from prompts/ as a single formatted
+ * string. Includes "always" files unconditionally and "contextual" files
+ * whose content overlaps the provided taskKeywords.
  */
 export async function loadPersistentContext(
   projectDir: string,
   taskKeywords?: Set<string> | null,
 ): Promise<string> {
-  const dotDir = getBotholomewDir(projectDir);
+  const dir = getPromptsDir(projectDir);
   let out = "";
 
   try {
-    const files = await readdir(dotDir);
+    const files = await readdir(dir);
     const mdFiles = files.filter((f) => f.endsWith(".md"));
 
     for (const filename of mdFiles) {
-      const filePath = join(dotDir, filename);
+      const filePath = join(dir, filename);
       const raw = await Bun.file(filePath).text();
       const { meta, content } = parseContextFile(raw);
 
@@ -70,7 +66,7 @@ export async function loadPersistentContext(
       }
     }
   } catch {
-    // .botholomew dir might not have md files yet
+    // prompts/ might not have md files yet
   }
 
   return out;
@@ -104,30 +100,12 @@ export async function buildSystemPrompt(
 
   prompt += await loadPersistentContext(projectDir, taskKeywords);
 
-  if (task && dbPath && _config) {
-    try {
-      const query = `${task.name} ${task.description}`;
-      const queryVec = await embedSingle(query, _config);
-      const results = await withDb(dbPath, (conn) =>
-        hybridSearch(conn, query, queryVec, 5),
-      );
-
-      if (results.length > 0) {
-        prompt += "## Relevant Context\n";
-        for (const r of results) {
-          const ref =
-            r.drive && r.path ? `${r.drive}:${r.path}` : r.context_item_id;
-          prompt += `### ${r.title} (${ref})\n`;
-          if (r.chunk_content) {
-            prompt += `${r.chunk_content.slice(0, 1000)}\n`;
-          }
-          prompt += "\n";
-        }
-      }
-    } catch (err) {
-      logger.debug(`Failed to load contextual embeddings: ${err}`);
-    }
-  }
+  // The agent finds task-relevant content via the `search` tool on demand
+  // rather than having chunks pre-stuffed into the system prompt — keeps the
+  // prompt small and lets the model decide what it actually needs to read.
+  void task;
+  void dbPath;
+  void _config;
 
   prompt += `## Instructions
 You are Botholomew, a wise-owl worker that works through tasks. Use available tools to complete your assigned task, then call complete_task, fail_task, or wait_task. Use create_task for subtasks and update_task to refine pending tasks. Batch independent tool calls in a single response for parallel execution.
@@ -141,19 +119,19 @@ When calling complete_task, write a summary that captures your key findings, dec
 
 ### Local context first
 
-**Before any MCP read, search local context.** Drive, Gmail, GitHub, URLs, and prior agent runs are usually already ingested — refetching is slower, costs tokens, and risks rate limits.
+**Before any MCP read, search local context.** Files in \`context/\` (Gmail dumps, GitHub fetches, URL ingests, prior agent outputs) are usually already there — refetching is slower, costs tokens, and risks rate limits.
 
 Workflow for any "look up / find / read" intent:
 
-1. \`search\` (hybrid regexp + semantic) or \`context_search\` (keyword), then \`context_read\` / \`context_tree\` to drill in.
-2. If freshness matters, call \`context_info\` and check \`indexed_at\`. To re-pull a single stale item, use \`context_refresh\` rather than going to MCP for the whole document.
+1. \`search\` (hybrid regexp + semantic) over \`context/\`, then \`context_read\` / \`context_tree\` to drill in.
+2. If freshness matters, call \`context_info\` and check the file's mtime. To re-pull stale content, write fresh into \`context/\` (\`pipe_to_context\` from an \`mcp_exec\` call is the typical path) rather than going to MCP for the whole document on every question.
 3. Only call \`mcp_exec\` for reads when the data is genuinely missing locally **or** must be real-time (e.g., "what's on my calendar right now").
 
 Writes always go through MCP — sending an email, creating an issue, posting to Slack. Don't search context first for those.
 
 Examples:
 - "What does doc X say?" → \`search\` first.
-- "Any new emails from Y?" → check the \`gmail\` drive first; only hit Gmail MCP if the freshest indexed item is too old for the question.
+- "Any new emails from Y?" → \`search\` for the sender under \`context/gmail/\` (or wherever you've been ingesting mail) before hitting Gmail MCP.
 - "Send an email to Y" → MCP write directly; no context lookup.
 
 ### Calling MCP tools

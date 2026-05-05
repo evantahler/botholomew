@@ -1,9 +1,6 @@
-import { formatDriveRef } from "../../context/drives.ts";
-import type { ContextItem } from "../../db/context.ts";
+import { listContextDir, readContextFile } from "../../context/store.ts";
 
 export interface RegexpHit {
-  ref: string;
-  drive: string;
   path: string;
   line: number;
   content: string;
@@ -12,43 +9,58 @@ export interface RegexpHit {
 
 export interface RegexpOptions {
   pattern: string;
+  /** Optional path under context/ to scope the walk (default: whole tree). */
+  scope?: string;
   glob?: string;
   ignore_case?: boolean;
   context?: number;
   max_results?: number;
 }
 
-export function runRegexp(
-  items: ContextItem[],
+/**
+ * Walk every textual file under `context/` (or `context/<scope>/`) and run
+ * `pattern` against each line. Cheap because tools opt into reading content
+ * only for files whose names match an optional glob.
+ */
+export async function runRegexp(
+  projectDir: string,
   options: RegexpOptions,
-): RegexpHit[] {
+): Promise<RegexpHit[]> {
   const flags = options.ignore_case ? "gi" : "g";
   const regex = new RegExp(options.pattern, flags);
   const globRegex = options.glob ? globToRegex(options.glob) : null;
   const contextLines = options.context ?? 0;
   const maxResults = options.max_results ?? 100;
 
+  const entries = await listContextDir(projectDir, options.scope ?? "", {
+    recursive: true,
+  });
+
   const hits: RegexpHit[] = [];
-
-  for (const item of items) {
-    if (item.content == null) continue;
-
+  for (const entry of entries) {
+    if (entry.is_directory) continue;
+    if (!entry.is_textual) continue;
     if (globRegex) {
-      const filename = item.path.split("/").pop() ?? "";
+      const filename = entry.path.split("/").pop() ?? "";
       if (!globRegex.test(filename)) continue;
     }
 
-    const lines = item.content.split("\n");
+    let content: string;
+    try {
+      content = await readContextFile(projectDir, entry.path);
+    } catch {
+      continue;
+    }
+    const lines = content.split("\n");
     for (let i = 0; i < lines.length; i++) {
       regex.lastIndex = 0;
       const line = lines[i];
-      if (line !== undefined && regex.test(line)) {
+      if (line === undefined) continue;
+      if (regex.test(line)) {
         const start = Math.max(0, i - contextLines);
         const end = Math.min(lines.length, i + contextLines + 1);
         hits.push({
-          ref: formatDriveRef(item),
-          drive: item.drive,
-          path: item.path,
+          path: entry.path,
           line: i + 1,
           content: line,
           context_lines: lines.slice(start, end),

@@ -13,7 +13,7 @@ export function registerSkillCommand(program: Command) {
 
   skill
     .command("validate [file]")
-    .description("Validate skill files in .botholomew/skills/")
+    .description("Validate skill files in skills/")
     .action(async (file?: string) => {
       const dir = program.opts().dir;
 
@@ -26,7 +26,7 @@ export function registerSkillCommand(program: Command) {
 
   skill
     .command("list")
-    .description("List all skills loaded from .botholomew/skills/")
+    .description("List all skills loaded from skills/")
     .option("-l, --limit <n>", "max number of skills", Number.parseInt)
     .option("-o, --offset <n>", "skip first N skills", Number.parseInt)
     .action(async (opts: { limit?: number; offset?: number }) => {

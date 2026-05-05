@@ -1,11 +1,8 @@
 // Capabilities tools
 import { capabilitiesRefreshTool } from "./capabilities/refresh.ts";
 // Context tools
-import { contextListDrivesTool } from "./context/list-drives.ts";
 import { pipeToContextTool } from "./context/pipe.ts";
 import { readLargeResultTool } from "./context/read-large-result.ts";
-import { contextRefreshTool } from "./context/refresh.ts";
-import { contextSearchTool } from "./context/search.ts";
 import { updateBeliefsTool } from "./context/update-beliefs.ts";
 import { updateGoalsTool } from "./context/update-goals.ts";
 // Context — directory operations
@@ -50,6 +47,7 @@ import { viewTaskTool } from "./task/view.ts";
 import { waitTaskTool } from "./task/wait.ts";
 // Thread tools
 import { listThreadsTool } from "./thread/list.ts";
+import { searchThreadsTool } from "./thread/search.ts";
 import { viewThreadTool } from "./thread/view.ts";
 import { registerTool } from "./tool.ts";
 // Worker tools
@@ -66,8 +64,7 @@ export function registerAllTools(): void {
   registerTool(listTasksTool);
   registerTool(viewTaskTool);
 
-  // Context
-  registerTool(contextListDrivesTool);
+  // Context (file/dir + self-reflection)
   registerTool(contextCreateDirTool);
   registerTool(contextTreeTool);
   registerTool(contextDirSizeTool);
@@ -80,8 +77,6 @@ export function registerAllTools(): void {
   registerTool(contextInfoTool);
   registerTool(contextExistsTool);
   registerTool(contextCountLinesTool);
-  registerTool(contextSearchTool);
-  registerTool(contextRefreshTool);
   registerTool(updateBeliefsTool);
   registerTool(updateGoalsTool);
   registerTool(readLargeResultTool);
@@ -108,6 +103,7 @@ export function registerAllTools(): void {
   // Thread
   registerTool(listThreadsTool);
   registerTool(viewThreadTool);
+  registerTool(searchThreadsTool);
 
   // MCP
   registerTool(mcpListToolsTool);

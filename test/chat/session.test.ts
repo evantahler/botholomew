@@ -1,99 +1,108 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+/**
+ * Chat session lifecycle: startChatSession initializes the project DB,
+ * creates a chat_session thread CSV, and the session can be ended/cleared.
+ * Anthropic SDK is mocked so init's createMcpxClient and chat startup
+ * don't actually call out.
+ */
+
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  type ChatSession,
-  clearChatSession,
-  endChatSession,
-  startChatSession,
-} from "../../src/chat/session.ts";
-import { withDb } from "../../src/db/connection.ts";
-import { getThread, listThreads } from "../../src/db/threads.ts";
+import { initProject } from "../../src/init/index.ts";
+import { listThreads } from "../../src/threads/store.ts";
+import { silentLogger } from "../helpers.ts";
+
+mock.module("../../src/utils/logger.ts", () => silentLogger);
+
+mock.module("@anthropic-ai/sdk", () => ({
+  default: class MockAnthropic {
+    messages = {
+      create: async () => ({
+        content: [
+          { type: "text", text: '{"isDue":false,"reasoning":"","tasks":[]}' },
+        ],
+        stop_reason: "end_turn",
+        usage: { input_tokens: 10, output_tokens: 10 },
+      }),
+    };
+  },
+}));
+
+const { startChatSession, endChatSession, clearChatSession } = await import(
+  "../../src/chat/session.ts"
+);
 
 let projectDir: string;
-let session: ChatSession | null = null;
 
 beforeEach(async () => {
-  projectDir = await mkdtemp(join(tmpdir(), "both-test-"));
-  const bothDir = join(projectDir, ".botholomew");
-  await mkdir(bothDir, { recursive: true });
-  // Write a minimal config
-  await writeFile(
-    join(bothDir, "config.json"),
-    JSON.stringify({ anthropic_api_key: "test-key" }),
-  );
+  projectDir = await mkdtemp(join(tmpdir(), "both-chat-session-"));
+  await initProject(projectDir);
+  // initProject seeds config without an api key set; chat insists on one.
+  // Patch the config file to add a fake key.
+  const configPath = join(projectDir, "config", "config.json");
+  const cfg = JSON.parse(await Bun.file(configPath).text());
+  cfg.anthropic_api_key = "test-key";
+  await Bun.write(configPath, JSON.stringify(cfg, null, 2));
 });
 
 afterEach(async () => {
-  if (session) {
-    await endChatSession(session);
-    session = null;
-  }
   await rm(projectDir, { recursive: true, force: true });
 });
 
 describe("startChatSession", () => {
-  test("creates a session with a thread", async () => {
-    session = await startChatSession(projectDir);
-    expect(session.threadId).toBeTruthy();
-    expect(session.dbPath).toBeTruthy();
-    expect(session.messages).toEqual([]);
+  test("creates a session with a fresh chat_session thread", async () => {
+    const session = await startChatSession(projectDir);
+    try {
+      expect(session.threadId).toBeTruthy();
+      expect(session.projectDir).toBe(projectDir);
+      expect(session.messages).toEqual([]);
+      expect(session.activeStream).toBeNull();
+      expect(session.aborted).toBe(false);
+
+      const threads = await listThreads(projectDir, { type: "chat_session" });
+      const ids = threads.map((t) => t.id);
+      expect(ids).toContain(session.threadId);
+    } finally {
+      await endChatSession(session);
+    }
   });
 
-  test("creates a chat_session thread in the database", async () => {
-    session = await startChatSession(projectDir);
-    const threads = await withDb(session.dbPath, (conn) =>
-      listThreads(conn, { type: "chat_session" }),
-    );
-    expect(threads.length).toBe(1);
-    expect(threads[0]?.id).toBe(session.threadId);
+  test("refuses to start without an Anthropic API key", async () => {
+    // Strip the api key we patched in.
+    const configPath = join(projectDir, "config", "config.json");
+    const cfg = JSON.parse(await Bun.file(configPath).text());
+    cfg.anthropic_api_key = "";
+    await Bun.write(configPath, JSON.stringify(cfg, null, 2));
+
+    await expect(startChatSession(projectDir)).rejects.toThrow(/API key/i);
   });
 });
 
 describe("endChatSession", () => {
-  test("marks the thread ended", async () => {
-    session = await startChatSession(projectDir);
-    const dbPath = session.dbPath;
-
-    const before = await withDb(dbPath, (conn) =>
-      listThreads(conn, { type: "chat_session" }),
-    );
-    expect(before[0]?.ended_at).toBeNull();
-
+  test("marks the chat_session thread as ended", async () => {
+    const session = await startChatSession(projectDir);
     await endChatSession(session);
-    session = null;
-
-    const after = await withDb(dbPath, (conn) =>
-      listThreads(conn, { type: "chat_session" }),
-    );
-    expect(after[0]?.ended_at).not.toBeNull();
+    const threads = await listThreads(projectDir, { type: "chat_session" });
+    const t = threads.find((x) => x.id === session.threadId);
+    expect(t?.ended_at).not.toBeNull();
   });
 });
 
 describe("clearChatSession", () => {
-  test("ends current thread and starts a new one", async () => {
-    session = await startChatSession(projectDir);
-    const dbPath = session.dbPath;
-    const originalThreadId = session.threadId;
-    session.messages.push({ role: "user", content: "hello" });
-
-    const { previousThreadId, newThreadId } = await clearChatSession(session);
-
-    expect(previousThreadId).toBe(originalThreadId);
-    expect(newThreadId).not.toBe(originalThreadId);
-    expect(session.threadId).toBe(newThreadId);
-    expect(session.messages).toEqual([]);
-
-    const oldThread = await withDb(dbPath, (conn) =>
-      getThread(conn, previousThreadId),
-    );
-    expect(oldThread?.thread.ended_at).not.toBeNull();
-
-    const newThread = await withDb(dbPath, (conn) =>
-      getThread(conn, newThreadId),
-    );
-    expect(newThread?.thread.ended_at).toBeNull();
-    expect(newThread?.thread.type).toBe("chat_session");
+  test("ends the current thread and starts a fresh one", async () => {
+    const session = await startChatSession(projectDir);
+    try {
+      const before = session.threadId;
+      session.messages.push({ role: "user", content: "leftover" });
+      const { previousThreadId, newThreadId } = await clearChatSession(session);
+      expect(previousThreadId).toBe(before);
+      expect(newThreadId).not.toBe(before);
+      expect(session.threadId).toBe(newThreadId);
+      expect(session.messages).toEqual([]);
+      expect(session.aborted).toBe(false);
+    } finally {
+      await endChatSession(session);
+    }
   });
 });

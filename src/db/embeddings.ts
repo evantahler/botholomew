@@ -1,248 +1,300 @@
 import { EMBEDDING_DIMENSION } from "../constants.ts";
 import type { DbConnection } from "./connection.ts";
-import { uuidv7 } from "./uuid.ts";
 
 if (!Number.isInteger(EMBEDDING_DIMENSION) || EMBEDDING_DIMENSION <= 0) {
   throw new Error(`Invalid EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION}`);
 }
 
-export interface Embedding {
-  id: string;
-  context_item_id: string;
+/**
+ * Disk-backed search index over `<projectDir>/context/`. One row per
+ * `(path, chunk_index)`; `content_hash` is the file-level sha256 so the
+ * reindex algorithm can detect adds, updates, and removals in one pass.
+ */
+export interface IndexedChunk {
+  path: string;
   chunk_index: number;
-  chunk_content: string | null;
-  title: string;
-  description: string;
+  content_hash: string;
+  chunk_content: string;
   embedding: number[];
-  created_at: Date;
+  mtime_ms: number;
+  size_bytes: number;
+  indexed_at: Date;
 }
 
-export interface EmbeddingSearchResult extends Embedding {
-  score: number;
-}
-
-interface EmbeddingRow {
-  id: string;
-  context_item_id: string;
+interface IndexRow {
+  path: string;
   chunk_index: number;
-  chunk_content: string | null;
-  title: string;
-  description: string;
+  content_hash: string;
+  chunk_content: string;
   embedding: number[] | null;
-  created_at: string;
+  mtime_ms: number;
+  size_bytes: number;
+  indexed_at: string;
 }
 
-function rowToEmbedding(row: EmbeddingRow): Embedding {
+function rowToChunk(row: IndexRow): IndexedChunk {
   return {
-    id: row.id,
-    context_item_id: row.context_item_id,
+    path: row.path,
     chunk_index: row.chunk_index,
+    content_hash: row.content_hash,
     chunk_content: row.chunk_content,
-    title: row.title,
-    description: row.description,
     embedding: row.embedding ?? [],
-    created_at: new Date(row.created_at),
+    mtime_ms: Number(row.mtime_ms),
+    size_bytes: Number(row.size_bytes),
+    indexed_at: new Date(row.indexed_at),
   };
 }
 
+export interface ChunkInput {
+  chunk_index: number;
+  chunk_content: string;
+  embedding: number[];
+}
+
 /**
- * Insert a single embedding row. Callers that bulk-write embeddings are
- * responsible for calling `rebuildSearchIndex()` afterward — the FTS index is
- * a snapshot and will not reflect new rows until rebuilt.
+ * Replace all rows for `path` with the supplied chunks. The file-level
+ * `content_hash` / `mtime_ms` / `size_bytes` are stored on every row so a
+ * subsequent reindex can short-circuit by comparing just those columns.
  */
-export async function createEmbedding(
+export async function upsertChunksForPath(
   conn: DbConnection,
   params: {
-    contextItemId: string;
-    chunkIndex: number;
-    chunkContent: string | null;
-    title: string;
-    description?: string;
-    embedding: number[];
+    path: string;
+    contentHash: string;
+    mtimeMs: number;
+    sizeBytes: number;
+    chunks: ChunkInput[];
   },
-): Promise<Embedding> {
-  const id = uuidv7();
-  await conn.queryRun(
-    `INSERT INTO embeddings (id, context_item_id, chunk_index, chunk_content, title, description, embedding)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7::FLOAT[${EMBEDDING_DIMENSION}])`,
-    id,
-    params.contextItemId,
-    params.chunkIndex,
-    params.chunkContent,
-    params.title,
-    params.description ?? "",
-    params.embedding,
-  );
-
-  return {
-    id,
-    context_item_id: params.contextItemId,
-    chunk_index: params.chunkIndex,
-    chunk_content: params.chunkContent,
-    title: params.title,
-    description: params.description ?? "",
-    embedding: params.embedding,
-    created_at: new Date(),
-  };
+): Promise<void> {
+  await conn.queryRun("DELETE FROM context_index WHERE path = ?1", params.path);
+  for (const c of params.chunks) {
+    await conn.queryRun(
+      `INSERT INTO context_index
+       (path, chunk_index, content_hash, chunk_content, embedding, mtime_ms, size_bytes, indexed_at)
+       VALUES (?1, ?2, ?3, ?4, ?5::FLOAT[${EMBEDDING_DIMENSION}], ?6, ?7, current_timestamp::VARCHAR)`,
+      params.path,
+      c.chunk_index,
+      params.contentHash,
+      c.chunk_content,
+      c.embedding,
+      params.mtimeMs,
+      params.sizeBytes,
+    );
+  }
 }
 
-export async function getEmbeddingsForItem(
+export async function deleteIndexedPath(
   conn: DbConnection,
-  contextItemId: string,
-): Promise<Embedding[]> {
-  const rows = await conn.queryAll<EmbeddingRow>(
-    "SELECT * FROM embeddings WHERE context_item_id = ?1 ORDER BY chunk_index ASC",
-    contextItemId,
-  );
-  return rows.map(rowToEmbedding);
-}
-
-/**
- * Delete all embeddings for a context item. Callers are responsible for
- * calling `rebuildSearchIndex()` afterward — the FTS index is a snapshot and
- * will still reference the deleted rows until rebuilt.
- */
-export async function deleteEmbeddingsForItem(
-  conn: DbConnection,
-  contextItemId: string,
+  path: string,
 ): Promise<number> {
   const result = await conn.queryRun(
-    "DELETE FROM embeddings WHERE context_item_id = ?1",
-    contextItemId,
+    "DELETE FROM context_index WHERE path = ?1",
+    path,
   );
   return result.changes;
 }
 
-interface VectorSearchRow extends EmbeddingRow {
-  distance: number;
+export interface IndexedPathSummary {
+  path: string;
+  content_hash: string;
+  mtime_ms: number;
+  size_bytes: number;
+  chunk_count: number;
+}
+
+export async function listIndexedPaths(
+  conn: DbConnection,
+): Promise<IndexedPathSummary[]> {
+  const rows = await conn.queryAll<{
+    path: string;
+    content_hash: string;
+    mtime_ms: number;
+    size_bytes: number;
+    chunk_count: number;
+  }>(
+    `SELECT path,
+            ANY_VALUE(content_hash) AS content_hash,
+            ANY_VALUE(mtime_ms) AS mtime_ms,
+            ANY_VALUE(size_bytes) AS size_bytes,
+            COUNT(*) AS chunk_count
+       FROM context_index
+       GROUP BY path
+       ORDER BY path ASC`,
+  );
+  return rows.map((r) => ({
+    path: r.path,
+    content_hash: r.content_hash,
+    mtime_ms: Number(r.mtime_ms),
+    size_bytes: Number(r.size_bytes),
+    chunk_count: Number(r.chunk_count),
+  }));
+}
+
+export async function getIndexedPath(
+  conn: DbConnection,
+  path: string,
+): Promise<IndexedPathSummary | null> {
+  const row = await conn.queryGet<{
+    path: string;
+    content_hash: string;
+    mtime_ms: number;
+    size_bytes: number;
+    chunk_count: number;
+  }>(
+    `SELECT path,
+            ANY_VALUE(content_hash) AS content_hash,
+            ANY_VALUE(mtime_ms) AS mtime_ms,
+            ANY_VALUE(size_bytes) AS size_bytes,
+            COUNT(*) AS chunk_count
+       FROM context_index
+       WHERE path = ?1
+       GROUP BY path`,
+    path,
+  );
+  if (!row) return null;
+  return {
+    path: row.path,
+    content_hash: row.content_hash,
+    mtime_ms: Number(row.mtime_ms),
+    size_bytes: Number(row.size_bytes),
+    chunk_count: Number(row.chunk_count),
+  };
+}
+
+export interface SearchResult extends IndexedChunk {
+  score: number;
 }
 
 /**
- * Vector similarity search using DuckDB's array_cosine_distance().
- * With an HNSW index on the embedding column, DuckDB automatically
- * uses the index for top-k queries. Returns results sorted by
- * similarity (closest first), with score = 1 - distance.
+ * Vector similarity over `context_index.embedding`. Returns chunks sorted by
+ * cosine similarity (higher = closer). Skips rows whose embedding is NULL.
  */
-export async function searchEmbeddings(
+export async function searchSemantic(
   conn: DbConnection,
   queryEmbedding: number[],
   limit = 10,
-): Promise<EmbeddingSearchResult[]> {
-  const rows = await conn.queryAll<VectorSearchRow>(
+): Promise<SearchResult[]> {
+  const rows = await conn.queryAll<IndexRow & { distance: number }>(
     `SELECT *, array_cosine_distance(embedding, ?1::FLOAT[${EMBEDDING_DIMENSION}]) AS distance
-     FROM embeddings
-     ORDER BY distance ASC
-     LIMIT ?2`,
+       FROM context_index
+       WHERE embedding IS NOT NULL
+       ORDER BY distance ASC
+       LIMIT ?2`,
     queryEmbedding,
     limit,
   );
-
   return rows.map((row) => ({
-    ...rowToEmbedding(row),
+    ...rowToChunk(row),
     score: 1 - row.distance,
   }));
 }
 
-export interface HybridSearchResult extends EmbeddingSearchResult {
-  drive: string | null;
-  path: string | null;
+/**
+ * BM25 keyword search over (chunk_content, path). The FTS index is rebuilt
+ * lazily by `rebuildSearchIndex`. Returns null-scoring rows filtered out.
+ */
+export async function searchKeyword(
+  conn: DbConnection,
+  query: string,
+  limit = 10,
+): Promise<SearchResult[]> {
+  // The FTS index is created with `path` as input_id (see
+  // rebuildSearchIndex), so match_bm25's first argument must be the path
+  // value, not rowid. Passing rowid silently returns no hits — searchHybrid
+  // would then degrade to semantic-only.
+  const rows = await conn.queryAll<IndexRow & { score: number }>(
+    `SELECT context_index.*,
+            fts_main_context_index.match_bm25(context_index.path, ?1) AS score
+       FROM context_index
+      WHERE fts_main_context_index.match_bm25(context_index.path, ?1) IS NOT NULL
+      ORDER BY score DESC
+      LIMIT ?2`,
+    query,
+    limit,
+  );
+  return rows.map((row) => ({ ...rowToChunk(row), score: Number(row.score) }));
 }
 
 /**
- * Rebuild the FTS index over (chunk_content, title). DuckDB's FTS index is a
- * snapshot — it does not update incrementally on INSERT/UPDATE/DELETE, so any
- * batch writer must call this once its transaction commits. Cheap at our
- * scale (hundreds to low thousands of rows).
- *
- * The trailing CHECKPOINT is load-bearing: `overwrite = 1` writes a
- * `DROP SCHEMA fts_main_embeddings` record into the WAL. If the WAL still
- * contains that drop on the next open, replay fails with "Cannot drop entry
- * 'fts_main_embeddings' because there are entries that depend on it". Forcing
- * a checkpoint flushes the WAL so the next open has nothing to replay.
+ * Reciprocal-rank fusion of semantic + keyword results, deduped by
+ * (path, chunk_index).
  */
-export async function rebuildSearchIndex(conn: DbConnection): Promise<void> {
-  await conn.exec(
-    "PRAGMA create_fts_index('embeddings', 'id', 'chunk_content', 'title', overwrite = 1)",
-  );
-  await conn.exec("CHECKPOINT");
-}
-
-export async function hybridSearch(
+export async function searchHybrid(
   conn: DbConnection,
   query: string,
   queryEmbedding: number[],
   limit = 10,
-): Promise<HybridSearchResult[]> {
-  const k = 60; // RRF constant
+): Promise<SearchResult[]> {
+  const k = 60;
+  const [semantic, keyword] = await Promise.all([
+    searchSemantic(conn, queryEmbedding, 100),
+    searchKeyword(conn, query, 100).catch(() => [] as SearchResult[]),
+  ]);
 
-  // Keyword side: BM25 over chunk_content + title via the FTS extension.
-  // `match_bm25` returns NULL for rows with no token overlap; we keep only
-  // scored rows and order by descending score so RRF sees the best matches
-  // at the lowest ranks. Stemming, stopwords, and tokenization are handled
-  // by FTS — more query terms produce higher scores, which is exactly the
-  // behaviour a naive per-token ILIKE loop fails to provide.
-  const keywordRows = await conn.queryAll<EmbeddingRow>(
-    `SELECT * FROM embeddings
-     WHERE fts_main_embeddings.match_bm25(id, ?1) IS NOT NULL
-     ORDER BY fts_main_embeddings.match_bm25(id, ?1) DESC
-     LIMIT 100`,
-    query,
-  );
+  const scores = new Map<string, { chunk: IndexedChunk; score: number }>();
+  const key = (c: IndexedChunk) => `${c.path}::${c.chunk_index}`;
 
-  const keywordRanked = keywordRows.map(rowToEmbedding);
-
-  const vectorResults = await searchEmbeddings(conn, queryEmbedding, 100);
-
-  const scores = new Map<string, { embedding: Embedding; score: number }>();
-
-  for (const [i, emb] of keywordRanked.entries()) {
-    const rrfScore = 1 / (k + i + 1);
-    const existing = scores.get(emb.id);
-    if (existing) {
-      existing.score += rrfScore;
-    } else {
-      scores.set(emb.id, { embedding: emb, score: rrfScore });
-    }
+  for (let i = 0; i < semantic.length; i++) {
+    const c = semantic[i];
+    if (!c) continue;
+    const existing = scores.get(key(c));
+    const rrf = 1 / (k + i + 1);
+    if (existing) existing.score += rrf;
+    else scores.set(key(c), { chunk: c, score: rrf });
   }
-
-  for (const [i, emb] of vectorResults.entries()) {
-    const rrfScore = 1 / (k + i + 1);
-    const existing = scores.get(emb.id);
-    if (existing) {
-      existing.score += rrfScore;
-    } else {
-      scores.set(emb.id, { embedding: emb, score: rrfScore });
-    }
+  for (let i = 0; i < keyword.length; i++) {
+    const c = keyword[i];
+    if (!c) continue;
+    const existing = scores.get(key(c));
+    const rrf = 1 / (k + i + 1);
+    if (existing) existing.score += rrf;
+    else scores.set(key(c), { chunk: c, score: rrf });
   }
+  const merged = [...scores.values()].sort((a, b) => b.score - a.score);
+  return merged.slice(0, limit).map((m) => ({ ...m.chunk, score: m.score }));
+}
 
-  const merged = Array.from(scores.values());
-  merged.sort((a, b) => b.score - a.score);
-
-  const top = merged.slice(0, limit);
-  if (top.length === 0) return [];
-
-  // Look up drive + path from context_items for each surviving embedding
-  const itemIds = Array.from(
-    new Set(top.map((t) => t.embedding.context_item_id)),
+/**
+ * Rebuild the FTS index over (chunk_content, path). DuckDB's FTS index is a
+ * snapshot — it does not update incrementally on INSERT/UPDATE/DELETE, so any
+ * batch writer must call this once its transaction commits.
+ *
+ * The trailing CHECKPOINT is load-bearing (see history): `overwrite = 1`
+ * writes a `DROP SCHEMA fts_main_context_index` record into the WAL; without
+ * the checkpoint, replay on the next open can fail with "Cannot drop entry
+ * 'fts_main_context_index' because there are entries that depend on it".
+ */
+export async function rebuildSearchIndex(conn: DbConnection): Promise<void> {
+  // Skip if the table doesn't exist yet (e.g., fresh tests with an empty
+  // schema). The FTS extension errors out on a missing table.
+  const exists = await conn.queryGet<{ name: string }>(
+    "SELECT table_name AS name FROM information_schema.tables WHERE table_name = 'context_index'",
   );
-  const placeholders = itemIds.map((_, i) => `?${i + 1}`).join(", ");
-  const itemRows = await conn.queryAll<{
-    id: string;
-    drive: string;
-    path: string;
+  if (!exists) return;
+  await conn.exec(
+    "PRAGMA create_fts_index('context_index', 'path', 'chunk_content', 'path', overwrite = 1)",
+  );
+  await conn.exec("CHECKPOINT");
+}
+
+export async function indexStats(conn: DbConnection): Promise<{
+  paths: number;
+  chunks: number;
+  embedded: number;
+}> {
+  const row = await conn.queryGet<{
+    paths: number;
+    chunks: number;
+    embedded: number;
   }>(
-    `SELECT id, drive, path FROM context_items WHERE id IN (${placeholders})`,
-    ...itemIds,
+    `SELECT COUNT(DISTINCT path) AS paths,
+            COUNT(*) AS chunks,
+            COUNT(embedding) AS embedded
+       FROM context_index`,
   );
-  const itemIndex = new Map(itemRows.map((r) => [r.id, r]));
-
-  return top.map((entry) => {
-    const item = itemIndex.get(entry.embedding.context_item_id);
-    return {
-      ...entry.embedding,
-      score: entry.score,
-      drive: item?.drive ?? null,
-      path: item?.path ?? null,
-    };
-  });
+  return {
+    paths: Number(row?.paths ?? 0),
+    chunks: Number(row?.chunks ?? 0),
+    embedded: Number(row?.embedded ?? 0),
+  };
 }

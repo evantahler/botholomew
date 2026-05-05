@@ -1,14 +1,14 @@
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { withDb } from "../db/connection.ts";
+import type { Task } from "../tasks/schema.ts";
 import {
   claimNextTask,
   claimSpecificTask,
+  releaseTaskLock,
   resetStaleTasks,
-  type Task,
   updateTaskStatus,
-} from "../db/tasks.ts";
-import { createThread, endThread, logInteraction } from "../db/threads.ts";
+} from "../tasks/store.ts";
+import { createThread, endThread, logInteraction } from "../threads/store.ts";
 import { logger } from "../utils/logger.ts";
 import { generateThreadTitle } from "../utils/title.ts";
 import type { WorkerStreamCallbacks } from "./llm.ts";
@@ -46,9 +46,9 @@ export async function tick(opts: TickOptions): Promise<boolean> {
   const tickStart = Date.now();
   logger.phase("tick-start", `#${tickNum}`);
 
-  // Reset stale tasks stuck in in_progress
-  const resetIds = await withDb(dbPath, (conn) =>
-    resetStaleTasks(conn, config.max_tick_duration_seconds * 3),
+  const resetIds = await resetStaleTasks(
+    projectDir,
+    config.max_tick_duration_seconds * 3,
   );
   if (resetIds.length > 0) {
     logger.warn(
@@ -58,15 +58,14 @@ export async function tick(opts: TickOptions): Promise<boolean> {
 
   if (evalSchedules) {
     try {
-      await processSchedules(dbPath, config, workerId);
+      await processSchedules(projectDir, config, workerId);
     } catch (err) {
       logger.error(`Schedule processing failed: ${err}`);
     }
   }
 
-  // Claim a task
   logger.phase("claiming-task");
-  const task = await withDb(dbPath, (conn) => claimNextTask(conn, workerId));
+  const task = await claimNextTask(projectDir, workerId);
   if (!task) {
     logger.info("No task claimed (queue empty or all blocked)");
     const elapsed = ((Date.now() - tickStart) / 1000).toFixed(1);
@@ -90,8 +89,7 @@ export async function tick(opts: TickOptions): Promise<boolean> {
 
 /**
  * Claim and run a single, explicitly-named task. Returns true if the task
- * was claimed and processed, false if it wasn't eligible (already claimed,
- * not pending, or doesn't exist).
+ * was claimed and processed, false if it wasn't eligible.
  */
 export async function runSpecificTask(opts: {
   projectDir: string;
@@ -102,8 +100,10 @@ export async function runSpecificTask(opts: {
   mcpxClient?: McpxClient | null;
   callbacks?: WorkerStreamCallbacks;
 }): Promise<boolean> {
-  const task = await withDb(opts.dbPath, (conn) =>
-    claimSpecificTask(conn, opts.taskId, opts.workerId),
+  const task = await claimSpecificTask(
+    opts.projectDir,
+    opts.taskId,
+    opts.workerId,
   );
   if (!task) {
     logger.warn(
@@ -138,8 +138,11 @@ async function runClaimedTask(opts: {
   }
   callbacks?.onTaskStart(task);
 
-  const threadId = await withDb(dbPath, (conn) =>
-    createThread(conn, "worker_tick", task.id, `Working: ${task.name}`),
+  const threadId = await createThread(
+    projectDir,
+    "worker_tick",
+    task.id,
+    `Working: ${task.name}`,
   );
 
   const systemPrompt = await buildSystemPrompt(
@@ -163,47 +166,40 @@ async function runClaimedTask(opts: {
     });
 
     const isComplete = result.status === "complete";
-    await withDb(dbPath, (conn) =>
-      updateTaskStatus(
-        conn,
-        task.id,
-        result.status,
-        isComplete ? null : result.reason,
-        isComplete ? result.reason : null,
-      ),
+    await updateTaskStatus(
+      projectDir,
+      task.id,
+      result.status,
+      isComplete ? null : result.reason,
+      isComplete ? result.reason : null,
     );
 
-    await withDb(dbPath, (conn) =>
-      logInteraction(conn, threadId, {
-        role: "system",
-        kind: "status_change",
-        content: `Task ${task.id} -> ${result.status}${result.reason ? `: ${result.reason}` : ""}`,
-      }),
-    );
+    await logInteraction(projectDir, threadId, {
+      role: "system",
+      kind: "status_change",
+      content: `Task ${task.id} -> ${result.status}${result.reason ? `: ${result.reason}` : ""}`,
+    });
 
     logger.info(`Task ${task.id} -> ${result.status}`);
 
     void generateThreadTitle(
       config,
-      dbPath,
+      projectDir,
       threadId,
       `Task: ${task.name}\nDescription: ${task.description}\nOutcome: ${result.status}${result.reason ? ` — ${result.reason}` : ""}`,
     );
   } catch (err) {
-    await withDb(dbPath, (conn) =>
-      updateTaskStatus(conn, task.id, "failed", String(err), null),
-    );
+    await updateTaskStatus(projectDir, task.id, "failed", String(err), null);
 
-    await withDb(dbPath, (conn) =>
-      logInteraction(conn, threadId, {
-        role: "system",
-        kind: "status_change",
-        content: `Task ${task.id} failed: ${err}`,
-      }),
-    );
+    await logInteraction(projectDir, threadId, {
+      role: "system",
+      kind: "status_change",
+      content: `Task ${task.id} failed: ${err}`,
+    });
 
     logger.error(`Task ${task.id} failed: ${err}`);
   } finally {
-    await withDb(dbPath, (conn) => endThread(conn, threadId));
+    await releaseTaskLock(projectDir, task.id);
+    await endThread(projectDir, threadId);
   }
 }

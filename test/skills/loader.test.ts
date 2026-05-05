@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BOTHOLOMEW_DIR, SKILLS_DIR } from "../../src/constants.ts";
+import { SKILLS_DIR } from "../../src/constants.ts";
 import { getSkill, loadSkills } from "../../src/skills/loader.ts";
 
 let tempDir: string;
@@ -15,7 +15,7 @@ afterEach(async () => {
 
 async function makeSkillsDir(): Promise<string> {
   tempDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-  const skillsDir = join(tempDir, BOTHOLOMEW_DIR, SKILLS_DIR);
+  const skillsDir = join(tempDir, SKILLS_DIR);
   await mkdir(skillsDir, { recursive: true });
   return skillsDir;
 }

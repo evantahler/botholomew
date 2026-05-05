@@ -1,11 +1,10 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useEffect, useMemo, useState } from "react";
-import { withDb } from "../../db/connection.ts";
-import { listWorkers, type Worker } from "../../db/workers.ts";
 import { readLogTail } from "../../worker/log-reader.ts";
+import { listWorkers, type Worker } from "../../workers/store.ts";
 
 interface WorkerPanelProps {
-  dbPath: string;
+  projectDir: string;
   isActive: boolean;
 }
 
@@ -30,7 +29,9 @@ function statusColor(status: Worker["status"]): string {
   }
 }
 
-function formatAge(from: Date, now: Date): string {
+function formatAge(fromIso: string, now: Date): string {
+  const from = new Date(fromIso);
+  if (Number.isNaN(from.getTime())) return "?";
   const secs = Math.max(0, Math.floor((now.getTime() - from.getTime()) / 1000));
   if (secs < 60) return `${secs}s`;
   const mins = Math.floor(secs / 60);
@@ -47,7 +48,7 @@ function formatBytes(n: number): string {
 }
 
 export const WorkerPanel = memo(function WorkerPanel({
-  dbPath,
+  projectDir,
   isActive,
 }: WorkerPanelProps) {
   const { stdout } = useStdout();
@@ -68,15 +69,17 @@ export const WorkerPanel = memo(function WorkerPanel({
 
     const refresh = async () => {
       const status = STATUS_FILTERS[filterIdx] ?? undefined;
-      const result = await withDb(dbPath, (conn) =>
-        listWorkers(conn, status ? { status } : {}),
-      );
-      if (mounted) {
-        setWorkers(result);
-        setNow(new Date());
-        setSelectedIndex((prev) =>
-          Math.min(prev, Math.max(0, result.length - 1)),
-        );
+      try {
+        const result = await listWorkers(projectDir, status ? { status } : {});
+        if (mounted) {
+          setWorkers(result);
+          setNow(new Date());
+          setSelectedIndex((prev) =>
+            Math.min(prev, Math.max(0, result.length - 1)),
+          );
+        }
+      } catch {
+        // ignore — next tick retries
       }
     };
 
@@ -86,7 +89,7 @@ export const WorkerPanel = memo(function WorkerPanel({
       mounted = false;
       clearInterval(interval);
     };
-  }, [dbPath, filterIdx]);
+  }, [projectDir, filterIdx]);
 
   const selected = workers[selectedIndex];
   const selectedLogPath = selected?.log_path ?? null;
@@ -332,18 +335,17 @@ function WorkerDetail({ worker, now }: { worker: Worker; now: Date }) {
         </Text>
         <Text>
           <Text dimColor>Started </Text>
-          {worker.started_at.toISOString()}{" "}
+          {worker.started_at}{" "}
           <Text dimColor>({formatAge(worker.started_at, now)} ago)</Text>
         </Text>
         <Text>
-          <Text dimColor>Heartbeat</Text>{" "}
-          {worker.last_heartbeat_at.toISOString()}{" "}
+          <Text dimColor>Heartbeat</Text> {worker.last_heartbeat_at}{" "}
           <Text dimColor>({formatAge(worker.last_heartbeat_at, now)} ago)</Text>
         </Text>
         {worker.stopped_at && (
           <Text>
             <Text dimColor>Stopped </Text>
-            {worker.stopped_at.toISOString()}
+            {worker.stopped_at}
           </Text>
         )}
         {worker.task_id && (

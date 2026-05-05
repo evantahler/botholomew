@@ -1,27 +1,10 @@
-import { isText } from "istextorbinary";
 import { z } from "zod";
-import { formatDriveRef } from "../../context/drives.ts";
-import { ingestByPath } from "../../context/ingest.ts";
-import {
-  createContextItemStrict,
-  PathConflictError,
-  upsertContextItem,
-} from "../../db/context.ts";
+import { PathConflictError, writeContextFile } from "../../context/store.ts";
 import { getTool, type ToolDefinition } from "../tool.ts";
 
 const PREVIEW_CHARS = 200;
 const ERROR_MESSAGE_CAP = 2000;
 const TOOL_NAME = "pipe_to_context";
-
-function mimeFromPath(path: string): string {
-  const type = Bun.file(path).type.split(";")[0];
-  return type ?? "application/octet-stream";
-}
-
-function isTextualPath(path: string): boolean {
-  const filename = path.split("/").pop() ?? path;
-  return isText(filename) !== false;
-}
 
 function truncate(s: string, cap: number): string {
   if (s.length <= cap) return s;
@@ -32,39 +15,29 @@ const inputSchema = z.object({
   tool_name: z
     .string()
     .describe(
-      "Name of the tool to dispatch. Its full output is piped into a context item; you (the LLM) will only see the storage acknowledgment, never the raw bytes.",
+      "Name of the tool to dispatch. Its full output is piped into a file under context/; you (the LLM) will only see the storage acknowledgment, never the raw bytes.",
     ),
   tool_input: z
     .record(z.string(), z.unknown())
     .describe(
       "Arguments to pass to the inner tool (same shape as a normal call).",
     ),
-  drive: z
+  path: z
     .string()
-    .default("agent")
     .describe(
-      "Drive to write to (defaults to 'agent', the agent's scratch drive).",
+      "Project-relative path under context/ to write the captured output to (e.g. 'gdoc/quarterly-plan.md').",
     ),
-  path: z.string().describe("Path within the drive (starts with /)"),
-  title: z
-    .string()
-    .optional()
-    .describe("Title for the file (defaults to filename)"),
-  description: z.string().optional().describe("Description of the file"),
   on_conflict: z
     .enum(["error", "overwrite"])
     .optional()
     .describe(
-      "What to do if a file already exists at this (drive, path). Defaults to 'error'. Pass 'overwrite' to replace.",
+      "What to do if a file already exists at this path. Defaults to 'error'. Pass 'overwrite' to replace.",
     ),
 });
 
 const outputSchema = z.object({
   is_error: z.boolean(),
-  id: z.string().optional(),
-  drive: z.string().optional(),
   path: z.string().optional(),
-  ref: z.string().optional(),
   bytes_written: z.number().optional(),
   preview: z
     .string()
@@ -89,7 +62,7 @@ const outputSchema = z.object({
 export const pipeToContextTool = {
   name: TOOL_NAME,
   description:
-    "[[ bash equivalent command: cmd > file ]] Run another tool and pipe its full output directly into a context item, without the result flowing through the conversation. Use this when you need a large tool output (web pages, search dumps, big mcp_exec results) to be searchable/embedded for later but you do NOT need to read the bytes yourself. You'll only see the storage ack (drive, path, id, size, short preview).",
+    "[[ bash equivalent command: cmd > file ]] Run another tool and pipe its full output directly into a file under context/, without the result flowing through the conversation. Use this when you need a large tool output (Google Docs via mcp_exec, web fetches, search dumps) saved for later inspection but you do NOT need to read the bytes yourself. You'll only see the storage ack (path, size, short preview).",
   group: "context",
   inputSchema,
   outputSchema,
@@ -111,7 +84,7 @@ export const pipeToContextTool = {
         error_type: "forbidden_tool",
         message: `Tool "${inner.name}" cannot be piped (terminal tools and pipe_to_context itself are not allowed).`,
         next_action_hint:
-          "Pipe a non-terminal tool (search_grep, mcp_exec, context_refresh, etc.) instead.",
+          "Pipe a non-terminal tool (search, mcp_exec, etc.) instead.",
       };
     }
 
@@ -169,43 +142,16 @@ export const pipeToContextTool = {
       };
     }
 
-    const mimeType = mimeFromPath(input.path);
-    const isTextual = isTextualPath(input.path);
-    const title =
-      input.title ?? input.path.split("/").filter(Boolean).pop() ?? input.path;
-    const onConflict = input.on_conflict ?? "error";
-    const target = { drive: input.drive, path: input.path };
-
     try {
-      const item =
-        onConflict === "overwrite"
-          ? await upsertContextItem(ctx.conn, {
-              title,
-              description: input.description,
-              content: innerOutput,
-              drive: target.drive,
-              path: target.path,
-              mimeType,
-              isTextual,
-            })
-          : await createContextItemStrict(ctx.conn, {
-              title,
-              description: input.description,
-              content: innerOutput,
-              drive: target.drive,
-              path: target.path,
-              mimeType,
-              isTextual,
-            });
-
-      await ingestByPath(ctx.conn, target, ctx.config);
-
+      const entry = await writeContextFile(
+        ctx.projectDir,
+        input.path,
+        innerOutput,
+        { onConflict: input.on_conflict ?? "error" },
+      );
       return {
         is_error: false,
-        id: item.id,
-        drive: item.drive,
-        path: item.path,
-        ref: formatDriveRef(item),
+        path: entry.path,
         bytes_written: innerOutput.length,
         preview: innerOutput.slice(0, PREVIEW_CHARS),
       };
@@ -214,10 +160,8 @@ export const pipeToContextTool = {
         return {
           is_error: true,
           error_type: "path_conflict",
-          drive: err.drive,
           path: err.path,
-          ref: formatDriveRef({ drive: err.drive, path: err.path }),
-          message: `A file already exists at ${formatDriveRef({ drive: err.drive, path: err.path })} (id: ${err.existingId}). The inner tool ran but its output was discarded.`,
+          message: `A file already exists at context/${err.path}. The inner tool ran but its output was discarded.`,
           next_action_hint:
             "Retry with on_conflict='overwrite' to replace, or pick a different path.",
         };

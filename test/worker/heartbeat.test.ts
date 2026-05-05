@@ -1,82 +1,139 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { withDb } from "../../src/db/connection.ts";
-import { getWorker, registerWorker } from "../../src/db/workers.ts";
-import { startHeartbeat, startReaper } from "../../src/worker/heartbeat.ts";
-import { setupTestDbFile } from "../helpers.ts";
+/**
+ * startHeartbeat / startReaper drive the worker liveness signal: each tick
+ * rewrites the worker's pidfile (workers/<id>.json) with a fresh
+ * last_heartbeat_at; the reaper marks dead workers and unlinks orphan
+ * task/schedule lockfiles. These tests boot the real interval timers
+ * with short windows and assert observable behavior on disk.
+ */
 
-let dbPath: string;
-let cleanup: () => Promise<void>;
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  getTasksDir,
+  getTasksLockDir,
+  getWorkersDir,
+} from "../../src/constants.ts";
+import { acquireLock } from "../../src/fs/atomic.ts";
+import { startHeartbeat, startReaper } from "../../src/worker/heartbeat.ts";
+import { getWorker, registerWorker } from "../../src/workers/store.ts";
+
+let projectDir: string;
 
 beforeEach(async () => {
-  ({ dbPath, cleanup } = await setupTestDbFile());
+  projectDir = await mkdtemp(join(tmpdir(), "both-heartbeat-"));
+  await mkdir(getWorkersDir(projectDir), { recursive: true });
+  await mkdir(getTasksDir(projectDir), { recursive: true });
+  await mkdir(getTasksLockDir(projectDir), { recursive: true });
 });
 
 afterEach(async () => {
-  await cleanup();
+  await rm(projectDir, { recursive: true, force: true });
 });
 
-async function withWorker(id: string) {
-  await withDb(dbPath, (conn) =>
-    registerWorker(conn, {
-      id,
-      pid: process.pid,
-      hostname: "test",
-      mode: "persist",
-    }),
-  );
+async function registerOne(id: string) {
+  await registerWorker(projectDir, {
+    id,
+    pid: process.pid,
+    hostname: "test",
+    mode: "persist",
+  });
 }
 
 describe("startHeartbeat", () => {
-  test("updates last_heartbeat_at repeatedly", async () => {
-    await withWorker("hb-1");
-    const before = await withDb(dbPath, (conn) => getWorker(conn, "hb-1"));
-    expect(before).not.toBeNull();
+  test("rewrites last_heartbeat_at over time", async () => {
+    await registerOne("hb-1");
+    const before = await getWorker(projectDir, "hb-1");
+    if (!before) throw new Error("missing");
 
-    // 1s interval so the first tick fires quickly under the 1s minimum.
-    const stop = startHeartbeat(dbPath, "hb-1", 1);
-    await Bun.sleep(1200);
+    const stop = startHeartbeat(projectDir, "hb-1", 1);
+    await Bun.sleep(1300);
     stop();
 
-    const after = await withDb(dbPath, (conn) => getWorker(conn, "hb-1"));
-    expect(after?.last_heartbeat_at.getTime() ?? 0).toBeGreaterThan(
-      before?.last_heartbeat_at.getTime() ?? 0,
-    );
+    const after = await getWorker(projectDir, "hb-1");
+    expect(
+      Date.parse(after?.last_heartbeat_at ?? "0") -
+        Date.parse(before.last_heartbeat_at),
+    ).toBeGreaterThan(0);
   });
 
-  test("stop() prevents the heartbeat from running on non-running workers", async () => {
-    await withWorker("hb-2");
-    // Mark stopped so any later in-flight heartbeat is a no-op per the
-    // `WHERE status='running'` guard.
-    await withDb(dbPath, (conn) =>
-      conn.queryRun("UPDATE workers SET status='stopped' WHERE id=?1", "hb-2"),
+  test("does not resurrect a stopped worker", async () => {
+    await registerOne("hb-2");
+    // Manually flip status to stopped — a heartbeat that fires after this
+    // should be a no-op (heartbeat() short-circuits non-running workers).
+    const w = await getWorker(projectDir, "hb-2");
+    if (!w) throw new Error("missing");
+    const { atomicWrite } = await import("../../src/fs/atomic.ts");
+    const path = join(getWorkersDir(projectDir), "hb-2.json");
+    await atomicWrite(
+      path,
+      JSON.stringify({
+        ...w,
+        status: "stopped",
+        stopped_at: new Date().toISOString(),
+      }),
     );
-    const before = await withDb(dbPath, (conn) => getWorker(conn, "hb-2"));
-    const stop = startHeartbeat(dbPath, "hb-2", 1);
-    await Bun.sleep(1200);
+    const before = await getWorker(projectDir, "hb-2");
+
+    const stop = startHeartbeat(projectDir, "hb-2", 1);
+    await Bun.sleep(1300);
     stop();
-    const after = await withDb(dbPath, (conn) => getWorker(conn, "hb-2"));
-    expect(after?.last_heartbeat_at.getTime()).toBe(
-      before?.last_heartbeat_at.getTime(),
-    );
+
+    const after = await getWorker(projectDir, "hb-2");
+    expect(after?.status).toBe("stopped");
+    expect(after?.last_heartbeat_at).toBe(before?.last_heartbeat_at);
   });
 });
 
 describe("startReaper", () => {
-  test("reaps workers whose heartbeat is older than threshold", async () => {
-    await withWorker("reap-1");
-    // Force heartbeat into the past
-    await withDb(dbPath, (conn) =>
-      conn.queryRun(
-        "UPDATE workers SET last_heartbeat_at='2000-01-01 00:00:00' WHERE id=?1",
-        "reap-1",
-      ),
-    );
+  test("flips workers whose heartbeat is older than threshold to status=dead", async () => {
+    await registerOne("dead-1");
+    // Backdate this worker's heartbeat so the reaper sees it as stale.
+    const old = new Date(Date.now() - 60_000).toISOString();
+    const path = join(getWorkersDir(projectDir), "dead-1.json");
+    const w = await getWorker(projectDir, "dead-1");
+    if (!w) throw new Error("missing");
+    const { atomicWrite } = await import("../../src/fs/atomic.ts");
+    await atomicWrite(path, JSON.stringify({ ...w, last_heartbeat_at: old }));
 
-    const stop = startReaper(dbPath, 1, 60, 3600);
-    await Bun.sleep(1200);
+    const stop = startReaper(
+      projectDir,
+      /*intervalSeconds*/ 1,
+      /*staleAfterSeconds*/ 5,
+      /*stoppedRetentionSeconds*/ 3600,
+    );
+    await Bun.sleep(1300);
     stop();
 
-    const w = await withDb(dbPath, (conn) => getWorker(conn, "reap-1"));
-    expect(w?.status).toBe("dead");
+    const after = await getWorker(projectDir, "dead-1");
+    expect(after?.status).toBe("dead");
+  });
+
+  test("releases task lockfiles whose holder is no longer running", async () => {
+    // Register a worker that's NOT in `workers/`, then drop a lockfile
+    // claiming to be held by that worker. The reaper should unlink the
+    // lockfile on the next tick.
+    const lockPath = join(getTasksLockDir(projectDir), "task-X.lock");
+    await acquireLock(lockPath, "ghost-worker");
+    expect(await Bun.file(lockPath).exists()).toBe(true);
+
+    const stop = startReaper(projectDir, 1, 5, 3600);
+    await Bun.sleep(1300);
+    stop();
+
+    expect(await Bun.file(lockPath).exists()).toBe(false);
+  });
+
+  test("leaves task lockfiles held by running workers alone", async () => {
+    await registerOne("alive-1");
+    const lockPath = join(getTasksLockDir(projectDir), "task-Y.lock");
+    await acquireLock(lockPath, "alive-1");
+
+    const stop = startReaper(projectDir, 1, 5, 3600);
+    await Bun.sleep(1300);
+    stop();
+
+    expect(await Bun.file(lockPath).exists()).toBe(true);
   });
 });

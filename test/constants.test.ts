@@ -1,33 +1,49 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import {
-  BOTHOLOMEW_DIR,
+  CONFIG_DIR,
   CONFIG_FILENAME,
-  DB_FILENAME,
+  CONTEXT_DIR,
   DEFAULTS,
   EMBEDDING_DIMENSION,
   EMBEDDING_MODEL,
   ENV,
-  getBotholomewDir,
   getConfigPath,
+  getContextDir,
   getDbPath,
   getMcpxDir,
+  getPromptsDir,
+  getSchedulesDir,
+  getSchedulesLockDir,
+  getSkillsDir,
+  getTasksDir,
+  getTasksLockDir,
   getWorkerLogPath,
   getWorkerLogsDir,
+  INDEX_DB_FILENAME,
   LOGS_DIR,
   MCPX_DIR,
+  PROMPTS_DIR,
+  SCHEDULES_DIR,
+  SKILLS_DIR,
+  TASKS_DIR,
 } from "../src/constants.ts";
 
 describe("constants", () => {
-  test("BOTHOLOMEW_DIR is .botholomew", () => {
-    expect(BOTHOLOMEW_DIR).toBe(".botholomew");
+  test("top-level layout names are stable", () => {
+    expect(CONFIG_DIR).toBe("config");
+    expect(CONTEXT_DIR).toBe("context");
+    expect(PROMPTS_DIR).toBe("prompts");
+    expect(SKILLS_DIR).toBe("skills");
+    expect(MCPX_DIR).toBe("mcpx");
+    expect(LOGS_DIR).toBe("logs");
+    expect(TASKS_DIR).toBe("tasks");
+    expect(SCHEDULES_DIR).toBe("schedules");
   });
 
   test("file name constants are defined", () => {
-    expect(DB_FILENAME).toBe("data.duckdb");
-    expect(LOGS_DIR).toBe("logs");
+    expect(INDEX_DB_FILENAME).toBe("index.duckdb");
     expect(CONFIG_FILENAME).toBe("config.json");
-    expect(MCPX_DIR).toBe("mcpx");
   });
 
   test("embedding constants are defined", () => {
@@ -48,48 +64,53 @@ describe("constants", () => {
 describe("path helpers", () => {
   const projectDir = "/home/user/my-project";
 
-  test("getBotholomewDir returns project/.botholomew", () => {
-    expect(getBotholomewDir(projectDir)).toBe(join(projectDir, ".botholomew"));
-  });
-
-  test("getDbPath returns project/.botholomew/data.duckdb", () => {
-    expect(getDbPath(projectDir)).toBe(
-      join(projectDir, ".botholomew", "data.duckdb"),
-    );
-  });
-
-  test("getWorkerLogsDir returns project/.botholomew/logs", () => {
-    expect(getWorkerLogsDir(projectDir)).toBe(
-      join(projectDir, ".botholomew", "logs"),
-    );
-  });
-
-  test("getWorkerLogPath returns project/.botholomew/logs/<id>.log", () => {
-    expect(getWorkerLogPath(projectDir, "abc123")).toBe(
-      join(projectDir, ".botholomew", "logs", "abc123.log"),
-    );
-  });
-
-  test("getConfigPath returns project/.botholomew/config.json", () => {
+  test("getConfigPath returns project/config/config.json", () => {
     expect(getConfigPath(projectDir)).toBe(
-      join(projectDir, ".botholomew", "config.json"),
+      join(projectDir, "config", "config.json"),
     );
   });
 
-  test("getMcpxDir returns project/.botholomew/mcpx", () => {
-    expect(getMcpxDir(projectDir)).toBe(
-      join(projectDir, ".botholomew", "mcpx"),
+  test("getDbPath returns project/index.duckdb", () => {
+    expect(getDbPath(projectDir)).toBe(join(projectDir, "index.duckdb"));
+  });
+
+  test("getWorkerLogsDir returns project/logs", () => {
+    expect(getWorkerLogsDir(projectDir)).toBe(join(projectDir, "logs"));
+  });
+
+  test("getWorkerLogPath returns project/logs/<date>/<id>.log", () => {
+    expect(getWorkerLogPath(projectDir, "abc123", "2026-05-04")).toBe(
+      join(projectDir, "logs", "2026-05-04", "abc123.log"),
     );
   });
 
-  test("path helpers work with trailing slash", () => {
-    expect(getBotholomewDir("/tmp/proj/")).toBe(
-      join("/tmp/proj/", ".botholomew"),
+  test("getMcpxDir returns project/mcpx", () => {
+    expect(getMcpxDir(projectDir)).toBe(join(projectDir, "mcpx"));
+  });
+
+  test("getSkillsDir returns project/skills", () => {
+    expect(getSkillsDir(projectDir)).toBe(join(projectDir, "skills"));
+  });
+
+  test("getPromptsDir returns project/prompts", () => {
+    expect(getPromptsDir(projectDir)).toBe(join(projectDir, "prompts"));
+  });
+
+  test("getContextDir returns project/context", () => {
+    expect(getContextDir(projectDir)).toBe(join(projectDir, "context"));
+  });
+
+  test("getTasksDir / getTasksLockDir", () => {
+    expect(getTasksDir(projectDir)).toBe(join(projectDir, "tasks"));
+    expect(getTasksLockDir(projectDir)).toBe(
+      join(projectDir, "tasks", ".locks"),
     );
   });
 
-  test("path helpers work with relative paths", () => {
-    const result = getBotholomewDir("relative/path");
-    expect(result).toBe(join("relative/path", ".botholomew"));
+  test("getSchedulesDir / getSchedulesLockDir", () => {
+    expect(getSchedulesDir(projectDir)).toBe(join(projectDir, "schedules"));
+    expect(getSchedulesLockDir(projectDir)).toBe(
+      join(projectDir, "schedules", ".locks"),
+    );
   });
 });

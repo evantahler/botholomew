@@ -11,7 +11,7 @@ beforeEach(async () => {
   projectDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
   // Create the .botholomew directory
   const { mkdir } = await import("node:fs/promises");
-  await mkdir(join(projectDir, ".botholomew"), { recursive: true });
+  await mkdir(join(projectDir, "config"), { recursive: true });
 });
 
 afterEach(async () => {
@@ -26,7 +26,7 @@ describe("loadConfig", () => {
 
   test("merges partial user config with defaults", async () => {
     await Bun.write(
-      join(projectDir, ".botholomew", "config.json"),
+      join(projectDir, "config", "config.json"),
       JSON.stringify({ model: "claude-sonnet-4-20250514" }),
     );
 
@@ -50,7 +50,7 @@ describe("loadConfig", () => {
       max_tick_duration_seconds: 30,
     };
     await Bun.write(
-      join(projectDir, ".botholomew", "config.json"),
+      join(projectDir, "config", "config.json"),
       JSON.stringify(userConfig),
     );
 
@@ -63,7 +63,7 @@ describe("loadConfig", () => {
 
   test("ANTHROPIC_API_KEY env var overrides config file", async () => {
     await Bun.write(
-      join(projectDir, ".botholomew", "config.json"),
+      join(projectDir, "config", "config.json"),
       JSON.stringify({ anthropic_api_key: "from-file" }),
     );
 
@@ -104,7 +104,7 @@ describe("saveConfig", () => {
     await saveConfig(projectDir, { model: "claude-sonnet-4-20250514" });
 
     const content = await Bun.file(
-      join(projectDir, ".botholomew", "config.json"),
+      join(projectDir, "config", "config.json"),
     ).text();
     const parsed = JSON.parse(content);
     expect(parsed.model).toBe("claude-sonnet-4-20250514");
@@ -138,7 +138,7 @@ describe("saveConfig", () => {
     await saveConfig(projectDir, { model: "test" });
 
     const content = await Bun.file(
-      join(projectDir, ".botholomew", "config.json"),
+      join(projectDir, "config", "config.json"),
     ).text();
     // Should be indented (pretty-printed)
     expect(content).toContain("  ");

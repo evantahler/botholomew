@@ -1,44 +1,47 @@
 import { z } from "zod";
-import { formatDriveRef } from "../../context/drives.ts";
-import { contextPathExists, createContextItem } from "../../db/context.ts";
+import { createContextDir, fileExists } from "../../context/store.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
-  drive: z
-    .string()
-    .default("agent")
-    .describe("Drive to create the directory in (defaults to 'agent')"),
-  path: z.string().describe("Directory path to create (starts with /)"),
+  path: z.string().describe("Directory path to create under context/"),
 });
 
 const outputSchema = z.object({
+  path: z.string(),
   created: z.boolean(),
-  ref: z.string(),
   is_error: z.boolean(),
+  error_type: z.string().optional(),
+  message: z.string().optional(),
+  next_action_hint: z.string().optional(),
 });
 
 export const contextCreateDirTool = {
   name: "context_create_dir",
   description:
-    "[[ bash equivalent command: mkdir -p ]] Create a directory placeholder in context.",
+    "[[ bash equivalent command: mkdir -p ]] Create a directory (recursively) under context/.",
   group: "context",
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const target = { drive: input.drive, path: input.path };
-    const exists = await contextPathExists(ctx.conn, target);
-    if (exists) {
-      return { created: false, ref: formatDriveRef(target), is_error: false };
+    try {
+      const existed = await fileExists(ctx.projectDir, input.path);
+      await createContextDir(ctx.projectDir, input.path);
+      return { path: input.path, created: !existed, is_error: false };
+    } catch (err) {
+      // mkdir surfaces ENOTDIR when a path component is a file, EACCES on
+      // permission issues, etc. Convert to a structured error so the agent
+      // can pick a different parent or read what's actually there first.
+      const code = (err as NodeJS.ErrnoException).code;
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        path: input.path,
+        created: false,
+        is_error: true,
+        error_type: code === "ENOTDIR" ? "not_a_directory" : "create_failed",
+        message,
+        next_action_hint:
+          "Run context_tree on the parent path to see what's there before retrying.",
+      };
     }
-
-    await createContextItem(ctx.conn, {
-      title: input.path.split("/").filter(Boolean).pop() ?? input.path,
-      drive: target.drive,
-      path: target.path,
-      mimeType: "inode/directory",
-      isTextual: false,
-    });
-
-    return { created: true, ref: formatDriveRef(target), is_error: false };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

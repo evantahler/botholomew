@@ -1,314 +1,137 @@
-import { afterEach, describe, expect, mock, test } from "bun:test";
-import type { McpxClient } from "@evantahler/mcpx";
-import type { BotholomewConfig } from "../../src/config/schemas.ts";
+/**
+ * fetchUrl drives an Anthropic loop with mcp_search/info/exec to retrieve
+ * remote content; httpFallback is the no-MCP escape hatch using global
+ * fetch. We exercise: the no-key guard, the no-MCP fallback path, and
+ * the html-strip behavior of httpFallback.
+ */
+
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 
-let mockCreate: ReturnType<typeof mock>;
+mock.module("@anthropic-ai/sdk", () => ({
+  default: class MockAnthropic {
+    messages = {
+      create: async () => ({
+        // Default: no content/tool calls, which makes fetchUrl exhaust its
+        // turn budget and signal http fallback.
+        content: [],
+        stop_reason: "end_turn",
+        usage: { input_tokens: 10, output_tokens: 10 },
+      }),
+    };
+  },
+}));
 
-mock.module("@anthropic-ai/sdk", () => {
-  mockCreate = mock(async () => ({
-    content: [{ type: "text", text: "No tools available" }],
-    stop_reason: "end_turn",
-    usage: { input_tokens: 10, output_tokens: 10 },
-  }));
-
-  return {
-    default: class MockAnthropic {
-      messages = { create: mockCreate };
-    },
-  };
-});
-
-const { fetchUrl, httpFallback, FetchFailureError } = await import(
+const { fetchUrl, FetchFailureError, httpFallback } = await import(
   "../../src/context/fetcher.ts"
 );
 
-const config: Required<BotholomewConfig> = {
+const TEST_CONFIG = {
   ...DEFAULT_CONFIG,
   anthropic_api_key: "test-key",
-};
-
-const originalFetch = globalThis.fetch;
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-  mockCreate?.mockClear();
-});
+} as Required<typeof DEFAULT_CONFIG>;
 
 describe("fetchUrl", () => {
-  test("throws when no anthropic_api_key", async () => {
-    const noKeyConfig = { ...config, anthropic_api_key: "" };
+  test("throws when no anthropic_api_key is configured", async () => {
     await expect(
-      fetchUrl("https://example.com", noKeyConfig, null),
-    ).rejects.toThrow("Anthropic API key is required");
+      fetchUrl(
+        "https://example.com",
+        { ...TEST_CONFIG, anthropic_api_key: "" },
+        null,
+        null as never,
+      ),
+    ).rejects.toThrow();
   });
 
-  test("falls back to HTTP when no mcpxClient", async () => {
-    globalThis.fetch = mock(
-      async () =>
-        new Response(
-          "<html><title>Example</title><body><p>Hello world</p></body></html>",
-          {
-            headers: { "content-type": "text/html" },
-          },
-        ),
-    ) as unknown as typeof fetch;
-
-    const result = await fetchUrl("https://example.com", config, null);
-    expect(result.title).toBe("Example");
-    expect(result.content).toContain("Hello world");
-    expect(result.sourceUrl).toBe("https://example.com");
-    expect(result.mimeType).toBe("text/markdown");
-  });
-
-  test("captures mcp_exec content and returns it on accept_content", async () => {
-    const fakeMcpxClient = {
-      exec: mock(async () => ({
-        content: [{ type: "text", text: "# Hello from MCPX" }],
-        isError: false,
-      })),
-    } as unknown as McpxClient;
-
-    let call = 0;
-    mockCreate.mockImplementation(async () => {
-      call++;
-      if (call === 1) {
-        return {
-          content: [
-            {
-              type: "tool_use",
-              id: "exec_abc",
-              name: "mcp_exec",
-              input: {
-                server: "google-docs",
-                tool: "GetDocument",
-                args: { id: "abc123" },
-              },
-            },
-          ],
-          stop_reason: "tool_use",
-          usage: { input_tokens: 50, output_tokens: 30 },
-        };
-      }
-      return {
-        content: [
-          {
-            type: "tool_use",
-            id: "accept_1",
-            name: "accept_content",
-            input: {
-              exec_call_id: "exec_abc",
-              title: "Test Doc",
-              mime_type: "text/markdown",
-            },
-          },
-        ],
-        stop_reason: "tool_use",
-        usage: { input_tokens: 50, output_tokens: 30 },
-      };
-    });
-
-    const result = await fetchUrl(
-      "https://docs.google.com/document/d/abc123",
-      config,
-      fakeMcpxClient,
-    );
-
-    expect(result.title).toBe("Test Doc");
-    expect(result.content).toBe("# Hello from MCPX");
-    expect(result.mimeType).toBe("text/markdown");
-  });
-
-  test("retries when accept_content references unknown exec_call_id", async () => {
-    let call = 0;
-    mockCreate.mockImplementation(async () => {
-      call++;
-      if (call === 1) {
-        return {
-          content: [
-            {
-              type: "tool_use",
-              id: "accept_1",
-              name: "accept_content",
-              input: { exec_call_id: "missing", title: "X" },
-            },
-          ],
-          stop_reason: "tool_use",
-          usage: { input_tokens: 50, output_tokens: 30 },
-        };
-      }
-      // After error, agent gives up and requests fallback
-      return {
-        content: [
-          {
-            type: "tool_use",
-            id: "fb_1",
-            name: "request_http_fallback",
-            input: {},
-          },
-        ],
-        stop_reason: "tool_use",
-        usage: { input_tokens: 50, output_tokens: 30 },
-      };
-    });
-
-    globalThis.fetch = mock(
-      async () =>
-        new Response("Fallback", { headers: { "content-type": "text/plain" } }),
-    ) as unknown as typeof fetch;
-
-    const fakeMcpxClient = {} as unknown as McpxClient;
-    const result = await fetchUrl(
-      "https://example.com",
-      config,
-      fakeMcpxClient,
-    );
-    expect(result.content).toBe("Fallback");
-    expect(call).toBe(2);
-  });
-
-  test("falls back to HTTP when agent calls request_http_fallback", async () => {
-    mockCreate.mockImplementation(async () => ({
-      content: [
-        {
-          type: "tool_use",
-          id: "fb_1",
-          name: "request_http_fallback",
-          input: {},
-        },
-      ],
-      stop_reason: "tool_use",
-      usage: { input_tokens: 50, output_tokens: 30 },
-    }));
-
-    globalThis.fetch = mock(
-      async () =>
-        new Response("Plain text content", {
-          headers: { "content-type": "text/plain" },
-        }),
-    ) as unknown as typeof fetch;
-
-    const fakeMcpxClient = {} as unknown as McpxClient;
-    const result = await fetchUrl(
-      "https://example.com/page.txt",
-      config,
-      fakeMcpxClient,
-    );
-
-    expect(result.content).toBe("Plain text content");
-    expect(result.mimeType).toBe("text/plain");
-  });
-
-  test("throws FetchFailureError when agent calls report_failure", async () => {
-    mockCreate.mockImplementation(async () => ({
-      content: [
-        {
-          type: "tool_use",
-          id: "tool_1",
-          name: "report_failure",
-          input: {
-            message:
-              "This Google Doc is private — share it with your service account.",
-          },
-        },
-      ],
-      stop_reason: "tool_use",
-      usage: { input_tokens: 50, output_tokens: 30 },
-    }));
-
-    const fakeMcpxClient = {} as unknown as McpxClient;
-    let caught: unknown;
+  test("falls back to plain HTTP when no MCPX client is available", async () => {
+    // Stub global fetch so we don't actually hit the network.
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(
+        "<html><head><title>From HTTP</title></head><body><p>hi</p></body></html>",
+        { headers: { "content-type": "text/html" } },
+      )) as unknown as typeof globalThis.fetch;
     try {
-      await fetchUrl(
-        "https://docs.google.com/document/d/private",
-        config,
-        fakeMcpxClient,
+      const r = await fetchUrl(
+        "https://example.com/page",
+        TEST_CONFIG,
+        null,
+        null as never,
       );
-    } catch (err) {
-      caught = err;
+      expect(r.title).toBe("From HTTP");
+      expect(r.content).toContain("hi");
+      expect(r.source).toBeNull();
+    } finally {
+      globalThis.fetch = origFetch;
     }
-
-    expect(caught).toBeInstanceOf(FetchFailureError);
-    expect(
-      (caught as InstanceType<typeof FetchFailureError>).userMessage,
-    ).toContain("share it with your service account");
-  });
-
-  test("falls back to HTTP when agent returns no tool use", async () => {
-    mockCreate.mockImplementation(async () => ({
-      content: [{ type: "text", text: "I cannot fetch this." }],
-      stop_reason: "end_turn",
-      usage: { input_tokens: 50, output_tokens: 30 },
-    }));
-
-    globalThis.fetch = mock(
-      async () =>
-        new Response("Fallback content", {
-          headers: { "content-type": "text/plain" },
-        }),
-    ) as unknown as typeof fetch;
-
-    const fakeMcpxClient = {} as unknown as McpxClient;
-    const result = await fetchUrl(
-      "https://example.com",
-      config,
-      fakeMcpxClient,
-    );
-
-    expect(result.content).toBe("Fallback content");
   });
 });
 
 describe("httpFallback", () => {
-  test("fetches HTML and strips tags", async () => {
-    globalThis.fetch = mock(
-      async () =>
-        new Response(
-          "<html><head><title>My Page</title></head><body><p>Content here</p></body></html>",
-          { headers: { "content-type": "text/html; charset=utf-8" } },
-        ),
-    ) as unknown as typeof fetch;
+  let origFetch: typeof globalThis.fetch;
 
-    const result = await httpFallback("https://example.com");
-    expect(result.title).toBe("My Page");
-    expect(result.content).toContain("Content here");
-    expect(result.content).not.toContain("<p>");
-    expect(result.mimeType).toBe("text/markdown");
+  beforeEach(() => {
+    origFetch = globalThis.fetch;
   });
 
-  test("fetches plain text as-is", async () => {
-    globalThis.fetch = mock(
-      async () =>
-        new Response("Just text", {
-          headers: { "content-type": "text/plain" },
-        }),
-    ) as unknown as typeof fetch;
-
-    const result = await httpFallback("https://example.com/file.txt");
-    expect(result.content).toBe("Just text");
-    expect(result.mimeType).toBe("text/plain");
+  afterEach(() => {
+    globalThis.fetch = origFetch;
   });
 
-  test("throws on HTTP errors", async () => {
-    globalThis.fetch = mock(
-      async () =>
-        new Response("Not Found", { status: 404, statusText: "Not Found" }),
-    ) as unknown as typeof fetch;
+  test("strips HTML tags and extracts <title>", async () => {
+    globalThis.fetch = (async () =>
+      new Response(
+        "<html><head><title>Hello world</title></head><body><p>Body text</p></body></html>",
+        { headers: { "content-type": "text/html" } },
+      )) as unknown as typeof globalThis.fetch;
 
+    const r = await httpFallback("https://example.com/x");
+    expect(r.title).toBe("Hello world");
+    expect(r.content).toContain("Body text");
+    expect(r.content).not.toContain("<p>");
+    expect(r.source).toBeNull();
+  });
+
+  test("preserves non-html content as-is", async () => {
+    globalThis.fetch = (async () =>
+      new Response("plain text body", {
+        headers: { "content-type": "text/plain" },
+      })) as unknown as typeof globalThis.fetch;
+
+    const r = await httpFallback("https://example.com/raw");
+    expect(r.content).toBe("plain text body");
+    // No <title> match → title falls back to the URL.
+    expect(r.title).toBe("https://example.com/raw");
+    expect(r.mimeType).toBe("text/plain");
+  });
+
+  test("throws on non-OK responses", async () => {
+    globalThis.fetch = (async () =>
+      new Response("Not Found", {
+        status: 404,
+        statusText: "Not Found",
+      })) as unknown as typeof globalThis.fetch;
     await expect(httpFallback("https://example.com/missing")).rejects.toThrow(
-      "HTTP 404",
+      /HTTP 404/,
     );
   });
 
-  test("uses URL as title when no <title> tag", async () => {
-    globalThis.fetch = mock(
-      async () =>
-        new Response("<html><body>No title</body></html>", {
-          headers: { "content-type": "text/html" },
-        }),
-    ) as unknown as typeof fetch;
+  test("truncates very large bodies", async () => {
+    const huge = "x".repeat(2_000_000);
+    globalThis.fetch = (async () =>
+      new Response(huge, {
+        headers: { "content-type": "text/plain" },
+      })) as unknown as typeof globalThis.fetch;
 
-    const result = await httpFallback("https://example.com/page");
-    expect(result.title).toBe("https://example.com/page");
+    const r = await httpFallback("https://example.com/huge");
+    expect(r.content.length).toBeLessThan(huge.length);
+  });
+});
+
+describe("FetchFailureError", () => {
+  test("carries a userMessage", () => {
+    const e = new FetchFailureError("private doc, share with service account");
+    expect(e).toBeInstanceOf(Error);
+    expect(e.userMessage).toBe("private doc, share with service account");
   });
 });

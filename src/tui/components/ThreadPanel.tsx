@@ -1,6 +1,5 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { withDb } from "../../db/connection.ts";
 import {
   deleteThread,
   getInteractionsAfter,
@@ -9,11 +8,11 @@ import {
   isThreadEnded,
   listThreads,
   type Thread,
-} from "../../db/threads.ts";
+} from "../../threads/store.ts";
 import { ansi, theme } from "../theme.ts";
 
 interface ThreadPanelProps {
-  dbPath: string;
+  projectDir: string;
   activeThreadId: string;
   isActive: boolean;
 }
@@ -181,7 +180,7 @@ function cycleFilter<T>(current: T | null, values: readonly T[]): T | null {
 }
 
 export const ThreadPanel = memo(function ThreadPanel({
-  dbPath,
+  projectDir,
   activeThreadId,
   isActive,
 }: ThreadPanelProps) {
@@ -210,12 +209,16 @@ export const ThreadPanel = memo(function ThreadPanel({
     const refresh = async () => {
       const filters: { type?: Thread["type"] } = {};
       if (typeFilter) filters.type = typeFilter;
-      const result = await withDb(dbPath, (conn) => listThreads(conn, filters));
-      if (mounted) {
-        setThreads(result);
-        setSelectedIndex((prev) =>
-          Math.min(prev, Math.max(0, result.length - 1)),
-        );
+      try {
+        const result = await listThreads(projectDir, filters);
+        if (mounted) {
+          setThreads(result);
+          setSelectedIndex((prev) =>
+            Math.min(prev, Math.max(0, result.length - 1)),
+          );
+        }
+      } catch {
+        // ignore — next tick retries
       }
     };
 
@@ -225,7 +228,7 @@ export const ThreadPanel = memo(function ThreadPanel({
       mounted = false;
       clearInterval(interval);
     };
-  }, [dbPath, typeFilter, refreshTick]);
+  }, [projectDir, typeFilter, refreshTick]);
 
   // Filter threads by search query
   const filteredThreads = useMemo(() => {
@@ -245,18 +248,16 @@ export const ThreadPanel = memo(function ThreadPanel({
       return;
     }
 
-    withDb(dbPath, (conn) => getThread(conn, selectedThread.id)).then(
-      (result) => {
-        if (mounted && result) {
-          setSelectedDetail(result);
-        }
-      },
-    );
+    getThread(projectDir, selectedThread.id).then((result) => {
+      if (mounted && result) {
+        setSelectedDetail(result);
+      }
+    });
 
     return () => {
       mounted = false;
     };
-  }, [dbPath, selectedThread?.id, following]);
+  }, [projectDir, selectedThread?.id, following]);
 
   // Follow mode: poll for new interactions every 1s
   // biome-ignore lint/correctness/useExhaustiveDependencies: following and selectedThread?.id are the intentional triggers
@@ -266,12 +267,10 @@ export const ThreadPanel = memo(function ThreadPanel({
 
     const poll = async () => {
       try {
-        const newInteractions = await withDb(dbPath, (conn) =>
-          getInteractionsAfter(
-            conn,
-            selectedThread.id,
-            lastSeenSequenceRef.current,
-          ),
+        const newInteractions = await getInteractionsAfter(
+          projectDir,
+          selectedThread.id,
+          lastSeenSequenceRef.current,
         );
         if (!mounted || newInteractions.length === 0) return;
 
@@ -287,24 +286,18 @@ export const ThreadPanel = memo(function ThreadPanel({
           };
         });
 
-        // Auto-scroll will be handled by the detailLines/maxDetailScroll recalc
         setDetailScroll(Number.MAX_SAFE_INTEGER);
 
-        const ended = await withDb(dbPath, (conn) =>
-          isThreadEnded(conn, selectedThread.id),
-        );
+        const ended = await isThreadEnded(projectDir, selectedThread.id);
         if (mounted && ended) {
           setFollowing(false);
-          // Refresh the thread to get the ended_at timestamp
-          const result = await withDb(dbPath, (conn) =>
-            getThread(conn, selectedThread.id),
-          );
+          const result = await getThread(projectDir, selectedThread.id);
           if (mounted && result) {
             setSelectedDetail(result);
           }
         }
       } catch {
-        // Transient DB errors — retry next tick
+        // Transient FS errors — retry next tick
       }
     };
 
@@ -314,7 +307,7 @@ export const ThreadPanel = memo(function ThreadPanel({
       mounted = false;
       clearInterval(interval);
     };
-  }, [dbPath, following, selectedThread?.id]);
+  }, [projectDir, following, selectedThread?.id]);
 
   const isActiveSelected = selectedThread?.id === activeThreadId;
 
@@ -383,9 +376,7 @@ export const ThreadPanel = memo(function ThreadPanel({
       if (confirmDelete) {
         if (input === "y" || input === "d") {
           if (selectedThread && !isActiveSelected) {
-            withDb(dbPath, (conn) =>
-              deleteThread(conn, selectedThread.id),
-            ).then(() => {
+            deleteThread(projectDir, selectedThread.id).then(() => {
               forceRefresh();
             });
           }

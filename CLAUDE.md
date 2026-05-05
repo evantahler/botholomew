@@ -8,11 +8,17 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `cli.ts` — CLI entrypoint (Commander.js)
   - `commands/` — CLI subcommand handlers
   - `config/` — Configuration loading/schemas
+  - `fs/` — Path sandbox (`resolveInRoot`), atomic-write/lockfile helpers, sync-overlay-FS detector
+  - `context/` — Disk-backed context store, ingest pipeline, chunker, embedder, reindex
+  - `tasks/` — Task frontmatter schema, file CRUD, lockfile-based claim
+  - `schedules/` — Same shape as tasks, on `schedules/<id>.md`
+  - `threads/` — CSV-backed conversation log (`threads/<YYYY-MM-DD>/<id>.csv`)
+  - `workers/` — Pidfile + heartbeat store under `workers/<id>.json`
   - `worker/` — Worker tick loop, LLM integration, prompt building, heartbeat
-  - `db/` — DuckDB connection (`@duckdb/node-api`), schema migrations, CRUD modules
+  - `db/` — DuckDB connection for the search-index sidecar (`@duckdb/node-api`), schema migrations
   - `init/` — Project initialization
   - `tui/` — Ink (React) TUI components
-  - `utils/` — Logger, frontmatter
+  - `utils/` — Logger, frontmatter, v7-date helpers
 - `test/` — Tests (mirrors src/ structure)
 - `docs/` — User-facing markdown docs (also published at [www.botholomew.com](https://www.botholomew.com))
   - `docs/.vitepress/` — VitePress config + theme overrides for the published site
@@ -28,7 +34,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 ## Tech Stack
 
 - **Runtime**: Bun + TypeScript
-- **Database**: DuckDB (`@duckdb/node-api`) with VSS extension for vector search
+- **Storage**: Real files on disk (markdown w/ frontmatter for tasks/schedules/prompts; CSV for threads; plain files for `context/`); DuckDB (`@duckdb/node-api`) for the search-index sidecar (`index.duckdb`) only — fully derivable from disk
 - **LLM**: Anthropic SDK (`@anthropic-ai/sdk`)
 - **CLI**: Commander.js
 - **TUI**: Ink 6 + React 19
@@ -40,31 +46,37 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - Bump `version` in `package.json` for every change merged to `main` — the auto-release workflow uses this to determine when to publish. **Exception**: docs-only changes (anything under `docs/`, plus `README.md`) do not need a version bump, since they don't affect the published binary.
 - Run `bun run lint` and `bun test` before committing
 - `bun run lint` runs both `tsc --noEmit` and `biome check`
-- All database access goes through `src/db/` modules
-- All agent interactions are logged to the threads/interactions tables
-- **List operations always support `-l, --limit <n>` and `-o, --offset <n>`** — applies to every CLI `list` subcommand and the corresponding `src/db/` list function. Use `sanitizeInt` on both when interpolating into SQL, and pick a stable `ORDER BY` (with an `id` tiebreaker) so pagination is deterministic.
-- No filesystem tools for the agent — FS access is abstracted through CRUD modules scoped to `.botholomew/`
+- Each on-disk area has its own store module: `src/context/store.ts`, `src/tasks/store.ts`, `src/schedules/store.ts`, `src/threads/store.ts`, `src/workers/store.ts`. The `src/db/` layer is now just the search-index sidecar.
+- All path-taking tools route through `src/fs/sandbox.ts::resolveInRoot` — no exceptions
+- All agent interactions are logged to the thread CSV at `threads/<YYYY-MM-DD>/<id>.csv`
+- **List operations always support `-l, --limit <n>` and `-o, --offset <n>`** — applies to every CLI `list` subcommand and every list function in `src/{tasks,schedules,threads,workers}/store.ts`. Pick a stable sort (typically newest-first by `id`, since uuidv7 is time-ordered) so pagination is deterministic.
+- The agent has no shell. File access is exposed through `context_*` tools that pin to `<root>/context/`; tasks, schedules, and threads have their own typed tools
 - When designing or modifying agent tools, follow PATs (Patterns for Agentic Tools): https://arcade.dev/patterns/llm.txt — key principles: error-guided recovery, next-action hints, token-efficient outputs, error classification
 - **Tool descriptions mirror bash when applicable** — if an LLM tool behaves like a familiar CLI command (e.g., `cat`, `ls`, `mv`, `grep`), prefix its `description` with `[[ bash equivalent command: <cmd> ]] ` followed by the short description. This anchors the tool for the model and keeps the tag machine-parseable. Omit the tag for tools with no natural bash analog (e.g., `update_beliefs`, `read_large_result`).
 
-## Database Patterns
+## On-disk patterns
 
-- **Connection lifecycle**: DuckDB holds the file lock at the *instance* level, so **no process holds a connection longer than one logical operation**. Always use `withDb(dbPath, async (conn) => { ... })` from `src/db/connection.ts` — it opens a conn, runs your callback, closes, and releases the OS lock. Never stash a `DbConnection` on a long-lived object (worker tick, chat session, TUI component state).
+- **Project root is the cwd.** `bothy init` writes its tree at `<cwd>/{config,prompts,context,tasks,schedules,threads,workers,logs,…}` — there is no `.botholomew/` wrapper.
+- **Path sandbox is non-negotiable.** Every tool that takes a `path` arg routes through `src/fs/sandbox.ts::resolveInRoot(root, userPath, opts)`. NFC-normalize, reject NUL/`..`/absolute, lstat-walk every component to refuse symlinks. New tools that touch paths MUST use this helper.
+- **Atomic-write-via-rename for status mutations.** `src/fs/atomic.ts::atomicWrite` writes a `*.tmp.<wid>` then `fs.rename`s. Reads-before-writes (tasks/schedules/prompts) compare the file's `mtime` between read and write — abort and retry if it changed.
+- **`O_EXCL` lockfiles** for tasks, schedules, and reindex. Body holds the worker id and `claimed_at`. Release = `unlink`. Reaper walks the lock dirs and unlinks orphans whose owner is dead in `workers/`.
+- **Filesystem compatibility**: `init` and worker startup detect iCloud / Dropbox / OneDrive / NFS via path heuristics and refuse to run unless `--force` (sync overlays break `O_EXCL` and atomic rename).
+- **IDs**: UUIDv7 via `uuidv7()` from `src/db/uuid.ts`. The 48-bit timestamp prefix is what `src/utils/v7-date.ts::dateForId` uses to derive the date subdir for threads and worker logs (pure function of the id).
+- **Frontmatter** for tasks/schedules/prompts is strict-Zod-validated (`src/{tasks,schedules}/schema.ts`). Validation failures quarantine the file: log a structured warning and skip — never crash the worker.
+- **Thread CSVs** are RFC-4180. The first row carries a `system / thread_meta` interaction whose `content` is a JSON blob with the thread's own metadata. `src/threads/store.ts` is the only writer; it handles escaping commas, quotes, and embedded newlines in agent output.
+
+## DuckDB patterns (search-index sidecar only)
+
+- **Connection lifecycle**: DuckDB holds the file lock at the *instance* level, so **no process holds a connection longer than one logical operation**. Always use `withDb(dbPath, async (conn) => { ... })` from `src/db/connection.ts` — it opens a conn, runs your callback, closes, and releases the OS lock. Never stash a `DbConnection` on a long-lived object.
 - **`dbPath` is the currency**: long-lived callers (workers, chat session, TUI panels) hold `dbPath: string`, not `conn`. They open a fresh `withDb` per operation.
-- **CRUD modules in `src/db/*`**: still take `conn: DbConnection` as their first argument. Callers supply one via `withDb`. Don't change these signatures to `dbPath` — tests pass an in-memory conn directly, which wouldn't survive a `withDb` (separate `:memory:` instances don't share state).
+- **`src/db/embeddings.ts`** is the only DB CRUD module left; it takes `conn: DbConnection` as its first argument. Tests pass an in-memory conn directly.
 - **Tools (`src/tools/*`)**: `ToolContext` has both `conn` (short-lived, scoped to this tool call) and `dbPath` (for long-running tools). Default to `ctx.conn`. For tools that take more than a couple seconds (e.g., `context_refresh` re-fetching many URLs), wrap DB touches in `await withDb(ctx.dbPath, ...)` so the lock releases between items.
-- **Transactions**: `BEGIN / COMMIT / ROLLBACK` must all run on the **same** `conn`. Keep the whole transaction inside one `withDb` block.
-- **Retry**: `withRetry` (inside `withDb`) catches DuckDB "Conflicting lock" errors and backs off exponentially (100, 200, 400 … up to 8 tries ≈ 25 s). Non-lock errors propagate immediately.
-- **Parallel tool calls**: safe. Overlapping `withDb` calls in one process share a refcounted instance; DuckDB's "don't open the same DB twice in a process" rule stays satisfied, and the OS lock releases once every overlapping caller has closed.
-- **Migrations**: always call `migrate(conn)` after opening — it's idempotent. In entrypoints, do it once in a short `withDb` at startup (worker, chat, CLI via `src/commands/with-db.ts`).
-- **IDs**: UUIDv7 generated in application code via `uuidv7()` from `src/db/uuid.ts` (re-exports `uuid` package)
-- **Queries**: use parameterized queries (`?1, ?2, ...`) — never string interpolation (auto-translated to `$N` for DuckDB)
-- **Timestamps**: stored as ISO 8601 TEXT (`datetime('now')`), converted to `Date` objects in TypeScript interfaces
-- **Booleans**: stored as INTEGER (0/1) in DuckDB, converted to `boolean` in TypeScript
-- **Arrays**: `blocked_by`/`context_ids` are JSON TEXT columns — `JSON.stringify()` on write, `JSON.parse()` on read
-- **Vectors**: embedding columns use DuckDB's native `FLOAT[N]` array type with `array_cosine_distance()` (core DuckDB, no extension) for similarity search; no HNSW index — linear scan is plenty fast at our scale.
-- **Full-text search**: keyword search over `embeddings.chunk_content` + `title` uses the `fts` extension's `match_bm25`. The FTS index is a snapshot — any code that writes to `embeddings` must call `rebuildSearchIndex(conn)` from `src/db/embeddings.ts` after its transaction commits. Ingest (`src/context/ingest.ts`) is the only writer today and already does this.
-- **Row mapping**: each module has a `RowType` interface (raw DuckDB values) and a `rowToX()` function that converts to the public TypeScript interface with proper types
+- **Single batch writer**: `botholomew context reindex` acquires a process file lock and refuses to run while any worker pidfile is alive. Per-path reindex inside a worker is fine (sequential, in-process); cross-process concurrent rebuilds are not.
+- **Retry**: `withRetry` (inside `withDb`) catches DuckDB "Conflicting lock" errors and backs off exponentially. Non-lock errors propagate immediately.
+- **Migrations**: always call `migrate(conn)` after opening — it's idempotent. The migration set now drops the retired tables (tasks/schedules/threads/interactions/workers/context_items) so an old `index.duckdb` upgrades cleanly to the slim schema (`_migrations` + `context_index`).
+- **Queries**: parameterized (`?1, ?2, ...`) — never string interpolation.
+- **Vectors**: `FLOAT[384]` with `array_cosine_distance()`; no HNSW.
+- **Full-text search**: BM25 over `context_index.chunk_content + title` via the `fts` extension. The FTS index is a snapshot — any writer must call `rebuildSearchIndex(conn)` after committing. The reindex pipeline (`src/context/reindex.ts`) is the only writer.
 
 ## Embeddings
 
@@ -83,27 +95,27 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 
 - **Docs must track code.** Every PR that changes user-visible behavior must update the relevant doc(s). Treat docs as part of the code — not a follow-up task.
 - The user-facing doc set lives under `docs/`, is published at [www.botholomew.com](https://www.botholomew.com) via VitePress + GitHub Pages, and is linked from `README.md`:
-  - `docs/architecture.md` — workers, chat, registration + heartbeat + reaping, shared DB
+  - `docs/architecture.md` — workers, chat, registration + heartbeat + reaping, the disk layout, the search-index sidecar
   - `docs/automation.md` — cron, tmux, optional launchd/systemd for running workers on a schedule
-  - `docs/virtual-filesystem.md` — DuckDB-as-filesystem, `file_*` / `dir_*` tools, patch format
-  - `docs/context-and-search.md` — ingestion pipeline, chunking, embeddings, hybrid search, remote loading agent, `context refresh`
-  - `docs/tasks-and-schedules.md` — task lifecycle, DAG validation, predecessor outputs, LLM schedule evaluation
+  - `docs/files.md` — the `context/` sandbox (NFC + lstat-walk), file/dir tools, patch format
+  - `docs/context-and-search.md` — ingestion pipeline, chunking, embeddings, hybrid search, reindex on write, remote loading agent
+  - `docs/tasks-and-schedules.md` — task/schedule files (markdown + frontmatter), lockfile claim, DAG validation, predecessor outputs, LLM schedule evaluation
   - `docs/tools.md` — the `ToolDefinition` pattern (Zod → Anthropic + CLI)
-  - `docs/persistent-context.md` — `soul.md` / `beliefs.md` / `goals.md`, frontmatter, self-modification
+  - `docs/prompts.md` — `prompts/{soul,beliefs,goals,capabilities}.md`, frontmatter, self-modification
   - `docs/skills.md` — slash-command skills, `$1` / `$ARGUMENTS` substitution, tab completion
   - `docs/mcpx.md` — `servers.json`, local servers vs. MCP gateways (Arcade), `mcp_*` meta-tools
   - `docs/configuration.md` — every key in `config.json`
   - `docs/tui.md` — the `botholomew chat` TUI: tabs, shortcuts, slash-command popup, message queue, streaming
 - **When to update which doc:**
-  - Touching `src/db/sql/*.sql` or `src/db/schema.ts` → update `docs/virtual-filesystem.md` and/or `docs/context-and-search.md` with any new columns, tables, or indexes.
-  - Changing connection lifecycle or `withDb` semantics in `src/db/connection.ts` → update the "Connection model" section in `docs/architecture.md` and the "Database Patterns" section in this file.
-  - Adding/renaming/removing a tool in `src/tools/` → update the relevant doc (`virtual-filesystem.md` for file/dir tools, `context-and-search.md` for search tools, `tools.md` if the registry pattern changed) and the CLI reference table in `README.md`.
+  - Touching `src/fs/sandbox.ts`, `src/fs/atomic.ts`, or `src/fs/compat.ts` → update `docs/files.md` and the "On-disk patterns" section in this file.
+  - Touching `src/db/schema.ts` (the `context_index` table) → update `docs/context-and-search.md`.
+  - Adding/renaming/removing a tool in `src/tools/` → update the relevant doc (`files.md` for `context_*` file/dir tools, `context-and-search.md` for search/refresh tools, thread tools in `architecture.md`, `tools.md` if the registry pattern changed) and the CLI reference table in `README.md`.
   - Adding a CLI subcommand in `src/commands/` → update the CLI table in `README.md` and the doc for that area.
   - Changing config defaults in `src/config/schemas.ts` → update `docs/configuration.md`.
   - Changing the tick loop, schedule evaluation, or agent loop (`src/worker/*`) → update `docs/architecture.md` and/or `docs/tasks-and-schedules.md`.
-  - Changing worker registration, heartbeat, or reaping (`src/worker/heartbeat.ts`, `src/db/workers.ts`) → update `docs/architecture.md`.
+  - Changing worker registration, heartbeat, or reaping (`src/worker/heartbeat.ts`, `src/workers/store.ts`, `src/tasks/claim.ts`, `src/schedules/claim.ts`) → update `docs/architecture.md`.
   - Adding or renaming a skill template in `src/init/templates.ts` → update `docs/skills.md` and `src/init/index.ts`.
-  - Changing anything in persistent-context loading (`src/worker/prompt.ts`) → update `docs/persistent-context.md`.
+  - Changing prompts loading (`src/worker/prompt.ts`) → update `docs/prompts.md`.
   - Changing anything in `src/tui/` (new tab, new shortcut, input behavior) → update `docs/tui.md`.
   - Adding a new top-level doc under `docs/` → also add it to the sidebar in `docs/.vitepress/config.ts` so it's reachable from the published site.
 - If a doc reference goes stale (links a renamed file, cites a removed behavior), fix it in the same PR — don't leave it for later.

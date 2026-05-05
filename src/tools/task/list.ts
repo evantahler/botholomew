@@ -1,11 +1,13 @@
 import { z } from "zod";
-import { listTasks, TASK_PRIORITIES, TASK_STATUSES } from "../../db/tasks.ts";
+import { TASK_PRIORITIES, TASK_STATUSES } from "../../tasks/schema.ts";
+import { listTasks } from "../../tasks/store.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
   status: z.enum(TASK_STATUSES).optional().describe("Filter by status"),
   priority: z.enum(TASK_PRIORITIES).optional().describe("Filter by priority"),
   limit: z.number().optional().describe("Max number of tasks to return"),
+  offset: z.number().optional().describe("Skip first N tasks"),
 });
 
 const outputSchema = z.object({
@@ -31,10 +33,11 @@ export const listTasksTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const tasks = await listTasks(ctx.conn, {
+    const tasks = await listTasks(ctx.projectDir, {
       status: input.status,
       priority: input.priority,
       limit: input.limit,
+      offset: input.offset,
     });
     return {
       tasks: tasks.map((t) => ({
@@ -44,7 +47,7 @@ export const listTasksTool = {
         priority: t.priority,
         description: t.description,
         output: t.output,
-        created_at: t.created_at.toISOString(),
+        created_at: t.created_at,
       })),
       count: tasks.length,
       is_error: false,

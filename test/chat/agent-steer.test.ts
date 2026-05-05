@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { APIUserAbortError } from "@anthropic-ai/sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import { THREADS_DIR } from "../../src/constants.ts";
 import {
   mockEmbed,
   mockEmbedSingle,
-  setupTestDbFile,
   silentLogger,
   TEST_CONFIG,
 } from "../helpers.ts";
@@ -24,7 +24,7 @@ mock.module("../../src/context/embedder.ts", () => ({
 mock.module("../../src/utils/logger.ts", () => silentLogger);
 
 const { runChatTurn } = await import("../../src/chat/agent.ts");
-const { createThread } = await import("../../src/db/threads.ts");
+const { createThread } = await import("../../src/threads/store.ts");
 
 class FakeMessageStream extends EventEmitter {
   aborted = false;
@@ -66,21 +66,17 @@ function makeClient(streamFactory: () => FakeMessageStream) {
 }
 
 let dbPath: string;
-let cleanupDb: () => Promise<void>;
 let threadId: string;
 let projectDir: string;
 
 beforeEach(async () => {
-  const setup = await setupTestDbFile();
-  dbPath = setup.dbPath;
-  cleanupDb = setup.cleanup;
-  threadId = await createThread(setup.conn, "chat_session", undefined, "test");
   projectDir = await mkdtemp(join(tmpdir(), "chat-steer-"));
-  await mkdir(join(projectDir, ".botholomew"), { recursive: true });
+  await mkdir(join(projectDir, THREADS_DIR), { recursive: true });
+  dbPath = join(projectDir, "index.duckdb");
+  threadId = await createThread(projectDir, "chat_session", undefined, "test");
 });
 
 afterEach(async () => {
-  await cleanupDb();
   await rm(projectDir, { recursive: true, force: true });
 });
 

@@ -2,7 +2,7 @@ import { join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import type { McpxClient } from "@evantahler/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { getBotholomewDir } from "../constants.ts";
+import { getPromptsDir } from "../constants.ts";
 import { getAllTools, type ToolDefinition } from "../tools/tool.ts";
 import {
   type ContextFileMeta,
@@ -151,7 +151,7 @@ const SUMMARIZE_TOOL = {
       internal_themes: {
         type: "array",
         description:
-          "Themes covering the agent's built-in tools (task queue, virtual filesystem, search, threads, MCPX meta-tools, workers, self-reflection, etc.).",
+          "Themes covering the agent's built-in tools (task queue, files & sandbox, search, threads, MCPX meta-tools, workers, self-reflection, etc.).",
         items: {
           type: "object",
           properties: {
@@ -241,12 +241,12 @@ Rules:
 - Do NOT list specific tool names. The agent discovers exact names via the MCPX meta-tools (mcp_search, mcp_list_tools, mcp_info) when it actually needs to invoke one.
 - Group tools into natural themes.
 - For MCPX tools, one theme usually = one external service (Gmail, Google Calendar, GitHub, Linear, Slack, Google Docs, Google Drive, Google Sheets, Apple Notes, etc.). Split a single server into multiple themes when it clearly exposes distinct services.
-- For internal tools, use coarse buckets aligned with the provided groups (task management, virtual filesystem, search, threads, MCPX meta-tools, workers, self-reflection, capabilities). Merge overlapping groups if natural.
+- For internal tools, use coarse buckets aligned with the provided groups (task management, files & sandbox, search, threads, MCPX meta-tools, workers, self-reflection, capabilities). Merge overlapping groups if natural.
 - Each summary is ONE sentence with concrete action verbs. Present-tense imperative, no preamble.
 
 GOOD examples:
   "Gmail — read, send, draft, search, and reply to emails; manage labels and threads"
-  "Virtual filesystem — read, write, edit, move, copy, delete, and navigate items in the agent's persistent memory store"
+  "Files & sandbox — read, write, edit, move, copy, delete, and navigate files under the agent's context/ tree"
   "GitHub — read and write repositories, branches, files, issues, pull requests, reviews, and labels"
 
 BAD examples (do not produce):
@@ -368,8 +368,8 @@ function renderFallback(inv: RawInventory, now: Date): string {
     schedule:
       "create and list recurring schedules that automatically generate tasks",
     context:
-      "read, write, edit, move, copy, delete, and navigate items in the agent's persistent memory store; update beliefs and goals; read large tool results",
-    search: "keyword and semantic search over the virtual filesystem",
+      "read, write, edit, move, copy, delete, and navigate files in the agent's context/ tree; update beliefs and goals; read large tool results",
+    search: "keyword, semantic, and regexp search over files in context/",
     thread: "list and view past conversation threads and tool interactions",
     mcp: "search, list, inspect, and execute tools exposed by configured MCPX servers",
     worker: "spawn background workers to run tasks asynchronously",
@@ -461,9 +461,9 @@ export interface WriteResult {
 }
 
 /**
- * Regenerate and write `.botholomew/capabilities.md`. Preserves any existing
- * frontmatter (so a human-edited `loading:` flag survives). On first write
- * the default frontmatter is `loading: always`, `agent-modification: true`.
+ * Regenerate and write `prompts/capabilities.md`. Preserves any
+ * existing frontmatter (so a human-edited `loading:` flag survives). On first
+ * write the default frontmatter is `loading: always`, `agent-modification: true`.
  */
 export async function writeCapabilitiesFile(
   projectDir: string,
@@ -471,7 +471,7 @@ export async function writeCapabilitiesFile(
   config: Required<BotholomewConfig>,
   onPhase?: ProgressCallback,
 ): Promise<WriteResult> {
-  const filePath = join(getBotholomewDir(projectDir), CAPABILITIES_FILENAME);
+  const filePath = join(getPromptsDir(projectDir), CAPABILITIES_FILENAME);
   const file = Bun.file(filePath);
 
   let meta: ContextFileMeta = {

@@ -1,241 +1,166 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { serializeContextFile } from "../../src/utils/frontmatter.ts";
-import { mockEmbedSingle, silentLogger } from "../helpers.ts";
-
-// Mock the embedder to avoid loading the real model
-mock.module("../../src/context/embedder.ts", () => ({
-  embedSingle: mockEmbedSingle,
-}));
-
-// Mock the logger to suppress output
-mock.module("../../src/utils/logger.ts", () => silentLogger);
-
-const { buildSystemPrompt } = await import("../../src/worker/prompt.ts");
+import { getPromptsDir } from "../../src/constants.ts";
+import type { Task } from "../../src/tasks/schema.ts";
+import {
+  buildSystemPrompt,
+  extractKeywords,
+  loadPersistentContext,
+  STYLE_RULES,
+} from "../../src/worker/prompt.ts";
 
 let projectDir: string;
 
 beforeEach(async () => {
-  projectDir = await mkdtemp(join(tmpdir(), "botholomew-prompt-test-"));
-  const { mkdir } = await import("node:fs/promises");
-  await mkdir(join(projectDir, ".botholomew"), { recursive: true });
+  projectDir = await mkdtemp(join(tmpdir(), "both-prompt-"));
+  await mkdir(getPromptsDir(projectDir), { recursive: true });
 });
 
 afterEach(async () => {
   await rm(projectDir, { recursive: true, force: true });
 });
 
-describe("buildSystemPrompt", () => {
-  test("includes meta information", async () => {
-    const prompt = await buildSystemPrompt(projectDir);
-    expect(prompt).toContain("# Botholomew");
-    expect(prompt).toContain("Current time:");
-    expect(prompt).toContain(`Project directory: ${projectDir}`);
-    expect(prompt).toContain("OS:");
+async function writePrompt(name: string, body: string): Promise<void> {
+  await writeFile(join(getPromptsDir(projectDir), name), body);
+}
+
+function fakeTask(name: string, description: string): Task {
+  return {
+    id: "t-1",
+    name,
+    description,
+    priority: "medium",
+    status: "in_progress",
+    blocked_by: [],
+    context_paths: [],
+    output: null,
+    waiting_reason: null,
+    claimed_by: "worker-1",
+    claimed_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    mtimeMs: Date.now(),
+    body: description,
+  };
+}
+
+describe("extractKeywords", () => {
+  test("lowercases, splits, drops words ≤ 3 chars", () => {
+    const kws = extractKeywords("The fox jumps over a lazy dog");
+    // 'the', 'fox', 'a' are filtered; the rest stay.
+    expect([...kws].sort()).toEqual(["jumps", "lazy"].concat(["over"]).sort());
   });
 
-  test("includes instructions section", async () => {
+  test("returns an empty set for empty input", () => {
+    expect(extractKeywords("").size).toBe(0);
+  });
+});
+
+describe("loadPersistentContext", () => {
+  test("includes 'always' files unconditionally", async () => {
+    await writePrompt(
+      "soul.md",
+      "---\nloading: always\n---\n\nI am the agent.\n",
+    );
+    const out = await loadPersistentContext(projectDir);
+    expect(out).toContain("soul.md");
+    expect(out).toContain("I am the agent.");
+  });
+
+  test("includes 'contextual' files only when keywords overlap", async () => {
+    await writePrompt(
+      "deploy.md",
+      "---\nloading: contextual\n---\n\nDeployment runbook.\n",
+    );
+    // No keywords → not included.
+    const noKw = await loadPersistentContext(projectDir);
+    expect(noKw).not.toContain("deploy.md");
+
+    // Matching keyword → included.
+    const match = await loadPersistentContext(
+      projectDir,
+      new Set(["deployment"]),
+    );
+    expect(match).toContain("deploy.md");
+    expect(match).toContain("Deployment runbook.");
+  });
+
+  test("excludes 'contextual' files when keywords don't overlap", async () => {
+    await writePrompt(
+      "deploy.md",
+      "---\nloading: contextual\n---\n\nDeployment runbook.\n",
+    );
+    const out = await loadPersistentContext(
+      projectDir,
+      new Set(["unrelated", "topic"]),
+    );
+    expect(out).not.toContain("deploy.md");
+  });
+
+  test("ignores non-md files in prompts/", async () => {
+    await writePrompt("not-md.txt", "ignored");
+    const out = await loadPersistentContext(projectDir);
+    expect(out).not.toContain("ignored");
+  });
+
+  test("returns empty string when prompts/ is empty", async () => {
+    expect(await loadPersistentContext(projectDir)).toBe("");
+  });
+
+  test("returns empty string gracefully when prompts/ is missing", async () => {
+    await rm(getPromptsDir(projectDir), { recursive: true, force: true });
+    expect(await loadPersistentContext(projectDir)).toBe("");
+  });
+});
+
+describe("buildSystemPrompt", () => {
+  test("includes the meta header with version and project dir", async () => {
+    const prompt = await buildSystemPrompt(projectDir);
+    expect(prompt).toMatch(/# Botholomew v\d+\.\d+\.\d+/);
+    expect(prompt).toContain(projectDir);
+  });
+
+  test("includes the Instructions section and the Style block", async () => {
     const prompt = await buildSystemPrompt(projectDir);
     expect(prompt).toContain("## Instructions");
-    expect(prompt).toContain("Botholomew");
-    expect(prompt).toContain("complete_task");
-    expect(prompt).toContain("fail_task");
-    expect(prompt).toContain("wait_task");
+    expect(prompt).toContain(STYLE_RULES);
+    // Style block trails the instructions.
+    expect(prompt.indexOf("## Instructions")).toBeLessThan(
+      prompt.indexOf(STYLE_RULES),
+    );
   });
 
-  test("includes always-loaded context files", async () => {
-    const content = serializeContextFile(
-      { loading: "always", "agent-modification": false },
-      "I am the soul of the project.",
+  test("includes always-loaded prompt files", async () => {
+    await writePrompt(
+      "soul.md",
+      "---\nloading: always\n---\n\nI am the wise owl.\n",
     );
-    await Bun.write(join(projectDir, ".botholomew", "soul.md"), content);
-
     const prompt = await buildSystemPrompt(projectDir);
-    expect(prompt).toContain("## soul.md");
-    expect(prompt).toContain("I am the soul of the project.");
-  });
-
-  test("includes multiple always-loaded files", async () => {
-    const soul = serializeContextFile(
-      { loading: "always", "agent-modification": false },
-      "Soul content here.",
-    );
-    const beliefs = serializeContextFile(
-      { loading: "always", "agent-modification": true },
-      "Beliefs content here.",
-    );
-    await Bun.write(join(projectDir, ".botholomew", "soul.md"), soul);
-    await Bun.write(join(projectDir, ".botholomew", "beliefs.md"), beliefs);
-
-    const prompt = await buildSystemPrompt(projectDir);
-    expect(prompt).toContain("Soul content here.");
-    expect(prompt).toContain("Beliefs content here.");
-  });
-
-  test("excludes contextual files when no task is provided", async () => {
-    const contextual = serializeContextFile(
-      { loading: "contextual", "agent-modification": false },
-      "This is contextual content about databases.",
-    );
-    await Bun.write(
-      join(projectDir, ".botholomew", "databases.md"),
-      contextual,
-    );
-
-    const prompt = await buildSystemPrompt(projectDir);
-    expect(prompt).not.toContain("databases.md");
-    expect(prompt).not.toContain("contextual content about databases");
+    expect(prompt).toContain("I am the wise owl.");
   });
 
   test("includes contextual files when task keywords match", async () => {
-    const contextual = serializeContextFile(
-      { loading: "contextual", "agent-modification": false },
-      "Information about database migrations and schema changes.",
+    await writePrompt(
+      "deploy.md",
+      "---\nloading: contextual\n---\n\nDeployment runbook.\n",
     );
-    await Bun.write(
-      join(projectDir, ".botholomew", "databases.md"),
-      contextual,
-    );
-
-    const task = {
-      id: "test-id",
-      name: "Run database migration",
-      description: "Apply the latest schema changes to the database",
-      priority: "medium" as const,
-      status: "in_progress" as const,
-      waiting_reason: null,
-      claimed_by: "daemon",
-      claimed_at: new Date(),
-      blocked_by: [],
-      context_ids: [],
-      output: null,
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
-
+    const task = fakeTask("Deploy app", "Push deployment to prod");
     const prompt = await buildSystemPrompt(projectDir, task);
-    expect(prompt).toContain("databases.md (contextual)");
-    expect(prompt).toContain("database migrations");
+    expect(prompt).toContain("Deployment runbook.");
   });
 
-  test("excludes contextual files when task keywords do not match", async () => {
-    const contextual = serializeContextFile(
-      { loading: "contextual", "agent-modification": false },
-      "Information about underwater basket weaving techniques.",
+  test("excludes contextual files when no task is provided", async () => {
+    await writePrompt(
+      "deploy.md",
+      "---\nloading: contextual\n---\n\nDeployment runbook.\n",
     );
-    await Bun.write(join(projectDir, ".botholomew", "weaving.md"), contextual);
-
-    const task = {
-      id: "test-id",
-      name: "Fix API endpoint",
-      description: "The /users endpoint returns 500",
-      priority: "high" as const,
-      status: "in_progress" as const,
-      waiting_reason: null,
-      claimed_by: "daemon",
-      claimed_at: new Date(),
-      blocked_by: [],
-      context_ids: [],
-      output: null,
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
-
-    const prompt = await buildSystemPrompt(projectDir, task);
-    expect(prompt).not.toContain("weaving.md");
-    expect(prompt).not.toContain("underwater basket weaving");
-  });
-
-  test("ignores non-md files in .botholomew directory", async () => {
-    await Bun.write(
-      join(projectDir, ".botholomew", "config.json"),
-      '{"key": "value"}',
-    );
-    await Bun.write(
-      join(projectDir, ".botholomew", "data.sqlite"),
-      "binary data",
-    );
-
     const prompt = await buildSystemPrompt(projectDir);
-    // Should not crash and should not include non-md files
-    expect(prompt).not.toContain("config.json");
-    expect(prompt).not.toContain("data.sqlite");
+    expect(prompt).not.toContain("Deployment runbook.");
   });
 
-  test("handles empty .botholomew directory gracefully", async () => {
-    const prompt = await buildSystemPrompt(projectDir);
-    // Should still produce a valid prompt with meta + instructions
-    expect(prompt).toContain("# Botholomew");
-    expect(prompt).toContain("## Instructions");
-  });
-
-  test("handles missing .botholomew directory gracefully", async () => {
-    await rm(join(projectDir, ".botholomew"), {
-      recursive: true,
-      force: true,
-    });
-
-    const prompt = await buildSystemPrompt(projectDir);
-    // Should still produce a valid prompt
-    expect(prompt).toContain("# Botholomew");
-    expect(prompt).toContain("## Instructions");
-  });
-
-  test("includes MCP section with mcp_info requirement when hasMcpTools is true", async () => {
-    const prompt = await buildSystemPrompt(
-      projectDir,
-      undefined,
-      undefined,
-      undefined,
-      {
-        hasMcpTools: true,
-      },
-    );
-    expect(prompt).toContain("## External Tools (MCP)");
-    expect(prompt).toContain("### Local context first");
-    expect(prompt).toContain("### Calling MCP tools");
-    expect(prompt).toContain("Before any MCP read, search local context");
-    expect(prompt).toContain("MUST fetch its schema first");
-    expect(prompt).toContain("`mcp_info`");
-    expect(prompt).toContain("`mcp_exec`");
-    expect(prompt).toContain("`mcp_search`");
-    expect(prompt).toContain("`mcp_list_tools`");
-    expect(prompt).toContain("`search`");
-    expect(prompt).toContain("`context_search`");
-    expect(prompt).toContain("`context_info`");
-    expect(prompt).toContain("`context_refresh`");
-    expect(prompt).toContain("MCP write directly");
-  });
-
-  test("omits MCP section when hasMcpTools is false or absent", async () => {
-    const promptNoOpts = await buildSystemPrompt(projectDir);
-    expect(promptNoOpts).not.toContain("## External Tools (MCP)");
-
-    const promptFalse = await buildSystemPrompt(
-      projectDir,
-      undefined,
-      undefined,
-      undefined,
-      {
-        hasMcpTools: false,
-      },
-    );
-    expect(promptFalse).not.toContain("## External Tools (MCP)");
-  });
-
-  test("appends the Style block after Instructions", async () => {
-    const prompt = await buildSystemPrompt(projectDir);
-    expect(prompt).toContain("## Style");
-    expect(prompt).toContain("preambles");
-    expect(prompt).toContain("Don't flatter");
-    expect(prompt.indexOf("## Style")).toBeGreaterThan(
-      prompt.indexOf("## Instructions"),
-    );
-  });
-
-  test("Style block appears after the MCP block when hasMcpTools is true", async () => {
+  test("includes MCP guidance when hasMcpTools is true", async () => {
     const prompt = await buildSystemPrompt(
       projectDir,
       undefined,
@@ -243,48 +168,27 @@ describe("buildSystemPrompt", () => {
       undefined,
       { hasMcpTools: true },
     );
-    expect(prompt).toContain("## Style");
-    expect(prompt.indexOf("## Style")).toBeGreaterThan(
-      prompt.indexOf("## External Tools (MCP)"),
-    );
+    expect(prompt).toContain("## External Tools (MCP)");
+    expect(prompt).toContain("Local context first");
+    expect(prompt).toContain("mcp_info");
   });
 
-  test("Style block is present even with no .botholomew files", async () => {
-    await rm(join(projectDir, ".botholomew"), {
-      recursive: true,
-      force: true,
-    });
+  test("omits MCP guidance when hasMcpTools is false", async () => {
     const prompt = await buildSystemPrompt(projectDir);
-    expect(prompt).toContain("## Style");
-    expect(prompt).toContain("Don't flatter");
+    expect(prompt).not.toContain("## External Tools (MCP)");
   });
 
-  test("keyword extraction filters short words", async () => {
-    const contextual = serializeContextFile(
-      { loading: "contextual", "agent-modification": false },
-      "Content about deployment strategies and pipelines.",
+  test("Style block lands after the MCP block when both are present", async () => {
+    const prompt = await buildSystemPrompt(
+      projectDir,
+      undefined,
+      undefined,
+      undefined,
+      { hasMcpTools: true },
     );
-    await Bun.write(join(projectDir, ".botholomew", "deploy.md"), contextual);
-
-    // Task with very short words (should be filtered out) plus "deployment"
-    const task = {
-      id: "test-id",
-      name: "Fix the deployment",
-      description: "It is not working",
-      priority: "medium" as const,
-      status: "in_progress" as const,
-      waiting_reason: null,
-      claimed_by: "daemon",
-      claimed_at: new Date(),
-      blocked_by: [],
-      context_ids: [],
-      output: null,
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
-
-    const prompt = await buildSystemPrompt(projectDir, task);
-    // "deployment" (>3 chars) should match "deployment" in content
-    expect(prompt).toContain("deploy.md (contextual)");
+    const mcpIdx = prompt.indexOf("## External Tools (MCP)");
+    const styleIdx = prompt.indexOf(STYLE_RULES);
+    expect(mcpIdx).toBeGreaterThan(0);
+    expect(styleIdx).toBeGreaterThan(mcpIdx);
   });
 });

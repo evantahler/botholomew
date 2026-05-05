@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getTask } from "../../db/tasks.ts";
+import { getTask } from "../../tasks/store.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
@@ -18,7 +18,7 @@ const outputSchema = z.object({
       output: z.string().nullable(),
       claimed_by: z.string().nullable(),
       blocked_by: z.array(z.string()),
-      context_ids: z.array(z.string()),
+      context_paths: z.array(z.string()),
       created_at: z.string(),
       updated_at: z.string(),
     })
@@ -33,7 +33,7 @@ export const viewTaskTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const task = await getTask(ctx.conn, input.id);
+    const task = await getTask(ctx.projectDir, input.id);
     if (!task) return { task: null, is_error: true };
     return {
       task: {
@@ -46,9 +46,9 @@ export const viewTaskTool = {
         output: task.output,
         claimed_by: task.claimed_by,
         blocked_by: task.blocked_by,
-        context_ids: task.context_ids,
-        created_at: task.created_at.toISOString(),
-        updated_at: task.updated_at.toISOString(),
+        context_paths: task.context_paths,
+        created_at: task.created_at,
+        updated_at: task.updated_at,
       },
       is_error: false,
     };
