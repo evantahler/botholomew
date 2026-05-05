@@ -144,6 +144,32 @@ describe("threads store (CSV)", () => {
     expect(await deleteThread(projectDir, id)).toBe(false);
   });
 
+  test("getActiveThread returns null when every thread has ended", async () => {
+    const a = await createThread(projectDir, "chat_session");
+    await endThread(projectDir, a);
+    expect(await getActiveThread(projectDir)).toBeNull();
+  });
+
+  test("isThreadEnded reports active/ended correctly", async () => {
+    const id = await createThread(projectDir, "chat_session");
+    expect(await isThreadEnded(projectDir, id)).toBe(false);
+    await endThread(projectDir, id);
+    expect(await isThreadEnded(projectDir, id)).toBe(true);
+  });
+
+  test("listThreads supports limit and offset for paginated walks", async () => {
+    for (let i = 0; i < 4; i++) {
+      await createThread(projectDir, "chat_session", undefined, `t-${i}`);
+      await new Promise((r) => setTimeout(r, 2));
+    }
+    const page1 = await listThreads(projectDir, { limit: 2, offset: 0 });
+    const page2 = await listThreads(projectDir, { limit: 2, offset: 2 });
+    expect(page1).toHaveLength(2);
+    expect(page2).toHaveLength(2);
+    const ids = [...page1, ...page2].map((t) => t.id);
+    expect(new Set(ids).size).toBe(4);
+  });
+
   test("thread files live in date subdirectories derived from the id's uuidv7 timestamp", async () => {
     const a = await createThread(projectDir, "chat_session", undefined, "a");
     const b = await createThread(projectDir, "chat_session", undefined, "b");

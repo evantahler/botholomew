@@ -231,6 +231,60 @@ describe("runAgentLoop", () => {
     expect(result.status).toBe("complete");
   });
 
+  test("injects predecessor task outputs into the user message", async () => {
+    // The blocker task gets a real `output`; runAgentLoop should stitch it
+    // into the user message so the agent doesn't have to re-derive findings.
+    const blocker = await createTask(projectDir, {
+      name: "Read email",
+      description: "scan inbox",
+    });
+    const { updateTaskStatus } = await import("../../src/tasks/store.ts");
+    await updateTaskStatus(
+      projectDir,
+      blocker.id,
+      "complete",
+      null,
+      "3 urgent threads from customers",
+    );
+    const downstream = await createTask(projectDir, {
+      name: "Summarize urgent items",
+      description: "based on inbox scan",
+      blocked_by: [blocker.id],
+    });
+
+    let capturedUserText = "";
+    mockResponse = () => {
+      // The mock receives the messages on each call; no direct way to inspect
+      // them here. Instead, we let runAgentLoop log to the thread CSV and
+      // read the user-message interaction back below.
+      return completionResponseLocal();
+    };
+
+    const threadId = await createThread(
+      projectDir,
+      "worker_tick",
+      downstream.id,
+    );
+    await runAgentLoop({
+      systemPrompt: "p",
+      task: downstream,
+      config: TEST_CONFIG,
+      dbPath,
+      threadId,
+      projectDir,
+    });
+
+    const { getThread } = await import("../../src/threads/store.ts");
+    const t = await getThread(projectDir, threadId);
+    const userInteraction = t?.interactions.find(
+      (i) => i.role === "user" && i.kind === "message",
+    );
+    capturedUserText = userInteraction?.content ?? "";
+    expect(capturedUserText).toContain("Predecessor Task Outputs");
+    expect(capturedUserText).toContain("Read email");
+    expect(capturedUserText).toContain("3 urgent threads from customers");
+  });
+
   test("dispatches multiple tool calls per turn in parallel", async () => {
     let turn = 0;
     mockResponse = () => {
