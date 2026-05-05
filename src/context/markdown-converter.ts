@@ -123,10 +123,13 @@ export async function convertToMarkdown(
   if (!config.anthropic_api_key) return content;
 
   const client = new Anthropic({ apiKey: config.anthropic_api_key });
+  // Conversion is mechanical text-shaping — Haiku (the chunker model) is
+  // plenty smart for this and ~5x faster than Opus on long documents.
+  const model = config.chunker_model || config.model;
 
   try {
-    const response = await client.messages.create({
-      model: config.model,
+    const stream = client.messages.stream({
+      model,
       max_tokens: CONVERTER_MAX_TOKENS,
       system: CONVERTER_SYSTEM_PROMPT,
       messages: [
@@ -137,13 +140,31 @@ export async function convertToMarkdown(
       ],
     });
 
-    if (response.stop_reason === "max_tokens") {
+    let charsReceived = 0;
+    let lastLogged = 0;
+    const PROGRESS_INTERVAL_CHARS = 2_000;
+    for await (const event of stream) {
+      if (
+        event.type === "content_block_delta" &&
+        event.delta.type === "text_delta"
+      ) {
+        charsReceived += event.delta.text.length;
+        if (charsReceived - lastLogged >= PROGRESS_INTERVAL_CHARS) {
+          logger.dim(`  ...converted ${charsReceived} chars`);
+          lastLogged = charsReceived;
+        }
+      }
+    }
+
+    const final = await stream.finalMessage();
+
+    if (final.stop_reason === "max_tokens") {
       throw new FetchFailureError(
         `Markdown conversion exceeded token budget (max_tokens=${CONVERTER_MAX_TOKENS}). The source document is too large to convert in one pass — try fetching a smaller section or a tool that supports pagination.`,
       );
     }
 
-    const text = response.content
+    const text = final.content
       .flatMap((block) => (block.type === "text" ? [block.text] : []))
       .join("");
 

@@ -8,20 +8,55 @@
 import { describe, expect, mock, test } from "bun:test";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 
-type MessageCreate = (args: unknown) => Promise<{
+type FinalMessage = {
   content: Array<{ type: "text"; text: string }>;
   stop_reason: string;
-}>;
+};
 
-let nextResponse: MessageCreate = async () => ({
-  content: [],
-  stop_reason: "end_turn",
-});
+type StreamFactory = (
+  args: unknown,
+) => StreamMock | { error: Error } | (() => never);
+
+interface StreamMock {
+  [Symbol.asyncIterator](): AsyncIterator<{
+    type: string;
+    delta?: { type: string; text: string };
+  }>;
+  finalMessage(): Promise<FinalMessage>;
+}
+
+function makeStream(final: FinalMessage): StreamMock {
+  const text = final.content
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+  // One synthetic text_delta per chunk so streaming progress logs fire.
+  const CHUNK = 500;
+  async function* iter() {
+    for (let i = 0; i < text.length; i += CHUNK) {
+      yield {
+        type: "content_block_delta",
+        delta: { type: "text_delta", text: text.slice(i, i + CHUNK) },
+      };
+    }
+  }
+  return {
+    [Symbol.asyncIterator]: iter,
+    finalMessage: async () => final,
+  };
+}
+
+let nextStream: StreamFactory = () =>
+  makeStream({ content: [], stop_reason: "end_turn" });
 
 mock.module("@anthropic-ai/sdk", () => ({
   default: class MockAnthropic {
     messages = {
-      create: (args: unknown) => nextResponse(args),
+      stream: (args: unknown) => {
+        const result = nextStream(args);
+        if (typeof result === "function") return result();
+        return result;
+      },
     };
   },
 }));
@@ -144,12 +179,12 @@ describe("convertToMarkdown", () => {
     // E.g. Google Docs' "Docmd" tool claims text/markdown but returns a
     // proprietary `[H1 ...]` annotation format. We can't trust the claim.
     let called = false;
-    nextResponse = async () => {
+    nextStream = () => {
       called = true;
-      return {
+      return makeStream({
         content: [{ type: "text", text: "# Cleaned up" }],
         stop_reason: "end_turn",
-      };
+      });
     };
     const out = await convertToMarkdown(
       "[H1 0-10 HEADING_1] Title text",
@@ -163,9 +198,9 @@ describe("convertToMarkdown", () => {
 
   test("short-circuits when no API key configured", async () => {
     let called = false;
-    nextResponse = async () => {
+    nextStream = () => {
       called = true;
-      return { content: [], stop_reason: "end_turn" };
+      return makeStream({ content: [], stop_reason: "end_turn" });
     };
     const out = await convertToMarkdown(
       "<p>html</p>",
@@ -178,10 +213,11 @@ describe("convertToMarkdown", () => {
   });
 
   test("converts non-markdown content via the LLM", async () => {
-    nextResponse = async () => ({
-      content: [{ type: "text", text: "# Heading\n\nBody text" }],
-      stop_reason: "end_turn",
-    });
+    nextStream = () =>
+      makeStream({
+        content: [{ type: "text", text: "# Heading\n\nBody text" }],
+        stop_reason: "end_turn",
+      });
     const out = await convertToMarkdown(
       "<h1>Heading</h1><p>Body text</p>",
       "text/html",
@@ -192,10 +228,13 @@ describe("convertToMarkdown", () => {
   });
 
   test("strips a defensive ```markdown fence the model adds", async () => {
-    nextResponse = async () => ({
-      content: [{ type: "text", text: "```markdown\n# Heading\n\nBody\n```" }],
-      stop_reason: "end_turn",
-    });
+    nextStream = () =>
+      makeStream({
+        content: [
+          { type: "text", text: "```markdown\n# Heading\n\nBody\n```" },
+        ],
+        stop_reason: "end_turn",
+      });
     const out = await convertToMarkdown(
       "<h1>Heading</h1>",
       "text/html",
@@ -206,10 +245,11 @@ describe("convertToMarkdown", () => {
   });
 
   test("falls back to raw content when the model returns empty output", async () => {
-    nextResponse = async () => ({
-      content: [],
-      stop_reason: "end_turn",
-    });
+    nextStream = () =>
+      makeStream({
+        content: [],
+        stop_reason: "end_turn",
+      });
     const raw = "<p>raw html</p>";
     const out = await convertToMarkdown(
       raw,
@@ -221,10 +261,11 @@ describe("convertToMarkdown", () => {
   });
 
   test("throws FetchFailureError on max_tokens — never silently truncates", async () => {
-    nextResponse = async () => ({
-      content: [{ type: "text", text: "# partial output" }],
-      stop_reason: "max_tokens",
-    });
+    nextStream = () =>
+      makeStream({
+        content: [{ type: "text", text: "# partial output" }],
+        stop_reason: "max_tokens",
+      });
     await expect(
       convertToMarkdown(
         "huge document",
@@ -236,7 +277,7 @@ describe("convertToMarkdown", () => {
   });
 
   test("falls back to raw content on transient API errors (does not throw)", async () => {
-    nextResponse = async () => {
+    nextStream = () => {
       throw new Error("network blew up");
     };
     const raw = '{"data": "value"}';
