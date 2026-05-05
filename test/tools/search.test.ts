@@ -116,13 +116,16 @@ describe("search tool", () => {
     ).rejects.toThrow(/escapes project root/);
   });
 
-  test("throws on a malformed regex pattern", async () => {
-    // Unlike search_threads (which returns a structured invalid_regex
-    // error), the `search` tool bubbles the SyntaxError up — the caller's
-    // tool-loop wrapper turns it into a tool_result error.
-    await expect(
-      searchTool.execute({ pattern: "(unclosed", max_results: 5 }, ctx()),
-    ).rejects.toThrow(/regular expression|missing/i);
+  test("returns invalid_regex with a recovery hint on a malformed pattern", async () => {
+    const result = await searchTool.execute(
+      { pattern: "(unclosed", max_results: 5 },
+      ctx(),
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("invalid_regex");
+    expect(result.message).toContain("Could not compile");
+    expect(result.next_action_hint).toBeTruthy();
+    expect(result.matches).toEqual([]);
   });
 
   test("max_results caps fused result count", async () => {

@@ -58,6 +58,7 @@ const outputSchema = z.object({
   is_error: z.boolean(),
   error_type: z.string().optional(),
   message: z.string().optional(),
+  next_action_hint: z.string().optional(),
 });
 
 export const searchTool = {
@@ -76,6 +77,25 @@ export const searchTool = {
         message:
           "Provide at least one of `query` (natural language) or `pattern` (regex). Pass both to fuse semantic and exact-match signals.",
       };
+    }
+
+    // Validate the regex up front so a malformed pattern returns a
+    // structured error instead of bubbling SyntaxError. Match the shape
+    // of search_threads' invalid_regex response so the agent can recover
+    // identically across both tools.
+    if (input.pattern) {
+      try {
+        new RegExp(input.pattern, input.ignore_case ? "i" : "");
+      } catch (err) {
+        return {
+          matches: [],
+          is_error: true,
+          error_type: "invalid_regex",
+          message: `Could not compile pattern: ${err instanceof Error ? err.message : String(err)}`,
+          next_action_hint:
+            "Double-check the regex; remember `.` is a metacharacter — escape it as `\\.` for a literal dot.",
+        };
+      }
     }
 
     const limit = input.max_results ?? 20;
