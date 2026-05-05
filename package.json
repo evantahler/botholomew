@@ -16,7 +16,7 @@
     "url": "https://github.com/evantahler/botholomew.git"
   },
   "scripts": {
-    "dev": "bun run src/cli.ts",
+    "dev": "bun run src/cli.ts -d .botholomew",
     "dev:demo": "bun run src/cli.ts chat -p 'learn everything you can about me from the connected MCP services and then save what you'\\''ve learned about me to context'",
     "test": "bun test",
     "lint": "tsc --noEmit && biome check .",
