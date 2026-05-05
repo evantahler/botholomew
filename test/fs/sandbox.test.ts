@@ -179,6 +179,51 @@ describe("resolveInRoot — symlink rejection", () => {
   });
 });
 
+describe("resolveInRoot — allowSymlinks opt-in", () => {
+  test("a leaf symlink resolves when allowSymlinks=true", async () => {
+    const ctx = join(root, "context");
+    await writeFile(join(root, "outside.txt"), "hi");
+    await symlink(join(root, "outside.txt"), join(ctx, "link.txt"));
+    const out = await resolveInRoot(root, "link.txt", {
+      area: "context",
+      allowSymlinks: true,
+    });
+    expect(out).toBe(join(canonicalRoot, "context", "link.txt"));
+  });
+
+  test("an intermediate symlink resolves when allowSymlinks=true", async () => {
+    const ctx = join(root, "context");
+    await mkdir(join(root, "elsewhere"), { recursive: true });
+    await writeFile(join(root, "elsewhere", "file.md"), "hi");
+    await symlink(join(root, "elsewhere"), join(ctx, "linked-dir"));
+    const out = await resolveInRoot(root, "linked-dir/file.md", {
+      area: "context",
+      allowSymlinks: true,
+    });
+    expect(out).toBe(join(canonicalRoot, "context", "linked-dir", "file.md"));
+  });
+
+  test("default (no allowSymlinks) keeps the existing rejection", async () => {
+    const ctx = join(root, "context");
+    await writeFile(join(root, "outside.txt"), "hi");
+    await symlink(join(root, "outside.txt"), join(ctx, "link.txt"));
+    await expect(
+      resolveInRoot(root, "link.txt", { area: "context" }),
+    ).rejects.toThrow(/symlink/);
+  });
+
+  test("containment is still enforced when allowSymlinks=true", async () => {
+    // The symlink target may escape the boundary, but the user-supplied path
+    // itself must still resolve under <root>/<area>.
+    await expect(
+      resolveInRoot(root, "../escape.md", {
+        area: "context",
+        allowSymlinks: true,
+      }),
+    ).rejects.toThrow(PathEscapeError);
+  });
+});
+
 describe("resolveInRootSync", () => {
   test("matches the async behavior on the happy path", () => {
     const out = resolveInRootSync(root, "notes/foo.md", { area: "context" });

@@ -33,7 +33,7 @@ const outputSchema = z.object({
 export const contextEditTool = {
   name: "context_edit",
   description:
-    "[[ bash equivalent command: patch ]] Apply line-range patches to a file under context/. Each patch specifies start_line/end_line/content.",
+    "[[ bash equivalent command: patch ]] Apply line-range patches to a file under context/. Each patch specifies start_line/end_line/content. Edits that traverse a user symlink fail with PathEscapeError — delete the symlink first or copy the content to a real path.",
   group: "context",
   inputSchema,
   outputSchema,

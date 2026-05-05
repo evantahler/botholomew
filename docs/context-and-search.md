@@ -85,6 +85,13 @@ makes incremental reindex efficient — `botholomew context reindex`
 walks `context/`, hashes each file, and only re-embeds the ones whose
 hash changed.
 
+The walk follows user-placed symlinks: a symlinked file at
+`context/ref.md` indexes as `ref.md`, and a symlinked directory's
+children are recursed into and stored under the link's path (e.g.
+`linked/deep.md`). Cycles are detected via a `dev:ino` visited set
+seeded from the walk root, and recursion is capped at 32 levels. See
+[files.md](files.md) for the read/write contract on symlinks.
+
 Vector similarity uses `array_cosine_distance` — a core DuckDB
 function, no extension required. There is no HNSW index: at our scale
 (hundreds to low thousands of rows) a linear scan beats the

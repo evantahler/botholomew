@@ -3,6 +3,7 @@ import {
   copyFile as fsCopyFile,
   readFile as fsReadFile,
   rename as fsRename,
+  lstat,
   mkdir,
   readdir,
   rm,
@@ -69,11 +70,21 @@ export interface ContextEntry {
   path: string;
   is_directory: boolean;
   is_textual: boolean;
+  /**
+   * True when the entry's path under `context/` is a symlink (set from
+   * `lstat`). The agent can read and delete the link, but writes that
+   * traverse a symlink fail with PathEscapeError so external content is
+   * never modified.
+   */
+  is_symlink: boolean;
   size: number;
   mime_type: string;
   mtime: Date;
   content_hash: string | null;
 }
+
+/** Hard cap on directory recursion across walks; defends against pathological symlink graphs. */
+const MAX_WALK_DEPTH = 32;
 
 const TEXTUAL_EXTENSIONS = new Set([
   "md",
@@ -156,12 +167,18 @@ export function normalizeContextPath(path: string): string {
 
 /**
  * Resolve a context-relative path to an absolute filesystem path under
- * `<projectDir>/context/`. Throws PathEscapeError on traversal, symlinks,
- * NUL bytes, or attempts to resolve into a protected area.
+ * `<projectDir>/context/`. Throws PathEscapeError on traversal, NUL bytes,
+ * or attempts to resolve into a protected area.
+ *
+ * `allowSymlinks` is the opt-in for read-side callers (read, list, tree,
+ * info, reindex, delete). Mutating callers (write, edit, mv, cp, mkdir)
+ * leave it `false` so user-placed symlinks under `context/` cannot be
+ * traversed to modify external content.
  */
 async function resolveContext(
   projectDir: string,
   path: string,
+  opts: { allowSymlinks?: boolean } = {},
 ): Promise<string> {
   const normalized = normalizeContextPath(path);
   if (PROTECTED_AREAS.has(normalized)) {
@@ -172,6 +189,7 @@ async function resolveContext(
   }
   return resolveInRoot(projectDir, fromPosix(normalized), {
     area: CONTEXT_DIR,
+    allowSymlinks: opts.allowSymlinks,
   });
 }
 
@@ -195,7 +213,7 @@ export async function fileExists(
   projectDir: string,
   path: string,
 ): Promise<boolean> {
-  const abs = await resolveContext(projectDir, path);
+  const abs = await resolveContext(projectDir, path, { allowSymlinks: true });
   try {
     await stat(abs);
     return true;
@@ -209,13 +227,37 @@ export async function getInfo(
   projectDir: string,
   path: string,
 ): Promise<ContextEntry | null> {
-  const abs = await resolveContext(projectDir, path);
-  let st: Awaited<ReturnType<typeof stat>>;
+  const abs = await resolveContext(projectDir, path, { allowSymlinks: true });
+  let lst: Awaited<ReturnType<typeof lstat>>;
   try {
-    st = await stat(abs);
+    lst = await lstat(abs);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw err;
+  }
+  const isSymlink = lst.isSymbolicLink();
+  let st: Awaited<ReturnType<typeof stat>>;
+  if (isSymlink) {
+    try {
+      st = await stat(abs);
+    } catch (err) {
+      // Broken symlink — surface as a zero-byte symlink entry.
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        return {
+          path: normalizeContextPath(path),
+          is_directory: false,
+          is_textual: false,
+          is_symlink: true,
+          size: 0,
+          mime_type: "application/octet-stream",
+          mtime: lst.mtime,
+          content_hash: null,
+        };
+      }
+      throw err;
+    }
+  } else {
+    st = lst;
   }
   const normalized = normalizeContextPath(path);
   if (st.isDirectory()) {
@@ -223,6 +265,7 @@ export async function getInfo(
       path: normalized,
       is_directory: true,
       is_textual: false,
+      is_symlink: isSymlink,
       size: 0,
       mime_type: "inode/directory",
       mtime: st.mtime,
@@ -234,6 +277,7 @@ export async function getInfo(
     path: normalized,
     is_directory: false,
     is_textual: textual,
+    is_symlink: isSymlink,
     size: st.size,
     mime_type: mime,
     mtime: st.mtime,
@@ -245,7 +289,7 @@ export async function readContextFile(
   projectDir: string,
   path: string,
 ): Promise<string> {
-  const abs = await resolveContext(projectDir, path);
+  const abs = await resolveContext(projectDir, path, { allowSymlinks: true });
   let st: Awaited<ReturnType<typeof stat>>;
   try {
     st = await stat(abs);
@@ -298,31 +342,42 @@ export async function deleteContextPath(
   projectDir: string,
   path: string,
   opts: { recursive?: boolean } = {},
-): Promise<{ removed: number; was_directory: boolean }> {
-  const abs = await resolveContext(projectDir, path);
+): Promise<{ removed: number; was_directory: boolean; was_symlink: boolean }> {
+  const abs = await resolveContext(projectDir, path, { allowSymlinks: true });
   const normalized = normalizeContextPath(path);
   if (normalized === "") {
     throw new PathEscapeError("refusing to delete the context root", path);
   }
-  let st: Awaited<ReturnType<typeof stat>>;
+  let lst: Awaited<ReturnType<typeof lstat>>;
   try {
-    st = await stat(abs);
+    lst = await lstat(abs);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       throw new NotFoundError(normalized);
     }
     throw err;
   }
-  if (st.isDirectory()) {
+  // A symlink (to a file or a directory, broken or not) is removed with a
+  // plain unlink — never follow into the target. This is what enforces
+  // "the symlink can be deleted, but not the original content".
+  if (lst.isSymbolicLink()) {
+    await unlink(abs);
+    return { removed: 1, was_directory: false, was_symlink: true };
+  }
+  if (lst.isDirectory()) {
     if (!opts.recursive) {
       throw new IsDirectoryError(normalized);
     }
     const removedPaths = await collectFiles(abs);
     await rm(abs, { recursive: true, force: false });
-    return { removed: removedPaths.length, was_directory: true };
+    return {
+      removed: removedPaths.length,
+      was_directory: true,
+      was_symlink: false,
+    };
   }
   await unlink(abs);
-  return { removed: 1, was_directory: false };
+  return { removed: 1, was_directory: false, was_symlink: false };
 }
 
 export async function moveContextPath(
@@ -392,7 +447,7 @@ export async function listContextDir(
   path: string,
   opts: { recursive?: boolean } = {},
 ): Promise<ContextEntry[]> {
-  const abs = await resolveContext(projectDir, path);
+  const abs = await resolveContext(projectDir, path, { allowSymlinks: true });
   let st: Awaited<ReturnType<typeof stat>>;
   try {
     st = await stat(abs);
@@ -406,11 +461,15 @@ export async function listContextDir(
     throw new NotDirectoryError(normalizeContextPath(path));
   }
   const out: ContextEntry[] = [];
+  const visited = new Set<string>();
+  visited.add(`${st.dev}:${st.ino}`);
   await walk(
     abs,
     canonicalContextRoot(projectDir),
     opts.recursive ?? false,
     out,
+    visited,
+    0,
   );
   out.sort((a, b) => a.path.localeCompare(b.path));
   return out;
@@ -421,27 +480,58 @@ async function walk(
   contextRoot: string,
   recursive: boolean,
   acc: ContextEntry[],
+  visited: Set<string>,
+  depth: number,
 ): Promise<void> {
+  if (depth >= MAX_WALK_DEPTH) return;
   const names = await readdir(dir);
   for (const name of names) {
     if (name.startsWith(".")) continue;
     const abs = join(dir, name);
     const rel = toPosix(relative(contextRoot, abs));
-    const { lstat } = await import("node:fs/promises");
-    const st = await lstat(abs);
-    if (st.isSymbolicLink()) continue;
+    const lst = await lstat(abs);
+    const isSymlink = lst.isSymbolicLink();
+    let st: Awaited<ReturnType<typeof stat>>;
+    if (isSymlink) {
+      try {
+        st = await stat(abs);
+      } catch (err) {
+        // Broken symlink — surface as a zero-byte symlink leaf so the agent
+        // can see and remove it, but don't try to recurse into it.
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+          acc.push({
+            path: rel,
+            is_directory: false,
+            is_textual: false,
+            is_symlink: true,
+            size: 0,
+            mime_type: "application/octet-stream",
+            mtime: lst.mtime,
+            content_hash: null,
+          });
+          continue;
+        }
+        throw err;
+      }
+    } else {
+      st = lst;
+    }
     if (st.isDirectory()) {
       acc.push({
         path: rel,
         is_directory: true,
         is_textual: false,
+        is_symlink: isSymlink,
         size: 0,
         mime_type: "inode/directory",
         mtime: st.mtime,
         content_hash: null,
       });
       if (recursive) {
-        await walk(abs, contextRoot, recursive, acc);
+        const key = `${st.dev}:${st.ino}`;
+        if (visited.has(key)) continue;
+        visited.add(key);
+        await walk(abs, contextRoot, recursive, acc, visited, depth + 1);
       }
     } else if (st.isFile()) {
       const { mime, textual } = inferMimeType(rel);
@@ -449,6 +539,7 @@ async function walk(
         path: rel,
         is_directory: false,
         is_textual: textual,
+        is_symlink: isSymlink,
         size: st.size,
         mime_type: mime,
         mtime: st.mtime,
@@ -458,10 +549,25 @@ async function walk(
   }
 }
 
+/**
+ * Collect all real file paths under `absDir`, following symlinks (including
+ * symlinked directories) once each. Used for delete-count reporting and
+ * `dirSizeBytes`. Symlinked entries are returned as the *symlink path*
+ * relative to the walk root, not the resolved target — callers like the
+ * delete reporter want the agent-visible path. Cycles are prevented via a
+ * `dev:ino` visited set seeded with `absDir` itself.
+ */
 async function collectFiles(absDir: string): Promise<string[]> {
   const out: string[] = [];
-  const { lstat } = await import("node:fs/promises");
-  async function recurse(d: string): Promise<void> {
+  const visited = new Set<string>();
+  try {
+    const rootSt = await stat(absDir);
+    visited.add(`${rootSt.dev}:${rootSt.ino}`);
+  } catch {
+    return out;
+  }
+  async function recurse(d: string, depth: number): Promise<void> {
+    if (depth >= MAX_WALK_DEPTH) return;
     let names: string[];
     try {
       names = await readdir(d);
@@ -470,13 +576,24 @@ async function collectFiles(absDir: string): Promise<string[]> {
     }
     for (const name of names) {
       const abs = join(d, name);
-      const st = await lstat(abs);
-      if (st.isSymbolicLink()) continue;
-      if (st.isDirectory()) await recurse(abs);
-      else if (st.isFile()) out.push(abs);
+      let st: Awaited<ReturnType<typeof stat>>;
+      try {
+        st = await stat(abs);
+      } catch {
+        // Broken symlink or permission issue — skip silently.
+        continue;
+      }
+      if (st.isDirectory()) {
+        const key = `${st.dev}:${st.ino}`;
+        if (visited.has(key)) continue;
+        visited.add(key);
+        await recurse(abs, depth + 1);
+      } else if (st.isFile()) {
+        out.push(abs);
+      }
     }
   }
-  await recurse(absDir);
+  await recurse(absDir, 0);
   return out;
 }
 
@@ -484,6 +601,7 @@ export interface TreeNode {
   name: string;
   path: string;
   is_directory: boolean;
+  is_symlink?: boolean;
   size?: number;
   children?: TreeNode[];
 }
@@ -493,7 +611,14 @@ export async function buildTree(
   path: string,
   maxDepth = 16,
 ): Promise<TreeNode> {
-  const abs = await resolveContext(projectDir, path);
+  const abs = await resolveContext(projectDir, path, { allowSymlinks: true });
+  const lst = await lstat(abs).catch((err) => {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new NotFoundError(normalizeContextPath(path));
+    }
+    throw err;
+  });
+  const isSymlink = lst.isSymbolicLink();
   let st: Awaited<ReturnType<typeof stat>>;
   try {
     st = await stat(abs);
@@ -511,10 +636,13 @@ export async function buildTree(
       name,
       path: rel,
       is_directory: false,
+      ...(isSymlink ? { is_symlink: true } : {}),
       size: st.size,
     };
   }
-  return treeRecurse(abs, rel, name, root, maxDepth);
+  const visited = new Set<string>();
+  visited.add(`${st.dev}:${st.ino}`);
+  return treeRecurse(abs, rel, name, root, maxDepth, visited, isSymlink);
 }
 
 async function treeRecurse(
@@ -523,11 +651,14 @@ async function treeRecurse(
   name: string,
   contextRoot: string,
   depthLeft: number,
+  visited: Set<string>,
+  isSymlink: boolean,
 ): Promise<TreeNode> {
   const node: TreeNode = {
     name,
     path: rel,
     is_directory: true,
+    ...(isSymlink ? { is_symlink: true } : {}),
     children: [],
   };
   if (depthLeft <= 0) return node;
@@ -538,24 +669,66 @@ async function treeRecurse(
     return node;
   }
   names.sort((a, b) => a.localeCompare(b));
-  const { lstat } = await import("node:fs/promises");
   const children = node.children ?? [];
   for (const name of names) {
     if (name.startsWith(".")) continue;
     const childAbs = join(abs, name);
-    const st = await lstat(childAbs);
-    if (st.isSymbolicLink()) continue;
+    const lst = await lstat(childAbs);
+    const childIsSymlink = lst.isSymbolicLink();
+    let childSt: Awaited<ReturnType<typeof stat>>;
+    if (childIsSymlink) {
+      try {
+        childSt = await stat(childAbs);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+          // Broken symlink — render as zero-byte leaf so it shows in the tree.
+          children.push({
+            name,
+            path: toPosix(relative(contextRoot, childAbs)),
+            is_directory: false,
+            is_symlink: true,
+            size: 0,
+          });
+          continue;
+        }
+        throw err;
+      }
+    } else {
+      childSt = lst;
+    }
     const childRel = toPosix(relative(contextRoot, childAbs));
-    if (st.isDirectory()) {
+    if (childSt.isDirectory()) {
+      const key = `${childSt.dev}:${childSt.ino}`;
+      if (visited.has(key)) {
+        // Cycle — render as a stub directory with no children.
+        children.push({
+          name,
+          path: childRel,
+          is_directory: true,
+          ...(childIsSymlink ? { is_symlink: true } : {}),
+          children: [],
+        });
+        continue;
+      }
+      visited.add(key);
       children.push(
-        await treeRecurse(childAbs, childRel, name, contextRoot, depthLeft - 1),
+        await treeRecurse(
+          childAbs,
+          childRel,
+          name,
+          contextRoot,
+          depthLeft - 1,
+          visited,
+          childIsSymlink,
+        ),
       );
-    } else if (st.isFile()) {
+    } else if (childSt.isFile()) {
       children.push({
         name,
         path: childRel,
         is_directory: false,
-        size: st.size,
+        ...(childIsSymlink ? { is_symlink: true } : {}),
+        size: childSt.size,
       });
     }
   }
@@ -567,7 +740,7 @@ export async function dirSizeBytes(
   projectDir: string,
   path: string,
 ): Promise<{ files: number; bytes: number }> {
-  const abs = await resolveContext(projectDir, path);
+  const abs = await resolveContext(projectDir, path, { allowSymlinks: true });
   let st: Awaited<ReturnType<typeof stat>>;
   try {
     st = await stat(abs);

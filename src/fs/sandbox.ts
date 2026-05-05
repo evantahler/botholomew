@@ -27,6 +27,15 @@ export interface SandboxOptions {
    * operations like list/tree). Default true.
    */
   allowRoot?: boolean;
+  /**
+   * Permit user-placed symlinks anywhere along the resolved path. The
+   * containment check on the user-supplied path is unchanged — only the
+   * lstat-walk that rejects symlink components is skipped. Read-side
+   * callers (read, list, tree, reindex) opt in; mutating callers do not,
+   * so the agent can never write through a user symlink to external
+   * content.
+   */
+  allowSymlinks?: boolean;
 }
 
 let cachedCanonicalRoot: string | null = null;
@@ -65,8 +74,9 @@ export function getCanonicalRoot(rawRoot: string): string {
  *  3. After path.resolve, the result must be inside the (canonical) root or
  *     `<root>/<area>`.
  *  4. `..` components after normalization are rejected as defense in depth.
- *  5. Every existing path component is `lstat`'d; any symlink is rejected.
- *     Hardlinks are out of scope by design.
+ *  5. Every existing path component is `lstat`'d; any symlink is rejected
+ *     unless `allowSymlinks` is set (read-only callers opt in so users can
+ *     symlink content into `<root>/context/`). Hardlinks are out of scope.
  *
  * Returns the absolute, canonical path safe to pass to fs APIs.
  */
@@ -86,7 +96,9 @@ export async function resolveInRoot(
   const resolved = resolve(boundary, normalized);
   ensureContainment(resolved, boundary, opts.allowRoot ?? true, userPath);
 
-  await assertNoSymlinkComponents(resolved, canonicalRoot);
+  if (!opts.allowSymlinks) {
+    await assertNoSymlinkComponents(resolved, canonicalRoot);
+  }
   return resolved;
 }
 
@@ -109,7 +121,9 @@ export function resolveInRootSync(
   const resolved = resolve(boundary, normalized);
   ensureContainment(resolved, boundary, opts.allowRoot ?? true, userPath);
 
-  assertNoSymlinkComponentsSync(resolved, canonicalRoot);
+  if (!opts.allowSymlinks) {
+    assertNoSymlinkComponentsSync(resolved, canonicalRoot);
+  }
   return resolved;
 }
 
