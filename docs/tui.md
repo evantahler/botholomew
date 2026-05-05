@@ -220,9 +220,11 @@ If the agent is heading in the wrong direction, press `Esc` while it's
 streaming a response. Whatever has streamed so far is preserved in the
 chat with a `(steered — response interrupted)` marker, and the next
 queued message — or your next typed prompt — becomes a normal
-follow-up turn. Tool calls that are already in flight finish normally
-(no `AbortSignal` is threaded into tools), but no further LLM turn is
-started after the abort.
+follow-up turn. Tool calls that are already in flight finish normally,
+but no further LLM turn is started after the abort. The one exception
+is the `sleep` tool — it polls the steer flag every ~250 ms and returns
+early when you press `Esc`, so the agent yields immediately instead of
+sitting on the timer.
 
 ---
 
@@ -259,6 +261,22 @@ through the large-results cache and shows a stub instead:
 
 The agent sees paged access to the result via dedicated tools; the TUI
 just shows the summary to keep the chat view compact.
+
+### Sleep progress bar
+
+When the agent calls the `sleep` tool — usually after enqueuing tasks
+for workers and before checking results — the tool box renders a
+progress bar that fills from `0` to the requested duration:
+
+```
+  ⟳ sleep ({"seconds":30,"reason":"waiting for worker"})
+    ████████░░░░░░░░░░░░░░░░ 10.2s / 30s
+    waiting for worker
+```
+
+The bar ticks locally in the TUI (the tool itself just `setTimeout`s
+on the agent side) and disappears when the wait elapses or you press
+`Esc` to steer.
 
 ---
 
