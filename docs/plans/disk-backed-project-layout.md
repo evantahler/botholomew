@@ -22,7 +22,7 @@ Pre-1.0 — **breaking change, no migration.** Users reinit.
 <project-root>/
 ├── config/
 │   └── config.json
-├── persistent-context/        # was .botholomew/{soul,beliefs,goals,capabilities}.md
+├── prompts/        # was .botholomew/{soul,beliefs,goals,capabilities}.md
 │   ├── soul.md
 │   ├── beliefs.md
 │   ├── goals.md
@@ -45,7 +45,7 @@ Pre-1.0 — **breaking change, no migration.** Users reinit.
 ├── workers/                   # one JSON pidfile per worker (heartbeats)
 │   └── <id>.json
 ├── logs/                      # worker logs (stdout/stderr)
-├── .botholomew-index.duckdb   # search index sidecar (rebuildable from disk)
+├── index.duckdb   # search index sidecar (rebuildable from disk)
 └── .gitignore                 # written by init (empty new-folder section; user decides what to commit)
 ```
 
@@ -191,7 +191,7 @@ CRUD lives in `src/workers/store.ts`:
 
 ## Search index
 
-`.botholomew-index.duckdb` keeps the existing `embeddings` table + FTS index. Schema simplified: `(path, chunk_index, chunk_content, title, embedding, content_hash, mtime, size)`. **`title`/heading kept** — it's load-bearing for search ranking.
+`index.duckdb` keeps the existing `embeddings` table + FTS index. Schema simplified: `(path, chunk_index, chunk_content, title, embedding, content_hash, mtime, size)`. **`title`/heading kept** — it's load-bearing for search ranking.
 
 Lifecycle:
 - Every write/edit/delete tool, after committing the disk change, calls `reindexPath(path)`: deletes existing rows for that path, re-chunks, re-embeds, inserts, calls `rebuildSearchIndex()`.
@@ -235,7 +235,7 @@ If the index DB is missing, recreate empty on next start; first reindex populate
 - `docs/tasks-and-schedules.md` — lockfile claim, frontmatter schema.
 - `docs/context-and-search.md` — reindex flow, hash-based drift detection.
 - `docs/configuration.md` — new layout.
-- `docs/persistent-context.md` — path is now `persistent-context/`.
+- `docs/prompts.md` — path is now `prompts/`.
 - `docs/skills.md`, `docs/mcpx.md`, `docs/tui.md` — path updates.
 - `README.md` — CLI table, layout description.
 - New `CHANGELOG.md` entry — breaking change.
@@ -268,7 +268,7 @@ End-to-end smoke (Phase 4 complete):
 9. **Crash**: SIGKILL a worker mid-task → reaper unlinks the orphaned lock; another worker re-claims.
 10. **vim race**: edit `tasks/<id>.md` in vim while a worker is claimed; on `:w` the worker's mtime check fails, it aborts cleanly and retries next tick.
 11. `vim context/notes/test.md`, save → within 30s the background reindex picks it up (or `bothy reindex` finds it via content hash).
-12. `rm .botholomew-index.duckdb && bothy reindex --full` → search still works.
+12. `rm index.duckdb && bothy reindex --full` → search still works.
 13. **Filesystem compat**: cd into `~/Library/Mobile Documents/...` and run `bothy init` → refuses; `--force` works with warning.
 
 Tests landed:

@@ -29,7 +29,7 @@ For example: \`/architecture.md\`, \`/configuration.md\`
 - Configuration: /configuration.md
 - Virtual filesystem: /virtual-filesystem.md
 - Context & hybrid search: /context-and-search.md
-- Persistent context: /persistent-context.md
+- Persistent context: /prompts.md
 - Tasks & schedules: /tasks-and-schedules.md
 - Automation: /automation.md
 - Skills: /skills.md
@@ -180,7 +180,7 @@ export default defineConfig({
             text: "Context & hybrid search",
             link: "/context-and-search",
           },
-          { text: "Persistent context", link: "/persistent-context" },
+          { text: "Prompts", link: "/prompts" },
         ],
       },
       {

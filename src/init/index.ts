@@ -8,7 +8,7 @@ import {
   getConfigPath,
   getDbPath,
   getMcpxDir,
-  getPersistentContextDir,
+  getPromptsDir,
   getSchedulesDir,
   getSchedulesLockDir,
   getSkillsDir,
@@ -60,7 +60,7 @@ export async function initProject(
 
   // Top-level directories
   await mkdir(join(projectDir, CONFIG_DIR), { recursive: true });
-  await mkdir(getPersistentContextDir(projectDir), { recursive: true });
+  await mkdir(getPromptsDir(projectDir), { recursive: true });
   await mkdir(getSkillsDir(projectDir), { recursive: true });
   await mkdir(getMcpxDir(projectDir), { recursive: true });
   await mkdir(join(projectDir, CONTEXT_DIR), { recursive: true });
@@ -73,7 +73,7 @@ export async function initProject(
   await mkdir(join(projectDir, LOGS_DIR), { recursive: true });
 
   // Persistent-context template files
-  const pcDir = getPersistentContextDir(projectDir);
+  const pcDir = getPromptsDir(projectDir);
   await Bun.write(join(pcDir, "soul.md"), SOUL_MD);
   await Bun.write(join(pcDir, "beliefs.md"), BELIEFS_MD);
   await Bun.write(join(pcDir, "goals.md"), GOALS_MD);
@@ -117,7 +117,7 @@ export async function initProject(
   logger.dim("");
   logger.dim("Layout:");
   logger.dim(`  ${CONFIG_DIR}/         settings`);
-  logger.dim(`  persistent-context/   soul, beliefs, goals, capabilities`);
+  logger.dim(`  prompts/   soul, beliefs, goals, capabilities`);
   logger.dim(`  ${CONTEXT_DIR}/        agent-writable knowledge tree`);
   logger.dim(`  ${TASKS_DIR}/          one markdown file per task`);
   logger.dim(`    ${LOCKS_SUBDIR}/        worker claim lockfiles`);

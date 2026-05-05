@@ -119,7 +119,7 @@ in the last 24h + in progress).
 
 **`capabilities.md`** — rescan every built-in and MCPX tool and rewrite
 `.botholomew/capabilities.md` (see
-[persistent-context.md](persistent-context.md#capabilitiesmd--high-level-tool-inventory)).
+[prompts.md](prompts.md#capabilitiesmd--high-level-tool-inventory)).
 
 More are easy to add; see the quickstart below.
 

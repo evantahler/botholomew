@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { getPersistentContextDir } from "../constants.ts";
+import { getPromptsDir } from "../constants.ts";
 import type { Task } from "../tasks/schema.ts";
 import { parseContextFile } from "../utils/frontmatter.ts";
 
@@ -33,7 +33,7 @@ export function extractKeywords(text: string): Set<string> {
 }
 
 /**
- * Load persistent context files from persistent-context/ as a single formatted
+ * Load persistent context files from prompts/ as a single formatted
  * string. Includes "always" files unconditionally and "contextual" files
  * whose content overlaps the provided taskKeywords.
  */
@@ -41,7 +41,7 @@ export async function loadPersistentContext(
   projectDir: string,
   taskKeywords?: Set<string> | null,
 ): Promise<string> {
-  const dir = getPersistentContextDir(projectDir);
+  const dir = getPromptsDir(projectDir);
   let out = "";
 
   try {
@@ -66,7 +66,7 @@ export async function loadPersistentContext(
       }
     }
   } catch {
-    // persistent-context/ might not have md files yet
+    // prompts/ might not have md files yet
   }
 
   return out;

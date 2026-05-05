@@ -72,7 +72,7 @@ let projectDir: string;
 beforeEach(async () => {
   projectDir = await mkdtemp(join(tmpdir(), "chat-steer-"));
   await mkdir(join(projectDir, CONTEXT_DIR, "threads"), { recursive: true });
-  dbPath = join(projectDir, ".botholomew-index.duckdb");
+  dbPath = join(projectDir, "index.duckdb");
   threadId = await createThread(projectDir, "chat_session", undefined, "test");
 });
 

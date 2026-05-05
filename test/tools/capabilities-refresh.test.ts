@@ -22,7 +22,7 @@ afterEach(async () => {
 
 async function makeProjectDir(): Promise<string> {
   tempDir = await mkdtemp(join(tmpdir(), "both-caps-tool-"));
-  await mkdir(join(tempDir, "persistent-context"), { recursive: true });
+  await mkdir(join(tempDir, "prompts"), { recursive: true });
   return tempDir;
 }
 
@@ -38,7 +38,7 @@ describe("capabilities_refresh tool", () => {
     expect(result.internal_tool_count).toBeGreaterThan(10);
     expect(result.mcp_tool_count).toBe(0);
     expect(result.path).toBe(
-      join(ctx.projectDir, "persistent-context", "capabilities.md"),
+      join(ctx.projectDir, "prompts", "capabilities.md"),
     );
 
     const raw = await Bun.file(result.path).text();

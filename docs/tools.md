@@ -217,7 +217,7 @@ new inventory without another round-trip. Specific tool names are
 intentionally absent from the rendered file; the agent uses
 `mcp_list_tools` / `mcp_search` / `mcp_info` to look them up at
 call-time. See
-[persistent-context.md](persistent-context.md#capabilitiesmd--high-level-tool-inventory)
+[prompts.md](prompts.md#capabilitiesmd--high-level-tool-inventory)
 for when the agent should call it. The matching CLI surface is
 `botholomew capabilities`, and the slash command is `/capabilities`.
 

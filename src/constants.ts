@@ -6,7 +6,7 @@ import { join } from "node:path";
  *
  *   <projectDir>/
  *     config/config.json
- *     persistent-context/{soul,beliefs,goals,capabilities}.md
+ *     prompts/{soul,beliefs,goals,capabilities}.md
  *     skills/*.md
  *     mcpx/servers.json
  *     models/                    embedding model cache
@@ -15,8 +15,9 @@ import { join } from "node:path";
  *     tasks/.locks/<id>.lock     O_EXCL claim files
  *     schedules/<id>.md          schedules
  *     schedules/.locks/<id>.lock
+ *     workers/<id>.json          pidfile + heartbeat
  *     logs/                      worker logs
- *     .botholomew-index.duckdb   search index (rebuildable from disk)
+ *     index.duckdb               search index (rebuildable from disk)
  */
 
 export const HOME_CONFIG_DIR = join(homedir(), ".botholomew");
@@ -30,10 +31,10 @@ export const DEFAULTS = {
   UPDATE_CHECK_TIMEOUT_MS: 5_000,
 } as const;
 
-export const INDEX_DB_FILENAME = ".botholomew-index.duckdb";
+export const INDEX_DB_FILENAME = "index.duckdb";
 export const CONFIG_DIR = "config";
 export const CONFIG_FILENAME = "config.json";
-export const PERSISTENT_CONTEXT_DIR = "persistent-context";
+export const PROMPTS_DIR = "prompts";
 export const SKILLS_DIR = "skills";
 export const MCPX_DIR = "mcpx";
 export const MODELS_DIR = "models";
@@ -89,8 +90,8 @@ export function getSkillsDir(projectDir: string): string {
   return join(projectDir, SKILLS_DIR);
 }
 
-export function getPersistentContextDir(projectDir: string): string {
-  return join(projectDir, PERSISTENT_CONTEXT_DIR);
+export function getPromptsDir(projectDir: string): string {
+  return join(projectDir, PROMPTS_DIR);
 }
 
 export function getContextDir(projectDir: string): string {

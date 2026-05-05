@@ -12,7 +12,7 @@ import {
   getContextDir,
   getDbPath,
   getMcpxDir,
-  getPersistentContextDir,
+  getPromptsDir,
   getSchedulesDir,
   getSchedulesLockDir,
   getSkillsDir,
@@ -23,7 +23,7 @@ import {
   INDEX_DB_FILENAME,
   LOGS_DIR,
   MCPX_DIR,
-  PERSISTENT_CONTEXT_DIR,
+  PROMPTS_DIR,
   SCHEDULES_DIR,
   SKILLS_DIR,
   TASKS_DIR,
@@ -33,7 +33,7 @@ describe("constants", () => {
   test("top-level layout names are stable", () => {
     expect(CONFIG_DIR).toBe("config");
     expect(CONTEXT_DIR).toBe("context");
-    expect(PERSISTENT_CONTEXT_DIR).toBe("persistent-context");
+    expect(PROMPTS_DIR).toBe("prompts");
     expect(SKILLS_DIR).toBe("skills");
     expect(MCPX_DIR).toBe("mcpx");
     expect(LOGS_DIR).toBe("logs");
@@ -42,7 +42,7 @@ describe("constants", () => {
   });
 
   test("file name constants are defined", () => {
-    expect(INDEX_DB_FILENAME).toBe(".botholomew-index.duckdb");
+    expect(INDEX_DB_FILENAME).toBe("index.duckdb");
     expect(CONFIG_FILENAME).toBe("config.json");
   });
 
@@ -70,10 +70,8 @@ describe("path helpers", () => {
     );
   });
 
-  test("getDbPath returns project/.botholomew-index.duckdb", () => {
-    expect(getDbPath(projectDir)).toBe(
-      join(projectDir, ".botholomew-index.duckdb"),
-    );
+  test("getDbPath returns project/index.duckdb", () => {
+    expect(getDbPath(projectDir)).toBe(join(projectDir, "index.duckdb"));
   });
 
   test("getWorkerLogsDir returns project/logs", () => {
@@ -94,10 +92,8 @@ describe("path helpers", () => {
     expect(getSkillsDir(projectDir)).toBe(join(projectDir, "skills"));
   });
 
-  test("getPersistentContextDir returns project/persistent-context", () => {
-    expect(getPersistentContextDir(projectDir)).toBe(
-      join(projectDir, "persistent-context"),
-    );
+  test("getPromptsDir returns project/prompts", () => {
+    expect(getPromptsDir(projectDir)).toBe(join(projectDir, "prompts"));
   });
 
   test("getContextDir returns project/context", () => {

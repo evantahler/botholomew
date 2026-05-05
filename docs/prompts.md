@@ -53,7 +53,7 @@ See `loadPersistentContext()` and `extractKeywords()` in
 
 ## The hardcoded `## Style` block
 
-After the persistent-context files (and after the optional MCP
+After the prompts files (and after the optional MCP
 section), every system prompt — worker and chat alike — appends a
 short `## Style` block defined as `STYLE_RULES` in
 `src/worker/prompt.ts`. It tells the model to skip sycophantic
