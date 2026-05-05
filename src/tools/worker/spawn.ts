@@ -18,10 +18,12 @@ const inputSchema = z.object({
 });
 
 const outputSchema = z.object({
-  worker_pid: z.number(),
+  worker_pid: z.number().nullable(),
   mode: z.enum(["once", "persist"]),
   message: z.string(),
   is_error: z.boolean(),
+  error_type: z.string().optional(),
+  next_action_hint: z.string().optional(),
 });
 
 export const spawnWorkerTool = {
@@ -33,18 +35,30 @@ export const spawnWorkerTool = {
   outputSchema,
   execute: async (input, ctx) => {
     const mode = input.persist ? "persist" : "once";
-    const { pid } = await spawnWorker(ctx.projectDir, {
-      mode,
-      taskId: input.task_id,
-    });
-    const target = input.task_id
-      ? `task ${input.task_id}`
-      : "next eligible task";
-    return {
-      worker_pid: pid,
-      mode,
-      message: `Spawned ${mode} worker (pid ${pid}) for ${target}.`,
-      is_error: false,
-    };
+    try {
+      const { pid } = await spawnWorker(ctx.projectDir, {
+        mode,
+        taskId: input.task_id,
+      });
+      const target = input.task_id
+        ? `task ${input.task_id}`
+        : "next eligible task";
+      return {
+        worker_pid: pid,
+        mode,
+        message: `Spawned ${mode} worker (pid ${pid}) for ${target}.`,
+        is_error: false,
+      };
+    } catch (err) {
+      return {
+        worker_pid: null,
+        mode,
+        message: err instanceof Error ? err.message : String(err),
+        is_error: true,
+        error_type: "spawn_failed",
+        next_action_hint:
+          "Bun must be on PATH for the spawned child to launch. Confirm with `which bun` from the same shell that runs the agent.",
+      };
+    }
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

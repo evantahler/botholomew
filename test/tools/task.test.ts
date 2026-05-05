@@ -40,6 +40,16 @@ afterEach(async () => {
   await rm(projectDir, { recursive: true, force: true });
 });
 
+async function makeTask(
+  overrides: Parameters<typeof createTaskTool.execute>[0],
+): Promise<{ id: string; name: string }> {
+  const r = await createTaskTool.execute(overrides, ctx);
+  if (!r.id || !r.name) {
+    throw new Error(`unexpected create_task error: ${r.message}`);
+  }
+  return { id: r.id, name: r.name };
+}
+
 // ── create_task ─────────────────────────────────────────────
 
 describe("create_task", () => {
@@ -52,29 +62,44 @@ describe("create_task", () => {
   });
 
   test("creates a task with all fields", async () => {
-    const result = await createTaskTool.execute(
-      {
-        name: "Full task",
-        description: "Detailed description",
-        priority: "high",
-        context_paths: ["notes/a.md"],
-      },
-      ctx,
-    );
-    expect(result.id).toBeTruthy();
-    const stored = await getTask(projectDir, result.id);
+    const created = await makeTask({
+      name: "Full task",
+      description: "Detailed description",
+      priority: "high",
+      context_paths: ["notes/a.md"],
+    });
+    const stored = await getTask(projectDir, created.id);
     expect(stored?.priority).toBe("high");
     expect(stored?.context_paths).toEqual(["notes/a.md"]);
   });
 
   test("creates a task with blocked_by", async () => {
-    const first = await createTaskTool.execute({ name: "First" }, ctx);
-    const second = await createTaskTool.execute(
-      { name: "Second", blocked_by: [first.id] },
-      ctx,
-    );
+    const first = await makeTask({ name: "First" });
+    const second = await makeTask({ name: "Second", blocked_by: [first.id] });
     const stored = await getTask(projectDir, second.id);
     expect(stored?.blocked_by).toEqual([first.id]);
+  });
+
+  test("returns circular_dependency on a cycle", async () => {
+    const a = await makeTask({ name: "A" });
+    const b = await makeTask({ name: "B", blocked_by: [a.id] });
+    const result = await createTaskTool.execute(
+      { name: "C", blocked_by: [b.id] },
+      ctx,
+    );
+    // No cycle yet; this one creates fine.
+    expect(result.is_error).toBe(false);
+
+    // Now retroactively try to make A depend on its descendant — that
+    // closes a cycle. updateTask is the path that exposes the
+    // CircularDependencyError to the tool.
+    const cyclic = await updateTaskTool.execute(
+      { id: a.id, blocked_by: [b.id] },
+      ctx,
+    );
+    expect(cyclic.is_error).toBe(true);
+    expect(cyclic.error_type).toBe("circular_dependency");
+    expect(cyclic.next_action_hint).toBeTruthy();
   });
 
   test("validates input schema rejects missing name", () => {
@@ -95,7 +120,7 @@ describe("create_task", () => {
 
 describe("update_task", () => {
   test("updates name of a pending task", async () => {
-    const created = await createTaskTool.execute({ name: "Original" }, ctx);
+    const created = await makeTask({ name: "Original" });
     const result = await updateTaskTool.execute(
       { id: created.id, name: "Renamed" },
       ctx,
@@ -106,7 +131,7 @@ describe("update_task", () => {
   });
 
   test("updates description and priority together", async () => {
-    const created = await createTaskTool.execute({ name: "Task" }, ctx);
+    const created = await makeTask({ name: "Task" });
     const result = await updateTaskTool.execute(
       { id: created.id, description: "New desc", priority: "high" },
       ctx,
@@ -116,8 +141,8 @@ describe("update_task", () => {
   });
 
   test("updates blocked_by", async () => {
-    const a = await createTaskTool.execute({ name: "A" }, ctx);
-    const b = await createTaskTool.execute({ name: "B" }, ctx);
+    const a = await makeTask({ name: "A" });
+    const b = await makeTask({ name: "B" });
     const result = await updateTaskTool.execute(
       { id: b.id, blocked_by: [a.id] },
       ctx,
@@ -126,7 +151,7 @@ describe("update_task", () => {
   });
 
   test("rejects update of non-pending task", async () => {
-    const created = await createTaskTool.execute({ name: "Task" }, ctx);
+    const created = await makeTask({ name: "Task" });
     await updateTaskStatus(projectDir, created.id, "in_progress");
     const result = await updateTaskTool.execute(
       { id: created.id, name: "Nope" },
@@ -230,8 +255,8 @@ describe("list_tasks", () => {
   });
 
   test("filters by status", async () => {
-    const a = await createTaskTool.execute({ name: "a" }, ctx);
-    await createTaskTool.execute({ name: "b" }, ctx);
+    const a = await makeTask({ name: "a" });
+    await makeTask({ name: "b" });
     await updateTaskStatus(projectDir, a.id, "complete", null, "done");
     const pending = await listTasksTool.execute({ status: "pending" }, ctx);
     expect(pending.count).toBe(1);
@@ -260,10 +285,11 @@ describe("list_tasks", () => {
 
 describe("view_task", () => {
   test("returns task details", async () => {
-    const created = await createTaskTool.execute(
-      { name: "n", description: "body", priority: "high" },
-      ctx,
-    );
+    const created = await makeTask({
+      name: "n",
+      description: "body",
+      priority: "high",
+    });
     const view = await viewTaskTool.execute({ id: created.id }, ctx);
     expect(view.is_error).toBe(false);
     expect(view.task?.name).toBe("n");
@@ -278,11 +304,12 @@ describe("view_task", () => {
   });
 
   test("includes blocked_by and context_paths", async () => {
-    const a = await createTaskTool.execute({ name: "a" }, ctx);
-    const b = await createTaskTool.execute(
-      { name: "b", blocked_by: [a.id], context_paths: ["x.md"] },
-      ctx,
-    );
+    const a = await makeTask({ name: "a" });
+    const b = await makeTask({
+      name: "b",
+      blocked_by: [a.id],
+      context_paths: ["x.md"],
+    });
     const view = await viewTaskTool.execute({ id: b.id }, ctx);
     expect(view.task?.blocked_by).toEqual([a.id]);
     expect(view.task?.context_paths).toEqual(["x.md"]);

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TASK_PRIORITIES } from "../../tasks/schema.ts";
-import { createTask } from "../../tasks/store.ts";
+import { CircularDependencyError, createTask } from "../../tasks/store.ts";
 import { logger } from "../../utils/logger.ts";
 import type { ToolDefinition } from "../tool.ts";
 
@@ -31,10 +31,12 @@ const inputSchema = z.object({
 });
 
 const outputSchema = z.object({
-  id: z.string(),
-  name: z.string(),
+  id: z.string().nullable(),
+  name: z.string().nullable(),
   message: z.string(),
   is_error: z.boolean(),
+  error_type: z.string().optional(),
+  next_action_hint: z.string().optional(),
 });
 
 export const createTaskTool = {
@@ -45,19 +47,34 @@ export const createTaskTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    const newTask = await createTask(ctx.projectDir, {
-      name: input.name,
-      description: input.description,
-      priority: input.priority,
-      blocked_by: input.blocked_by,
-      context_paths: input.context_paths,
-    });
-    logger.info(`Created subtask: ${newTask.name} (${newTask.id})`);
-    return {
-      id: newTask.id,
-      name: newTask.name,
-      message: `Created task "${newTask.name}" with ID ${newTask.id}`,
-      is_error: false,
-    };
+    try {
+      const newTask = await createTask(ctx.projectDir, {
+        name: input.name,
+        description: input.description,
+        priority: input.priority,
+        blocked_by: input.blocked_by,
+        context_paths: input.context_paths,
+      });
+      logger.info(`Created subtask: ${newTask.name} (${newTask.id})`);
+      return {
+        id: newTask.id,
+        name: newTask.name,
+        message: `Created task "${newTask.name}" with ID ${newTask.id}`,
+        is_error: false,
+      };
+    } catch (err) {
+      if (err instanceof CircularDependencyError) {
+        return {
+          id: null,
+          name: null,
+          message: err.message,
+          is_error: true,
+          error_type: "circular_dependency",
+          next_action_hint:
+            "Pick blockers that don't transitively depend on this task. `list_tasks` + `view_task` show the existing dependency graph.",
+        };
+      }
+      throw err;
+    }
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;
