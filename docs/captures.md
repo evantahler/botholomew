@@ -150,7 +150,7 @@ because VHS can't keystroke its way through the tab bar:
 
 - **`BOTHOLOMEW_CAPTURE_TAB_CYCLE=<dwell-ms>`** (default `2500`) — when set,
   `src/tui/App.tsx` schedules timers that walk `activeTab` through
-  2 → 3 → 4 → 5 → 6 → 7 → 1 with the given dwell between tabs. The hook is a
+  2 → 3 → 4 → 5 → 6 → 7 → 8 → 1 with the given dwell between tabs. The hook is a
   no-op unless the env var is defined, so it doesn't affect normal use.
   `docs/tapes/full-tour.tape` enables this via its fixture's `env` block.
 
