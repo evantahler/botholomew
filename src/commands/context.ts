@@ -56,6 +56,18 @@ export function registerContextCommand(program: Command) {
         logger.success(
           `imported ${fetched.content.length} bytes → ${ansis.bold(`context/${dest}`)} (source: ${fetched.source ?? "http"})`,
         );
+
+        // Reindex so the new file is searchable. reindexContext is
+        // incremental — files whose content_hash matches the index are
+        // skipped, so this only embeds the file we just wrote.
+        const dbPath = getDbPath(dir);
+        await withDb(dbPath, migrate);
+        const summary = await reindexContext(dir, config, dbPath, {
+          onProgress: (msg) => logger.dim(`  ${msg}`),
+        });
+        logger.success(
+          `indexed: ${summary.added} added, ${summary.updated} updated, ${summary.unchanged} unchanged, ${summary.chunksWritten} chunks written`,
+        );
       } catch (err) {
         logger.error(
           `import failed: ${err instanceof Error ? err.message : String(err)}`,
