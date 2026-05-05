@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CONTEXT_DIR } from "../../src/constants.ts";
@@ -29,18 +29,25 @@ afterEach(async () => {
 });
 
 describe("threads store (CSV)", () => {
-  test("createThread writes a CSV with header + thread_meta row", async () => {
+  test("createThread writes a CSV under context/threads/<date>/<id>.csv", async () => {
     const id = await createThread(
       projectDir,
       "chat_session",
       undefined,
       "Hello",
     );
-    const path = join(projectDir, CONTEXT_DIR, "threads", `${id}.csv`);
+    // Date is derived from the uuidv7 timestamp; we don't pin a specific
+    // value (UTC date varies by clock), but it must be a YYYY-MM-DD subdir
+    // and the file must live exactly one level under threads/.
+    const root = join(projectDir, CONTEXT_DIR, "threads");
+    const dateDirs = await readdir(root);
+    expect(dateDirs).toHaveLength(1);
+    expect(dateDirs[0]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const path = join(root, dateDirs[0] ?? "", `${id}.csv`);
     const text = await readFile(path, "utf-8");
     expect(text.startsWith("created_at,role,kind,content,")).toBe(true);
     expect(text).toContain("thread_meta");
-    expect(text).toContain('"Hello"'); // title round-trips through JSON encoding
+    expect(text).toContain('"Hello"');
   });
 
   test("logInteraction appends rows; getThread reads them back in order", async () => {
@@ -135,6 +142,44 @@ describe("threads store (CSV)", () => {
     expect(await deleteThread(projectDir, id)).toBe(true);
     expect(await getThread(projectDir, id)).toBeNull();
     expect(await deleteThread(projectDir, id)).toBe(false);
+  });
+
+  test("thread files live in date subdirectories derived from the id's uuidv7 timestamp", async () => {
+    const a = await createThread(projectDir, "chat_session", undefined, "a");
+    const b = await createThread(projectDir, "chat_session", undefined, "b");
+    const root = join(projectDir, CONTEXT_DIR, "threads");
+    const dateDirs = (await readdir(root)).sort();
+    // Both threads created in the same test run land under the same UTC
+    // date directory; in the rare midnight-rollover case they could split,
+    // so we accept 1 or 2 dirs.
+    expect(dateDirs.length).toBeGreaterThanOrEqual(1);
+    for (const d of dateDirs) expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    // The store's read-by-id path resolves the date dir without us telling
+    // it which date to look in.
+    expect((await getThread(projectDir, a))?.thread.title).toBe("a");
+    expect((await getThread(projectDir, b))?.thread.title).toBe("b");
+  });
+
+  test("findThreadFile falls back to walking date subdirs for legacy/non-v7 ids", async () => {
+    // Drop a hand-written CSV under a manually-chosen date dir (id is not
+    // a uuidv7 — `dateFromUuidV7` will return null and the lookup must
+    // fall back to a directory walk).
+    const id = "legacy-id-no-v7-timestamp";
+    const dateDir = join(projectDir, CONTEXT_DIR, "threads", "2026-05-04");
+    await mkdir(dateDir, { recursive: true });
+    const meta = JSON.stringify({
+      type: "chat_session",
+      task_id: null,
+      title: "legacy",
+      started_at: "2026-05-04T12:00:00.000Z",
+    });
+    await Bun.write(
+      join(dateDir, `${id}.csv`),
+      `created_at,role,kind,content,tool_name,tool_input,duration_ms,token_count\n2026-05-04T12:00:00.000Z,system,thread_meta,"${meta.replace(/"/g, '""')}",,,,\n`,
+    );
+    const result = await getThread(projectDir, id);
+    expect(result?.thread.title).toBe("legacy");
   });
 
   test("malformed thread file is gracefully skipped by listThreads", async () => {

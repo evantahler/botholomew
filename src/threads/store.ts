@@ -4,6 +4,39 @@ import { getThreadsDir } from "../constants.ts";
 import { uuidv7 } from "../db/uuid.ts";
 import { atomicWrite } from "../fs/atomic.ts";
 
+const DATE_DIR_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Format a Date as `YYYY-MM-DD` in UTC. We use UTC (not local time) so a
+ * thread's date directory is stable regardless of where the machine is
+ * physically located when a later read happens — the alternative would be
+ * a thread created at 11pm PT going into one folder and being looked up
+ * from a different timezone the next morning in a different folder.
+ */
+function utcDateString(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Recover the creation timestamp from a uuidv7. The first 48 bits of v7
+ * are unix-millis. Returns null for non-v7 ids (or any parse failure) so
+ * the caller can fall back to a directory walk.
+ */
+function dateFromUuidV7(id: string): string | null {
+  // shape: xxxxxxxx-xxxx-7xxx-yxxx-xxxxxxxxxxxx — the version nibble is
+  // the 13th hex char (position 14 with the dash).
+  if (id.length < 19 || id[14] !== "7") return null;
+  const hex = id.slice(0, 8) + id.slice(9, 13);
+  const ms = Number.parseInt(hex, 16);
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return null;
+  return utcDateString(d);
+}
+
 /**
  * Thread + interaction history, stored as CSV files under
  * `<projectDir>/context/threads/<id>.csv`. The `context/` placement is
@@ -64,8 +97,83 @@ interface ThreadMetaPayload {
   started_at: string;
 }
 
+/**
+ * The canonical write path for `id`: `threads/<YYYY-MM-DD>/<id>.csv`. The
+ * date subdir keeps the directory bounded as conversations accumulate;
+ * deriving the date from the id (not from `Date.now()`) means the path is
+ * a pure function of the id, so reads after a process restart land in the
+ * same place.
+ */
 function threadFilePath(projectDir: string, id: string): string {
-  return join(getThreadsDir(projectDir), `${id}.csv`);
+  const date = dateFromUuidV7(id) ?? utcDateString(new Date());
+  return join(getThreadsDir(projectDir), date, `${id}.csv`);
+}
+
+/**
+ * Locate the CSV for `id`. Tries the predicted v7-derived path first, then
+ * falls back to walking date subdirs — this catches legacy ids without a
+ * v7 timestamp and the rare case where a thread file got moved between
+ * dirs by hand. Returns null if no match exists.
+ */
+async function findThreadFile(
+  projectDir: string,
+  id: string,
+): Promise<string | null> {
+  const predicted = threadFilePath(projectDir, id);
+  try {
+    await stat(predicted);
+    return predicted;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+  // Fallback: walk date subdirs. Cheap because there's at most one file
+  // per (date, id) pair and the dir count grows with calendar days, not
+  // thread volume.
+  const root = getThreadsDir(projectDir);
+  let entries: string[];
+  try {
+    entries = await readdir(root);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+  for (const entry of entries) {
+    if (!DATE_DIR_RE.test(entry)) continue;
+    const candidate = join(root, entry, `${id}.csv`);
+    try {
+      await stat(candidate);
+      return candidate;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    }
+  }
+  return null;
+}
+
+/** Yield every `<id>` whose CSV exists somewhere under `threads/`. */
+async function listThreadIds(projectDir: string): Promise<string[]> {
+  const root = getThreadsDir(projectDir);
+  let dateDirs: string[];
+  try {
+    dateDirs = await readdir(root);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw err;
+  }
+  const ids: string[] = [];
+  for (const dir of dateDirs) {
+    if (!DATE_DIR_RE.test(dir)) continue;
+    let names: string[];
+    try {
+      names = await readdir(join(root, dir));
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      if (name.endsWith(".csv")) ids.push(name.slice(0, -".csv".length));
+    }
+  }
+  return ids;
 }
 
 function csvField(value: string | number | null | undefined): string {
@@ -176,7 +284,9 @@ export async function logInteraction(
     tokenCount?: number;
   },
 ): Promise<string> {
-  const path = threadFilePath(projectDir, threadId);
+  const path =
+    (await findThreadFile(projectDir, threadId)) ??
+    threadFilePath(projectDir, threadId);
   const row = csvRow([
     new Date().toISOString(),
     params.role,
@@ -202,8 +312,11 @@ export async function endThread(
   projectDir: string,
   threadId: string,
 ): Promise<void> {
+  const path =
+    (await findThreadFile(projectDir, threadId)) ??
+    threadFilePath(projectDir, threadId);
   await appendFile(
-    threadFilePath(projectDir, threadId),
+    path,
     csvRow([
       new Date().toISOString(),
       "system",
@@ -223,7 +336,8 @@ export async function reopenThread(
   threadId: string,
 ): Promise<void> {
   // "Reopen" = drop the most recent thread_ended marker if there is one.
-  const path = threadFilePath(projectDir, threadId);
+  const path = await findThreadFile(projectDir, threadId);
+  if (!path) return;
   const rows = await readRows(path);
   if (rows.length === 0) return;
   const last = rows[rows.length - 1];
@@ -238,7 +352,8 @@ export async function updateThreadTitle(
   threadId: string,
   title: string,
 ): Promise<void> {
-  const path = threadFilePath(projectDir, threadId);
+  const path = await findThreadFile(projectDir, threadId);
+  if (!path) return;
   const rows = await readRows(path);
   const metaIdx = rows.findIndex((r) => r[2] === "thread_meta");
   if (metaIdx === -1) return;
@@ -259,7 +374,8 @@ export async function getThread(
   projectDir: string,
   threadId: string,
 ): Promise<{ thread: Thread; interactions: Interaction[] } | null> {
-  const path = threadFilePath(projectDir, threadId);
+  const path = await findThreadFile(projectDir, threadId);
+  if (!path) return null;
   const rows = await readRows(path);
   if (rows.length === 0) return null;
   return rowsToThread(threadId, rows);
@@ -269,8 +385,10 @@ export async function deleteThread(
   projectDir: string,
   threadId: string,
 ): Promise<boolean> {
+  const path = await findThreadFile(projectDir, threadId);
+  if (!path) return false;
   try {
-    await rm(threadFilePath(projectDir, threadId));
+    await rm(path);
     return true;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
@@ -281,10 +399,10 @@ export async function deleteThread(
 export async function deleteAllThreads(
   projectDir: string,
 ): Promise<{ threads: number; interactions: number }> {
-  const dir = getThreadsDir(projectDir);
-  let names: string[];
+  const root = getThreadsDir(projectDir);
+  let dateDirs: string[];
   try {
-    names = await readdir(dir);
+    dateDirs = await readdir(root);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       return { threads: 0, interactions: 0 };
@@ -293,13 +411,25 @@ export async function deleteAllThreads(
   }
   let threads = 0;
   let interactions = 0;
-  for (const name of names) {
-    if (!name.endsWith(".csv")) continue;
-    const path = join(dir, name);
-    const rows = await readRows(path);
-    interactions += Math.max(0, rows.length - 1); // exclude meta row
-    await rm(path).catch(() => {});
-    threads++;
+  for (const dir of dateDirs) {
+    if (!DATE_DIR_RE.test(dir)) continue;
+    const subdir = join(root, dir);
+    let names: string[];
+    try {
+      names = await readdir(subdir);
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      if (!name.endsWith(".csv")) continue;
+      const path = join(subdir, name);
+      const rows = await readRows(path);
+      interactions += Math.max(0, rows.length - 1); // exclude meta row
+      await rm(path).catch(() => {});
+      threads++;
+    }
+    // Best-effort cleanup of the now-empty date dir.
+    await rm(subdir, { recursive: false }).catch(() => {});
   }
   return { threads, interactions };
 }
@@ -342,18 +472,9 @@ export async function listThreads(
     offset?: number;
   },
 ): Promise<Thread[]> {
-  const dir = getThreadsDir(projectDir);
-  let names: string[];
-  try {
-    names = await readdir(dir);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw err;
-  }
+  const ids = await listThreadIds(projectDir);
   const out: Thread[] = [];
-  for (const name of names) {
-    if (!name.endsWith(".csv")) continue;
-    const id = name.slice(0, -".csv".length);
+  for (const id of ids) {
     const data = await getThread(projectDir, id);
     if (!data) continue;
     const t = data.thread;
