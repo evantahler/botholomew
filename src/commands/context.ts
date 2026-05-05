@@ -18,6 +18,10 @@ import { withDb } from "../db/connection.ts";
 import { indexStats } from "../db/embeddings.ts";
 import { migrate } from "../db/schema.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
+import {
+  type ContextFileMeta,
+  serializeContextFile,
+} from "../utils/frontmatter.ts";
 import { logger } from "../utils/logger.ts";
 
 export function registerContextCommand(program: Command) {
@@ -46,21 +50,42 @@ export function registerContextCommand(program: Command) {
       const dir = program.opts().dir;
       const config = await loadConfig(dir);
       const mcpxClient = await createMcpxClient(dir);
-      const spinner = createSpinner(`fetching ${url}`).start();
+      logger.info(`importing ${url}`);
       try {
         const fetched = await fetchUrl(url, config, mcpxClient, opts.prompt);
-        spinner.update({ text: "writing to context/" });
         const dest = opts.path ?? deriveContextPath(url, fetched.source);
-        await writeContextFile(dir, dest, fetched.content, {
+        const meta: ContextFileMeta = {
+          source_url: url,
+          imported_at: new Date().toISOString(),
+        };
+        // Title falls back to the URL when fetcher couldn't extract one —
+        // skip it in that case to avoid duplicating source_url.
+        if (fetched.title && fetched.title !== url) {
+          meta.title = fetched.title;
+        }
+        const body = serializeContextFile(meta, fetched.content);
+        await writeContextFile(dir, dest, body, {
           onConflict: opts.overwrite ? "overwrite" : "error",
         });
-        spinner.success({
-          text: `imported ${fetched.content.length} bytes → ${ansis.bold(`context/${dest}`)} (source: ${fetched.source ?? "http"})`,
+        logger.success(
+          `imported ${body.length} bytes → ${ansis.bold(`context/${dest}`)} (source: ${fetched.source ?? "http"})`,
+        );
+
+        // Reindex so the new file is searchable. reindexContext is
+        // incremental — files whose content_hash matches the index are
+        // skipped, so this only embeds the file we just wrote.
+        const dbPath = getDbPath(dir);
+        await withDb(dbPath, migrate);
+        const summary = await reindexContext(dir, config, dbPath, {
+          onProgress: (msg) => logger.dim(`  ${msg}`),
         });
+        logger.success(
+          `indexed: ${summary.added} added, ${summary.updated} updated, ${summary.unchanged} unchanged, ${summary.chunksWritten} chunks written`,
+        );
       } catch (err) {
-        spinner.error({
-          text: `import failed: ${err instanceof Error ? err.message : String(err)}`,
-        });
+        logger.error(
+          `import failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
         process.exit(1);
       } finally {
         await mcpxClient?.close();

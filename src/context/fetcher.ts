@@ -15,7 +15,15 @@ import { mcpSearchTool } from "../tools/mcp/search.ts";
 import type { ToolContext } from "../tools/tool.ts";
 import { type AnyToolDefinition, toAnthropicTool } from "../tools/tool.ts";
 import { logger } from "../utils/logger.ts";
+import { FetchFailureError } from "./fetcher-errors.ts";
+import {
+  convertToMarkdown,
+  isMarkdownMimeType,
+  resolveEffectiveMimeType,
+} from "./markdown-converter.ts";
 import { stripHtmlTags } from "./url-utils.ts";
+
+export { FetchFailureError } from "./fetcher-errors.ts";
 
 const MAX_CONTENT_BYTES = 500_000;
 const MAX_TURNS = 10;
@@ -36,29 +44,23 @@ export interface FetchedContent {
   source: string | null;
 }
 
-export class FetchFailureError extends Error {
-  readonly userMessage: string;
-  constructor(message: string) {
-    super(message);
-    this.name = "FetchFailureError";
-    this.userMessage = message;
-  }
-}
-
 const FETCHER_SYSTEM_PROMPT = `You are a content fetcher. Your job is to find the right MCP tool to retrieve the content at the given URL, run it, and tell the harness which result to save.
 
 **Important: the harness captures the full result of every mcp_exec call automatically.** You only see a short preview of each result so you can verify it looks reasonable. You do NOT need to read or copy the full content — you just identify which exec call to save.
 
-Strongly prefer markdown output. Most MCP tools support a markdown/format parameter — use it when available.
+**Format preference: markdown, in order of preference.**
+1. When searching with mcp_search or mcp_list_tools, prefer tools whose names indicate markdown output: anything containing "markdown", "md", "AsMarkdown", "AsMd", "AsDocmd", or similar. For example, prefer "GoogleDocs_GetDocumentAsDocmd" over "GoogleDocs_GetDocumentAsHtml".
+2. If no markdown-named variant exists, use mcp_info to inspect the tool's input schema for a "format", "mime_type", "output_format", or similar parameter and request "markdown" (or "md") when available.
+3. If neither is possible, run the tool anyway. The harness will convert the captured content to markdown via a separate LLM call before saving — markdown-native tools are still preferred because they're cheaper and higher fidelity, but you do not have to find one.
 
 Workflow:
-1. Use mcp_search or mcp_list_tools to find the best tool for this URL (e.g., Google Docs tools for docs.google.com, Firecrawl for generic web pages, GitHub tools for github.com).
+1. Use mcp_search or mcp_list_tools to find the best tool for this URL (e.g., Google Docs tools for docs.google.com, Firecrawl for generic web pages, GitHub tools for github.com). Apply the format preference above.
 2. Use mcp_info to inspect the tool's input schema.
 3. Call mcp_exec with the right arguments — request markdown format when supported.
-4. Look at the preview returned by mcp_exec. If it looks like the right content, call accept_content with the exec_call_id (the tool_use_id of the mcp_exec call) and a sensible title.
+4. Look at the preview returned by mcp_exec. If it looks like the right content, call accept_content with the exec_call_id (the tool_use_id of the mcp_exec call), a sensible title, and the actual mime_type the tool returned (so the harness knows whether to convert).
 
 Terminal tools:
-- accept_content(exec_call_id, title, mime_type?) — save the full content captured from a previous mcp_exec call. The harness has the full content; you just supply the id, title, and optional mime_type (defaults to text/markdown).
+- accept_content(exec_call_id, title, mime_type?) — save the content captured from a previous mcp_exec call. The harness has the full content; you supply the id, title, and the source mime_type (e.g., "text/html", "application/json", "text/markdown"). The harness converts to markdown before storage when needed.
 - request_http_fallback() — fall back to a basic HTTP fetch. Use only when no MCP tool can handle the URL after a genuine attempt. Tools like Firecrawl can handle most URLs, so don't give up on the first try.
 - report_failure(message) — surface an actionable message to the user (e.g., "this Google Doc is private — share it with your service account", "Firecrawl is not authenticated"). Use only when there is a specific next step the user must take.`;
 
@@ -147,14 +149,14 @@ export async function fetchUrl(
 
   if (!mcpxClient) {
     logger.dim("  no MCPX client — using HTTP fallback");
-    return httpFallback(url);
+    return httpFallback(url, config);
   }
 
   const result = await runFetcherLoop(url, config, mcpxClient, promptAddition);
   if (result) return result;
 
   logger.dim("  agent signaled fallback — using HTTP");
-  return httpFallback(url);
+  return httpFallback(url, config);
 }
 
 async function runFetcherLoop(
@@ -292,14 +294,26 @@ async function runFetcherLoop(
         });
         continue;
       }
-      const mimeType = input.mime_type || cached.mimeType;
+      const claimedMimeType = input.mime_type || cached.mimeType;
       logger.dim(
-        `  turn ${turn + 1}: accept_content: "${input.title}" (${cached.content.length} chars, ${mimeType}, from ${cached.server}/${cached.tool})`,
+        `  turn ${turn + 1}: accept_content: "${input.title}" (${cached.content.length} chars, claimed ${claimedMimeType}, from ${cached.server}/${cached.tool})`,
+      );
+      const truncated = cached.content.slice(0, MAX_CONTENT_BYTES);
+      // Always normalize via the converter. MCP tools frequently mislabel
+      // format — e.g. Google Docs' "Docmd" tool claims text/markdown but
+      // returns a structured `[H1 ...]` annotation format. The converter
+      // prompt handles already-clean markdown by echoing it unchanged.
+      logger.dim(`  normalizing → markdown`);
+      const finalContent = await convertToMarkdown(
+        truncated,
+        claimedMimeType,
+        url,
+        config,
       );
       return {
         title: input.title,
-        content: cached.content.slice(0, MAX_CONTENT_BYTES),
-        mimeType,
+        content: finalContent,
+        mimeType: "text/markdown",
         sourceUrl: url,
         source: cached.server,
       };
@@ -405,7 +419,10 @@ async function runFetcherLoop(
   return null;
 }
 
-export async function httpFallback(url: string): Promise<FetchedContent> {
+export async function httpFallback(
+  url: string,
+  config: Required<BotholomewConfig> | null = null,
+): Promise<FetchedContent> {
   const response = await fetch(url, {
     headers: { "User-Agent": "Botholomew/1.0" },
     signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
@@ -416,7 +433,8 @@ export async function httpFallback(url: string): Promise<FetchedContent> {
   }
 
   const contentType = response.headers.get("content-type") || "";
-  const isHtml = contentType.includes("text/html");
+  const baseMimeType = contentType.split(";")[0]?.trim() || "text/plain";
+  const isHtml = baseMimeType === "text/html";
   let text = await response.text();
 
   let title = url;
@@ -425,21 +443,72 @@ export async function httpFallback(url: string): Promise<FetchedContent> {
     if (titleMatch?.[1]) {
       title = titleMatch[1].trim();
     }
-    text = stripHtmlTags(text);
   }
 
   if (text.length > MAX_CONTENT_BYTES) {
     text = text.slice(0, MAX_CONTENT_BYTES);
   }
 
-  const mimeType = isHtml
-    ? "text/markdown"
-    : contentType.split(";")[0] || "text/plain";
+  // No API key: we can't honestly produce markdown. Strip HTML tags so the
+  // saved file is at least readable, and label it text/plain so downstream
+  // consumers know it isn't real markdown. Other content types pass through.
+  if (!config?.anthropic_api_key) {
+    if (isHtml) {
+      return {
+        title,
+        content: stripHtmlTags(text),
+        mimeType: "text/plain",
+        sourceUrl: url,
+        source: null,
+      };
+    }
+    return {
+      title,
+      content: text,
+      mimeType: baseMimeType,
+      sourceUrl: url,
+      source: null,
+    };
+  }
 
+  // With an API key: convert anything non-text/non-markdown to markdown.
+  // Plain text short-circuits to avoid burning a conversion call on what's
+  // probably already a readable README/log/etc. text/markdown short-circuits
+  // too — but only after verifying the body actually looks like markdown.
+  // Some servers mislabel HTML as text/markdown.
+  const { mimeType: effectiveMimeType, sniffed } = resolveEffectiveMimeType(
+    baseMimeType,
+    text,
+  );
+  if (sniffed) {
+    logger.warn(
+      `server claimed ${baseMimeType} but body looks like ${effectiveMimeType} — converting anyway`,
+    );
+  }
+  if (
+    effectiveMimeType === "text/plain" ||
+    isMarkdownMimeType(effectiveMimeType)
+  ) {
+    return {
+      title,
+      content: text,
+      mimeType: effectiveMimeType,
+      sourceUrl: url,
+      source: null,
+    };
+  }
+
+  logger.dim(`  converting ${effectiveMimeType} → markdown`);
+  const converted = await convertToMarkdown(
+    text,
+    effectiveMimeType,
+    url,
+    config,
+  );
   return {
     title,
-    content: text,
-    mimeType,
+    content: converted,
+    mimeType: "text/markdown",
     sourceUrl: url,
     source: null,
   };
