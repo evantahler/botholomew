@@ -100,9 +100,9 @@ export async function buildSystemPrompt(
 
   prompt += await loadPersistentContext(projectDir, taskKeywords);
 
-  // Hybrid context search is being rewritten to operate on disk-backed files.
-  // Re-enable here once the new index is in place. (`task`, `dbPath`, `_config`
-  // remain in the signature so we can re-introduce without churn.)
+  // The agent finds task-relevant content via the `search` tool on demand
+  // rather than having chunks pre-stuffed into the system prompt — keeps the
+  // prompt small and lets the model decide what it actually needs to read.
   void task;
   void dbPath;
   void _config;
@@ -119,19 +119,19 @@ When calling complete_task, write a summary that captures your key findings, dec
 
 ### Local context first
 
-**Before any MCP read, search local context.** Drive, Gmail, GitHub, URLs, and prior agent runs are usually already ingested — refetching is slower, costs tokens, and risks rate limits.
+**Before any MCP read, search local context.** Files in \`context/\` (Gmail dumps, GitHub fetches, URL ingests, prior agent outputs) are usually already there — refetching is slower, costs tokens, and risks rate limits.
 
 Workflow for any "look up / find / read" intent:
 
-1. \`search\` (hybrid regexp + semantic) or \`context_search\` (keyword), then \`context_read\` / \`context_tree\` to drill in.
-2. If freshness matters, call \`context_info\` and check \`indexed_at\`. To re-pull a single stale item, use \`context_refresh\` rather than going to MCP for the whole document.
+1. \`search\` (hybrid regexp + semantic) over \`context/\`, then \`context_read\` / \`context_tree\` to drill in.
+2. If freshness matters, call \`context_info\` and check the file's mtime. To re-pull stale content, write fresh into \`context/\` (\`pipe_to_context\` from an \`mcp_exec\` call is the typical path) rather than going to MCP for the whole document on every question.
 3. Only call \`mcp_exec\` for reads when the data is genuinely missing locally **or** must be real-time (e.g., "what's on my calendar right now").
 
 Writes always go through MCP — sending an email, creating an issue, posting to Slack. Don't search context first for those.
 
 Examples:
 - "What does doc X say?" → \`search\` first.
-- "Any new emails from Y?" → check the \`gmail\` drive first; only hit Gmail MCP if the freshest indexed item is too old for the question.
+- "Any new emails from Y?" → \`search\` for the sender under \`context/gmail/\` (or wherever you've been ingesting mail) before hitting Gmail MCP.
 - "Send an email to Y" → MCP write directly; no context lookup.
 
 ### Calling MCP tools

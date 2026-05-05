@@ -1,7 +1,9 @@
 # Tasks & schedules
 
 The task queue is Botholomew's execution substrate. Humans and agents
-both write to it; workers are the readers.
+both write to it; workers are the readers. Each task and each schedule
+is a markdown file you can `vim`, `grep`, `git diff`, and edit by
+hand.
 
 ---
 
@@ -18,53 +20,69 @@ A task is a unit of work with a lifecycle:
  blocked (via blocked_by)
 ```
 
-**Columns** (`src/db/sql/1-core_tables.sql`):
+Tasks live as `tasks/<id>.md` files (id is uuidv7). Status, priority,
+dependencies, and output are stored in YAML frontmatter; the body is
+the human/LLM-readable description:
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | TEXT | UUIDv7 |
-| `name` | TEXT | Short title |
-| `description` | TEXT | Full description for the LLM |
-| `priority` | ENUM | `low` / `medium` / `high` |
-| `status` | ENUM | `pending` / `in_progress` / `failed` / `complete` / `waiting` |
-| `waiting_reason` | TEXT | Set when the agent calls `wait_task` |
-| `claimed_by` | TEXT | Worker id (`workers.id`) that claimed it |
-| `claimed_at` | TEXT | ISO timestamp |
-| `blocked_by` | JSON[] | Array of task IDs that must complete first |
-| `context_ids` | JSON[] | Context items referenced by this task |
-| `output` | TEXT | The `summary` from `complete_task` (added in migration 8) |
+```markdown
+---
+id: 0193abcd-7c10-7d8a-...
+name: Summarize PR #42
+priority: medium
+status: pending          # pending | in_progress | complete | failed | waiting
+blocked_by: []           # task ids that must reach status: complete first
+context_paths: []        # files under context/ this task should reference
+output: null             # filled on completion (summary string from complete_task)
+waiting_reason: null
+created_at: 2026-05-02T10:00:00Z
+updated_at: 2026-05-02T10:00:00Z
+---
+
+# Description
+
+The free-form body the LLM sees. Markdown all the way down.
+```
+
+Frontmatter is strictly validated by Zod (`src/tasks/schema.ts`).
+Files that fail validation are quarantined — workers skip them and the
+DAG checker ignores them. `bothy tasks doctor` lists malformed files
+so you can fix them in place.
 
 ---
 
 ## The claim loop
 
-`claimNextTask(conn, workerId)` in `src/db/tasks.ts`:
+Tasks are claimed by lockfile, not by a DB row update.
+`claimNextTask(projectDir, workerId)` in `src/tasks/claim.ts`:
 
-1. Select `pending` tasks where every `blocked_by` ID is in status
-   `complete`.
-2. Order by priority, then `created_at`.
-3. Atomically `UPDATE ... WHERE status='pending' RETURNING *`, stamping
-   the calling worker's id on `claimed_by`. If `RETURNING` comes back
-   empty, another worker claimed it first — the loop tries the next
-   candidate.
+1. Walk `tasks/` and parse the frontmatter of each `.md` file.
+2. Filter to status `pending` where every `blocked_by` id has status
+   `complete` on disk.
+3. Order by priority, then `created_at`.
+4. For each candidate, try
+   `open(O_CREAT|O_EXCL|O_WRONLY)` on
+   `tasks/.locks/<id>.lock`. The lockfile body holds the worker id and
+   `claimed_at`. The first worker wins; the rest get `EEXIST` and try
+   the next candidate.
+5. On claim, atomic-write the canonical `<id>.md` with `status:
+   in_progress` (mtime check; abort and retry if the file changed
+   underneath).
 
-Multiple workers can race on the same queue safely because the atomic
-UPDATE is serialized at the DuckDB instance level.
-
-A worker holds its claimed task for the duration of the tick. Two
-cleanup paths release stuck tasks:
+Multiple workers can race on the same queue safely because the kernel
+serializes `O_EXCL`. Two cleanup paths release stuck claims:
 
 - **Timeout**: `resetStaleTasks()` (called at the top of every tick)
-  reclaims rows whose `claimed_at` is older than
-  `max_tick_duration_seconds * 3` and sets them back to `pending`.
-- **Dead worker**: `reapDeadWorkers()` flips any worker whose
-  `last_heartbeat_at` is older than `worker_dead_after_seconds` to
-  `dead` and releases every task and schedule claim held by that
-  worker. See [architecture.md](architecture.md#registration-heartbeat-reaping).
+  walks the lockfiles, reads each one's `claimed_at`, and unlinks any
+  whose age exceeds `max_tick_duration_seconds * 3` — the matching
+  task file is rewritten to `status: pending`.
+- **Dead worker**: `reapDeadWorkers()` walks `tasks/.locks/` and
+  `schedules/.locks/`, looks up each lockfile's worker id in
+  `workers/`, and unlinks the lock if the owner is dead or missing.
+  See [architecture.md](architecture.md#registration-heartbeat-reaping).
 
 A single worker can also target a specific task via
-`claimSpecificTask(conn, taskId, workerId)` — used by
-`botholomew worker run --task-id <id>` and the chat `spawn_worker` tool.
+`botholomew worker run --task-id <id>` and the chat `spawn_worker`
+tool.
 
 ---
 
@@ -118,27 +136,34 @@ botholomew schedule add "Morning review" \
   --description "Read my email, check my calendar, draft a morning summary"
 ```
 
-**Columns:**
+Schedules live as `schedules/<id>.md` files with the same frontmatter
++ body shape as tasks:
 
-| Field | Notes |
-|---|---|
-| `frequency` | Plain text — "every morning", "weekly on Mondays", "every 2 hours" |
-| `last_run_at` | ISO timestamp of last evaluation that created tasks |
-| `enabled` | Boolean |
-| `claimed_by` | Worker id currently evaluating this schedule (or null) |
-| `claimed_at` | ISO timestamp when the current claim was taken |
+```yaml
+---
+id: ...
+name: Morning review
+description: Read my email, check my calendar, draft a morning summary
+frequency: every weekday at 7am   # human-friendly; LLM evaluator decides if due
+last_run_at: 2026-05-02T07:03:00Z
+enabled: true
+created_at: ...
+updated_at: ...
+---
+```
 
 ---
 
 ## LLM-evaluated "is it due?"
 
-Instead of parsing cron expressions, `processSchedules(dbPath, config, workerId)`
-(`src/worker/schedules.ts`) first **claims** each enabled schedule via an
-atomic `UPDATE schedules SET claimed_by=?1 WHERE id=?2 AND (claimed_at IS
-NULL OR claimed_at < stale_cutoff) AND (last_run_at IS NULL OR last_run_at
-< now - min_interval) RETURNING *`. Only the worker that wins the claim
-evaluates that schedule — so two concurrent workers evaluating the same
-schedule never produce duplicate task batches.
+Instead of parsing cron expressions, `processSchedules(projectDir,
+config, workerId)` (`src/worker/schedules.ts`) walks
+`schedules/<id>.md`, filters to `enabled: true` and a
+`schedule_min_interval_seconds` window past `last_run_at`, and tries
+`O_EXCL` on `schedules/.locks/<id>.lock` for each. Only the worker
+that wins the claim evaluates that schedule — so two concurrent
+workers evaluating the same schedule never produce duplicate task
+batches.
 
 Once a worker holds the claim, it asks the model:
 
@@ -147,10 +172,16 @@ Once a worker holds the claim, it asks the model:
 > schedule due? If yes, what task(s) should be created?
 
 The LLM returns structured output: `{ isDue: boolean, tasksToCreate:
-Array<{ name, description, priority }> }`. If the schedule describes a
-multi-step workflow ("read email and summarize"), the model can return
-multiple tasks with `blocked_by` linking them — so a schedule naturally
-expands into a chained DAG.
+Array<{ name, description, priority }> }`. If `isDue` is true, the
+worker writes new `tasks/<id>.md` files for each entry, then
+atomic-writes the schedule's own `<id>.md` back with an updated
+`last_run_at` (mtime check; if you edited the schedule in vim
+mid-evaluation the worker aborts and retries next tick). Finally it
+unlinks the lockfile.
+
+If the schedule describes a multi-step workflow ("read email and
+summarize"), the model can return multiple tasks with `blocked_by`
+linking them — so a schedule naturally expands into a chained DAG.
 
 Trade-offs:
 

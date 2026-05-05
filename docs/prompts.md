@@ -1,8 +1,8 @@
 # Persistent context & agent self-modification
 
-The `.botholomew/` directory contains a handful of markdown files that
-shape how the agent thinks. Some the agent can rewrite; some it can't.
-Every one is versioned by frontmatter.
+The project's `prompts/` directory holds a handful of markdown files
+that shape how the agent thinks. Some the agent can rewrite; some it
+can't. Every one is governed by frontmatter.
 
 ---
 
@@ -92,7 +92,7 @@ refuses.
 (always-loaded, agent-editable), but its body is machine-generated
 rather than hand-written. It's a **thematic summary** of what the
 agent can do — built-in capabilities grouped into coarse themes (task
-management, virtual filesystem, search, threads, …) and one theme per
+management, files, search, threads, …) and one theme per
 external service reachable through MCPX (Gmail, GitHub, Linear, …).
 Specific tool names are intentionally **omitted** from the rendered
 file; the agent uses `mcp_list_tools`, `mcp_search`, or `mcp_info` to
@@ -159,14 +159,14 @@ Long-form reference material (ingested PDFs, web pages, meeting notes)
 lives in the [context & embeddings system](context-and-search.md)
 instead. The two are complementary:
 
-- **Persistent context** = how the agent thinks.
-- **Context items / embeddings** = what the agent knows.
+- **Persistent context** (`prompts/`) = how the agent thinks.
+- **`context/` + the search index** = what the agent knows.
 
 ---
 
 ## Adding your own
 
-Drop any `.md` file into `.botholomew/` with frontmatter:
+Drop any `.md` file into `prompts/` with frontmatter:
 
 ```yaml
 ---
@@ -184,7 +184,7 @@ agent-modification: false
 Tasks mentioning "deploy", "release", or "version" — and chat messages
 mentioning the same — will now include this file in the system prompt
 automatically. You didn't have to register it anywhere. On every tick
-the worker reads every `.md` file in `.botholomew/`, extracts words
+the worker reads every `.md` file in `prompts/`, extracts words
 longer than three characters from the current task's name and
 description, and includes any `loading: contextual` file whose content
 contains at least one of those words. The chat agent does the same on

@@ -27,7 +27,7 @@ For example: \`/architecture.md\`, \`/configuration.md\`
 - Architecture: /architecture.md
 - The TUI: /tui.md
 - Configuration: /configuration.md
-- Virtual filesystem: /virtual-filesystem.md
+- Files & the sandbox: /files.md
 - Context & hybrid search: /context-and-search.md
 - Persistent context: /prompts.md
 - Tasks & schedules: /tasks-and-schedules.md
@@ -175,7 +175,7 @@ export default defineConfig({
       {
         text: "Knowledge work",
         items: [
-          { text: "Virtual filesystem", link: "/virtual-filesystem" },
+          { text: "Files & the sandbox", link: "/files" },
           {
             text: "Context & hybrid search",
             link: "/context-and-search",

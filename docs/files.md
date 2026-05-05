@@ -1,0 +1,217 @@
+# Files & the sandbox
+
+Botholomew's agent has no access to your real filesystem. Its world is
+the `context/` tree inside the project directory — real markdown and
+text files, but reachable only through a sandbox helper that rejects
+anything pointing outside.
+
+This is deliberate, and it's the single most important safety property
+of the system:
+
+- **Safety.** The agent cannot read your home directory, cannot
+  overwrite your SSH keys, cannot `rm -rf` anything, cannot exfiltrate
+  files it wasn't handed. A prompt-injected instruction telling it to
+  "read `~/.ssh/id_rsa`" or "follow this symlink to `/etc/passwd`"
+  fails before any IO happens. The worst a rogue agent can do is
+  scribble inside `context/`, which `git diff` will catch and
+  `git checkout -- context/` will undo.
+- **Inspectability.** Every file the agent reads or writes is a real
+  file. `vim`, `grep`, `git diff`, `cat`, and `less` all work. Drop a
+  hand-written note into `context/` and the agent finds it on the next
+  search.
+- **Searchability.** Every write triggers a per-path reindex into
+  `index.duckdb` (the search-index sidecar over `context/`), so the
+  agent's `context_search` finds new content within milliseconds. The
+  index is fully derivable — `botholomew context reindex --full`
+  rebuilds it from disk.
+- **History.** Every write the agent does is recorded in the
+  conversation thread (`threads/<date>/<id>.csv`), so you can audit
+  every change.
+
+---
+
+## Where the agent's files live
+
+Everything under `<project-root>/context/` is part of the agent's
+world. The agent always uses **project-relative forward-slash paths**:
+
+```
+context_read({ path: "notes/meeting.md" })
+context_write({ path: "research/2026-q1.md", content: "..." })
+context_tree({ path: "notes" })
+```
+
+Absolute paths, leading `..`, NUL bytes, and paths over 4096 chars are
+rejected. The sandbox does NFC normalization (so vim's NFD-on-macOS
+roundtrips cleanly) and `lstat`-walks every path component, refusing
+the call if any segment is a symlink. This is robust against an agent
+that — accidentally or by prompt injection — creates a symlink and
+then tries to write through it.
+
+The path validator lives in `src/fs/sandbox.ts::resolveInRoot`. There
+is exactly one helper, used by every path-taking tool.
+
+---
+
+## Safelisted areas
+
+The sandbox is a safelist. By default tools pin to `<root>/context/`.
+Off-limits to the agent:
+
+- `models/` — embedding model cache; rewriting it would corrupt search
+- `logs/` — worker logs (system metadata, not knowledge)
+- `tasks/.locks/`, `schedules/.locks/` — claim files; the agent should
+  never poke at lockfiles directly
+- `index.duckdb` — derived state; rebuild via `context reindex` if it
+  goes wrong
+- Everything outside the project root, full stop
+
+Tasks/schedules/threads/prompts/skills are also outside `context/` —
+the agent edits prompts via dedicated `update_beliefs`/`update_goals`
+tools (which know about frontmatter), interacts with tasks/schedules
+through their own typed tools, and reads threads through
+`view_thread` / `search_threads`. Files-on-disk all the way down, but
+each area has the right tool surface for its shape.
+
+---
+
+## Filesystem compatibility
+
+`fs.rename` and `O_EXCL` are unreliable on sync-overlay filesystems
+(iCloud, Dropbox, Google Drive, OneDrive) and NFS — the files appear
+to write, but the atomicity guarantee that tasks/schedules and
+context-edit need quietly doesn't hold. `botholomew init` and worker
+startup detect these via path heuristics and refuse to run there
+unless `--force` is passed.
+
+If you need a project on a synced volume, run `botholomew init` on a
+local path and copy/symlink the synced bits in by hand — but
+understand you're trading away the atomicity guarantee.
+
+---
+
+## The agent's file/dir tools
+
+All paths are project-relative under `context/`.
+
+**Discovery:**
+
+| Tool | What it does |
+|---|---|
+| `context_tree`        | List the tree at a path; the agent's bird's-eye view of `context/` |
+| `context_dir_size`    | Sum the byte size of files under a directory |
+
+**Directory operations:**
+
+| Tool | What it does |
+|---|---|
+| `context_create_dir` | Create a directory (intermediate dirs created as needed) |
+
+**File operations:**
+
+| Tool | What it does |
+|---|---|
+| `context_read`        | Read a file's contents; slice by line (`offset`/`limit`) |
+| `context_write`       | Write a file; refuses if the path exists unless `on_conflict='overwrite'`. Triggers a per-path reindex |
+| `context_edit`        | Apply git-style line-range patches |
+| `context_delete`      | Remove a file or recursively a directory |
+| `context_copy`        | Copy a file to a new path |
+| `context_move`        | Rename or relocate a file |
+| `context_info`        | Return metadata (size, lines, mime, mtime) |
+| `context_exists`      | Path-existence check |
+| `context_count_lines` | Count `\n` in a file's contents |
+
+These are also exposed from the host CLI — see the `botholomew
+context …` subcommands. Bare paths are interpreted as project-relative,
+the same way the tools resolve them:
+
+```bash
+botholomew context tree notes
+botholomew context read notes/meeting.md
+botholomew context write notes/scratch.md "..."
+```
+
+---
+
+## Structured errors from `context_read` / `context_info`
+
+When the agent passes a path that doesn't resolve, these tools return a
+structured `is_error: true` response (they do **not** throw) so the
+model can recover inside the same tool loop:
+
+```json
+{
+  "is_error": true,
+  "error_type": "not_found",
+  "message": "No file at context/notes/architecture.md",
+  "next_action_hint": "Call context_tree({ path: \"notes\" }) to see what's there."
+}
+```
+
+`context_read` also returns `error_type: "is_directory"` when the
+target exists but is a directory.
+
+---
+
+## Patch format for `context_edit`
+
+```ts
+{ start_line: number, end_line: number, content: string }
+```
+
+- `start_line` / `end_line` are 1-based inclusive.
+- `end_line: 0` means **insert** without replacing.
+- `content: ""` means **delete** the line range.
+- Patches are applied bottom-up (descending `start_line`) so earlier
+  line numbers remain stable.
+- `context_edit` reads the file, applies patches in memory, and
+  atomic-writes-via-rename back over the original. A user editing the
+  file in `vim` at the same time is not corrupted.
+
+---
+
+## Reindex on write
+
+Every mutating tool (`context_write`, `context_edit`, `context_move`,
+`context_delete`, `context_copy`) calls `reindexPath()` after the
+on-disk write commits. That helper:
+
+1. Deletes existing `context_index` rows for the path.
+2. Reads the file (skipped on delete).
+3. Re-chunks and re-embeds the new content.
+4. Inserts fresh rows and rebuilds the FTS index.
+
+External edits — you opening `vim context/notes/foo.md` and saving —
+are picked up by a 30-second background reindex pass that any running
+worker performs, or on demand via `botholomew context reindex`
+(content-hash drift detection, so it only re-embeds files that
+actually changed).
+
+If `index.duckdb` is missing entirely, `botholomew context reindex
+--full` rebuilds it from scratch.
+
+See [context-and-search.md](context-and-search.md) for the chunker,
+embedder, and the search itself.
+
+---
+
+## Why not give the agent a real shell?
+
+An older version of this doc was titled "the virtual filesystem" and
+argued that the agent's files should be DuckDB rows so a path like
+`/etc/passwd` simply didn't exist in its world. That was the wrong
+abstraction — it traded inspectability for safety, and we can have
+both. The current model:
+
+- **Real files**, so you can `vim`, `grep`, and `git` everything the
+  agent does.
+- **One sandbox helper**, so safety isn't sprinkled across 12 tools
+  but lives in ~100 lines you can audit: NFC, lstat-walk, no `..`, no
+  symlinks, no NUL, no escape.
+- **No shell.** The agent never gets `rm`, `cat`, or
+  `bash -c "anything"` — only the typed tools above, every one of
+  which routes through the sandbox.
+
+If you're comfortable letting a model make decisions on your behalf
+but not comfortable letting it touch your disk outside `context/`,
+that's exactly the trade Botholomew makes.

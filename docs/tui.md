@@ -43,7 +43,7 @@ filter state survive a round trip.
 |---|---|---|
 | 1 | **Chat** | Talk to the agent. Streamed responses, tool-call boxes, slash commands, message queue. |
 | 2 | **Tools** | Scrollable log of every tool call in the current session, with full input/output. |
-| 3 | **Context** | Browse the agent's "virtual filesystem" (DuckDB-backed). Preview, search, delete. |
+| 3 | **Context** | Browse the agent's `context/` tree on disk. Preview, search, delete. |
 | 4 | **Tasks** | Task queue with status + priority filters. View details, payloads, and predecessor outputs. |
 | 5 | **Threads** | Browse past chat and worker threads. View interactions, delete with confirmation. |
 | 6 | **Schedules** | Recurring work. Toggle enabled/disabled, delete, inspect last run. |
@@ -85,22 +85,20 @@ toolset.
 
 ### 3. Context
 
-Interactive browser for context items (the agent's "virtual
-filesystem" — see [virtual-filesystem.md](virtual-filesystem.md) and
-[context-and-search.md](context-and-search.md)).
+Interactive browser for files in the project's `context/` tree —
+see [files.md](files.md) and
+[context-and-search.md](context-and-search.md).
 
 - `↑`/`↓` navigate.
-- `Enter` picks a drive (at the top level), expands a directory, or
-  previews a file.
-- `Backspace` goes up one directory; at the root of a drive, it returns
-  to the drive picker.
-- `/` opens a hybrid (keyword + vector) search across all drives.
-- `d` deletes the selected item.
+- `Enter` expands a directory or previews a file.
+- `Backspace` goes up one directory.
+- `/` opens a hybrid (keyword + vector) search across `context/`.
+- `d` deletes the selected file.
 
-Markdown files (detected by `mime_type === "text/markdown"` or a `.md`
-extension on the path) are rendered through `Bun.markdown.ansi` so
-headers, emphasis, lists, and fenced code blocks show with terminal
-formatting. Other file types render as plain text.
+Markdown files (detected by mime type or a `.md` extension) are
+rendered through `Bun.markdown.ansi` so headers, emphasis, lists, and
+fenced code blocks show with terminal formatting. Other file types
+render as plain text.
 
 ### 4. Tasks
 
@@ -135,7 +133,7 @@ full id, pid, hostname, started time, heartbeat time, stopped time (if
 any), pinned task id (if any), and the per-worker log path.
 
 Press `l` to swap the detail pane into a **log view** that tails the
-selected worker's log file (`.botholomew/logs/<id>.log`). The log
+selected worker's log file (`logs/<YYYY-MM-DD>/<id>.log`). The log
 auto-refreshes every ~1.5 s and follows the bottom by default — scroll
 up with `Shift+↑`, `k`, or `K` to pause following; `G` (or scrolling
 back to the bottom) resumes it. Press `l` again to return to the
@@ -187,7 +185,7 @@ Built-in commands are `/help`, `/skills`, `/clear`, and `/exit`.
 `/clear` ends the current chat thread (persisted, still resumable via
 `botholomew chat --thread-id <id>`) and starts a fresh one on the same
 session, so you can reset context without losing the conversation.
-Every file in `.botholomew/skills/` is also surfaced in the popup with
+Every file in `skills/` is also surfaced in the popup with
 its description. See [skills.md](skills.md) for the file format and how
 skills are invoked with positional arguments.
 
@@ -398,12 +396,12 @@ A few choices worth knowing if you're reading or modifying the TUI:
 - [Skills (slash commands)](skills.md) — the `/<name>` commands the
   popup surfaces.
 - [Architecture](architecture.md) — how the TUI, workers, and CLI
-  share one DuckDB.
+  share the project directory.
 - [Tasks & schedules](tasks-and-schedules.md) — what the Tasks and
   Schedules tabs are actually managing.
 - [Context & hybrid search](context-and-search.md) — backs the Context
   tab's search.
-- [Virtual filesystem](virtual-filesystem.md) — the `context_*` tools
-  visible in the Tools tab.
+- [Files & the sandbox](files.md) — the `context_*` tools visible in
+  the Tools tab.
 - [MCPX](mcpx.md) — how `mcp_exec` calls get routed to external
   servers.

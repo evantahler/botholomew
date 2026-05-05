@@ -17,15 +17,15 @@ features:
   - title: Autonomous
     details: Background workers claim tasks, work them with Claude, and log every interaction. Spawn one-shot workers, a long-running --persist worker, or point cron at `botholomew worker run`.
   - title: Portable
-    details: Each project is a `.botholomew/` directory — markdown plus DuckDB. Copy it, share it, check it in, or .gitignore it.
+    details: A project is a directory of files — markdown for prompts, tasks, and schedules; CSVs for conversation history. Copy it, share it, `git diff` it, check it in, or `.gitignore` it.
   - title: Your data, your disk
-    details: Tasks, threads, ingested context, and embeddings live locally in DuckDB with BM25 keyword search and `array_cosine_distance` vector search. Model calls go direct to Anthropic and OpenAI.
+    details: Tasks, schedules, threads, and the agent's context tree are all real files you can `vim`, `grep`, and `git`. DuckDB is demoted to a single search-index sidecar (`index.duckdb`) that's rebuildable from disk.
   - title: Extensible
     details: External tools come from MCP servers via MCPX — run them locally (Gmail, Slack, GitHub) or connect through a gateway like Arcade.dev to reach hundreds of authenticated services.
   - title: Safe by default
-    details: The agent has no shell and no direct filesystem access. Out of the box, everything it can touch lives in `.botholomew/`; every external capability is an MCP server you explicitly add.
+    details: The agent has no shell and no direct filesystem access. Every path-taking tool is sandboxed to the project's `context/` tree (NFC normalization + lstat-walk to reject symlinks at any level); every external capability is an MCP server you explicitly add.
   - title: Concurrent
-    details: Many workers can run at once. Each registers itself in the DB and heartbeats; crashed workers get reaped and their tasks go back into the queue automatically.
+    details: Many workers can run at once. Each writes a pidfile and heartbeats; tasks and schedules are claimed via `O_EXCL` lockfiles, and crashed workers get reaped automatically.
   - title: Self-modifying
     details: The agent maintains its own `beliefs.md` and `goals.md` — it learns, updates its priors, and revises its goals as it works. It can also author its own slash-command skills mid-conversation.
 ---
@@ -38,12 +38,13 @@ features:
 
 ## Why Botholomew?
 
-Unlike coding agents, Botholomew has **no shell and no direct access to
-your filesystem**. It can't edit files on disk — instead, it ingests local
-files, folders, and URLs into a DuckDB-backed context store that it can
-read, search, and summarize. External capabilities (email, Slack, the
-web, and hundreds of other services) are granted deliberately, per
-project, through MCP servers wired up via
+Botholomew has **no shell and no access to your real filesystem**. The
+agent's world is a sandboxed `context/` tree inside the project: it can
+read, write, edit, and grep files there, but cannot escape upward,
+follow symlinks, or touch anything outside. Local files and URLs are
+brought in through `botholomew context add`. External capabilities
+(email, Slack, the web, and hundreds of other services) are granted
+deliberately, per project, through MCP servers wired up via
 [MCPX](https://github.com/evantahler/mcpx).
 
 ## Quickstart
