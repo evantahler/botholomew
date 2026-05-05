@@ -1,11 +1,9 @@
 import { mkdir } from "node:fs/promises";
-import {
-  getConfigPath,
-  getWorkerLogPath,
-  getWorkerLogsDir,
-} from "../constants.ts";
+import { dirname } from "node:path";
+import { getConfigPath, getWorkerLogPath } from "../constants.ts";
 import { uuidv7 } from "../db/uuid.ts";
 import { logger } from "../utils/logger.ts";
+import { dateForId } from "../utils/v7-date.ts";
 import type { WorkerMode } from "./index.ts";
 
 export interface SpawnWorkerOptions {
@@ -33,8 +31,11 @@ export async function spawnWorker(
   }
 
   const workerId = uuidv7();
-  await mkdir(getWorkerLogsDir(projectDir), { recursive: true });
-  const logPath = getWorkerLogPath(projectDir, workerId);
+  // Per-worker log path is derived from the worker id's UTC date so the
+  // logs/ tree stays browsable as workers accumulate. Mirrors the threads
+  // layout under <projectDir>/threads/.
+  const logPath = getWorkerLogPath(projectDir, workerId, dateForId(workerId));
+  await mkdir(dirname(logPath), { recursive: true });
   const logFile = Bun.file(logPath);
 
   const workerScript = new URL("./run.ts", import.meta.url).pathname;

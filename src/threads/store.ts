@@ -3,45 +3,14 @@ import { join } from "node:path";
 import { getThreadsDir } from "../constants.ts";
 import { uuidv7 } from "../db/uuid.ts";
 import { atomicWrite } from "../fs/atomic.ts";
-
-const DATE_DIR_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-/**
- * Format a Date as `YYYY-MM-DD` in UTC. We use UTC (not local time) so a
- * thread's date directory is stable regardless of where the machine is
- * physically located when a later read happens — the alternative would be
- * a thread created at 11pm PT going into one folder and being looked up
- * from a different timezone the next morning in a different folder.
- */
-function utcDateString(d: Date): string {
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-/**
- * Recover the creation timestamp from a uuidv7. The first 48 bits of v7
- * are unix-millis. Returns null for non-v7 ids (or any parse failure) so
- * the caller can fall back to a directory walk.
- */
-function dateFromUuidV7(id: string): string | null {
-  // shape: xxxxxxxx-xxxx-7xxx-yxxx-xxxxxxxxxxxx — the version nibble is
-  // the 13th hex char (position 14 with the dash).
-  if (id.length < 19 || id[14] !== "7") return null;
-  const hex = id.slice(0, 8) + id.slice(9, 13);
-  const ms = Number.parseInt(hex, 16);
-  if (!Number.isFinite(ms) || ms <= 0) return null;
-  const d = new Date(ms);
-  if (Number.isNaN(d.getTime())) return null;
-  return utcDateString(d);
-}
+import { DATE_DIR_RE, dateForId } from "../utils/v7-date.ts";
 
 /**
  * Thread + interaction history, stored as CSV files under
- * `<projectDir>/context/threads/<id>.csv`. The `context/` placement is
- * deliberate: prior conversations are knowledge the agent should be able
- * to search via the same hybrid index it uses for everything else.
+ * `<projectDir>/threads/<YYYY-MM-DD>/<id>.csv`. Threads live OUTSIDE
+ * `context/` because they're system metadata, not user-curated knowledge —
+ * the regular context reindex skips them. Agents search threads through
+ * the dedicated `search_threads` tool instead.
  *
  * CSV schema (8 columns, RFC-4180 quoting):
  *   created_at, role, kind, content, tool_name, tool_input,
@@ -105,8 +74,7 @@ interface ThreadMetaPayload {
  * same place.
  */
 function threadFilePath(projectDir: string, id: string): string {
-  const date = dateFromUuidV7(id) ?? utcDateString(new Date());
-  return join(getThreadsDir(projectDir), date, `${id}.csv`);
+  return join(getThreadsDir(projectDir), dateForId(id), `${id}.csv`);
 }
 
 /**

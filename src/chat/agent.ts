@@ -43,6 +43,7 @@ const CHAT_TOOL_NAMES = new Set([
   "search",
   "list_threads",
   "view_thread",
+  "search_threads",
   "create_schedule",
   "list_schedules",
   "update_beliefs",

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { APIUserAbortError } from "@anthropic-ai/sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
-import { CONTEXT_DIR } from "../../src/constants.ts";
+import { THREADS_DIR } from "../../src/constants.ts";
 import {
   mockEmbed,
   mockEmbedSingle,
@@ -71,7 +71,7 @@ let projectDir: string;
 
 beforeEach(async () => {
   projectDir = await mkdtemp(join(tmpdir(), "chat-steer-"));
-  await mkdir(join(projectDir, CONTEXT_DIR, "threads"), { recursive: true });
+  await mkdir(join(projectDir, THREADS_DIR), { recursive: true });
   dbPath = join(projectDir, "index.duckdb");
   threadId = await createThread(projectDir, "chat_session", undefined, "test");
 });

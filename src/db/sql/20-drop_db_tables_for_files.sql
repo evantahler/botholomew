@@ -2,7 +2,7 @@
 -- DuckDB onto disk:
 --   tasks/             markdown files with frontmatter (one per task)
 --   schedules/         markdown files with frontmatter (one per schedule)
---   context/threads/   CSV per conversation (searchable via the index)
+--   threads/   CSV per conversation (searchable via the index)
 --   workers/           JSON pidfile per worker, mtime-checked heartbeats
 --
 -- The only remaining DuckDB objects after this migration are _migrations,

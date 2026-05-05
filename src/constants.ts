@@ -9,15 +9,16 @@ import { join } from "node:path";
  *     prompts/{soul,beliefs,goals,capabilities}.md
  *     skills/*.md
  *     mcpx/servers.json
- *     models/                    embedding model cache
- *     context/                   agent-writable file tree
- *     tasks/<id>.md              tasks (status in frontmatter)
- *     tasks/.locks/<id>.lock     O_EXCL claim files
- *     schedules/<id>.md          schedules
+ *     models/                          embedding model cache
+ *     context/                         user-curated knowledge tree
+ *     tasks/<id>.md                    tasks (status in frontmatter)
+ *     tasks/.locks/<id>.lock           O_EXCL claim files
+ *     schedules/<id>.md                schedules
  *     schedules/.locks/<id>.lock
- *     workers/<id>.json          pidfile + heartbeat
- *     logs/                      worker logs
- *     index.duckdb               search index (rebuildable from disk)
+ *     threads/<YYYY-MM-DD>/<id>.csv    conversation history
+ *     workers/<id>.json                pidfile + heartbeat
+ *     logs/                            worker logs
+ *     index.duckdb                     search index (rebuildable from disk)
  */
 
 export const HOME_CONFIG_DIR = join(homedir(), ".botholomew");
@@ -44,7 +45,7 @@ export const SCHEDULES_DIR = "schedules";
 export const LOCKS_SUBDIR = ".locks";
 export const LOGS_DIR = "logs";
 export const WORKERS_DIR = "workers";
-export const THREADS_SUBDIR = "threads";
+export const THREADS_DIR = "threads";
 export const MCPX_SERVERS_FILENAME = "servers.json";
 export const EMBEDDING_DIMENSION = 384;
 export const EMBEDDING_MODEL = "Xenova/bge-small-en-v1.5";
@@ -68,8 +69,19 @@ export function getWorkerLogsDir(projectDir: string): string {
   return join(projectDir, LOGS_DIR);
 }
 
-export function getWorkerLogPath(projectDir: string, workerId: string): string {
-  return join(projectDir, LOGS_DIR, `${workerId}.log`);
+/**
+ * Per-worker log file at `<logs>/<YYYY-MM-DD>/<workerId>.log`. The date
+ * subdir keeps the logs directory browsable as workers accumulate.
+ * Callers derive `date` from the worker's uuidv7 timestamp via
+ * `src/utils/v7-date.ts::dateForId` so the path is a pure function of
+ * the id and survives a process restart.
+ */
+export function getWorkerLogPath(
+  projectDir: string,
+  workerId: string,
+  date: string,
+): string {
+  return join(projectDir, LOGS_DIR, date, `${workerId}.log`);
 }
 
 export function getConfigPath(projectDir: string): string {
@@ -119,5 +131,5 @@ export function getWorkersDir(projectDir: string): string {
 }
 
 export function getThreadsDir(projectDir: string): string {
-  return join(projectDir, CONTEXT_DIR, THREADS_SUBDIR);
+  return join(projectDir, THREADS_DIR);
 }

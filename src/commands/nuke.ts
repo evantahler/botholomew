@@ -6,7 +6,7 @@ import {
   getContextDir,
   SCHEDULES_DIR,
   TASKS_DIR,
-  THREADS_SUBDIR,
+  THREADS_DIR,
 } from "../constants.ts";
 import { deleteAllSchedules } from "../schedules/store.ts";
 import { deleteAllTasks } from "../tasks/store.ts";
@@ -46,7 +46,7 @@ async function runNuke(projectDir: string, scope: NukeScope): Promise<void> {
   if (scope === "threads" || scope === "all") {
     const { threads, interactions } = await deleteAllThreads(projectDir);
     logger.success(
-      `Deleted ${threads} threads (${interactions} interactions) from ${CONTEXT_DIR}/${THREADS_SUBDIR}/`,
+      `Deleted ${threads} threads (${interactions} interactions) from ${THREADS_DIR}/`,
     );
   }
 }
@@ -90,7 +90,7 @@ export function registerNukeCommand(program: Command) {
     program,
     nuke,
     "context",
-    `Erase the entire ${CONTEXT_DIR}/ directory (includes ${THREADS_SUBDIR}/)`,
+    `Erase the entire ${CONTEXT_DIR}/ directory (user-curated knowledge)`,
   );
   registerScope(
     program,
@@ -108,12 +108,12 @@ export function registerNukeCommand(program: Command) {
     program,
     nuke,
     "threads",
-    `Delete all conversation history in ${CONTEXT_DIR}/${THREADS_SUBDIR}/`,
+    `Delete all conversation history in ${THREADS_DIR}/`,
   );
   registerScope(
     program,
     nuke,
     "all",
-    "Erase all agent-writable data: context/ (incl. threads), tasks/, schedules/",
+    "Erase all agent-writable data: context/, tasks/, schedules/, threads/",
   );
 }

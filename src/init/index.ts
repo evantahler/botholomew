@@ -122,10 +122,8 @@ export async function initProject(
   logger.dim(`  ${TASKS_DIR}/          one markdown file per task`);
   logger.dim(`    ${LOCKS_SUBDIR}/        worker claim lockfiles`);
   logger.dim(`  ${SCHEDULES_DIR}/      one markdown file per schedule`);
+  logger.dim(`  threads/         one CSV per conversation, by UTC date`);
   logger.dim(`  workers/         one JSON pidfile per worker (heartbeats)`);
-  logger.dim(
-    `  ${CONTEXT_DIR}/threads/  one CSV per conversation (searchable)`,
-  );
   logger.dim(`  skills/, mcpx/, models/, logs/`);
   logger.dim("");
   logger.dim("Next steps:");

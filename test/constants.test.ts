@@ -78,9 +78,9 @@ describe("path helpers", () => {
     expect(getWorkerLogsDir(projectDir)).toBe(join(projectDir, "logs"));
   });
 
-  test("getWorkerLogPath returns project/logs/<id>.log", () => {
-    expect(getWorkerLogPath(projectDir, "abc123")).toBe(
-      join(projectDir, "logs", "abc123.log"),
+  test("getWorkerLogPath returns project/logs/<date>/<id>.log", () => {
+    expect(getWorkerLogPath(projectDir, "abc123", "2026-05-04")).toBe(
+      join(projectDir, "logs", "2026-05-04", "abc123.log"),
     );
   });
 

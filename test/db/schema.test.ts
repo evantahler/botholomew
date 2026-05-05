@@ -7,7 +7,7 @@ import { migrate } from "../../src/db/schema.ts";
 
 // After migration 20 the only DuckDB tables left are _migrations and
 // context_index. Tasks/schedules are markdown files, threads are CSVs
-// under context/threads/, and workers are JSON pidfiles in workers/.
+// under threads/, and workers are JSON pidfiles in workers/.
 const EXPECTED_TABLES = ["_migrations", "context_index"];
 
 describe("schema migrations", () => {
@@ -25,7 +25,7 @@ describe("schema migrations", () => {
     }
     // Every table we retired:
     //   tasks/schedules         → markdown frontmatter files
-    //   threads/interactions    → CSV under context/threads/
+    //   threads/interactions    → CSV under threads/
     //   workers                 → JSON pidfiles under workers/
     //   context_items/embeddings → replaced by context_index
     //   daemon_state            → unused, dropped

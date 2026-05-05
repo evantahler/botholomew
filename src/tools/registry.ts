@@ -47,6 +47,7 @@ import { viewTaskTool } from "./task/view.ts";
 import { waitTaskTool } from "./task/wait.ts";
 // Thread tools
 import { listThreadsTool } from "./thread/list.ts";
+import { searchThreadsTool } from "./thread/search.ts";
 import { viewThreadTool } from "./thread/view.ts";
 import { registerTool } from "./tool.ts";
 // Worker tools
@@ -102,6 +103,7 @@ export function registerAllTools(): void {
   // Thread
   registerTool(listThreadsTool);
   registerTool(viewThreadTool);
+  registerTool(searchThreadsTool);
 
   // MCP
   registerTool(mcpListToolsTool);
