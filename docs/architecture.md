@@ -154,7 +154,10 @@ set — it does **not** execute long-running work itself. Instead, it:
 - looks up files by path (`context_info`, `context_search`) and can
   refresh ingested URLs in place (`context_refresh`),
 - invokes **skills** (`/review`, `/standup`, …) defined in `skills/`,
-- edits `beliefs.md` and `goals.md` via `update_beliefs` / `update_goals`.
+- edits `beliefs.md` and `goals.md` via `update_beliefs` / `update_goals`,
+- can `sleep` for a fixed duration (1 s – 1 h) when it's deliberately
+  waiting on background work — the TUI shows a progress bar and `Esc`
+  cancels the wait.
 
 It uses Anthropic's streaming API so tokens render in the TUI as they
 arrive. Every session is itself a `chat_session` thread written to its

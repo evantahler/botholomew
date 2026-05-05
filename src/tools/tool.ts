@@ -17,6 +17,11 @@ export interface ToolContext {
   projectDir: string;
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;
+  /**
+   * Chat-mode only. Lets long-running tools (e.g. `sleep`) poll for
+   * Esc-to-abort by reading `session.aborted`. Workers leave this `undefined`.
+   */
+  shouldAbort?: () => boolean;
 }
 
 type ToolOutputBase = { is_error: z.ZodBoolean };
