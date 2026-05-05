@@ -1,8 +1,16 @@
 import matter from "gray-matter";
 
 export interface ContextFileMeta {
-  loading: "always" | "contextual";
-  "agent-modification": boolean;
+  loading?: "always" | "contextual";
+  "agent-modification"?: boolean;
+  // Set by `bothy context import <url>` so the saved file remembers
+  // where it came from. Optional so files written by other paths
+  // (prompts/, beliefs/, agent-authored notes) aren't required to
+  // carry import metadata.
+  source_url?: string;
+  imported_at?: string;
+  title?: string;
+  [key: string]: unknown;
 }
 
 export function parseContextFile(raw: string): {
