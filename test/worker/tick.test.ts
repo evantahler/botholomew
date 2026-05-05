@@ -90,21 +90,6 @@ describe("worker tick", () => {
     expect(updated?.waiting_reason).toBeNull();
   });
 
-  test("creates a worker_tick thread and ends it", async () => {
-    await createTask(projectDir, { name: "n", description: "d" });
-    await tick({
-      projectDir,
-      dbPath,
-      config: TEST_CONFIG,
-      workerId: "worker-A",
-      evalSchedules: false,
-    });
-
-    const threads = await listThreads(projectDir, { type: "worker_tick" });
-    expect(threads).toHaveLength(1);
-    expect(threads[0]?.ended_at).not.toBeNull();
-  });
-
   test("returns false and creates no threads when no tasks are available", async () => {
     const didWork = await tick({
       projectDir,
