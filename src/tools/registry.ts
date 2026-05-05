@@ -50,6 +50,8 @@ import { listThreadsTool } from "./thread/list.ts";
 import { searchThreadsTool } from "./thread/search.ts";
 import { viewThreadTool } from "./thread/view.ts";
 import { registerTool } from "./tool.ts";
+// Util tools
+import { sleepTool } from "./util/sleep.ts";
 // Worker tools
 import { spawnWorkerTool } from "./worker/spawn.ts";
 
@@ -110,6 +112,9 @@ export function registerAllTools(): void {
   registerTool(mcpSearchTool);
   registerTool(mcpInfoTool);
   registerTool(mcpExecTool);
+
+  // Util
+  registerTool(sleepTool);
 
   // Worker
   registerTool(spawnWorkerTool);
