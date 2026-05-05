@@ -144,9 +144,10 @@ See `src/tools/mcp/*.ts`.
 
 Every MCP call is logged to the current thread as a `tool_use` /
 `tool_result` interaction pair — identical to how built-in tools are
-logged. Duration and token counts are captured. Query the `interactions`
-table (or run `botholomew thread view`) to see exactly what the agent
-sent and got back.
+logged. Duration and token counts are captured. Run `botholomew thread
+view <id>` to see the per-call CSV row in
+`threads/<YYYY-MM-DD>/<id>.csv` with exactly what the agent sent and
+got back.
 
 ---
 

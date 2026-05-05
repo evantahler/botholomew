@@ -103,7 +103,7 @@ botholomew chat
 ```
 
 The chat command opens an [Ink/React TUI](./tui.md) with eight tabs —
-chat, tasks, workers, context, schedules, threads, history, and logs —
+Chat, Tools, Context, Tasks, Threads, Schedules, Workers, and Help —
 plus slash-command autocomplete, a message queue, tool-call
 visualization, and a live workers panel.
 
@@ -111,7 +111,8 @@ visualization, and a live workers panel.
 
 - [The CLI reference](https://github.com/evantahler/botholomew#the-cli)
   on GitHub
-- [Architecture](./architecture.md) — workers, chat, shared DB
+- [Architecture](./architecture.md) — workers, chat, shared project
+  directory on disk, search-index sidecar
 - [Tasks & schedules](./tasks-and-schedules.md) — the claim loop and
   recurring schedules
 - [Context & hybrid search](./context-and-search.md) — ingest files,

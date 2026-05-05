@@ -39,8 +39,12 @@ Concurrency is filesystem-level, not DB-level:
 **Safety note.** Workers are the only things executing LLM tool calls,
 and every path-taking tool routes through a single sandbox helper
 (`src/fs/sandbox.ts::resolveInRoot`) that NFC-normalizes the input,
-rejects `..`/absolute/NUL paths, and `lstat`-walks each component to
-refuse symlinks at any level. Tools are pinned to `context/`;
+rejects `..`/absolute/NUL paths, and `lstat`-walks each component.
+Read-side `context_*` ops (read, list, tree, info, search, reindex,
+delete) opt in to symlinks via `allowSymlinks: true` so users can drop
+symlinks into the agent's tree, but mutating ops (write, edit, move,
+copy, mkdir) never set the flag and reject any symlink component. Tools
+are pinned to `context/`;
 `models/`, `logs/`, `tasks/.locks/`, and `schedules/.locks/` are
 explicitly off-limits. There is no "just read the file system" escape
 hatch. See [the files doc](files.md) for the full argument.
@@ -60,15 +64,16 @@ worker loops over ticks until it receives SIGTERM/SIGINT.
          │                                 schedule, ask the LLM which are
          │                                 "due", enqueue their tasks
          ├─► claimNextTask(workerId)   — highest-priority unblocked pending
-         │                                 task; worker id is stamped on the
-         │                                 `claimed_by` column
+         │                                 task; worker id is written into
+         │                                 the `tasks/.locks/<id>.lock` body
          ├─► createThread("worker_tick") — one thread per tick for logging
          ├─► buildSystemPrompt()       — always-context + task-relevant
          │                                 context
          ├─► runAgentLoop()            — multi-turn Anthropic tool-use loop
          │                                 every message, thinking block, tool
          │                                 call, and tool result is logged as
-         │                                 an `interaction` row
+         │                                 an interaction row in the thread CSV
+         │                                 at `threads/<YYYY-MM-DD>/<id>.csv`
          ├─► updateTaskStatus()        — complete / failed / waiting
          └─► endThread()
 ```
