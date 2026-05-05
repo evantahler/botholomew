@@ -219,18 +219,38 @@ The fetcher runs a tool-use loop (up to 10 turns) with a small tool set:
   result and sends the LLM **only a 2,000-char preview**, keyed by the
   call's `tool_use_id`. Large pages don't explode the context window.
 - `accept_content(exec_call_id, title, mime_type?)` — terminal. The
-  agent picks which captured exec result to save by its id; the
-  harness stores the full content it already has in memory and writes
-  it under `context/` at a path derived from the URL.
+  agent picks which captured exec result to save by its id and reports
+  the source `mime_type`; the harness stores the full content it
+  already has in memory and writes it under `context/` at a path
+  derived from the URL.
 - `request_http_fallback()` — terminal. Explicit signal that no MCP
-  tool fits; the harness then runs a plain `fetch()` + HTML strip.
+  tool fits; the harness then runs a plain `fetch()`.
 - `report_failure(message)` — terminal. Surfaces an actionable message
   back to you ("this Google Doc is private — share it with your service
   account") instead of a silent failure.
 
+The fetcher prompt steers the agent toward markdown-emitting MCP tools
+first (names containing `markdown`/`md`/`AsMarkdown`/`AsDocmd`) and to
+request a markdown `format` parameter when the schema exposes one.
+
+**Markdown is enforced at storage time.** When the agent calls
+`accept_content`, the harness runs a single-shot LLM conversion to
+clean Markdown before writing the file — regardless of the mime type
+the tool claimed. MCP tools frequently mislabel their output (Google
+Docs' "Docmd" tool, for example, claims `text/markdown` but returns a
+proprietary `[H1 ...]` annotation format), so the converter does the
+verification: if the input is already clean Markdown the model echoes
+it unchanged; otherwise it converts, with explicit handling for HTML,
+JSON, XML, DocMD, and other common formats. Plain-text bodies from the
+HTTP fallback short-circuit (saved as `text/plain`, no API call).
+Conversion errors are non-fatal — the import logs a warning and saves
+the raw content so you can edit it by hand.
+
 If no MCPX client is configured at all, or if the loop exceeds its turn
 budget, the fetcher falls back to plain HTTP with a 30s timeout and
-extracts `<title>` for textual content.
+extracts `<title>` for HTML pages. With an Anthropic API key
+configured, HTML is converted to Markdown; without one, tags are
+stripped and the result is saved as `text/plain`.
 
 ### Collision handling
 

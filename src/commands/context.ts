@@ -46,21 +46,20 @@ export function registerContextCommand(program: Command) {
       const dir = program.opts().dir;
       const config = await loadConfig(dir);
       const mcpxClient = await createMcpxClient(dir);
-      const spinner = createSpinner(`fetching ${url}`).start();
+      logger.info(`importing ${url}`);
       try {
         const fetched = await fetchUrl(url, config, mcpxClient, opts.prompt);
-        spinner.update({ text: "writing to context/" });
         const dest = opts.path ?? deriveContextPath(url, fetched.source);
         await writeContextFile(dir, dest, fetched.content, {
           onConflict: opts.overwrite ? "overwrite" : "error",
         });
-        spinner.success({
-          text: `imported ${fetched.content.length} bytes → ${ansis.bold(`context/${dest}`)} (source: ${fetched.source ?? "http"})`,
-        });
+        logger.success(
+          `imported ${fetched.content.length} bytes → ${ansis.bold(`context/${dest}`)} (source: ${fetched.source ?? "http"})`,
+        );
       } catch (err) {
-        spinner.error({
-          text: `import failed: ${err instanceof Error ? err.message : String(err)}`,
-        });
+        logger.error(
+          `import failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
         process.exit(1);
       } finally {
         await mcpxClient?.close();

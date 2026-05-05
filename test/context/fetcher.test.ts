@@ -78,17 +78,20 @@ describe("httpFallback", () => {
     globalThis.fetch = origFetch;
   });
 
-  test("strips HTML tags and extracts <title>", async () => {
+  test("strips HTML tags and labels as text/plain when no API key", async () => {
     globalThis.fetch = (async () =>
       new Response(
         "<html><head><title>Hello world</title></head><body><p>Body text</p></body></html>",
         { headers: { "content-type": "text/html" } },
       )) as unknown as typeof globalThis.fetch;
 
+    // No config → no-API-key path: strip tags, label as text/plain (we can't
+    // honestly produce markdown without an LLM call).
     const r = await httpFallback("https://example.com/x");
     expect(r.title).toBe("Hello world");
     expect(r.content).toContain("Body text");
     expect(r.content).not.toContain("<p>");
+    expect(r.mimeType).toBe("text/plain");
     expect(r.source).toBeNull();
   });
 
