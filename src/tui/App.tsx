@@ -1,4 +1,4 @@
-import { Box, Static, Text, useApp, useInput } from "ink";
+import { Box, Static, Text, useApp, useInput, useStdout } from "ink";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   abortActiveStream,
@@ -174,7 +174,25 @@ function AppInner({
   initialPrompt,
 }: AppInnerProps) {
   const { exit } = useApp();
+  const { stdout } = useStdout();
   const { markActivity } = useIdle();
+  // Pin the root box to a known viewport height so the rendered frame size
+  // never crosses the viewport boundary. Ink 7's renderer wipes scrollback
+  // (`shouldClearTerminalForFrame` → `ansiEscapes.clearTerminal`) whenever
+  // the dynamic frame transitions in/out of fullscreen, so a fluctuating
+  // `outputHeight` (streaming text + tool boxes appearing/disappearing) used
+  // to delete the chat history on every turn. Ink doesn't pin a height on
+  // its internal root, so a `height="100%"` on our root collapses to `auto`
+  // — we have to pass the explicit row count and re-read it on resize.
+  const [rows, setRows] = useState(stdout?.rows ?? 24);
+  useEffect(() => {
+    if (!stdout) return;
+    const onResize = () => setRows(stdout.rows ?? 24);
+    stdout.on("resize", onResize);
+    return () => {
+      stdout.off("resize", onResize);
+    };
+  }, [stdout]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messagesEpoch, setMessagesEpoch] = useState(0);
   const [usage, setUsage] = useState<ContextUsage | null>(null);
@@ -765,7 +783,7 @@ function AppInner({
   const threadId = sessionRef.current.threadId;
 
   return (
-    <Box flexDirection="column" height="100%">
+    <Box flexDirection="column" height={rows} overflow="hidden">
       {/* Completed messages — rendered once to terminal scrollback.
           Must live outside the display="none" tab wrappers so the <Static>
           node always has proper terminal width in its Yoga layout.
@@ -777,11 +795,15 @@ function AppInner({
 
       {/* Tab content area — all panels stay mounted to avoid expensive
           remount cycles. display="none" hides inactive panels from
-          layout without destroying them. */}
+          layout without destroying them.
+          The chat tab's flexGrow box is overflow-clipped so streaming
+          content can't push the rendered frame past the viewport — see
+          the comment on the `rows` state for why that matters. */}
       <Box
         display={activeTab === 1 ? "flex" : "none"}
         flexDirection="column"
         flexGrow={1}
+        overflow="hidden"
       >
         <MessageList
           streamingText={streamingText}
