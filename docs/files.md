@@ -65,8 +65,10 @@ Off-limits to the agent:
 
 - `models/` — embedding model cache; rewriting it would corrupt search
 - `logs/` — worker logs (system metadata, not knowledge)
-- `tasks/.locks/`, `schedules/.locks/` — claim files; the agent should
-  never poke at lockfiles directly
+- `tasks/.locks/`, `schedules/.locks/`, `context/.locks/` — claim files
+  for tasks, schedules, and per-path context writes. The agent should
+  never poke at lockfiles directly. `context/.locks/` is invisible to
+  `context_list` and `context_tree` (the walks skip dot-prefixed names).
 - `index.duckdb` — derived state; rebuild via `context reindex` if it
   goes wrong
 - Everything outside the project root, full stop
@@ -217,10 +219,14 @@ The same patch shape is shared by every edit tool: `context_edit`,
   Each tool reads the file, applies patches in memory, validates the
   result against the resource's schema (frontmatter still parses,
   required fields still present), and atomic-writes-via-rename back
-  over the original. A user editing the file in `vim` at the same time
-  is not corrupted; for resources guarded by mtime
-  (`schedule_edit`, `task_edit`, `prompt_edit`) a concurrent change
-  surfaces as `error_type: "mtime_conflict"`.
+  over the original. Every edit tool — `context_edit`, `schedule_edit`,
+  `task_edit`, `prompt_edit` — is mtime-guarded: a concurrent change
+  (another worker, a chat session, or an external editor like `vim`)
+  surfaces as `error_type: "mtime_conflict"` with a `next_action_hint`
+  to re-read and retry, never a silent overwrite. `context_*`
+  mutations also serialize on a per-path lockfile under
+  `context/.locks/` so two agents can't interleave their patches on
+  the same file.
 
 ---
 

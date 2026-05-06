@@ -77,6 +77,7 @@ export async function tick(opts: TickOptions): Promise<boolean> {
     projectDir,
     dbPath,
     config,
+    workerId,
     mcpxClient,
     callbacks,
     task,
@@ -115,6 +116,7 @@ export async function runSpecificTask(opts: {
     projectDir: opts.projectDir,
     dbPath: opts.dbPath,
     config: opts.config,
+    workerId: opts.workerId,
     mcpxClient: opts.mcpxClient,
     callbacks: opts.callbacks,
     task,
@@ -126,11 +128,13 @@ async function runClaimedTask(opts: {
   projectDir: string;
   dbPath: string;
   config: Required<BotholomewConfig>;
+  workerId: string;
   mcpxClient?: McpxClient | null;
   callbacks?: WorkerStreamCallbacks;
   task: Task;
 }): Promise<void> {
-  const { projectDir, dbPath, config, mcpxClient, callbacks, task } = opts;
+  const { projectDir, dbPath, config, workerId, mcpxClient, callbacks, task } =
+    opts;
 
   logger.info(`Claimed task: ${task.name} (${task.id})`);
   if (!callbacks && task.description) {
@@ -161,6 +165,7 @@ async function runClaimedTask(opts: {
       dbPath,
       threadId,
       projectDir,
+      workerId,
       mcpxClient,
       callbacks,
     });

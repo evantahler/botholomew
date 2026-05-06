@@ -39,6 +39,7 @@ export const contextDeleteTool = {
     try {
       const result = await deleteContextPath(ctx.projectDir, input.path, {
         recursive: input.recursive,
+        holderId: ctx.workerId,
       });
       return {
         deleted: result.removed,

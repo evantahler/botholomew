@@ -18,6 +18,15 @@ export interface ToolContext {
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;
   /**
+   * Identifier of the agent process running this tool, used as the holder
+   * id for per-path context locks (`src/context/locks.ts`) so the worker
+   * reaper can identify and release locks abandoned by a crashed worker.
+   * Workers pass their `workerId`; chat sessions pass a `chat:` prefixed
+   * id; tests and one-off CLI calls leave it `undefined` (the store falls
+   * back to `pid:<n>`).
+   */
+  workerId?: string;
+  /**
    * Chat-mode only. Lets long-running tools (e.g. `sleep`) poll for
    * Esc-to-abort by reading `session.aborted`. Workers leave this `undefined`.
    */

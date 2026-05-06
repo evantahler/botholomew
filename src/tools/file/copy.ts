@@ -33,7 +33,9 @@ export const contextCopyTool = {
   execute: async (input, ctx) => {
     try {
       if (input.overwrite && (await fileExists(ctx.projectDir, input.dst))) {
-        await deleteContextPath(ctx.projectDir, input.dst);
+        await deleteContextPath(ctx.projectDir, input.dst, {
+          holderId: ctx.workerId,
+        });
       }
       await copyContextPath(ctx.projectDir, input.src, input.dst);
       return { src: input.src, dst: input.dst, is_error: false };

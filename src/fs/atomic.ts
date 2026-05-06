@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 import {
   mkdir,
@@ -9,6 +10,17 @@ import {
   unlink,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
+
+/**
+ * Build a temp suffix that is unique even when two callers in the same
+ * process race on the same target in the same millisecond. The 8 random
+ * bytes drown out any chance of `pid + Date.now()` collision and let the
+ * O_EXCL temp open in atomicWrite act as a real safety net rather than a
+ * suggestion.
+ */
+function defaultTempSuffix(): string {
+  return `${process.pid}.${Date.now()}.${randomBytes(8).toString("hex")}`;
+}
 
 /**
  * Write `content` to `targetPath` atomically: write to a sibling temp file,
@@ -24,9 +36,17 @@ export async function atomicWrite(
   opts: { tempSuffix?: string } = {},
 ): Promise<void> {
   await mkdir(dirname(targetPath), { recursive: true });
-  const suffix = opts.tempSuffix ?? `${process.pid}.${Date.now()}`;
+  const suffix = opts.tempSuffix ?? defaultTempSuffix();
   const tmp = `${targetPath}.tmp.${suffix}`;
-  const fh = await open(tmp, "w", 0o644);
+  // O_EXCL surfaces a temp-file collision rather than letting two writers
+  // truncate each other's bytes. With the random default suffix this is the
+  // belt-and-suspenders guarantee that concurrent writes to the same target
+  // never silently lose data on the way to rename().
+  const fh = await open(
+    tmp,
+    fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
+    0o644,
+  );
   try {
     if (typeof content === "string") {
       await fh.writeFile(content, "utf-8");
@@ -89,9 +109,13 @@ export async function atomicWriteIfUnchanged(
   opts: { tempSuffix?: string } = {},
 ): Promise<void> {
   await mkdir(dirname(targetPath), { recursive: true });
-  const suffix = opts.tempSuffix ?? `${process.pid}.${Date.now()}`;
+  const suffix = opts.tempSuffix ?? defaultTempSuffix();
   const tmp = `${targetPath}.tmp.${suffix}`;
-  const fh = await open(tmp, "w", 0o644);
+  const fh = await open(
+    tmp,
+    fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
+    0o644,
+  );
   try {
     await fh.writeFile(content, "utf-8");
     await fh.sync();

@@ -38,7 +38,7 @@ export const contextWriteTool = {
         ctx.projectDir,
         input.path,
         input.content,
-        { onConflict: input.on_conflict ?? "error" },
+        { onConflict: input.on_conflict ?? "error", holderId: ctx.workerId },
       );
       return { path: entry.path, is_error: false };
     } catch (err) {
