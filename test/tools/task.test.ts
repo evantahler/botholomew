@@ -13,6 +13,7 @@ import {
 import { completeTaskTool } from "../../src/tools/task/complete.ts";
 import { createTaskTool } from "../../src/tools/task/create.ts";
 import { deleteTaskTool } from "../../src/tools/task/delete.ts";
+import { taskEditTool } from "../../src/tools/task/edit.ts";
 import { failTaskTool } from "../../src/tools/task/fail.ts";
 import { listTasksTool } from "../../src/tools/task/list.ts";
 import { updateTaskTool } from "../../src/tools/task/update.ts";
@@ -372,5 +373,217 @@ describe("terminal task tools", () => {
     expect(result.message).toContain("waiting");
     expect(result.message).toContain("Need human input");
     expect(waitTaskTool.terminal).toBe(true);
+  });
+});
+
+describe("task_edit", () => {
+  test("edits the description body of a pending task and bumps updated_at", async () => {
+    const t = await makeTask({ name: "n", description: "old description" });
+    const filePath = join(getTasksDir(projectDir), `${t.id}.md`);
+    const before = await Bun.file(filePath).text();
+    const lines = before.split("\n");
+    const bodyIdx =
+      lines.findIndex(
+        (l) => l.includes("old description") && !l.startsWith("description:"),
+      ) + 1;
+
+    await new Promise((r) => setTimeout(r, 5));
+
+    const result = await taskEditTool.execute(
+      {
+        id: t.id,
+        patches: [
+          {
+            start_line: bodyIdx,
+            end_line: bodyIdx,
+            content: "new description",
+          },
+        ],
+      },
+      ctx,
+    );
+
+    expect(result.is_error).toBe(false);
+    expect(result.applied).toBe(1);
+    const after = await Bun.file(filePath).text();
+    expect(after).toContain("new description");
+
+    const fresh = await getTask(projectDir, t.id);
+    expect(fresh?.body).toContain("new description");
+    expect(Date.parse(fresh?.updated_at ?? "")).toBeGreaterThan(
+      Date.parse(fresh?.created_at ?? ""),
+    );
+  });
+
+  test("refuses non-pending tasks", async () => {
+    const t = await makeTask({ name: "n" });
+    await claimSpecificTask(projectDir, t.id, "worker-1");
+
+    const result = await taskEditTool.execute(
+      {
+        id: t.id,
+        patches: [{ start_line: 1, end_line: 1, content: "x" }],
+      },
+      ctx,
+    );
+
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("not_pending");
+  });
+
+  test("rolls back on invalid frontmatter", async () => {
+    const t = await makeTask({ name: "n" });
+    const filePath = join(getTasksDir(projectDir), `${t.id}.md`);
+    const before = await Bun.file(filePath).text();
+
+    // Replace the status line with an unsupported value.
+    const lines = before.split("\n");
+    const statusIdx = lines.findIndex((l) => l.startsWith("status:")) + 1;
+
+    const result = await taskEditTool.execute(
+      {
+        id: t.id,
+        patches: [
+          {
+            start_line: statusIdx,
+            end_line: statusIdx,
+            content: "status: bogus",
+          },
+        ],
+      },
+      ctx,
+    );
+
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("invalid_task");
+    const after = await Bun.file(filePath).text();
+    expect(after).toBe(before);
+  });
+
+  test("rolls back when patch introduces a self-blocking dependency", async () => {
+    const t = await makeTask({ name: "n" });
+    const filePath = join(getTasksDir(projectDir), `${t.id}.md`);
+    const before = await Bun.file(filePath).text();
+    const lines = before.split("\n");
+    const blockedIdx = lines.findIndex((l) => l.startsWith("blocked_by:")) + 1;
+
+    const result = await taskEditTool.execute(
+      {
+        id: t.id,
+        patches: [
+          {
+            start_line: blockedIdx,
+            end_line: blockedIdx,
+            content: `blocked_by:\n  - ${t.id}`,
+          },
+        ],
+      },
+      ctx,
+    );
+
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("circular_dependency");
+    const after = await Bun.file(filePath).text();
+    expect(after).toBe(before);
+  });
+
+  test("returns not_found for missing task", async () => {
+    const result = await taskEditTool.execute(
+      {
+        id: "ghost",
+        patches: [{ start_line: 1, end_line: 1, content: "x" }],
+      },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("not_found");
+  });
+
+  test("rolls back when patch tries to set a worker-managed field", async () => {
+    const t = await makeTask({ name: "n" });
+    const filePath = join(getTasksDir(projectDir), `${t.id}.md`);
+    const before = await Bun.file(filePath).text();
+    const lines = before.split("\n");
+    const claimedByIdx =
+      lines.findIndex((l) => l.startsWith("claimed_by:")) + 1;
+
+    const result = await taskEditTool.execute(
+      {
+        id: t.id,
+        patches: [
+          {
+            start_line: claimedByIdx,
+            end_line: claimedByIdx,
+            content: "claimed_by: rogue-worker",
+          },
+        ],
+      },
+      ctx,
+    );
+
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("worker_field_change_forbidden");
+    const after = await Bun.file(filePath).text();
+    expect(after).toBe(before);
+
+    const fresh = await getTask(projectDir, t.id);
+    expect(fresh?.claimed_by).toBeNull();
+  });
+
+  test("rolls back when patch tries to forge an output", async () => {
+    const t = await makeTask({ name: "n" });
+    const filePath = join(getTasksDir(projectDir), `${t.id}.md`);
+    const before = await Bun.file(filePath).text();
+    const lines = before.split("\n");
+    const outputIdx = lines.findIndex((l) => l.startsWith("output:")) + 1;
+
+    const result = await taskEditTool.execute(
+      {
+        id: t.id,
+        patches: [
+          {
+            start_line: outputIdx,
+            end_line: outputIdx,
+            content: "output: 'fake summary'",
+          },
+        ],
+      },
+      ctx,
+    );
+
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("worker_field_change_forbidden");
+    const after = await Bun.file(filePath).text();
+    expect(after).toBe(before);
+  });
+
+  test("rolls back when patch tries to change status", async () => {
+    const t = await makeTask({ name: "n" });
+    const filePath = join(getTasksDir(projectDir), `${t.id}.md`);
+    const before = await Bun.file(filePath).text();
+    const lines = before.split("\n");
+    const statusIdx = lines.findIndex((l) => l.startsWith("status:")) + 1;
+
+    const result = await taskEditTool.execute(
+      {
+        id: t.id,
+        patches: [
+          {
+            start_line: statusIdx,
+            end_line: statusIdx,
+            content: "status: complete",
+          },
+        ],
+      },
+      ctx,
+    );
+
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("status_change_forbidden");
+    const after = await Bun.file(filePath).text();
+    expect(after).toBe(before);
+
+    const fresh = await getTask(projectDir, t.id);
+    expect(fresh?.status).toBe("pending");
   });
 });

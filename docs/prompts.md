@@ -69,20 +69,26 @@ rather have a warm, chatty agent, say so there.
 ## Agent self-modification
 
 When `agent-modification: true`, the agent can rewrite the file using
-the `update_beliefs` or `update_goals` tools (`src/tools/context/`).
-The flow:
+`prompt_edit` (`src/tools/prompt/edit.ts`). The flow:
 
-1. Agent calls `update_beliefs` with the new full file content.
-2. The tool reads the existing file, parses frontmatter with
-   `gray-matter`, preserves the frontmatter block, and writes back the
-   new body.
-3. A `context_update` interaction is logged to the current thread, so
+1. Agent calls `prompt_read` with a prompt name (e.g. `beliefs`,
+   `goals`, `capabilities`) to inspect the current line numbers.
+2. Agent calls `prompt_edit` with `name` and a list of line-range
+   patches in the shared
+   [git-hunk patch format](./files.md#patch-format).
+3. The tool applies the patches, re-parses the result with
+   `gray-matter`, refuses to write if the YAML is now broken or the
+   `agent-modification` flag has been cleared, and otherwise
+   atomic-writes-via-rename. The mtime guard surfaces a concurrent vim
+   save as `error_type: "mtime_conflict"`.
+4. A `context_update` interaction is logged to the current thread, so
    you can see — and audit — every time the agent changed its own
    priors.
 
-Files without `agent-modification: true` are read-only to the agent,
-even if the tool is called — the tool checks the frontmatter and
-refuses.
+Files without `agent-modification: true` (e.g. `soul.md`) are
+read-only to the agent. `prompt_edit` checks the frontmatter and
+refuses both at the start of the tool call and again after applying
+the patches, so a patch that tries to clear the flag is rolled back.
 
 ---
 

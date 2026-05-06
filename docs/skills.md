@@ -191,6 +191,10 @@ invalid skill never lands on disk.
 
 `skill_edit` re-parses after applying patches and refuses to write
 if the result fails validation, so you can't break a skill from chat.
+It uses the same
+[git-hunk patch format](./files.md#patch-format) as `context_edit`,
+`schedule_edit`, `task_edit`, and `prompt_edit` — every edit tool
+takes the same `{ start_line, end_line, content }[]` shape.
 
 **Editing skills outside the chat** (e.g., with your text editor) still
 requires a chat restart — the in-memory cache is only refreshed inside

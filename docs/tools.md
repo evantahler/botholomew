@@ -161,6 +161,18 @@ change:
 No central dispatch table to edit, no LLM tool list to update, no CLI
 command to wire. The Zod schema is the source of truth.
 
+### Shared `LinePatchSchema` for edit tools
+
+Any tool that mutates a markdown file via line-range patches —
+`context_edit`, `skill_edit`, `schedule_edit`, `task_edit`,
+`prompt_edit` — should `import { LinePatchSchema, applyLinePatches }
+from "../../fs/patches.ts"` and reuse the same shape so the agent
+sees identical field descriptions across tools. The tool is
+responsible for re-parsing the patched output against its resource
+schema and rolling back on failure; the helper itself only handles the
+line splice. See [Patch format](./files.md#patch-format) for the
+field semantics.
+
 ---
 
 ## `pipe_to_context` — pipe a tool's output straight into context

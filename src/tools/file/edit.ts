@@ -5,21 +5,12 @@ import {
   NotFoundError,
   readContextFile,
 } from "../../context/store.ts";
+import { LinePatchSchema } from "../../fs/patches.ts";
 import type { ToolDefinition } from "../tool.ts";
-
-const PatchSchema = z.object({
-  start_line: z.number().describe("1-based inclusive start line"),
-  end_line: z
-    .number()
-    .describe("1-based inclusive end line (0 to insert without replacing)"),
-  content: z
-    .string()
-    .describe("Replacement text (empty string to delete lines)"),
-});
 
 const inputSchema = z.object({
   path: z.string().describe("Project-relative path under context/"),
-  patches: z.array(PatchSchema).describe("Patches to apply"),
+  patches: z.array(LinePatchSchema).describe("Patches to apply"),
 });
 
 const outputSchema = z.object({

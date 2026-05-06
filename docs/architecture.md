@@ -159,7 +159,9 @@ set — it does **not** execute long-running work itself. Instead, it:
 - looks up files by path (`context_info`, `context_search`) and can
   refresh ingested URLs in place (`context_refresh`),
 - invokes **skills** (`/review`, `/standup`, …) defined in `skills/`,
-- edits `beliefs.md` and `goals.md` via `update_beliefs` / `update_goals`,
+- edits prompt files (`beliefs.md`, `goals.md`, `capabilities.md`) via
+  `prompt_read` / `prompt_edit` (line-range patches; `soul.md` is
+  protected by `agent-modification: false`),
 - can `sleep` for a fixed duration (1 s – 1 h) when it's deliberately
   waiting on background work — the TUI shows a progress bar and `Esc`
   cancels the wait.

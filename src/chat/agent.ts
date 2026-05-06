@@ -52,9 +52,11 @@ const CHAT_TOOL_NAMES = new Set([
   "view_thread",
   "search_threads",
   "create_schedule",
+  "schedule_edit",
   "list_schedules",
-  "update_beliefs",
-  "update_goals",
+  "prompt_read",
+  "prompt_edit",
+  "task_edit",
   "capabilities_refresh",
   "mcp_list_tools",
   "mcp_search",
@@ -100,7 +102,7 @@ You do NOT execute long-running work directly — enqueue tasks for a background
 Use the available tools to look up tasks, threads, schedules, and context when the user asks about them. Files the agent can read and write live under \`context/\` as project-relative paths (e.g. \`notes/foo.md\`). Use \`context_tree\` to see what's there, \`search\` (hybrid regexp + semantic) to find content, then \`context_read\` / \`context_info\` to drill in.
 Past conversations live in CSV files under \`threads/\`; use \`list_threads\`, \`search_threads\`, and \`view_thread\` to find and page through them.
 When multiple tool calls are independent of each other (i.e., one does not depend on the result of another), call them all in a single response. They will be executed in parallel, which is faster than calling them one at a time.
-You can update the agent's beliefs and goals files when the user asks you to.
+You can read and edit the agent's prompt files (beliefs, goals, capabilities, soul) under \`prompts/\` via \`prompt_read\` and \`prompt_edit\` (line-range patches). Files marked \`agent-modification: false\` (e.g. soul.md) are read-only.
 You can author and refine slash-command skills (reusable prompt templates stored in \`skills/\`) via \`skill_list\`, \`skill_search\`, \`skill_read\`, \`skill_write\`, \`skill_edit\`, and \`skill_delete\`. New or edited skills are usable as \`/<name>\` on the user's next message.
 Format your responses using Markdown. Use headings, bold, italic, lists, and code blocks to make your responses clear and well-structured.
 `;
@@ -252,7 +254,7 @@ export async function runChatTurn(input: {
     // Rebuild the system prompt every iteration so that:
     //   (1) `loading: contextual` files get matched against the latest user
     //       message, and
-    //   (2) any update_beliefs / update_goals tool call in the previous
+    //   (2) any prompt_edit tool call in the previous
     //       iteration is reflected in the next LLM call.
     const keywordSource = findLastUserText(messages);
     const systemPrompt = await buildChatSystemPrompt(projectDir, {

@@ -13,6 +13,7 @@ import {
 import { dirname, join, posix, relative, sep } from "node:path";
 import { CONTEXT_DIR, PROTECTED_AREAS } from "../constants.ts";
 import { atomicWrite } from "../fs/atomic.ts";
+import { applyLinePatches, type LinePatch } from "../fs/patches.ts";
 import {
   getCanonicalRoot,
   PathEscapeError,
@@ -59,11 +60,7 @@ export class PathConflictError extends Error {
   }
 }
 
-export interface Patch {
-  start_line: number;
-  end_line: number;
-  content: string;
-}
+export type Patch = LinePatch;
 
 export interface ContextEntry {
   /** Project-relative path under context/, e.g. "notes/foo.md". Forward-slashes. */
@@ -775,26 +772,11 @@ export async function applyPatches(
   patches: Patch[],
 ): Promise<{ applied: number; lines: number }> {
   const content = await readContextFile(projectDir, path);
-  const lines = content.split("\n");
-
-  const sorted = [...patches].sort((a, b) => b.start_line - a.start_line);
-
-  for (const patch of sorted) {
-    if (patch.end_line === 0) {
-      const insertLines = patch.content === "" ? [] : patch.content.split("\n");
-      lines.splice(patch.start_line - 1, 0, ...insertLines);
-    } else {
-      const deleteCount = patch.end_line - patch.start_line + 1;
-      const insertLines = patch.content === "" ? [] : patch.content.split("\n");
-      lines.splice(patch.start_line - 1, deleteCount, ...insertLines);
-    }
-  }
-
-  const newContent = lines.join("\n");
+  const newContent = applyLinePatches(content, patches);
   await writeContextFile(projectDir, path, newContent, {
     onConflict: "overwrite",
   });
-  return { applied: patches.length, lines: lines.length };
+  return { applied: patches.length, lines: newContent.split("\n").length };
 }
 
 /**
