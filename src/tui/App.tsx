@@ -65,7 +65,7 @@ const TAB_BY_CTRL_KEY: Record<string, TabId> = {
   o: 2, // t[o]ols
   n: 3, // co[n]text
   t: 4, // [t]asks
-  r: 5, // th[r]eads
+  e: 5, // thr[e]ads
   s: 6, // [s]chedules
   w: 7, // [w]orkers
   g: 8, // help (also catches Ctrl+/ on terminals that map it to BEL)
@@ -328,9 +328,18 @@ function AppInner({
               slashCommandsRef.current,
             );
             if (popupOpen) return;
+            // Ctrl+E edits a queued message when one is selected; only
+            // fall through to the Threads tab-jump when the queue is empty.
+            if (input === "e" && queuedMessagesRef.current.length > 0) {
+              // handled by the queue keybindings block below
+            } else {
+              setActiveTab(tabForKey);
+              return;
+            }
+          } else {
+            setActiveTab(tabForKey);
+            return;
           }
-          setActiveTab(tabForKey);
-          return;
         }
       }
 

@@ -241,7 +241,7 @@ export const TaskPanel = memo(function TaskPanel({
         deleteConfirm.pressDelete(t.name || t.id);
         return;
       }
-      if (input === "r") {
+      if (key.ctrl && (input === "r" || input === "R")) {
         forceRefresh();
         return;
       }
@@ -376,7 +376,7 @@ export const TaskPanel = memo(function TaskPanel({
         <Text dimColor>
           {focus === "detail"
             ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
-            : "↑↓ select · → enter detail · f filter · p priority · d delete (×2) · r refresh"}
+            : "↑↓ select · → enter detail · f filter · p priority · d delete (×2) · ^R refresh"}
         </Text>
       </Box>
     </Box>

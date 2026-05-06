@@ -236,8 +236,9 @@ export const ContextPanel = memo(function ContextPanel({
         deleteConfirm.pressDelete(entry.path);
         return;
       }
-      if (input === "r") {
+      if (key.ctrl && (input === "r" || input === "R")) {
         refresh(currentPathRef.current);
+        return;
       }
     },
     { isActive },
@@ -367,7 +368,7 @@ export const ContextPanel = memo(function ContextPanel({
           <Text dimColor>
             {focus === "detail"
               ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
-              : "↑↓ select · → drill in/enter detail · ← up · d delete (×2) · r refresh"}
+              : "↑↓ select · → drill in/enter detail · ← up · d delete (×2) · ^R refresh"}
           </Text>
         </Box>
       </Box>

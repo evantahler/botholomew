@@ -56,7 +56,7 @@ export const HelpPanel = memo(function HelpPanel({
           {"  "}Ctrl+t{"         "}Tasks
         </Text>
         <Text>
-          {"  "}Ctrl+r{"         "}Threads
+          {"  "}Ctrl+e{"         "}Threads
         </Text>
         <Text>
           {"  "}Ctrl+s{"         "}Schedules
@@ -142,19 +142,21 @@ export const HelpPanel = memo(function HelpPanel({
           (cancels on any other key or after 3s)
         </Text>
         <Text>
-          {"  "}Tasks{"          "}f filter · p priority · d delete (×2) · r
-          refresh
+          {"  "}Ctrl+R{"         "}Refresh (Context · Tasks · Threads ·
+          Schedules · Workers)
+        </Text>
+        <Text>
+          {"  "}Tasks{"          "}f filter · p priority · d delete (×2)
         </Text>
         <Text>
           {"  "}Threads{"        "}f filter · s/ search · w follow · d delete
-          (×2) · r refresh
+          (×2)
         </Text>
         <Text>
-          {"  "}Schedules{"      "}f filter · e toggle · d delete (×2) · r
-          refresh
+          {"  "}Schedules{"      "}f filter · e toggle · d delete (×2)
         </Text>
         <Text>
-          {"  "}Context{"        "}d delete (×2) · r refresh
+          {"  "}Context{"        "}d delete (×2)
         </Text>
         <Text>
           {"  "}Workers{"        "}f filter · l toggle log/detail · d delete log

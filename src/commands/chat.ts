@@ -8,8 +8,9 @@ export function registerChatCommand(program: Command) {
       "Open the interactive chat TUI\n\n" +
         "  Tab navigation (Ctrl+<letter> from any tab):\n" +
         "    Ctrl+a  Chat        Ctrl+t  Tasks       Ctrl+w  Workers\n" +
-        "    Ctrl+o  Tools       Ctrl+r  Threads     Ctrl+g  Help\n" +
+        "    Ctrl+o  Tools       Ctrl+e  Threads     Ctrl+g  Help\n" +
         "    Ctrl+n  Context     Ctrl+s  Schedules   Esc     Return to Chat\n\n" +
+        "  Refresh: Ctrl+R refreshes Context · Tasks · Threads · Schedules · Workers\n\n" +
         "  Chat input:\n" +
         "    Enter          Send message\n" +
         "    ⌥+Enter        Insert newline\n" +

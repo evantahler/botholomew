@@ -207,7 +207,7 @@ export const SchedulePanel = memo(function SchedulePanel({
         deleteConfirm.pressDelete(s.name);
         return;
       }
-      if (input === "r") {
+      if (key.ctrl && (input === "r" || input === "R")) {
         forceRefresh();
         return;
       }
@@ -338,7 +338,7 @@ export const SchedulePanel = memo(function SchedulePanel({
         <Text dimColor>
           {focus === "detail"
             ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
-            : "↑↓ select · → enter detail · f filter · e toggle · d delete (×2) · r refresh"}
+            : "↑↓ select · → enter detail · f filter · e toggle · d delete (×2) · ^R refresh"}
         </Text>
       </Box>
     </Box>

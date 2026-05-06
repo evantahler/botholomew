@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import { Box, Text, useInput, useStdout } from "ink";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { readLogTail } from "../../worker/log-reader.ts";
 import {
   deleteWorkerLog,
@@ -70,6 +70,7 @@ export const WorkerPanel = memo(function WorkerPanel({
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filterIdx, setFilterIdx] = useState(0);
+  const [refreshTick, setRefreshTick] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<"detail" | "log">("detail");
   const [logContent, setLogContent] = useState("");
@@ -79,6 +80,7 @@ export const WorkerPanel = memo(function WorkerPanel({
   const [logFollow, setLogFollow] = useState(true);
   const [focus, setFocus] = useState<FocusState>("list");
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshTick triggers manual refresh
   useEffect(() => {
     let mounted = true;
 
@@ -104,7 +106,7 @@ export const WorkerPanel = memo(function WorkerPanel({
       mounted = false;
       clearInterval(interval);
     };
-  }, [projectDir, filterIdx]);
+  }, [projectDir, filterIdx, refreshTick]);
 
   const selected = workers[selectedIndex];
   const selectedLogPath = selected?.log_path ?? null;
@@ -170,6 +172,10 @@ export const WorkerPanel = memo(function WorkerPanel({
   const focusRef = useLatestRef(focus);
   const viewModeRef = useLatestRef(viewMode);
   const selectedLogPathRef = useLatestRef(selectedLogPath);
+
+  const forceRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
+  }, []);
 
   const deleteConfirm = useDeleteConfirm(() => {
     const path = selectedLogPathRef.current;
@@ -238,6 +244,11 @@ export const WorkerPanel = memo(function WorkerPanel({
         deleteConfirm.pressDelete(`worker log: ${basename(path)}`);
         return;
       }
+
+      if (key.ctrl && (input === "r" || input === "R")) {
+        forceRefresh();
+        return;
+      }
     },
     { isActive },
   );
@@ -257,8 +268,8 @@ export const WorkerPanel = memo(function WorkerPanel({
           {focus === "detail"
             ? "  · ↑↓ scroll  ⇧↑↓ page  g/G top/bot  ← back to list  l toggle"
             : viewMode === "log"
-              ? "  · ↑↓ select  → enter log  l detail  f filter  d delete log (×2)"
-              : "  · ↑↓ select  → enter detail  l view log  f filter"}
+              ? "  · ↑↓ select  → enter log  l detail  f filter  d delete log (×2)  ^R refresh"
+              : "  · ↑↓ select  → enter detail  l view log  f filter  ^R refresh"}
         </Text>
       </Box>
       <DeleteArmedBanner
