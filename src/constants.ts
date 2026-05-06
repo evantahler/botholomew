@@ -6,7 +6,7 @@ import { join } from "node:path";
  *
  *   <projectDir>/
  *     config/config.json
- *     prompts/{soul,beliefs,goals,capabilities}.md
+ *     prompts/*.md                     init seeds goals/beliefs/capabilities
  *     skills/*.md
  *     mcpx/servers.json
  *     models/                          embedding model cache

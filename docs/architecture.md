@@ -169,9 +169,10 @@ set — it does **not** execute long-running work itself. Instead, it:
 - looks up files by path (`context_info`, `context_search`) and can
   refresh ingested URLs in place (`context_refresh`),
 - invokes **skills** (`/review`, `/standup`, …) defined in `skills/`,
-- edits prompt files (`beliefs.md`, `goals.md`, `capabilities.md`) via
-  `prompt_read` / `prompt_edit` (line-range patches; `soul.md` is
-  protected by `agent-modification: false`),
+- manages prompt files in `prompts/` via the `prompt_*` tools
+  (`prompt_list`, `prompt_read`, `prompt_create`, `prompt_edit`,
+  `prompt_delete`). Files marked `agent-modification: false` are
+  protected from edits and deletes,
 - can `sleep` for a fixed duration (1 s – 1 h) when it's deliberately
   waiting on background work — the TUI shows a progress bar and `Esc`
   cancels the wait.
@@ -332,8 +333,8 @@ one area of state without blowing away your prompts, skills, or config.
 
 Each subcommand requires `-y`/`--yes` to actually delete — running
 without the flag prints counts and exits, so it doubles as a dry run.
-Prompts (`prompts/{soul,beliefs,goals,capabilities}.md`), skills,
-config, and MCPX server config are never touched.
+Files under `prompts/`, skills, config, and MCPX server config are
+never touched.
 
 For safety, `nuke` refuses to run while any worker pidfile is alive —
 stop them first with `botholomew worker stop <id>`.

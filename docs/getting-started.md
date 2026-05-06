@@ -50,11 +50,10 @@ the agent or worker touches is a real file you can `vim`, `grep`, and
 ```
 my-project/
   config/config.json                # models, tick interval, API keys
-  prompts/                          # always-loaded markdown
-    soul.md                         #   identity (not agent-editable)
+  prompts/                          # markdown loaded into every system prompt (or keyword-loaded)
+    goals.md                        #   identity + current goals (agent-editable)
     beliefs.md                      #   agent-editable priors
-    goals.md                        #   agent-editable goals
-    capabilities.md                 #   agent-editable tool inventory
+    capabilities.md                 #   auto-generated tool inventory
   skills/                           # slash commands (built-ins + user-defined)
   mcpx/servers.json                 # external MCP servers (Gmail, Slack, …)
   models/                           # local embedding model cache

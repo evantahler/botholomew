@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { getPromptsDir } from "../constants.ts";
 import type { Task } from "../tasks/schema.ts";
-import { parseContextFile } from "../utils/frontmatter.ts";
+import { parsePromptFile } from "../utils/frontmatter.ts";
 
 const pkg = await Bun.file(
   new URL("../../package.json", import.meta.url),
@@ -36,37 +36,43 @@ export function extractKeywords(text: string): Set<string> {
  * Load persistent context files from prompts/ as a single formatted
  * string. Includes "always" files unconditionally and "contextual" files
  * whose content overlaps the provided taskKeywords.
+ *
+ * Validation is strict: any *.md file under prompts/ that fails the prompt
+ * frontmatter schema throws PromptValidationError naming the offending file.
+ * The only swallowed error is a missing prompts/ directory (e.g. fresh
+ * working dir before `botholomew init`).
  */
 export async function loadPersistentContext(
   projectDir: string,
   taskKeywords?: Set<string> | null,
 ): Promise<string> {
   const dir = getPromptsDir(projectDir);
-  let out = "";
-
+  let files: string[];
   try {
-    const files = await readdir(dir);
-    const mdFiles = files.filter((f) => f.endsWith(".md"));
+    files = await readdir(dir);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return "";
+    throw err;
+  }
+  const mdFiles = files.filter((f) => f.endsWith(".md")).sort();
 
-    for (const filename of mdFiles) {
-      const filePath = join(dir, filename);
-      const raw = await Bun.file(filePath).text();
-      const { meta, content } = parseContextFile(raw);
+  let out = "";
+  for (const filename of mdFiles) {
+    const filePath = join(dir, filename);
+    const raw = await Bun.file(filePath).text();
+    const { meta, content } = parsePromptFile(filePath, raw);
 
-      if (meta.loading === "always") {
-        out += `## ${filename}\n${content}\n\n`;
-      } else if (meta.loading === "contextual" && taskKeywords) {
-        const contentLower = content.toLowerCase();
-        const hasOverlap = [...taskKeywords].some((kw) =>
-          contentLower.includes(kw),
-        );
-        if (hasOverlap) {
-          out += `## ${filename} (contextual)\n${content}\n\n`;
-        }
+    if (meta.loading === "always") {
+      out += `## ${filename}\n${content}\n\n`;
+    } else if (meta.loading === "contextual" && taskKeywords) {
+      const contentLower = content.toLowerCase();
+      const hasOverlap = [...taskKeywords].some((kw) =>
+        contentLower.includes(kw),
+      );
+      if (hasOverlap) {
+        out += `## ${filename} (contextual)\n${content}\n\n`;
       }
     }
-  } catch {
-    // prompts/ might not have md files yet
   }
 
   return out;

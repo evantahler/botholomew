@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
   type ContextFileMeta,
+  PromptValidationError,
   parseContextFile,
+  parsePromptFile,
   serializeContextFile,
+  serializePromptFile,
 } from "../../src/utils/frontmatter.ts";
 
 describe("parseContextFile", () => {
@@ -34,7 +37,7 @@ Some contextual content`;
     expect(content).toBe("Some contextual content");
   });
 
-  test("parses content with no frontmatter", () => {
+  test("parses content with no frontmatter (loose context-file parser)", () => {
     const raw = "Just plain markdown content\nWith multiple lines";
     const { meta, content } = parseContextFile(raw);
     expect(Object.keys(meta)).toHaveLength(0);
@@ -158,5 +161,131 @@ Original content here`;
     const serialized = serializeContextFile(meta, content);
     const parsed = parseContextFile(serialized);
     expect(parsed.content).toBe(content);
+  });
+});
+
+describe("parsePromptFile", () => {
+  test("parses a complete, valid prompt", () => {
+    const raw = `---
+title: Goals
+loading: always
+agent-modification: true
+---
+
+# Goals
+- be helpful
+`;
+    const { meta, content } = parsePromptFile("prompts/goals.md", raw);
+    expect(meta.title).toBe("Goals");
+    expect(meta.loading).toBe("always");
+    expect(meta["agent-modification"]).toBe(true);
+    expect(content).toContain("# Goals");
+  });
+
+  test("throws PromptValidationError when frontmatter is absent", () => {
+    expect(() =>
+      parsePromptFile("prompts/raw.md", "Just a body, no frontmatter"),
+    ).toThrow(PromptValidationError);
+  });
+
+  test("error names the path so the user can find the bad file", () => {
+    try {
+      parsePromptFile("prompts/raw.md", "Just a body");
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(PromptValidationError);
+      expect((err as Error).message).toContain("prompts/raw.md");
+    }
+  });
+
+  test("throws when title is missing", () => {
+    const raw = `---
+loading: always
+agent-modification: true
+---
+body`;
+    expect(() => parsePromptFile("prompts/x.md", raw)).toThrow(/title/);
+  });
+
+  test("throws when loading is missing", () => {
+    const raw = `---
+title: X
+agent-modification: true
+---
+body`;
+    expect(() => parsePromptFile("prompts/x.md", raw)).toThrow(/loading/);
+  });
+
+  test("throws when agent-modification is missing", () => {
+    const raw = `---
+title: X
+loading: always
+---
+body`;
+    expect(() => parsePromptFile("prompts/x.md", raw)).toThrow(
+      /agent-modification/,
+    );
+  });
+
+  test("throws when loading has an invalid value", () => {
+    const raw = `---
+title: X
+loading: sometimes
+agent-modification: true
+---
+body`;
+    expect(() => parsePromptFile("prompts/x.md", raw)).toThrow(
+      PromptValidationError,
+    );
+  });
+
+  test("throws when agent-modification is not a boolean", () => {
+    const raw = `---
+title: X
+loading: always
+agent-modification: yes
+---
+body`;
+    expect(() => parsePromptFile("prompts/x.md", raw)).toThrow(
+      PromptValidationError,
+    );
+  });
+
+  test("rejects unknown frontmatter keys (strict)", () => {
+    const raw = `---
+title: X
+loading: always
+agent-modification: true
+extra: nope
+---
+body`;
+    expect(() => parsePromptFile("prompts/x.md", raw)).toThrow(/unrecognized/i);
+  });
+
+  test("throws when title is an empty string", () => {
+    const raw = `---
+title: ""
+loading: always
+agent-modification: true
+---
+body`;
+    expect(() => parsePromptFile("prompts/x.md", raw)).toThrow(
+      PromptValidationError,
+    );
+  });
+});
+
+describe("serializePromptFile", () => {
+  test("roundtrip with parsePromptFile", () => {
+    const meta = {
+      title: "Beliefs",
+      loading: "always" as const,
+      "agent-modification": true,
+    };
+    const body = "- I should be concise.";
+    const serialized = serializePromptFile(meta, body);
+    const parsed = parsePromptFile("prompts/beliefs.md", serialized);
+    expect(parsed.meta).toEqual(meta);
+    expect(parsed.content).toBe(body);
   });
 });

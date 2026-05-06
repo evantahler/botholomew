@@ -171,8 +171,9 @@ When a worker picks up a task, `buildSystemPrompt()`
 — that would blow the context window. Instead:
 
 1. All markdown files in `prompts/` with frontmatter `loading: always`
-   are included verbatim (`soul.md`, `beliefs.md`, `goals.md`,
-   `capabilities.md`).
+   are included verbatim. New projects ship with `goals.md`,
+   `beliefs.md`, and `capabilities.md`, but anything you add to
+   `prompts/` that parses is treated the same way.
 2. The task name + description is embedded.
 3. `hybridSearch()` finds top-N relevant chunks from the index.
 4. Those chunks are appended to the system prompt as task-specific

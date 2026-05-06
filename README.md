@@ -124,11 +124,10 @@ the agent or worker touches is a real file you can `vim`, `grep`, and
 ```
 my-project/
   config/config.json                # models, tick interval, API keys
-  prompts/                          # always-loaded markdown
-    soul.md                         #   identity (not agent-editable)
+  prompts/                          # markdown files loaded into every system prompt (or keyword-loaded)
+    goals.md                        #   identity + current goals (agent-editable)
     beliefs.md                      #   agent-editable priors
-    goals.md                        #   agent-editable goals
-    capabilities.md                 #   agent-editable tool inventory
+    capabilities.md                 #   auto-generated tool inventory
   skills/                           # slash commands (built-ins + user-defined)
     summarize.md
     standup.md
@@ -168,6 +167,7 @@ from `context/`.
 | `botholomew schedule list\|add\|view\|enable\|disable\|trigger\|delete` | Recurring work (markdown files in `schedules/`) |
 | `botholomew context add\|import\|tree\|stats\|reindex\|search\|read\|write\|edit\|move\|delete\|…` | Bring files/URLs into `context/`; rebuild the search index; expose the agent's file/dir tools as CLI subcommands |
 | `botholomew capabilities` | Rescan built-in + MCPX tools and rewrite `prompts/capabilities.md` |
+| `botholomew prompts list\|show\|create\|edit\|delete\|validate` | CRUD over the markdown files in `prompts/` (with strict frontmatter validation) |
 | `botholomew mcpx servers\|list\|add\|remove\|info\|search\|exec\|ping\|auth\|deauth\|import-global\|…` | Configure external MCP servers (passthrough to `mcpx`) |
 | `botholomew skill list\|show\|create\|validate` | Manage slash-command skills |
 | `botholomew thread list\|view` | Browse the agent's conversation history (CSVs in `threads/`) |
@@ -238,8 +238,8 @@ Topics worth understanding in detail:
   validation, and natural-language recurring schedules.
 - **[The Tool class](docs/tools.md)** — one Zod definition, three consumers
   (Anthropic tool-use, Commander CLI, tests).
-- **[Prompts](docs/prompts.md)** — `soul.md`, `beliefs.md`, `goals.md`,
-  frontmatter flags, and agent self-modification.
+- **[Prompts](docs/prompts.md)** — generic markdown files in `prompts/`,
+  strict frontmatter validation, and full CRUD via CLI + agent tools.
 - **[Skills (slash commands)](docs/skills.md)** — reusable prompt templates
   with positional arguments and tab completion; the chat agent can also
   create, edit, and search them at runtime.

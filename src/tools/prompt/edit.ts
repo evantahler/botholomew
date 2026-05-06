@@ -8,8 +8,9 @@ import {
 } from "../../fs/atomic.ts";
 import { applyLinePatches, LinePatchSchema } from "../../fs/patches.ts";
 import {
-  parseContextFile,
-  serializeContextFile,
+  PromptValidationError,
+  parsePromptFile,
+  serializePromptFile,
 } from "../../utils/frontmatter.ts";
 import type { ToolDefinition } from "../tool.ts";
 
@@ -17,7 +18,7 @@ const inputSchema = z.object({
   name: z
     .string()
     .describe(
-      "Prompt name without extension (e.g. 'beliefs', 'goals', 'capabilities'). Resolves to prompts/<name>.md.",
+      "Prompt name without extension (e.g. 'beliefs', 'goals'). Resolves to prompts/<name>.md.",
     ),
   patches: z.array(LinePatchSchema).describe("Patches to apply"),
 });
@@ -36,7 +37,7 @@ const outputSchema = z.object({
 export const promptEditTool = {
   name: "prompt_edit",
   description:
-    "[[ bash equivalent command: patch ]] Apply git-style line-range patches to a prompt file under prompts/. Operates on the whole file (frontmatter + body). Files marked `agent-modification: false` (e.g. soul.md) are protected. Use prompt_read first to inspect current line numbers.",
+    "[[ bash equivalent command: patch ]] Apply git-style line-range patches to a prompt file under prompts/. Operates on the whole file (frontmatter + body). Files marked `agent-modification: false` are protected. Use prompt_read first to inspect current line numbers.",
   group: "context",
   inputSchema,
   outputSchema,
@@ -65,11 +66,31 @@ export const promptEditTool = {
         is_error: true,
         error_type: "not_found",
         message: `Prompt not found: prompts/${input.name}.md`,
+        next_action_hint:
+          "Use prompt_list to see available prompts, or prompt_create to add a new one.",
       };
     }
 
     const original = file.content;
-    const preParsed = parseContextFile(original);
+    let preParsed: ReturnType<typeof parsePromptFile>;
+    try {
+      preParsed = parsePromptFile(filePath, original);
+    } catch (err) {
+      return {
+        name: input.name,
+        path: filePath,
+        applied: 0,
+        content: original,
+        is_error: true,
+        error_type: "invalid_frontmatter",
+        message:
+          err instanceof PromptValidationError
+            ? err.message
+            : `Existing prompt failed to parse: ${err instanceof Error ? err.message : String(err)}`,
+        next_action_hint:
+          "Fix the file's frontmatter directly before patching. Required keys: title, loading, agent-modification.",
+      };
+    }
     if (!preParsed.meta["agent-modification"]) {
       return {
         name: input.name,
@@ -83,9 +104,9 @@ export const promptEditTool = {
     }
 
     const updated = applyLinePatches(original, input.patches);
-    let postParsed: { meta: Record<string, unknown>; content: string };
+    let postParsed: ReturnType<typeof parsePromptFile>;
     try {
-      postParsed = parseContextFile(updated);
+      postParsed = parsePromptFile(filePath, updated);
     } catch (err) {
       return {
         name: input.name,
@@ -94,9 +115,12 @@ export const promptEditTool = {
         content: original,
         is_error: true,
         error_type: "invalid_frontmatter",
-        message: `Patched content failed to parse: ${err instanceof Error ? err.message : String(err)}`,
+        message:
+          err instanceof PromptValidationError
+            ? `Patched content failed to parse — ${err.reason}`
+            : `Patched content failed to parse: ${err instanceof Error ? err.message : String(err)}`,
         next_action_hint:
-          "Check that the frontmatter delimiters and YAML stay valid.",
+          "Check that the frontmatter delimiters and YAML stay valid (title, loading, agent-modification all required).",
       };
     }
     if (!postParsed.meta["agent-modification"]) {
@@ -113,10 +137,7 @@ export const promptEditTool = {
       };
     }
 
-    const serialized = serializeContextFile(
-      postParsed.meta,
-      postParsed.content,
-    );
+    const serialized = serializePromptFile(postParsed.meta, postParsed.content);
 
     try {
       await atomicWriteIfUnchanged(filePath, serialized, file.mtimeMs);

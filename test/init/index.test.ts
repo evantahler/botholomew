@@ -67,31 +67,45 @@ describe("initProject", () => {
     expect(await isDir(join(projectDir, LOGS_DIR))).toBe(true);
   });
 
-  test("seeds prompts/{soul,beliefs,goals,capabilities}.md", async () => {
+  test("seeds prompts/{goals,beliefs,capabilities}.md and no longer writes soul.md", async () => {
     await initProject(projectDir);
     const pc = getPromptsDir(projectDir);
-    for (const name of [
-      "soul.md",
-      "beliefs.md",
-      "goals.md",
-      "capabilities.md",
-    ]) {
+    for (const name of ["goals.md", "beliefs.md", "capabilities.md"]) {
       expect(await Bun.file(join(pc, name)).exists()).toBe(true);
     }
+    expect(await Bun.file(join(pc, "soul.md")).exists()).toBe(false);
   });
 
-  test("soul.md is loading=always and not agent-editable", async () => {
+  test("goals.md absorbs the soul identity prose", async () => {
     await initProject(projectDir);
-    const text = await fileText(join(getPromptsDir(projectDir), "soul.md"));
+    const text = await fileText(join(getPromptsDir(projectDir), "goals.md"));
+    expect(text).toMatch(/title:\s*Goals/);
     expect(text).toMatch(/loading:\s*always/);
-    expect(text).toMatch(/agent-modification:\s*false/);
+    expect(text).toMatch(/agent-modification:\s*true/);
+    // Identity prose merged from the old soul.md.
+    expect(text).toContain("wise owl");
+    // Existing goal bullet preserved.
+    expect(text).toContain("Get set up and ready to help.");
   });
 
   test("beliefs.md is loading=always and agent-editable", async () => {
     await initProject(projectDir);
     const text = await fileText(join(getPromptsDir(projectDir), "beliefs.md"));
+    expect(text).toMatch(/title:\s*Beliefs/);
     expect(text).toMatch(/loading:\s*always/);
     expect(text).toMatch(/agent-modification:\s*true/);
+  });
+
+  test("seeded prompts all pass strict frontmatter validation", async () => {
+    const { parsePromptFile } = await import("../../src/utils/frontmatter.ts");
+    await initProject(projectDir);
+    const pc = getPromptsDir(projectDir);
+    for (const name of ["goals.md", "beliefs.md", "capabilities.md"]) {
+      const path = join(pc, name);
+      const raw = await fileText(path);
+      // Throws PromptValidationError if any seed file has bad frontmatter.
+      parsePromptFile(path, raw);
+    }
   });
 
   test("config/config.json contains valid defaults", async () => {
