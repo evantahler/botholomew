@@ -23,9 +23,17 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { uuidv7 } from "../src/db/uuid.ts";
+import {
+  createThread,
+  endThread,
+  logInteraction,
+  updateThreadTitle,
+} from "../src/threads/store.ts";
+import { registerWorker } from "../src/workers/store.ts";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
@@ -119,19 +127,82 @@ async function addTask(
 
 async function addContextFile(
   workDir: string,
-  env: Record<string, string>,
+  _env: Record<string, string>,
   relativePath: string,
   body: string,
 ): Promise<void> {
-  const fsPath = join(workDir, relativePath);
+  // The Context tab and `context tree` read straight from disk, so writing
+  // the file into <workDir>/context/<relativePath> is all we need. The
+  // search index is rebuilt lazily on the first reindex (and isn't visible
+  // in the captures anyway).
+  const fsPath = join(workDir, "context", relativePath);
   mkdirSync(dirname(fsPath), { recursive: true });
   writeFileSync(fsPath, body);
-  const prefix = `/${dirname(relativePath)}/`;
-  await $`bun run ${cliPath} --dir ${workDir} context add ${fsPath} --prefix ${prefix}`
-    .cwd(workDir)
-    .env(env)
-    .quiet()
-    .nothrow();
+}
+
+async function addHistoricalThread(workDir: string): Promise<void> {
+  // One closed thread so the Threads tab shows a row instead of an empty
+  // state during the full-tour capture cycle.
+  const id = await createThread(workDir, "chat_session");
+  await updateThreadTitle(workDir, id, "Yesterday's planning chat");
+  await logInteraction(workDir, id, {
+    role: "user",
+    kind: "message",
+    content: "what did I commit to yesterday?",
+  });
+  await logInteraction(workDir, id, {
+    role: "assistant",
+    kind: "message",
+    content:
+      "Three things: ship the v0.8 launch plan, prep Pascal's design review, and reply to Sterling's 1:1 doc.",
+  });
+  await logInteraction(workDir, id, {
+    role: "user",
+    kind: "message",
+    content: "thanks, set a schedule to remind me each morning.",
+  });
+  await logInteraction(workDir, id, {
+    role: "assistant",
+    kind: "message",
+    content: "Done — added the morning briefing schedule.",
+  });
+  await endThread(workDir, id);
+}
+
+async function addStubWorker(workDir: string): Promise<void> {
+  // A registered worker so the Workers tab is non-empty. The pid is fake;
+  // the reaper would mark it dead on a real run, but for capture purposes
+  // the cycle dwells for ~24s — well inside the default heartbeat window.
+  await registerWorker(workDir, {
+    id: uuidv7(),
+    pid: 99999,
+    hostname: hostname(),
+    mode: "persist",
+  });
+}
+
+function seedMcpxServers(workDir: string): void {
+  // The fetcher (`src/context/fetcher.ts`) bails to httpFallback when
+  // createMcpxClient returns null. Capture-mode mcp_search/mcp_exec
+  // short-circuit on canned data, so the client is never actually called —
+  // we just need a non-null client. Stub one server so the file parses.
+  const mcpxDir = join(workDir, "mcpx");
+  mkdirSync(mcpxDir, { recursive: true });
+  writeFileSync(
+    join(mcpxDir, "servers.json"),
+    `${JSON.stringify(
+      {
+        mcpServers: {
+          "google-docs": {
+            command: "echo",
+            args: ["capture-mode-stub"],
+          },
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 async function seedProject(workDir: string): Promise<void> {
@@ -233,6 +304,15 @@ async function seedProject(workDir: string): Promise<void> {
     "people/sterling.md",
     "# Sterling\n\n- Weekly 1:1 Fridays at 4:30 PM\n- Focus areas: reliability, oncall rotation\n- Prefers written agenda 24h ahead\n",
   );
+
+  // Stub mcpx so `botholomew context import` enters the MCP path under
+  // capture mode (canned fakeMcpSearch/fakeMcpExec take over from there).
+  seedMcpxServers(workDir);
+
+  // Empty-state tabs in the TUI: seed one historical thread and one
+  // registered worker so the full-tour cycle has data on every panel.
+  await addHistoricalThread(workDir);
+  await addStubWorker(workDir);
 }
 
 async function runOne(tape: string): Promise<void> {

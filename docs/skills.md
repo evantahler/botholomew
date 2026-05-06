@@ -1,5 +1,7 @@
 # Skills (slash commands)
 
+![Running /standup from the slash-command popup](./assets/slash-commands.gif)
+
 Skills are user-defined slash commands for the chat TUI. A skill is a
 markdown file with frontmatter and a prompt template; when you type
 `/<name>` in chat, the template is rendered and sent as a user message.

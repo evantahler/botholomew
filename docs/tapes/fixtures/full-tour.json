@@ -1,6 +1,6 @@
 {
   "env": {
-    "BOTHOLOMEW_CAPTURE_TAB_CYCLE": "2400:11000"
+    "BOTHOLOMEW_CAPTURE_TAB_CYCLE": "3000:9000"
   },
   "turns": [
     {

@@ -1,9 +1,61 @@
 {
   "turns": [
     {
-      "text": "Ready when you are.",
-      "chunkSize": 3,
-      "delayMs": 30
+      "match": "Generate a standup update|standup-style update",
+      "preDelayMs": 1500,
+      "text": "Pulling recent activity from GitHub and Linear before I summarize…\n\n",
+      "chunkSize": 4,
+      "delayMs": 22,
+      "toolCalls": [
+        {
+          "name": "mcp_search",
+          "input": { "query": "github recent pull requests" }
+        }
+      ]
+    },
+    {
+      "preDelayMs": 1200,
+      "text": "Now Linear…\n\n",
+      "chunkSize": 4,
+      "delayMs": 22,
+      "toolCalls": [
+        {
+          "name": "mcp_search",
+          "input": { "query": "linear my issues" }
+        }
+      ]
+    },
+    {
+      "preDelayMs": 1500,
+      "text": "Found `github / ListMyPullRequests` and `linear / ListMyIssues`. Fetching both…\n\n",
+      "chunkSize": 4,
+      "delayMs": 22,
+      "toolCalls": [
+        {
+          "id": "toolu_capture_gh_prs",
+          "name": "mcp_exec",
+          "input": {
+            "server": "github",
+            "tool": "ListMyPullRequests",
+            "args": { "since": "1d" }
+          }
+        },
+        {
+          "id": "toolu_capture_lin_issues",
+          "name": "mcp_exec",
+          "input": {
+            "server": "linear",
+            "tool": "ListMyIssues",
+            "args": {}
+          }
+        }
+      ]
+    },
+    {
+      "preDelayMs": 1800,
+      "text": "**Standup — May 6**\n\n**Done (yesterday):**\n- PR #213 *TUI: close chat gap, hide chat scrollback* — merged\n- Triage Linear inbox\n\n**In progress:**\n- PR #214 *Make /standup demo call GitHub + Linear* — changes requested\n- ENG-487 *Worker reaper sometimes drops heartbeats*\n- Summarize tomorrow's calendar\n\n**Up next:**\n- Draft v0.8 release notes (high)\n- Prep design-review notes for Pascal\n- ENG-503 *Structured event log for capabilities refresh*\n\n**Blocked:**\n- ENG-491 *Flaky context-reindex test under Bun 1.4* — waiting on upstream Bun fix\n- Reply to Sterling's 1:1 prep doc — waiting on Sterling for the agenda",
+      "chunkSize": 4,
+      "delayMs": 20
     }
   ]
 }

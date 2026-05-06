@@ -157,6 +157,11 @@ from `context/`.
 
 ![CLI walkthrough: task list, task add, schedule list, context list](docs/assets/cli-tour.gif)
 
+Pulling a remote document straight into `context/` via an LLM-driven
+fetcher (`mcp_search` → `mcp_exec` → save):
+
+![Importing a Google Doc into context](docs/assets/context-import-gdoc.gif)
+
 | Command | Purpose |
 |---|---|
 | `botholomew init` | Initialize the current directory as a project (refuses on iCloud/Dropbox/NFS without `--force`) |

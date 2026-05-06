@@ -5,7 +5,7 @@ Output docs/assets/chat-happy-path.gif
 # calendar tool → agent calls it → synthesizes today's events.
 # Three fake-LLM turns emit mcp_search, mcp_exec, and a final synthesis.
 Sleep 800ms
-Type "botholomew chat --no-daemon"
+Type "botholomew chat"
 Sleep 600ms
 Enter
 Sleep 4s
