@@ -15,7 +15,9 @@ import {
   handleListDetailKey,
 } from "../listDetailKeys.ts";
 import { ansi, theme } from "../theme.ts";
+import { useDeleteConfirm } from "../useDeleteConfirm.ts";
 import { useLatestRef } from "../useLatestRef.ts";
+import { DeleteArmedBanner } from "./DeleteArmedBanner.tsx";
 import { Scrollbar } from "./Scrollbar.tsx";
 
 interface ThreadPanelProps {
@@ -168,7 +170,6 @@ export const ThreadPanel = memo(function ThreadPanel({
   const [focus, setFocus] = useState<FocusState>("list");
   const [typeFilter, setTypeFilter] = useState<Thread["type"] | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDetail, setSelectedDetail] = useState<{
@@ -329,10 +330,17 @@ export const ThreadPanel = memo(function ThreadPanel({
   const selectedThreadRef = useLatestRef(selectedThread);
   const selectedDetailRef = useLatestRef(selectedDetail);
   const searchingRef = useLatestRef(searching);
-  const confirmDeleteRef = useLatestRef(confirmDelete);
   const isActiveSelectedRef = useLatestRef(isActiveSelected);
   const followingRef = useLatestRef(following);
   const focusRef = useLatestRef(focus);
+
+  const deleteConfirm = useDeleteConfirm(() => {
+    const t = selectedThreadRef.current;
+    if (!t || isActiveSelectedRef.current) return;
+    deleteThread(projectDir, t.id).then(() => {
+      forceRefresh();
+    });
+  });
 
   useInput(
     (input, key) => {
@@ -360,21 +368,7 @@ export const ThreadPanel = memo(function ThreadPanel({
         return;
       }
 
-      // Delete confirmation mode
-      if (confirmDeleteRef.current) {
-        if (input === "y" || input === "d") {
-          const t = selectedThreadRef.current;
-          if (t && !isActiveSelectedRef.current) {
-            deleteThread(projectDir, t.id).then(() => {
-              forceRefresh();
-            });
-          }
-          setConfirmDelete(false);
-        } else {
-          setConfirmDelete(false);
-        }
-        return;
-      }
+      if (input !== "d") deleteConfirm.cancel();
 
       if (
         handleListDetailKey(input, key, {
@@ -396,7 +390,8 @@ export const ThreadPanel = memo(function ThreadPanel({
       }
       if (input === "d" && selectedThreadRef.current) {
         if (isActiveSelectedRef.current) return; // Can't delete active thread
-        setConfirmDelete(true);
+        const t = selectedThreadRef.current;
+        deleteConfirm.pressDelete(t.title || "(untitled)");
         return;
       }
       if (input === "r") {
@@ -490,13 +485,6 @@ export const ThreadPanel = memo(function ThreadPanel({
             <Text color={theme.info}>▌</Text>
           </Box>
         )}
-        {confirmDelete && selectedThread && (
-          <Box paddingX={1}>
-            <Text color="red" bold>
-              Delete thread? (y/n)
-            </Text>
-          </Box>
-        )}
         {sidebarVisible.map((thread, vi) => {
           const i = vi + sidebarScrollOffset;
           const isSelected = i === selectedIndex;
@@ -573,6 +561,10 @@ export const ThreadPanel = memo(function ThreadPanel({
             focused={focus === "detail"}
           />
         </Box>
+        <DeleteArmedBanner
+          armed={deleteConfirm.armed}
+          label={deleteConfirm.armedLabel}
+        />
         <Box>
           {following && (
             <Text color={theme.success} bold>
@@ -583,7 +575,7 @@ export const ThreadPanel = memo(function ThreadPanel({
           <Text dimColor>
             {focus === "detail"
               ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
-              : `↑↓ select · → enter detail · s search · f filter · d delete${selectedThread && !selectedThread.ended_at ? " · w follow" : ""} · r refresh`}
+              : `↑↓ select · → enter detail · s search · f filter · d delete (×2)${selectedThread && !selectedThread.ended_at ? " · w follow" : ""} · r refresh`}
           </Text>
         </Box>
       </Box>

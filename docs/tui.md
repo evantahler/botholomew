@@ -332,11 +332,12 @@ move the selection (list focus) or scroll the detail (detail focus).
 | `f` | Cycle filter (status, type, enabled — per panel) |
 | `p` | Cycle priority filter (Tasks only) |
 | `r` | Refresh from DB |
-| `d` | Delete with confirmation (Threads, Schedules, Context) |
+| `d` then `d` | Delete the selected item (Tasks, Threads, Schedules, Context). First press arms; second confirms. Any other key or 3s of inactivity disarms. The active chat thread cannot be deleted. |
 | `e` | Toggle enable/disable (Schedules only) |
 | `s` or `/` | Search (Threads only) |
 | `w` | Toggle follow-mode (Threads only) |
 | `l` | Toggle detail / log view (Workers only) |
+| `d` then `d` (Workers, log view) | Delete the worker's on-disk log file. The worker record itself is preserved. |
 
 ### Context tab
 
@@ -346,7 +347,7 @@ move the selection (list focus) or scroll the detail (detail focus).
 | `→` | Drill into folder · open file preview |
 | `←` | Go up one directory · close preview |
 | `/` | Search |
-| `d` | Delete selected item |
+| `d` then `d` | Delete the selected file or folder. Folders delete recursively; index entries are removed and the search index is rebuilt. Symlinks are unlinked safely (the target is never touched). |
 
 ---
 

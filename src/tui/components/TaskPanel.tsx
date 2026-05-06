@@ -12,7 +12,9 @@ import {
   handleListDetailKey,
 } from "../listDetailKeys.ts";
 import { ansi, theme } from "../theme.ts";
+import { useDeleteConfirm } from "../useDeleteConfirm.ts";
 import { useLatestRef } from "../useLatestRef.ts";
+import { DeleteArmedBanner } from "./DeleteArmedBanner.tsx";
 import { Scrollbar } from "./Scrollbar.tsx";
 
 interface TaskPanelProps {
@@ -199,8 +201,18 @@ export const TaskPanel = memo(function TaskPanel({
   const selectedTaskRef = useLatestRef(selectedTask);
   const focusRef = useLatestRef(focus);
 
+  const deleteConfirm = useDeleteConfirm(() => {
+    const t = selectedTaskRef.current;
+    if (!t) return;
+    deleteTask(projectDir, t.id).then(() => {
+      forceRefresh();
+    });
+  });
+
   useInput(
     (input, key) => {
+      if (input !== "d") deleteConfirm.cancel();
+
       if (
         handleListDetailKey(input, key, {
           focusRef,
@@ -226,9 +238,7 @@ export const TaskPanel = memo(function TaskPanel({
       if (input === "d") {
         const t = selectedTaskRef.current;
         if (!t) return;
-        deleteTask(projectDir, t.id).then(() => {
-          forceRefresh();
-        });
+        deleteConfirm.pressDelete(t.name || t.id);
         return;
       }
       if (input === "r") {
@@ -359,10 +369,14 @@ export const TaskPanel = memo(function TaskPanel({
             focused={focus === "detail"}
           />
         </Box>
+        <DeleteArmedBanner
+          armed={deleteConfirm.armed}
+          label={deleteConfirm.armedLabel}
+        />
         <Text dimColor>
           {focus === "detail"
             ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
-            : "↑↓ select · → enter detail · f filter · p priority · d delete · r refresh"}
+            : "↑↓ select · → enter detail · f filter · p priority · d delete (×2) · r refresh"}
         </Text>
       </Box>
     </Box>
