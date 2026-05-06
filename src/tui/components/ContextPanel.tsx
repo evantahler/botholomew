@@ -1,18 +1,33 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { getDbPath } from "../../constants.ts";
 import {
   type ContextEntry,
   listContextDir,
   readContextFile,
 } from "../../context/store.ts";
+import { withDb } from "../../db/connection.ts";
+import {
+  getIndexedPath,
+  type IndexedPathSummary,
+} from "../../db/embeddings.ts";
+import {
+  detailPaneBorderProps,
+  type FocusState,
+  handleListDetailKey,
+} from "../listDetailKeys.ts";
 import { isMarkdownPath, renderMarkdown } from "../markdown.ts";
+import { theme } from "../theme.ts";
+import { useLatestRef } from "../useLatestRef.ts";
+import { Scrollbar } from "./Scrollbar.tsx";
 
 interface ContextPanelProps {
   projectDir: string;
   isActive: boolean;
 }
 
-const CHROME_LINES = 8;
+const SIDEBAR_WIDTH = 32;
+const PAGE_SCROLL_LINES = 10;
 
 export const ContextPanel = memo(function ContextPanel({
   projectDir,
@@ -23,22 +38,20 @@ export const ContextPanel = memo(function ContextPanel({
 
   const [currentPath, setCurrentPath] = useState("");
   const [entries, setEntries] = useState<ContextEntry[]>([]);
-  const [cursor, setCursor] = useState(0);
-  const [scrollOffset, setScrollOffset] = useState(0);
-  const [preview, setPreview] = useState<{
-    entry: ContextEntry;
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [sidebarScrollOffset, setSidebarScrollOffset] = useState(0);
+  const [detailScroll, setDetailScroll] = useState(0);
+  const [focus, setFocus] = useState<FocusState>("list");
+  const [fileContent, setFileContent] = useState<{
+    path: string;
     content: string;
   } | null>(null);
-  const [previewScroll, setPreviewScroll] = useState(0);
+  const [indexStatus, setIndexStatus] = useState<{
+    path: string;
+    summary: IndexedPathSummary | null;
+  } | null>(null);
 
-  const visibleRows = Math.max(1, termRows - CHROME_LINES);
-
-  useEffect(() => {
-    if (cursor < scrollOffset) setScrollOffset(cursor);
-    else if (cursor >= scrollOffset + visibleRows) {
-      setScrollOffset(cursor - visibleRows + 1);
-    }
-  }, [cursor, scrollOffset, visibleRows]);
+  const visibleRows = Math.max(1, termRows - 6);
 
   const refresh = useCallback(
     async (path: string) => {
@@ -51,14 +64,12 @@ export const ContextPanel = memo(function ContextPanel({
           return a.path.localeCompare(b.path);
         });
         setEntries(list);
-        setCursor(0);
-        setScrollOffset(0);
-        setPreview(null);
+        setSelectedIndex(0);
+        setSidebarScrollOffset(0);
       } catch {
         setEntries([]);
-        setCursor(0);
-        setScrollOffset(0);
-        setPreview(null);
+        setSelectedIndex(0);
+        setSidebarScrollOffset(0);
       }
     },
     [projectDir],
@@ -68,167 +79,330 @@ export const ContextPanel = memo(function ContextPanel({
     refresh(currentPath);
   }, [currentPath, refresh]);
 
-  const previewLines = useMemo(() => {
-    if (!preview) return [];
-    const body =
-      isMarkdownPath(preview.entry.path) && preview.entry.is_textual
-        ? renderMarkdown(preview.content)
-        : preview.content;
-    return body.split("\n");
-  }, [preview]);
+  // Keep the sidebar's selection visible by scrolling its viewport when the
+  // cursor approaches the edges.
+  useEffect(() => {
+    if (selectedIndex < sidebarScrollOffset) {
+      setSidebarScrollOffset(selectedIndex);
+    } else if (selectedIndex >= sidebarScrollOffset + visibleRows) {
+      setSidebarScrollOffset(selectedIndex - visibleRows + 1);
+    }
+  }, [selectedIndex, sidebarScrollOffset, visibleRows]);
 
-  const items = entries;
-  const itemCount = items.length;
+  const selectedEntry = entries[selectedIndex];
+
+  // Auto-load file content when the selection lands on a textual file.
+  // Folders and non-textual files clear the right pane.
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedEntry) {
+      setFileContent(null);
+      setDetailScroll(0);
+      return;
+    }
+    if (selectedEntry.is_directory || !selectedEntry.is_textual) {
+      setFileContent(null);
+      setDetailScroll(0);
+      return;
+    }
+    setDetailScroll(0);
+    readContextFile(projectDir, selectedEntry.path).then((content) => {
+      if (cancelled) return;
+      setFileContent({ path: selectedEntry.path, content });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectDir, selectedEntry]);
+
+  // Look up the file's index status so we can show "indexed (N chunks)"
+  // vs "not indexed" in the header. Skips for folders.
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedEntry || selectedEntry.is_directory) {
+      setIndexStatus(null);
+      return;
+    }
+    const path = selectedEntry.path;
+    const dbPath = getDbPath(projectDir);
+    withDb(dbPath, (conn) => getIndexedPath(conn, path))
+      .then((summary) => {
+        if (cancelled) return;
+        setIndexStatus({ path, summary });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setIndexStatus({ path, summary: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectDir, selectedEntry]);
+
+  const detailLines = useMemo(() => {
+    if (!fileContent || !selectedEntry) return [];
+    const body = isMarkdownPath(fileContent.path)
+      ? renderMarkdown(fileContent.content)
+      : fileContent.content;
+    return body.split("\n");
+  }, [fileContent, selectedEntry]);
+
+  const visibleDetailRows = Math.max(1, visibleRows - 2);
+  const maxDetailScroll = Math.max(0, detailLines.length - visibleDetailRows);
+
   const visibleItems = useMemo(
-    () => items.slice(scrollOffset, scrollOffset + visibleRows),
-    [items, scrollOffset, visibleRows],
+    () => entries.slice(sidebarScrollOffset, sidebarScrollOffset + visibleRows),
+    [entries, sidebarScrollOffset, visibleRows],
   );
+
+  // Refs read by the keyboard handler so it always sees the latest committed
+  // values (Ink 7's useInput intermittently leaves a stale closure).
+  const itemCountRef = useLatestRef(entries.length);
+  const maxDetailScrollRef = useLatestRef(maxDetailScroll);
+  const selectedEntryRef = useLatestRef(selectedEntry);
+  const currentPathRef = useLatestRef(currentPath);
+  const focusRef = useLatestRef(focus);
 
   useInput(
     (input, key) => {
-      if (preview) {
-        if (key.upArrow) {
-          setPreviewScroll((s) => Math.max(0, s - 1));
-          return;
-        }
-        if (key.downArrow) {
-          const maxScroll = Math.max(0, previewLines.length - visibleRows + 2);
-          setPreviewScroll((s) => Math.min(maxScroll, s + 1));
-          return;
-        }
-        if (key.escape || input === "q") {
-          setPreview(null);
-          setPreviewScroll(0);
-        }
+      if (
+        handleListDetailKey(input, key, {
+          focusRef,
+          setFocus,
+          itemCountRef,
+          maxDetailScrollRef,
+          setSelectedIndex,
+          setDetailScroll,
+          pageScrollLines: PAGE_SCROLL_LINES,
+          // Context-specific: → on a folder drills in (when list-focused);
+          // ← in list-focus goes up a directory.
+          onRightArrow: () => {
+            if (focusRef.current !== "list") return false;
+            const entry = selectedEntryRef.current;
+            if (entry?.is_directory) {
+              setCurrentPath(entry.path);
+              return true;
+            }
+            return false;
+          },
+          onLeftArrow: () => {
+            if (focusRef.current !== "list") return false;
+            const cwd = currentPathRef.current;
+            if (cwd === "") return true; // already at root, swallow the key
+            const parts = cwd.split("/");
+            parts.pop();
+            setCurrentPath(parts.join("/"));
+            return true;
+          },
+        })
+      ) {
         return;
       }
 
-      if (key.upArrow) {
-        setCursor((c) => Math.max(0, c - 1));
-        return;
+      if (input === "r") {
+        refresh(currentPathRef.current);
       }
-      if (key.downArrow) {
-        setCursor((c) => Math.min(itemCount - 1, c + 1));
-        return;
-      }
-      if (key.return) {
-        const entry = entries[cursor];
-        if (!entry) return;
-        if (entry.is_directory) {
-          setCurrentPath(entry.path);
-          return;
-        }
-        if (!entry.is_textual) return;
-        readContextFile(projectDir, entry.path).then((content) => {
-          setPreview({ entry, content });
-          setPreviewScroll(0);
-        });
-        return;
-      }
-      if (key.backspace || key.delete || input === "h") {
-        if (currentPath === "") return;
-        const parts = currentPath.split("/");
-        parts.pop();
-        setCurrentPath(parts.join("/"));
-      }
-      if (input === "r") refresh(currentPath);
     },
     { isActive },
   );
 
-  if (preview) {
-    const visiblePreviewLines = previewLines.slice(
-      previewScroll,
-      previewScroll + visibleRows - 2,
-    );
-    return (
-      <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
-        <Box>
-          <Text bold color="cyan">
-            context/{preview.entry.path}
-          </Text>
-          <Text dimColor> (esc/q to go back · ↑↓ to scroll)</Text>
-        </Box>
-        <Box marginTop={1} flexDirection="column">
-          <Text dimColor>
-            {preview.entry.mime_type} · {preview.entry.size} bytes · updated{" "}
-            {preview.entry.mtime.toLocaleDateString()}
-          </Text>
-        </Box>
-        <Box
-          marginTop={1}
-          flexDirection="column"
-          flexGrow={1}
-          overflow="hidden"
-        >
-          {visiblePreviewLines.map((line, i) => {
-            const lineNum = previewScroll + i;
-            return <Text key={lineNum}>{line || " "}</Text>;
-          })}
-        </Box>
-        {previewLines.length > visibleRows - 2 && (
-          <Box>
-            <Text dimColor>
-              [line {previewScroll + 1}–
-              {Math.min(previewScroll + visibleRows - 2, previewLines.length)}{" "}
-              of {previewLines.length}]
-            </Text>
-          </Box>
-        )}
-      </Box>
-    );
-  }
-
   const headerLabel =
     currentPath === "" ? "context/" : `context/${currentPath}/`;
 
+  const detailVisible = detailLines.slice(
+    detailScroll,
+    detailScroll + visibleDetailRows,
+  );
+
   return (
-    <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
-      <Box>
-        <Text bold color="cyan">
-          {headerLabel}
-        </Text>
-        <Text dimColor>
-          {" "}
-          ({entries.length} entries · ↑↓ select · ⏎ open · backspace up · r
-          refresh)
-        </Text>
-      </Box>
-      <Box flexDirection="column" marginTop={1} flexGrow={1}>
-        {entries.length === 0 && <Text dimColor>(empty)</Text>}
-        {visibleItems.map((entry, vi) => {
-          const i = vi + scrollOffset;
-          const isSelected = i === cursor;
-          const name = entry.path.split("/").pop() ?? entry.path;
-          const icon = entry.is_directory ? "📁" : "📄";
-          return (
-            <Box key={entry.path}>
-              <Text
-                backgroundColor={isSelected ? "#333" : undefined}
-                color={
-                  isSelected ? "cyan" : entry.is_directory ? "blue" : undefined
-                }
-                bold={isSelected}
-              >
-                {"  "}
-                {icon} {name}
-                {entry.is_directory ? "/" : ""}
-                {!entry.is_directory && (
-                  <Text dimColor> ({entry.mime_type})</Text>
-                )}
-              </Text>
-            </Box>
-          );
-        })}
-      </Box>
-      {itemCount > visibleRows && (
-        <Box>
-          <Text dimColor>
-            [{scrollOffset + 1}–
-            {Math.min(scrollOffset + visibleRows, itemCount)} of {itemCount}]
+    <Box flexGrow={1} height={visibleRows + 1} overflow="hidden">
+      {/* Left: file tree */}
+      <Box
+        flexDirection="column"
+        width={SIDEBAR_WIDTH}
+        height={visibleRows + 1}
+        borderStyle="single"
+        borderColor={theme.muted}
+        borderRight
+        borderTop={false}
+        borderBottom={false}
+        borderLeft={false}
+        overflow="hidden"
+      >
+        <Box paddingX={1}>
+          <Text bold dimColor wrap="truncate-end">
+            {headerLabel}
           </Text>
         </Box>
-      )}
+        {entries.length === 0 ? (
+          <Box paddingX={1}>
+            <Text dimColor>(empty)</Text>
+          </Box>
+        ) : (
+          visibleItems.map((entry, vi) => {
+            const i = vi + sidebarScrollOffset;
+            const isSelected = i === selectedIndex;
+            const name = entry.path.split("/").pop() ?? entry.path;
+            const icon = entry.is_directory ? "📁" : "📄";
+            return (
+              <Box key={entry.path} paddingX={1}>
+                <Text
+                  backgroundColor={isSelected ? theme.selectionBg : undefined}
+                  color={
+                    isSelected
+                      ? theme.info
+                      : entry.is_directory
+                        ? theme.accent
+                        : undefined
+                  }
+                  bold={isSelected}
+                  wrap="truncate-end"
+                >
+                  {isSelected ? "▸" : " "} {icon} {name}
+                  {entry.is_directory ? "/" : ""}
+                </Text>
+              </Box>
+            );
+          })
+        )}
+      </Box>
+
+      {/* Right: file content (or placeholder) */}
+      <Box
+        flexDirection="column"
+        flexGrow={1}
+        height={visibleRows + 1}
+        paddingX={1}
+        {...detailPaneBorderProps(focus)}
+        overflow="hidden"
+      >
+        {selectedEntry ? (
+          <>
+            <ContextDetailHeader
+              entry={selectedEntry}
+              indexStatus={
+                indexStatus && indexStatus.path === selectedEntry.path
+                  ? indexStatus.summary
+                  : null
+              }
+              indexLoaded={
+                !!indexStatus && indexStatus.path === selectedEntry.path
+              }
+            />
+            <Box flexDirection="row" flexGrow={1} overflow="hidden">
+              <Box flexDirection="column" flexGrow={1} overflow="hidden">
+                {selectedEntry.is_directory ? (
+                  <Text dimColor>(folder — press → to drill in)</Text>
+                ) : !selectedEntry.is_textual ? (
+                  <Text dimColor>(binary file — no preview)</Text>
+                ) : (
+                  detailVisible.map((line, i) => {
+                    const lineNum = detailScroll + i;
+                    return (
+                      <Text key={lineNum} wrap="truncate-end">
+                        {line || " "}
+                      </Text>
+                    );
+                  })
+                )}
+              </Box>
+              {selectedEntry &&
+                !selectedEntry.is_directory &&
+                selectedEntry.is_textual && (
+                  <Scrollbar
+                    total={detailLines.length}
+                    visible={visibleDetailRows - 3}
+                    offset={detailScroll}
+                    height={visibleDetailRows - 3}
+                    focused={focus === "detail"}
+                  />
+                )}
+            </Box>
+          </>
+        ) : (
+          <Text dimColor>(no item selected)</Text>
+        )}
+        <Box>
+          <Text dimColor>
+            {focus === "detail"
+              ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
+              : "↑↓ select · → drill in/enter detail · ← up · r refresh"}
+          </Text>
+        </Box>
+      </Box>
     </Box>
   );
 });
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDate(d: Date): string {
+  return d.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function ContextDetailHeader({
+  entry,
+  indexStatus,
+  indexLoaded,
+}: {
+  entry: ContextEntry;
+  indexStatus: IndexedPathSummary | null;
+  indexLoaded: boolean;
+}) {
+  return (
+    <Box flexDirection="column">
+      <Box>
+        <Text bold color="cyan" wrap="truncate-end">
+          {entry.is_directory ? "📁" : "📄"} context/{entry.path}
+          {entry.is_directory ? "/" : ""}
+        </Text>
+      </Box>
+      {entry.is_directory ? (
+        <Box>
+          <Text dimColor wrap="truncate-end">
+            directory · → to open
+          </Text>
+        </Box>
+      ) : (
+        <>
+          <Box>
+            <Text dimColor wrap="truncate-end">
+              {entry.mime_type} · {formatSize(entry.size)} · updated{" "}
+              {formatDate(entry.mtime)}
+            </Text>
+          </Box>
+          <Box>
+            <Text wrap="truncate-end">
+              {!indexLoaded ? (
+                <Text dimColor>checking index…</Text>
+              ) : indexStatus ? (
+                <Text color={theme.success}>
+                  ● indexed
+                  <Text dimColor>
+                    {" ("}
+                    {indexStatus.chunk_count}
+                    {indexStatus.chunk_count === 1 ? " chunk" : " chunks"})
+                  </Text>
+                </Text>
+              ) : (
+                <Text color={theme.muted}>○ not indexed</Text>
+              )}
+            </Text>
+          </Box>
+        </>
+      )}
+      <Box>
+        <Text dimColor>{"─".repeat(2)}</Text>
+      </Box>
+    </Box>
+  );
+}

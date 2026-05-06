@@ -6,7 +6,14 @@ import {
   listSchedules,
   updateSchedule,
 } from "../../schedules/store.ts";
+import {
+  detailPaneBorderProps,
+  type FocusState,
+  handleListDetailKey,
+} from "../listDetailKeys.ts";
 import { ansi, theme } from "../theme.ts";
+import { useLatestRef } from "../useLatestRef.ts";
+import { Scrollbar } from "./Scrollbar.tsx";
 
 interface SchedulePanelProps {
   projectDir: string;
@@ -26,11 +33,6 @@ const ENABLED_ICONS: Record<string, string> = {
 const ENABLED_COLORS: Record<string, string> = {
   true: theme.success,
   false: theme.muted,
-};
-
-const ENABLED_ANSI: Record<string, string> = {
-  true: ansi.success,
-  false: ansi.muted,
 };
 
 const ENABLED_LABELS: Record<string, string> = {
@@ -53,31 +55,7 @@ function formatTimestamp(iso: string | null): string {
 function buildScheduleDetailAnsi(schedule: Schedule): string {
   const lines: string[] = [];
 
-  lines.push(`${ansi.bold}${ansi.info}${schedule.name}${ansi.reset}`);
-  lines.push("");
-
-  const enabledKey = String(schedule.enabled);
-  const statusAnsi = ENABLED_ANSI[enabledKey];
-  lines.push(
-    `${ansi.bold}${ansi.primary}Status${ansi.reset}      ${statusAnsi}${ENABLED_ICONS[enabledKey]} ${ENABLED_LABELS[enabledKey]}${ansi.reset}`,
-  );
-
-  lines.push(
-    `${ansi.bold}${ansi.primary}Frequency${ansi.reset}   ${ansi.accent}${schedule.frequency}${ansi.reset}`,
-  );
-
-  lines.push(
-    `${ansi.bold}${ansi.primary}Created${ansi.reset}     ${ansi.dim}${formatTimestamp(schedule.created_at)}${ansi.reset}`,
-  );
-  lines.push(
-    `${ansi.bold}${ansi.primary}Updated${ansi.reset}     ${ansi.dim}${formatTimestamp(schedule.updated_at)}${ansi.reset}`,
-  );
-
-  lines.push(
-    `${ansi.bold}${ansi.primary}Last Run${ansi.reset}    ${formatTimestamp(schedule.last_run_at)}`,
-  );
-  lines.push("");
-
+  // Body only — name/status/frequency/last-run live in the panel header.
   if (schedule.description) {
     lines.push(`${ansi.bold}${ansi.primary}Description${ansi.reset}`);
     lines.push(schedule.description);
@@ -85,7 +63,13 @@ function buildScheduleDetailAnsi(schedule: Schedule): string {
   }
 
   lines.push(
-    `${ansi.bold}${ansi.primary}ID${ansi.reset}          ${ansi.dim}${schedule.id}${ansi.reset}`,
+    `${ansi.bold}${ansi.primary}Created${ansi.reset}   ${ansi.dim}${formatTimestamp(schedule.created_at)}${ansi.reset}`,
+  );
+  lines.push(
+    `${ansi.bold}${ansi.primary}Updated${ansi.reset}   ${ansi.dim}${formatTimestamp(schedule.updated_at)}${ansi.reset}`,
+  );
+  lines.push(
+    `${ansi.bold}${ansi.primary}ID${ansi.reset}        ${ansi.dim}${schedule.id}${ansi.reset}`,
   );
 
   return lines.join("\n");
@@ -107,6 +91,7 @@ export const SchedulePanel = memo(function SchedulePanel({
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [detailScroll, setDetailScroll] = useState(0);
+  const [focus, setFocus] = useState<FocusState>("list");
   const [enabledFilter, setEnabledFilter] = useState<boolean | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -171,12 +156,19 @@ export const SchedulePanel = memo(function SchedulePanel({
     setRefreshTick((t) => t + 1);
   }, []);
 
+  const itemCountRef = useLatestRef(schedules.length);
+  const maxDetailScrollRef = useLatestRef(maxDetailScroll);
+  const selectedScheduleRef = useLatestRef(selectedSchedule);
+  const confirmDeleteRef = useLatestRef(confirmDelete);
+  const focusRef = useLatestRef(focus);
+
   useInput(
     (input, key) => {
-      if (confirmDelete) {
+      if (confirmDeleteRef.current) {
         if (input === "y" || input === "d") {
-          if (selectedSchedule) {
-            deleteSchedule(projectDir, selectedSchedule.id).then(() => {
+          const s = selectedScheduleRef.current;
+          if (s) {
+            deleteSchedule(projectDir, s.id).then(() => {
               forceRefresh();
             });
           }
@@ -187,47 +179,17 @@ export const SchedulePanel = memo(function SchedulePanel({
         return;
       }
 
-      if (key.upArrow) {
-        if (key.shift) {
-          setDetailScroll((s) => Math.max(0, s - 1));
-        } else {
-          setSelectedIndex((i) => Math.max(0, i - 1));
-        }
-        return;
-      }
-      if (key.downArrow) {
-        if (key.shift) {
-          setDetailScroll((s) => Math.min(maxDetailScroll, s + 1));
-        } else {
-          setSelectedIndex((i) => Math.min(schedules.length - 1, i + 1));
-        }
-        return;
-      }
-
-      if (input === "j") {
-        setDetailScroll((s) => Math.min(maxDetailScroll, s + 1));
-        return;
-      }
-      if (input === "k") {
-        setDetailScroll((s) => Math.max(0, s - 1));
-        return;
-      }
-      if (input === "J") {
-        setDetailScroll((s) =>
-          Math.min(maxDetailScroll, s + PAGE_SCROLL_LINES),
-        );
-        return;
-      }
-      if (input === "K") {
-        setDetailScroll((s) => Math.max(0, s - PAGE_SCROLL_LINES));
-        return;
-      }
-      if (input === "g") {
-        setDetailScroll(0);
-        return;
-      }
-      if (input === "G") {
-        setDetailScroll(maxDetailScroll);
+      if (
+        handleListDetailKey(input, key, {
+          focusRef,
+          setFocus,
+          itemCountRef,
+          maxDetailScrollRef,
+          setSelectedIndex,
+          setDetailScroll,
+          pageScrollLines: PAGE_SCROLL_LINES,
+        })
+      ) {
         return;
       }
 
@@ -235,15 +197,17 @@ export const SchedulePanel = memo(function SchedulePanel({
         setEnabledFilter((f) => cycleFilter(f, ENABLED_FILTERS));
         return;
       }
-      if (input === "e" && selectedSchedule) {
-        updateSchedule(projectDir, selectedSchedule.id, {
-          enabled: !selectedSchedule.enabled,
+      if (input === "e") {
+        const s = selectedScheduleRef.current;
+        if (!s) return;
+        updateSchedule(projectDir, s.id, {
+          enabled: !s.enabled,
         }).then(() => {
           forceRefresh();
         });
         return;
       }
-      if (input === "d" && selectedSchedule) {
+      if (input === "d" && selectedScheduleRef.current) {
         setConfirmDelete(true);
         return;
       }
@@ -353,29 +317,66 @@ export const SchedulePanel = memo(function SchedulePanel({
         flexGrow={1}
         height={visibleRows + 1}
         paddingX={1}
+        {...detailPaneBorderProps(focus)}
         overflow="hidden"
       >
-        {detailVisible.map((line, i) => {
-          const lineNum = detailScroll + i;
-          return <Text key={lineNum}>{line || " "}</Text>;
-        })}
-        {detailLines.length > visibleRows && (
-          <Box>
-            <Text dimColor>
-              f filter · e toggle · ↑↓ select · j/k scroll · d delete · r
-              refresh · [{detailScroll + 1}–
-              {Math.min(detailScroll + visibleRows, detailLines.length)} of{" "}
-              {detailLines.length}]
-            </Text>
+        {selectedSchedule && (
+          <ScheduleDetailHeader schedule={selectedSchedule} />
+        )}
+        <Box flexDirection="row" flexGrow={1} overflow="hidden">
+          <Box flexDirection="column" flexGrow={1} overflow="hidden">
+            {detailVisible.map((line, i) => {
+              const lineNum = detailScroll + i;
+              return (
+                <Text key={lineNum} wrap="truncate-end">
+                  {line || " "}
+                </Text>
+              );
+            })}
           </Box>
-        )}
-        {detailLines.length <= visibleRows && <Box flexGrow={1} />}
-        {detailLines.length <= visibleRows && (
-          <Text dimColor>
-            f filter · e toggle · ↑↓ select · d delete · r refresh
-          </Text>
-        )}
+          <Scrollbar
+            total={detailLines.length}
+            visible={visibleRows - 3}
+            offset={detailScroll}
+            height={visibleRows - 3}
+            focused={focus === "detail"}
+          />
+        </Box>
+        <Text dimColor>
+          {focus === "detail"
+            ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
+            : "↑↓ select · → enter detail · f filter · e toggle · d delete · r refresh"}
+        </Text>
       </Box>
     </Box>
   );
 });
+
+function ScheduleDetailHeader({ schedule }: { schedule: Schedule }) {
+  const enabledKey = String(schedule.enabled);
+  return (
+    <Box flexDirection="column">
+      <Box>
+        <Text bold color={theme.info} wrap="truncate-end">
+          {schedule.name}
+        </Text>
+      </Box>
+      <Box>
+        <Text wrap="truncate-end">
+          <Text color={ENABLED_COLORS[enabledKey]}>
+            {ENABLED_ICONS[enabledKey]} {ENABLED_LABELS[enabledKey]}
+          </Text>
+          <Text dimColor> · </Text>
+          <Text color={theme.accent}>{schedule.frequency}</Text>
+          <Text dimColor>
+            {" · last run "}
+            {formatTimestamp(schedule.last_run_at)}
+          </Text>
+        </Text>
+      </Box>
+      <Box>
+        <Text dimColor>{"─".repeat(2)}</Text>
+      </Box>
+    </Box>
+  );
+}

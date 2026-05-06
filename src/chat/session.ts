@@ -180,6 +180,10 @@ export async function endChatSession(session: ChatSession): Promise<void> {
 export async function clearChatSession(
   session: ChatSession,
 ): Promise<{ previousThreadId: string; newThreadId: string }> {
+  // Abort any in-flight stream up front so its callbacks don't continue to
+  // fire into the new thread (caused #190 — old messages reappearing on the
+  // next user submission).
+  abortActiveStream(session);
   const previousThreadId = session.threadId;
   await endThread(session.projectDir, previousThreadId);
   const newThreadId = await createThread(

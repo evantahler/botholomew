@@ -70,9 +70,11 @@ spinner is shown so the UI doesn't appear frozen.
 ### 2. Tools
 
 Every tool call the agent has made in the current session, in order.
-`↑`/`↓` selects a row; the detail pane shows the full input JSON and
-the full (untruncated) output. `Shift+↑`/`↓` or `j`/`k` scroll the
-detail pane.
+List/detail panels share a focus model: the **list** is focused by
+default — `↑`/`↓` move the selection. Press `→` to enter the detail
+pane; `↑`/`↓` then scroll the detail one line at a time. `←` returns
+focus to the list. `PgUp`/`PgDn` page-scroll the detail; `g`/`G` jump
+to top/bottom.
 
 Tool calls from **MCP** (`mcp_exec`) are displayed as
 `<server> / <tool>` — e.g. `Linear / CreateIssue` — with the `server`
@@ -90,8 +92,9 @@ see [files.md](files.md) and
 [context-and-search.md](context-and-search.md).
 
 - `↑`/`↓` navigate.
-- `Enter` expands a directory or previews a file.
-- `Backspace` goes up one directory.
+- `→` drills into a directory or previews a file.
+- `←` goes up one directory level (or closes a preview).
+- `↑`/`↓` scroll an open file preview; `←` or `Esc` close it.
 - `/` opens a hybrid (keyword + vector) search across `context/`.
 - `d` deletes the selected file.
 
@@ -132,13 +135,14 @@ shows status, short id, mode, and heartbeat age. The detail pane has
 full id, pid, hostname, started time, heartbeat time, stopped time (if
 any), pinned task id (if any), and the per-worker log path.
 
-Press `l` to swap the detail pane into a **log view** that tails the
+Press `l` to swap the right pane into a **log view** that tails the
 selected worker's log file (`logs/<YYYY-MM-DD>/<id>.log`). The log
-auto-refreshes every ~1.5 s and follows the bottom by default — scroll
-up with `Shift+↑`, `k`, or `K` to pause following; `G` (or scrolling
-back to the bottom) resumes it. Press `l` again to return to the
-detail view. Foreground workers (`worker run`) have no log file, so
-the log view shows an empty-state message instead.
+auto-refreshes every ~1.5 s and follows the bottom by default. Press
+`→` to focus the right pane, then `↑` (or `PgUp`) to pause following;
+`G` or scrolling back to the bottom resumes it. `←` returns focus to
+the worker list. Press `l` again to swap the right pane back to detail
+view. Foreground workers (`worker run`) have no log file, so the log
+view shows an empty-state message instead.
 
 The panel polls the DB every ~3s. Workers heartbeat every
 `worker_heartbeat_interval_seconds` (default 15s); ones older than
@@ -268,8 +272,14 @@ just shows the summary to keep the chat view compact.
 
 | Key | Action |
 |---|---|
-| `Tab` | Cycle to the next tab |
-| `1`–`8` | Jump to tab N (not on Chat — the Chat input consumes digits) |
+| `Ctrl+a` | Chat |
+| `Ctrl+o` | Tools |
+| `Ctrl+n` | Context |
+| `Ctrl+t` | Tasks |
+| `Ctrl+r` | Threads |
+| `Ctrl+s` | Schedules |
+| `Ctrl+w` | Workers |
+| `Ctrl+h` | Help |
 | `Esc` | Return to Chat from any other tab |
 | `Ctrl+C` | Exit the TUI |
 
@@ -288,38 +298,35 @@ just shows the summary to keep the chat view compact.
 | `Ctrl+E` | Edit queued message |
 | `Ctrl+X` | Delete queued message |
 
-### List panels (Tools / Tasks / Threads / Schedules)
+### List panels (Tools / Tasks / Threads / Schedules / Workers)
+
+These panels share a list/detail focus model. The list is focused by
+default; `→` enters the detail pane, `←` returns to the list. `↑`/`↓`
+move the selection (list focus) or scroll the detail (detail focus).
 
 | Key | Action |
 |---|---|
-| `↑` / `↓` | Move selection |
-| `Shift+↑` / `Shift+↓` | Scroll detail pane |
-| `j` / `k` | Scroll detail pane (alternate) |
+| `↑` / `↓` | Move selection (list) · scroll detail (detail) |
+| `→` | Enter the detail pane |
+| `←` | Return to the list |
+| `PgUp` / `PgDn` | Page-scroll detail |
+| `g` / `G` | Jump to top / bottom of detail |
 | `f` | Cycle filter (status, type, enabled — per panel) |
 | `p` | Cycle priority filter (Tasks only) |
 | `r` | Refresh from DB |
 | `d` | Delete with confirmation (Threads, Schedules, Context) |
 | `e` | Toggle enable/disable (Schedules only) |
-
-### Workers tab
-
-| Key | Action |
-|---|---|
-| `↑` / `↓` | Select worker |
-| `f` | Cycle status filter (all → running → stopped → dead) |
-| `l` | Toggle between detail and log-tail view |
-| `Shift+↑` / `Shift+↓` | Scroll log up/down (log view) |
-| `j` / `k` | Scroll log down/up by one line (log view) |
-| `J` / `K` | Page scroll the log (log view) |
-| `g` / `G` | Jump to top / bottom of log (log view, `G` resumes follow) |
+| `s` or `/` | Search (Threads only) |
+| `w` | Toggle follow-mode (Threads only) |
+| `l` | Toggle detail / log view (Workers only) |
 
 ### Context tab
 
 | Key | Action |
 |---|---|
-| `↑` / `↓` | Navigate |
-| `Enter` | Expand directory / preview file |
-| `Backspace` | Go up one directory |
+| `↑` / `↓` | Navigate / scroll preview |
+| `→` | Drill into folder · open file preview |
+| `←` | Go up one directory · close preview |
 | `/` | Search |
 | `d` | Delete selected item |
 

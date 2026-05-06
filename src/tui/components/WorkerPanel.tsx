@@ -2,6 +2,13 @@ import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useEffect, useMemo, useState } from "react";
 import { readLogTail } from "../../worker/log-reader.ts";
 import { listWorkers, type Worker } from "../../workers/store.ts";
+import {
+  detailPaneBorderProps,
+  type FocusState,
+  handleListDetailKey,
+} from "../listDetailKeys.ts";
+import { useLatestRef } from "../useLatestRef.ts";
+import { Scrollbar } from "./Scrollbar.tsx";
 
 interface WorkerPanelProps {
   projectDir: string;
@@ -63,6 +70,7 @@ export const WorkerPanel = memo(function WorkerPanel({
   const [logTruncated, setLogTruncated] = useState(false);
   const [logScroll, setLogScroll] = useState(0);
   const [logFollow, setLogFollow] = useState(true);
+  const [focus, setFocus] = useState<FocusState>("list");
 
   useEffect(() => {
     let mounted = true;
@@ -150,74 +158,48 @@ export const WorkerPanel = memo(function WorkerPanel({
     }
   }, [viewMode, logFollow, maxLogScroll]);
 
+  const itemCountRef = useLatestRef(workers.length);
+  const maxLogScrollRef = useLatestRef(maxLogScroll);
+  const focusRef = useLatestRef(focus);
+
+  // The right pane scrolls with arrows when focused. Tee the log scroll into
+  // the follow-state so reaching the bottom resumes follow mode (and any
+  // explicit scroll-up pauses it).
+  const setLogScrollWithFollow = (
+    next: number | ((prev: number) => number),
+  ) => {
+    setLogScroll((s) => {
+      const v = typeof next === "function" ? next(s) : next;
+      const max = maxLogScrollRef.current;
+      const clamped = Math.max(0, Math.min(max, v));
+      setLogFollow(clamped >= max);
+      return clamped;
+    });
+  };
+
   useInput(
     (input, key) => {
       if (!isActive) return;
 
+      // `l` toggles between detail (worker info) and log (tail) view in the
+      // right pane.
       if (input === "l") {
         setViewMode((m) => (m === "log" ? "detail" : "log"));
         return;
       }
 
-      if (key.upArrow) {
-        if (viewMode === "log" && key.shift) {
-          setLogFollow(false);
-          setLogScroll((s) => Math.max(0, s - 1));
-          return;
-        }
-        setSelectedIndex((i) => Math.max(0, i - 1));
+      if (
+        handleListDetailKey(input, key, {
+          focusRef,
+          setFocus,
+          itemCountRef,
+          maxDetailScrollRef: maxLogScrollRef,
+          setSelectedIndex,
+          setDetailScroll: setLogScrollWithFollow,
+          pageScrollLines: PAGE_SCROLL_LINES,
+        })
+      ) {
         return;
-      }
-      if (key.downArrow) {
-        if (viewMode === "log" && key.shift) {
-          setLogScroll((s) => {
-            const next = Math.min(maxLogScroll, s + 1);
-            if (next >= maxLogScroll) setLogFollow(true);
-            return next;
-          });
-          return;
-        }
-        setSelectedIndex((i) => Math.min(workers.length - 1, i + 1));
-        return;
-      }
-
-      if (viewMode === "log") {
-        if (input === "j") {
-          setLogScroll((s) => {
-            const next = Math.min(maxLogScroll, s + 1);
-            if (next >= maxLogScroll) setLogFollow(true);
-            return next;
-          });
-          return;
-        }
-        if (input === "k") {
-          setLogFollow(false);
-          setLogScroll((s) => Math.max(0, s - 1));
-          return;
-        }
-        if (input === "J") {
-          setLogScroll((s) => {
-            const next = Math.min(maxLogScroll, s + PAGE_SCROLL_LINES);
-            if (next >= maxLogScroll) setLogFollow(true);
-            return next;
-          });
-          return;
-        }
-        if (input === "K") {
-          setLogFollow(false);
-          setLogScroll((s) => Math.max(0, s - PAGE_SCROLL_LINES));
-          return;
-        }
-        if (input === "g") {
-          setLogFollow(false);
-          setLogScroll(0);
-          return;
-        }
-        if (input === "G") {
-          setLogFollow(true);
-          setLogScroll(maxLogScroll);
-          return;
-        }
       }
 
       if (input === "f") {
@@ -240,9 +222,11 @@ export const WorkerPanel = memo(function WorkerPanel({
         <Text dimColor> · filter: </Text>
         <Text color="yellow">{filterLabel}</Text>
         <Text dimColor>
-          {viewMode === "log"
-            ? "  · [l] back  [↑↓] select  [j/k] scroll  [g/G] top/bot  [f] filter"
-            : "  · [l] view log  [f] cycle filter  [↑↓] select"}
+          {focus === "detail"
+            ? "  · ↑↓ scroll  ⇧↑↓ page  g/G top/bot  ← back to list  l toggle"
+            : viewMode === "log"
+              ? "  · ↑↓ select  → enter log  l detail  f filter"
+              : "  · ↑↓ select  → enter detail  l view log  f filter"}
         </Text>
       </Box>
 
@@ -287,22 +271,38 @@ export const WorkerPanel = memo(function WorkerPanel({
               );
             })}
           </Box>
-          <Box flexDirection="column" flexGrow={1}>
-            {selected ? (
-              viewMode === "log" ? (
-                <WorkerLogView
-                  worker={selected}
-                  lines={logLines}
-                  scroll={logScroll}
-                  visibleRows={visibleRows}
-                  truncated={logTruncated}
-                  size={logSize}
-                  follow={logFollow}
-                />
-              ) : (
-                <WorkerDetail worker={selected} now={now} />
-              )
-            ) : null}
+          <Box
+            flexDirection="row"
+            flexGrow={1}
+            paddingX={1}
+            {...detailPaneBorderProps(focus)}
+          >
+            <Box flexDirection="column" flexGrow={1}>
+              {selected ? (
+                viewMode === "log" ? (
+                  <WorkerLogView
+                    worker={selected}
+                    lines={logLines}
+                    scroll={logScroll}
+                    visibleRows={visibleRows}
+                    truncated={logTruncated}
+                    size={logSize}
+                    follow={logFollow}
+                  />
+                ) : (
+                  <WorkerDetail worker={selected} now={now} />
+                )
+              ) : null}
+            </Box>
+            {viewMode === "log" && (
+              <Scrollbar
+                total={logLines.length}
+                visible={visibleRows - 1}
+                offset={logScroll}
+                height={visibleRows - 1}
+                focused={focus === "detail"}
+              />
+            )}
           </Box>
         </Box>
       )}
