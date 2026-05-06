@@ -114,9 +114,13 @@ Both forms work — file symlinks and directory symlinks. The contract:
   recursion is also capped at 32 levels.
 - **`context_info` / listings**: surface `is_symlink: true` so the
   agent knows the entry is a reference.
-- **`context_delete`**: removes only the symlink. The target file or
-  directory is never touched. `recursive: true` is not required for a
-  symlinked directory — the link unlinks atomically.
+- **`context_delete`**: removes only the symlink itself. The target
+  file or directory is never touched. `recursive: true` is not required
+  for a symlinked directory — the link unlinks atomically. The leaf
+  must be the symlink: `context_delete linked/file.md` (where
+  `linked` is a user-placed symlink) is rejected with `PathEscapeError`,
+  the same as `context_move` / `context_copy` already do, so the agent
+  can't reach external content via a symlinked parent directory.
 - **`context_write`, `context_edit`, `context_move`, `context_copy`,
   `context_create_dir`**: refuse any path that traverses a symlink and
   return `PathEscapeError`. This is what makes the "external content

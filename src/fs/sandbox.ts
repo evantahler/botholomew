@@ -36,6 +36,15 @@ export interface SandboxOptions {
    * content.
    */
   allowSymlinks?: boolean;
+  /**
+   * Permit a symlink only as the final path component. Parent components
+   * are still lstat-walked and rejected if any is a symlink. This is the
+   * mode for mutating callers that intentionally operate on a symlink
+   * leaf (e.g., `deleteContextPath` unlinking a user-placed symlink) but
+   * must not be coaxed into reaching outside content via a symlinked
+   * parent directory.
+   */
+  allowSymlinkLeaf?: boolean;
 }
 
 let cachedCanonicalRoot: string | null = null;
@@ -97,7 +106,11 @@ export async function resolveInRoot(
   ensureContainment(resolved, boundary, opts.allowRoot ?? true, userPath);
 
   if (!opts.allowSymlinks) {
-    await assertNoSymlinkComponents(resolved, canonicalRoot);
+    await assertNoSymlinkComponents(
+      resolved,
+      canonicalRoot,
+      opts.allowSymlinkLeaf ?? false,
+    );
   }
   return resolved;
 }
@@ -122,7 +135,11 @@ export function resolveInRootSync(
   ensureContainment(resolved, boundary, opts.allowRoot ?? true, userPath);
 
   if (!opts.allowSymlinks) {
-    assertNoSymlinkComponentsSync(resolved, canonicalRoot);
+    assertNoSymlinkComponentsSync(
+      resolved,
+      canonicalRoot,
+      opts.allowSymlinkLeaf ?? false,
+    );
   }
   return resolved;
 }
@@ -181,19 +198,24 @@ function ensureContainment(
 async function assertNoSymlinkComponents(
   resolved: string,
   canonicalRoot: string,
+  allowLeaf: boolean,
 ): Promise<void> {
   // Walk from canonical root toward the leaf, lstat'ing each existing
   // component. The root itself is canonical (already realpath'd) so we skip
   // it; we only care that nothing the agent writes goes through a symlink.
+  // When `allowLeaf` is true, the final component may itself be a symlink
+  // (e.g., delete unlinking a user-placed symlink) — only parents are checked.
   const rel = resolved.slice(canonicalRoot.length);
   if (!rel || rel === sep) return;
   const parts = rel.split(sep).filter((p) => p.length > 0);
   let current = canonicalRoot;
-  for (const part of parts) {
-    current = current + sep + part;
+  for (let i = 0; i < parts.length; i++) {
+    current = current + sep + parts[i];
+    const isLeaf = i === parts.length - 1;
     try {
       const st = await lstat(current);
       if (st.isSymbolicLink()) {
+        if (isLeaf && allowLeaf) continue;
         throw new PathEscapeError(
           `path traverses a symlink: ${current}`,
           resolved,
@@ -214,16 +236,19 @@ async function assertNoSymlinkComponents(
 function assertNoSymlinkComponentsSync(
   resolved: string,
   canonicalRoot: string,
+  allowLeaf: boolean,
 ): void {
   const rel = resolved.slice(canonicalRoot.length);
   if (!rel || rel === sep) return;
   const parts = rel.split(sep).filter((p) => p.length > 0);
   let current = canonicalRoot;
-  for (const part of parts) {
-    current = current + sep + part;
+  for (let i = 0; i < parts.length; i++) {
+    current = current + sep + parts[i];
+    const isLeaf = i === parts.length - 1;
     try {
       const st = lstatSync(current);
       if (st.isSymbolicLink()) {
+        if (isLeaf && allowLeaf) continue;
         throw new PathEscapeError(
           `path traverses a symlink: ${current}`,
           resolved,

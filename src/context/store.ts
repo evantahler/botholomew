@@ -171,14 +171,17 @@ export function normalizeContextPath(path: string): string {
  * or attempts to resolve into a protected area.
  *
  * `allowSymlinks` is the opt-in for read-side callers (read, list, tree,
- * info, reindex, delete). Mutating callers (write, edit, mv, cp, mkdir)
- * leave it `false` so user-placed symlinks under `context/` cannot be
- * traversed to modify external content.
+ * info, reindex). Mutating callers (write, edit, mv, cp, mkdir) leave it
+ * `false` so user-placed symlinks under `context/` cannot be traversed to
+ * modify external content. `allowSymlinkLeaf` is the narrower opt-in for
+ * `delete`: the leaf may be a symlink (so the agent can unlink it) but
+ * parent components may not, so a delete cannot reach external content
+ * through a symlinked parent directory.
  */
 async function resolveContext(
   projectDir: string,
   path: string,
-  opts: { allowSymlinks?: boolean } = {},
+  opts: { allowSymlinks?: boolean; allowSymlinkLeaf?: boolean } = {},
 ): Promise<string> {
   const normalized = normalizeContextPath(path);
   if (PROTECTED_AREAS.has(normalized)) {
@@ -190,6 +193,7 @@ async function resolveContext(
   return resolveInRoot(projectDir, fromPosix(normalized), {
     area: CONTEXT_DIR,
     allowSymlinks: opts.allowSymlinks,
+    allowSymlinkLeaf: opts.allowSymlinkLeaf,
   });
 }
 
@@ -343,7 +347,9 @@ export async function deleteContextPath(
   path: string,
   opts: { recursive?: boolean } = {},
 ): Promise<{ removed: number; was_directory: boolean; was_symlink: boolean }> {
-  const abs = await resolveContext(projectDir, path, { allowSymlinks: true });
+  const abs = await resolveContext(projectDir, path, {
+    allowSymlinkLeaf: true,
+  });
   const normalized = normalizeContextPath(path);
   if (normalized === "") {
     throw new PathEscapeError("refusing to delete the context root", path);
