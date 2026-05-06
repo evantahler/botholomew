@@ -1,6 +1,6 @@
 import { readdir, stat, unlink } from "node:fs/promises";
-import { join } from "node:path";
-import { getWorkersDir } from "../constants.ts";
+import { join, resolve } from "node:path";
+import { getWorkerLogsDir, getWorkersDir } from "../constants.ts";
 import { atomicWrite, readWithMtime } from "../fs/atomic.ts";
 
 export const WORKER_MODES = ["persist", "once"] as const;
@@ -210,6 +210,28 @@ export async function deleteWorker(
 ): Promise<boolean> {
   try {
     await unlink(workerFilePath(projectDir, id));
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw err;
+  }
+}
+
+/**
+ * Delete a worker's on-disk log file. Refuses to touch anything outside
+ * `<projectDir>/logs/`. ENOENT is treated as success (idempotent).
+ */
+export async function deleteWorkerLog(
+  projectDir: string,
+  logPath: string,
+): Promise<boolean> {
+  const logsDir = resolve(getWorkerLogsDir(projectDir));
+  const target = resolve(logPath);
+  if (target !== logsDir && !target.startsWith(`${logsDir}/`)) {
+    throw new Error(`refusing to delete log outside ${logsDir}: ${logPath}`);
+  }
+  try {
+    await unlink(target);
     return true;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;

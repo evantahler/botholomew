@@ -12,6 +12,7 @@ import { EMBEDDING_DIMENSION } from "../../src/constants.ts";
 import { type DbConnection, getConnection } from "../../src/db/connection.ts";
 import {
   deleteIndexedPath,
+  deleteIndexedPathsUnder,
   getIndexedPath,
   indexStats,
   listIndexedPaths,
@@ -113,6 +114,35 @@ describe("deleteIndexedPath", () => {
     await deleteIndexedPath(conn, "a.md");
     const summary = await listIndexedPaths(conn);
     expect(summary.map((s) => s.path).sort()).toEqual(["b.md"]);
+  });
+});
+
+describe("deleteIndexedPathsUnder", () => {
+  test("removes the prefix path itself and every entry beneath it", async () => {
+    await seed("docs/intro.md", [{ index: 0, text: "x" }]);
+    await seed("docs/sub/a.md", [{ index: 0, text: "y" }]);
+    await seed("docs/sub/b.md", [{ index: 0, text: "z" }]);
+    await seed("notes.md", [{ index: 0, text: "n" }]);
+
+    const removed = await deleteIndexedPathsUnder(conn, "docs");
+    expect(removed).toBeGreaterThanOrEqual(3);
+
+    const remaining = await listIndexedPaths(conn);
+    expect(remaining.map((s) => s.path).sort()).toEqual(["notes.md"]);
+  });
+
+  test("does not match unrelated sibling prefixes", async () => {
+    await seed("docs/a.md", [{ index: 0, text: "x" }]);
+    await seed("docs-old/a.md", [{ index: 0, text: "y" }]);
+
+    await deleteIndexedPathsUnder(conn, "docs");
+
+    const remaining = await listIndexedPaths(conn);
+    expect(remaining.map((s) => s.path).sort()).toEqual(["docs-old/a.md"]);
+  });
+
+  test("returns 0 when nothing matches", async () => {
+    expect(await deleteIndexedPathsUnder(conn, "missing")).toBe(0);
   });
 });
 

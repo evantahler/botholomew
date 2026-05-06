@@ -112,18 +112,28 @@ export const HelpPanel = memo(function HelpPanel({
         <Text bold color="cyan">
           Per-panel actions
         </Text>
-        <Text>
-          {"  "}Tasks{"          "}f filter · p priority · d delete · r refresh
+        <Text dimColor>
+          {"  "}d delete needs two presses — arms first, confirms second
+          (cancels on any other key or after 3s)
         </Text>
         <Text>
-          {"  "}Threads{"        "}f filter · s/ search · w follow · d delete ·
-          r refresh
+          {"  "}Tasks{"          "}f filter · p priority · d delete (×2) · r
+          refresh
         </Text>
         <Text>
-          {"  "}Schedules{"      "}f filter · e toggle · d delete · r refresh
+          {"  "}Threads{"        "}f filter · s/ search · w follow · d delete
+          (×2) · r refresh
         </Text>
         <Text>
-          {"  "}Workers{"        "}f filter · l toggle log/detail
+          {"  "}Schedules{"      "}f filter · e toggle · d delete (×2) · r
+          refresh
+        </Text>
+        <Text>
+          {"  "}Context{"        "}d delete (×2) · r refresh
+        </Text>
+        <Text>
+          {"  "}Workers{"        "}f filter · l toggle log/detail · d delete log
+          (×2, log view)
         </Text>
       </Box>
 

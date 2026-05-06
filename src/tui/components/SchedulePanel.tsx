@@ -12,7 +12,9 @@ import {
   handleListDetailKey,
 } from "../listDetailKeys.ts";
 import { ansi, theme } from "../theme.ts";
+import { useDeleteConfirm } from "../useDeleteConfirm.ts";
 import { useLatestRef } from "../useLatestRef.ts";
+import { DeleteArmedBanner } from "./DeleteArmedBanner.tsx";
 import { Scrollbar } from "./Scrollbar.tsx";
 
 interface SchedulePanelProps {
@@ -94,7 +96,6 @@ export const SchedulePanel = memo(function SchedulePanel({
   const [focus, setFocus] = useState<FocusState>("list");
   const [enabledFilter, setEnabledFilter] = useState<boolean | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: refreshTick triggers manual refresh
   useEffect(() => {
@@ -159,25 +160,19 @@ export const SchedulePanel = memo(function SchedulePanel({
   const itemCountRef = useLatestRef(schedules.length);
   const maxDetailScrollRef = useLatestRef(maxDetailScroll);
   const selectedScheduleRef = useLatestRef(selectedSchedule);
-  const confirmDeleteRef = useLatestRef(confirmDelete);
   const focusRef = useLatestRef(focus);
+
+  const deleteConfirm = useDeleteConfirm(() => {
+    const s = selectedScheduleRef.current;
+    if (!s) return;
+    deleteSchedule(projectDir, s.id).then(() => {
+      forceRefresh();
+    });
+  });
 
   useInput(
     (input, key) => {
-      if (confirmDeleteRef.current) {
-        if (input === "y" || input === "d") {
-          const s = selectedScheduleRef.current;
-          if (s) {
-            deleteSchedule(projectDir, s.id).then(() => {
-              forceRefresh();
-            });
-          }
-          setConfirmDelete(false);
-        } else {
-          setConfirmDelete(false);
-        }
-        return;
-      }
+      if (input !== "d") deleteConfirm.cancel();
 
       if (
         handleListDetailKey(input, key, {
@@ -208,7 +203,8 @@ export const SchedulePanel = memo(function SchedulePanel({
         return;
       }
       if (input === "d" && selectedScheduleRef.current) {
-        setConfirmDelete(true);
+        const s = selectedScheduleRef.current;
+        deleteConfirm.pressDelete(s.name);
         return;
       }
       if (input === "r") {
@@ -273,13 +269,6 @@ export const SchedulePanel = memo(function SchedulePanel({
             </Text>
           )}
         </Box>
-        {confirmDelete && selectedSchedule && (
-          <Box paddingX={1}>
-            <Text color="red" bold>
-              Delete schedule? (y/n)
-            </Text>
-          </Box>
-        )}
         {sidebarVisible.map((schedule, vi) => {
           const i = vi + sidebarScrollOffset;
           const isSelected = i === selectedIndex;
@@ -342,10 +331,14 @@ export const SchedulePanel = memo(function SchedulePanel({
             focused={focus === "detail"}
           />
         </Box>
+        <DeleteArmedBanner
+          armed={deleteConfirm.armed}
+          label={deleteConfirm.armedLabel}
+        />
         <Text dimColor>
           {focus === "detail"
             ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
-            : "↑↓ select · → enter detail · f filter · e toggle · d delete · r refresh"}
+            : "↑↓ select · → enter detail · f filter · e toggle · d delete (×2) · r refresh"}
         </Text>
       </Box>
     </Box>

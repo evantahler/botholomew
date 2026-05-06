@@ -3,13 +3,17 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { getDbPath } from "../../constants.ts";
 import {
   type ContextEntry,
+  deleteContextPath,
   listContextDir,
   readContextFile,
 } from "../../context/store.ts";
 import { withDb } from "../../db/connection.ts";
 import {
+  deleteIndexedPath,
+  deleteIndexedPathsUnder,
   getIndexedPath,
   type IndexedPathSummary,
+  rebuildSearchIndex,
 } from "../../db/embeddings.ts";
 import {
   detailPaneBorderProps,
@@ -18,7 +22,9 @@ import {
 } from "../listDetailKeys.ts";
 import { isMarkdownPath, renderMarkdown } from "../markdown.ts";
 import { theme } from "../theme.ts";
+import { useDeleteConfirm } from "../useDeleteConfirm.ts";
 import { useLatestRef } from "../useLatestRef.ts";
+import { DeleteArmedBanner } from "./DeleteArmedBanner.tsx";
 import { Scrollbar } from "./Scrollbar.tsx";
 
 interface ContextPanelProps {
@@ -163,8 +169,33 @@ export const ContextPanel = memo(function ContextPanel({
   const currentPathRef = useLatestRef(currentPath);
   const focusRef = useLatestRef(focus);
 
+  const deleteConfirm = useDeleteConfirm(() => {
+    const entry = selectedEntryRef.current;
+    if (!entry) return;
+    const path = entry.path;
+    const isDirectory = entry.is_directory;
+    (async () => {
+      try {
+        await deleteContextPath(projectDir, path, { recursive: isDirectory });
+        await withDb(getDbPath(projectDir), async (conn) => {
+          if (isDirectory) {
+            await deleteIndexedPathsUnder(conn, path);
+          } else {
+            await deleteIndexedPath(conn, path);
+          }
+          await rebuildSearchIndex(conn);
+        });
+      } catch {
+        // ignore — refresh will reflect any partial state
+      }
+      refresh(currentPathRef.current);
+    })();
+  });
+
   useInput(
     (input, key) => {
+      if (input !== "d") deleteConfirm.cancel();
+
       if (
         handleListDetailKey(input, key, {
           focusRef,
@@ -199,6 +230,12 @@ export const ContextPanel = memo(function ContextPanel({
         return;
       }
 
+      if (input === "d") {
+        const entry = selectedEntryRef.current;
+        if (!entry) return;
+        deleteConfirm.pressDelete(entry.path);
+        return;
+      }
       if (input === "r") {
         refresh(currentPathRef.current);
       }
@@ -322,11 +359,15 @@ export const ContextPanel = memo(function ContextPanel({
         ) : (
           <Text dimColor>(no item selected)</Text>
         )}
+        <DeleteArmedBanner
+          armed={deleteConfirm.armed}
+          label={deleteConfirm.armedLabel}
+        />
         <Box>
           <Text dimColor>
             {focus === "detail"
               ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
-              : "↑↓ select · → drill in/enter detail · ← up · r refresh"}
+              : "↑↓ select · → drill in/enter detail · ← up · d delete (×2) · r refresh"}
           </Text>
         </Box>
       </Box>

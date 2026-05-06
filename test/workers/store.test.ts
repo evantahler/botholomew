@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   deleteWorker,
+  deleteWorkerLog,
   getWorker,
   heartbeat,
   isWorkerRunning,
@@ -150,5 +151,25 @@ describe("workers store", () => {
     expect(await deleteWorker(projectDir, "doomed")).toBe(true);
     expect(await getWorker(projectDir, "doomed")).toBeNull();
     expect(await deleteWorker(projectDir, "doomed")).toBe(false);
+  });
+
+  test("deleteWorkerLog removes the file under logs/ and is idempotent", async () => {
+    const dateDir = join(projectDir, "logs", "2026-05-05");
+    await mkdir(dateDir, { recursive: true });
+    const logPath = join(dateDir, "w1.log");
+    await writeFile(logPath, "hello\n");
+
+    expect(await deleteWorkerLog(projectDir, logPath)).toBe(true);
+    expect(await deleteWorkerLog(projectDir, logPath)).toBe(false);
+  });
+
+  test("deleteWorkerLog refuses paths outside logs/", async () => {
+    const escapePath = join(projectDir, "workers", "evil.log");
+    await mkdir(join(projectDir, "workers"), { recursive: true });
+    await writeFile(escapePath, "x");
+    await expect(deleteWorkerLog(projectDir, escapePath)).rejects.toThrow(
+      /refusing to delete log outside/,
+    );
+    expect(await readFile(escapePath, "utf-8")).toBe("x");
   });
 });

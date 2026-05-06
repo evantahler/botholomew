@@ -1,13 +1,20 @@
+import { basename } from "node:path";
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useEffect, useMemo, useState } from "react";
 import { readLogTail } from "../../worker/log-reader.ts";
-import { listWorkers, type Worker } from "../../workers/store.ts";
+import {
+  deleteWorkerLog,
+  listWorkers,
+  type Worker,
+} from "../../workers/store.ts";
 import {
   detailPaneBorderProps,
   type FocusState,
   handleListDetailKey,
 } from "../listDetailKeys.ts";
+import { useDeleteConfirm } from "../useDeleteConfirm.ts";
 import { useLatestRef } from "../useLatestRef.ts";
+import { DeleteArmedBanner } from "./DeleteArmedBanner.tsx";
 import { Scrollbar } from "./Scrollbar.tsx";
 
 interface WorkerPanelProps {
@@ -161,6 +168,21 @@ export const WorkerPanel = memo(function WorkerPanel({
   const itemCountRef = useLatestRef(workers.length);
   const maxLogScrollRef = useLatestRef(maxLogScroll);
   const focusRef = useLatestRef(focus);
+  const viewModeRef = useLatestRef(viewMode);
+  const selectedLogPathRef = useLatestRef(selectedLogPath);
+
+  const deleteConfirm = useDeleteConfirm(() => {
+    const path = selectedLogPathRef.current;
+    if (!path) return;
+    deleteWorkerLog(projectDir, path)
+      .catch(() => {})
+      .finally(() => {
+        setLogContent("");
+        setLogSize(0);
+        setLogTruncated(false);
+        setLogScroll(0);
+      });
+  });
 
   // The right pane scrolls with arrows when focused. Tee the log scroll into
   // the follow-state so reaching the bottom resumes follow mode (and any
@@ -180,6 +202,8 @@ export const WorkerPanel = memo(function WorkerPanel({
   useInput(
     (input, key) => {
       if (!isActive) return;
+
+      if (input !== "d") deleteConfirm.cancel();
 
       // `l` toggles between detail (worker info) and log (tail) view in the
       // right pane.
@@ -206,6 +230,14 @@ export const WorkerPanel = memo(function WorkerPanel({
         setFilterIdx((i) => (i + 1) % STATUS_FILTERS.length);
         return;
       }
+
+      if (input === "d") {
+        if (viewModeRef.current !== "log") return;
+        const path = selectedLogPathRef.current;
+        if (!path) return;
+        deleteConfirm.pressDelete(`worker log: ${basename(path)}`);
+        return;
+      }
     },
     { isActive },
   );
@@ -225,10 +257,14 @@ export const WorkerPanel = memo(function WorkerPanel({
           {focus === "detail"
             ? "  · ↑↓ scroll  ⇧↑↓ page  g/G top/bot  ← back to list  l toggle"
             : viewMode === "log"
-              ? "  · ↑↓ select  → enter log  l detail  f filter"
+              ? "  · ↑↓ select  → enter log  l detail  f filter  d delete log (×2)"
               : "  · ↑↓ select  → enter detail  l view log  f filter"}
         </Text>
       </Box>
+      <DeleteArmedBanner
+        armed={deleteConfirm.armed}
+        label={deleteConfirm.armedLabel}
+      />
 
       {workers.length === 0 ? (
         <Text dimColor>

@@ -94,6 +94,23 @@ export async function deleteIndexedPath(
   return result.changes;
 }
 
+/**
+ * Remove every indexed entry whose path equals `prefix` or lives beneath
+ * `prefix/`. Used when a folder is deleted from `context/` and we need to
+ * drop all child entries in one shot.
+ */
+export async function deleteIndexedPathsUnder(
+  conn: DbConnection,
+  prefix: string,
+): Promise<number> {
+  const result = await conn.queryRun(
+    "DELETE FROM context_index WHERE path = ?1 OR path LIKE ?2",
+    prefix,
+    `${prefix}/%`,
+  );
+  return result.changes;
+}
+
 export interface IndexedPathSummary {
   path: string;
   content_hash: string;
