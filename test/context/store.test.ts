@@ -484,6 +484,36 @@ describe("symlinks under context/", () => {
     expect(readFileSync(join(externalDir, "d", "a.md"), "utf-8")).toBe("A");
   });
 
+  test("deleteContextPath rejects deleting a file through a symlinked parent dir", async () => {
+    await mkdir(join(externalDir, "d"), { recursive: true });
+    const externalFile = join(externalDir, "d", "x.md");
+    await writeFile(externalFile, "external");
+    await symlink(
+      join(externalDir, "d"),
+      join(projectDir, CONTEXT_DIR, "linked"),
+    );
+    await expect(
+      deleteContextPath(projectDir, "linked/x.md"),
+    ).rejects.toBeInstanceOf(PathEscapeError);
+    expect(existsSync(externalFile)).toBe(true);
+    expect(readFileSync(externalFile, "utf-8")).toBe("external");
+  });
+
+  test("deleteContextPath rejects recursive deletion of a real subdir reached through a symlink", async () => {
+    await mkdir(join(externalDir, "d", "sub"), { recursive: true });
+    const externalSubFile = join(externalDir, "d", "sub", "y.md");
+    await writeFile(externalSubFile, "external sub");
+    await symlink(
+      join(externalDir, "d"),
+      join(projectDir, CONTEXT_DIR, "linked"),
+    );
+    await expect(
+      deleteContextPath(projectDir, "linked/sub", { recursive: true }),
+    ).rejects.toBeInstanceOf(PathEscapeError);
+    expect(existsSync(externalSubFile)).toBe(true);
+    expect(readFileSync(externalSubFile, "utf-8")).toBe("external sub");
+  });
+
   test("listContextDir terminates on a symlink cycle", async () => {
     // Create a self-referential symlink that points back at the context root.
     await symlink(
