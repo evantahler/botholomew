@@ -59,6 +59,18 @@ describe("create_schedule", () => {
     expect(r.success).toBe(false);
   });
 
+  test("calls ctx.notify on success when provided", async () => {
+    const notes: string[] = [];
+    const notifyCtx: ToolContext = { ...ctx, notify: (m) => notes.push(m) };
+    const result = await createScheduleTool.execute(
+      { name: "Morning", frequency: "daily" },
+      notifyCtx,
+    );
+    expect(result.is_error).toBe(false);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toContain("Created schedule: Morning");
+  });
+
   test("validates input schema rejects missing name", () => {
     const r = createScheduleTool.inputSchema.safeParse({ frequency: "daily" });
     expect(r.success).toBe(false);

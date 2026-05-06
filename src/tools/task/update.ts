@@ -91,7 +91,9 @@ export const updateTaskTool = {
       };
     }
 
-    logger.info(`Updated task: ${updated.name} (${updated.id})`);
+    const msg = `Updated task: ${updated.name} (${updated.id})`;
+    if (ctx.notify) ctx.notify(msg);
+    else logger.info(msg);
     return {
       task: {
         id: updated.id,

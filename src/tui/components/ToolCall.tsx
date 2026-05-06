@@ -40,6 +40,8 @@ export interface ToolCallData {
   timestamp: Date;
   largeResult?: LargeResultMeta;
   isError?: boolean;
+  /** Side-effect notes emitted by the tool (e.g. "Created subtask: …"). */
+  notes?: string[];
 }
 
 interface ToolCallProps {
@@ -106,6 +108,18 @@ export function ToolCall({ tool }: ToolCallProps) {
           {tool.largeResult.pages}pg]
         </Text>
       )}
+      {tool.notes?.map((note, i) => (
+        <Text
+          // biome-ignore lint/suspicious/noArrayIndexKey: notes are append-only
+          key={i}
+          color={theme.accent}
+          dimColor
+          wrap="truncate-end"
+        >
+          {"    ℹ "}
+          {note}
+        </Text>
+      ))}
     </Box>
   );
 }
