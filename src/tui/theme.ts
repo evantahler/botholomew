@@ -49,6 +49,7 @@ export const theme = {
   accentBorder: isDark ? "yellow" : "#B8860B",
   userBg: isDark ? "#2a5a8c" : "#d0e0f0",
   selectionBg: isDark ? "#333" : "#ddd",
+  headerBg: isDark ? "#3a4655" : "#f5f7fa",
   success: "green",
   error: "red",
   info: "cyan",

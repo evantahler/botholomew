@@ -348,7 +348,7 @@ export const SchedulePanel = memo(function SchedulePanel({
 function ScheduleDetailHeader({ schedule }: { schedule: Schedule }) {
   const enabledKey = String(schedule.enabled);
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width="100%" backgroundColor={theme.headerBg}>
       <Box>
         <Text bold color={theme.info} wrap="truncate-end">
           {schedule.name}
@@ -366,9 +366,6 @@ function ScheduleDetailHeader({ schedule }: { schedule: Schedule }) {
             {formatTimestamp(schedule.last_run_at)}
           </Text>
         </Text>
-      </Box>
-      <Box>
-        <Text dimColor>{"─".repeat(2)}</Text>
       </Box>
     </Box>
   );

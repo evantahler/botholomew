@@ -385,7 +385,7 @@ export const TaskPanel = memo(function TaskPanel({
 
 function TaskDetailHeader({ task }: { task: Task }) {
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width="100%" backgroundColor={theme.headerBg}>
       <Box>
         <Text bold color={theme.info} wrap="truncate-end">
           {task.name}
@@ -407,9 +407,6 @@ function TaskDetailHeader({ task }: { task: Task }) {
             {formatTimestamp(task.updated_at)}
           </Text>
         </Text>
-      </Box>
-      <Box>
-        <Text dimColor>{"─".repeat(2)}</Text>
       </Box>
     </Box>
   );

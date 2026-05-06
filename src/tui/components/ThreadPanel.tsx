@@ -591,7 +591,7 @@ function ThreadDetailHeader({
   isActiveThread: boolean;
 }) {
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width="100%" backgroundColor={theme.headerBg}>
       <Box>
         <Text wrap="truncate-end">
           <Text bold italic color={theme.info}>
@@ -624,9 +624,6 @@ function ThreadDetailHeader({
             {formatDuration(thread.started_at, thread.ended_at)}
           </Text>
         </Text>
-      </Box>
-      <Box>
-        <Text dimColor>{"─".repeat(2)}</Text>
       </Box>
     </Box>
   );
