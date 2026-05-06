@@ -400,7 +400,7 @@ function ContextDetailHeader({
   indexLoaded: boolean;
 }) {
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width="100%" backgroundColor={theme.headerBg}>
       <Box>
         <Text bold color="cyan" wrap="truncate-end">
           {entry.is_directory ? "📁" : "📄"} context/{entry.path}
@@ -441,9 +441,6 @@ function ContextDetailHeader({
           </Box>
         </>
       )}
-      <Box>
-        <Text dimColor>{"─".repeat(2)}</Text>
-      </Box>
     </Box>
   );
 }
