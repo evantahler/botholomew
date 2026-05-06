@@ -2,8 +2,9 @@ import { Box, Text } from "ink";
 
 export type TabId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
-// Help uses Ctrl+/ rather than Ctrl+H because most terminals deliver Ctrl+H
-// as backspace. All other tabs use Ctrl+<letter>.
+// Help uses Ctrl+G rather than Ctrl+H because most terminals deliver Ctrl+H
+// as backspace. Ctrl+G also catches the Ctrl+/ keystroke on terminals that
+// map it to BEL (0x07) — most macOS terminals do.
 const TABS: { id: TabId; label: string; key: string }[] = [
   { id: 1, label: "Chat", key: "^a" },
   { id: 2, label: "Tools", key: "^o" },
@@ -12,7 +13,7 @@ const TABS: { id: TabId; label: string; key: string }[] = [
   { id: 5, label: "Threads", key: "^r" },
   { id: 6, label: "Schedules", key: "^s" },
   { id: 7, label: "Workers", key: "^w" },
-  { id: 8, label: "Help", key: "^/" },
+  { id: 8, label: "Help", key: "^g" },
 ];
 
 interface TabBarProps {

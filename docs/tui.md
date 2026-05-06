@@ -37,7 +37,7 @@ cache reads + cache creation) over the model's `max_input_tokens`.
 Color-coded: green under 70%, yellow 70-89%, red 90%+. Resets when
 you `/clear` to a new thread.
 
-The Help tab (`Ctrl+/`) breaks the same number down by section —
+The Help tab (`Ctrl+g`) breaks the same number down by section —
 prompts files, instructions, tool schemas, plain messages, tool
 I/O — using a local `~4 chars/token` estimate. The total billed
 by the server stays the source of truth for the colored indicator;
@@ -311,7 +311,7 @@ on the agent side) and disappears when the wait elapses or you press
 | `Ctrl+r` | Threads |
 | `Ctrl+s` | Schedules |
 | `Ctrl+w` | Workers |
-| `Ctrl+/` | Help |
+| `Ctrl+g` | Help (`Ctrl+/` also works in most terminals — it's typically delivered as the same byte) |
 | `Esc` | Return to Chat from any other tab |
 | `Ctrl+C` | Exit the TUI |
 

@@ -50,11 +50,14 @@ function msgId(): string {
 
 // Tab routing: Ctrl+<letter> jumps to a tab. Chosen for memorability — first
 // available letter that doesn't collide with other Ctrl bindings (Ctrl+C exit,
-// Ctrl+J/K/X/E queue ops on Chat). Help is bound to Ctrl+/ rather than Ctrl+H
-// because most terminals deliver Ctrl+H as ASCII 0x08 (backspace). Most
-// terminals send Ctrl+/ as 0x1F, which Node/Ink surface as `input='_'` with
-// `key.ctrl=true`; some terminals deliver it as `input='/'` with ctrl, so
-// we accept both.
+// Ctrl+J/K/X/E queue ops on Chat).
+//
+// Help is bound to Ctrl+G rather than Ctrl+H because most terminals deliver
+// Ctrl+H as ASCII 0x08 (backspace). Bonus: macOS Terminal.app and several
+// other terminals map Ctrl+/ to BEL (0x07), the same byte as Ctrl+G — so this
+// binding also catches the Ctrl+/ keystroke on those terminals "for free".
+// We also accept "/" and "_" as fallbacks for terminals that deliver Ctrl+/
+// as 0x1F or as the literal "/" with ctrl=true (Kitty keyboard protocol).
 const TAB_BY_CTRL_KEY: Record<string, TabId> = {
   a: 1, // ch[a]t
   o: 2, // t[o]ols
@@ -63,8 +66,9 @@ const TAB_BY_CTRL_KEY: Record<string, TabId> = {
   r: 5, // th[r]eads
   s: 6, // [s]chedules
   w: 7, // [w]orkers
-  "/": 8, // help (some terminals)
-  _: 8, // help (Ctrl+/ → 0x1F → "_" with ctrl=true)
+  g: 8, // help (also catches Ctrl+/ on terminals that map it to BEL)
+  "/": 8, // help (Kitty keyboard protocol)
+  _: 8, // help (terminals that send Ctrl+/ as 0x1F)
 };
 
 function detectToolError(output: string | undefined): boolean {
@@ -536,7 +540,7 @@ export function App({
       if (trimmed === "/help") {
         const skills = sessionRef.current.skills;
         const lines: string[] = [
-          "For the full keyboard reference, switch to the Help tab (`Ctrl+/`) — this message lists chat commands only.",
+          "For the full keyboard reference, switch to the Help tab (`Ctrl+g`) — this message lists chat commands only.",
           "",
           "Slash commands:",
           "  /help           Show this message",
