@@ -8,6 +8,7 @@ import {
   sendMessage,
   startChatSession,
 } from "../chat/session.ts";
+import type { ContextUsage } from "../chat/usage.ts";
 import {
   BUILTIN_SLASH_COMMANDS,
   handleSlashCommand,
@@ -49,9 +50,11 @@ function msgId(): string {
 
 // Tab routing: Ctrl+<letter> jumps to a tab. Chosen for memorability — first
 // available letter that doesn't collide with other Ctrl bindings (Ctrl+C exit,
-// Ctrl+J/K/X/E queue ops on Chat). Help is bound to `?` instead of Ctrl+H
-// because most terminals send Ctrl+H as ASCII 0x08 (backspace), which Ink
-// reports as `key.backspace=true`, not `input='h'`.
+// Ctrl+J/K/X/E queue ops on Chat). Help is bound to Ctrl+/ rather than Ctrl+H
+// because most terminals deliver Ctrl+H as ASCII 0x08 (backspace). Most
+// terminals send Ctrl+/ as 0x1F, which Node/Ink surface as `input='_'` with
+// `key.ctrl=true`; some terminals deliver it as `input='/'` with ctrl, so
+// we accept both.
 const TAB_BY_CTRL_KEY: Record<string, TabId> = {
   a: 1, // ch[a]t
   o: 2, // t[o]ols
@@ -60,6 +63,8 @@ const TAB_BY_CTRL_KEY: Record<string, TabId> = {
   r: 5, // th[r]eads
   s: 6, // [s]chedules
   w: 7, // [w]orkers
+  "/": 8, // help (some terminals)
+  _: 8, // help (Ctrl+/ → 0x1F → "_" with ctrl=true)
 };
 
 function detectToolError(output: string | undefined): boolean {
@@ -142,6 +147,7 @@ export function App({
   const { exit } = useApp();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messagesEpoch, setMessagesEpoch] = useState(0);
+  const [usage, setUsage] = useState<ContextUsage | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -293,14 +299,6 @@ export function App({
         }
       }
 
-      // `?` jumps to the Help tab from any non-chat tab (on Chat, `?` is
-      // a regular character). Acts as the Help shortcut since Ctrl+H is
-      // unusable — most terminals send it as backspace.
-      if (input === "?" && activeTabRef.current !== 1) {
-        setActiveTab(8);
-        return;
-      }
-
       const tab = activeTabRef.current;
 
       // Esc on Chat tab while a turn is in flight: steer / interrupt.
@@ -439,6 +437,9 @@ export function App({
             }
             setActiveToolCalls([...pendingToolCalls]);
           },
+          onUsage: (info) => {
+            setUsage(info);
+          },
           takeInjections: () => {
             // Drain queued messages into the running turn so the agent sees
             // them on the next LLM call instead of after the whole tool loop.
@@ -535,7 +536,7 @@ export function App({
       if (trimmed === "/help") {
         const skills = sessionRef.current.skills;
         const lines: string[] = [
-          "For the full keyboard reference, switch to the Help tab (`?` from any non-chat tab) — this message lists chat commands only.",
+          "For the full keyboard reference, switch to the Help tab (`Ctrl+/`) — this message lists chat commands only.",
           "",
           "Slash commands:",
           "  /help           Show this message",
@@ -628,6 +629,7 @@ export function App({
                 setStreamingText("");
                 setActiveToolCalls([]);
                 setPreparingTool(null);
+                setUsage(null);
               } catch (err) {
                 setMessages((prev) => [
                   ...prev,
@@ -796,6 +798,7 @@ export function App({
           projectDir={projectDir}
           threadId={threadId}
           workerRunning={workerRunning}
+          usage={usage}
         />
       </Box>
 
@@ -817,7 +820,7 @@ export function App({
         header={inputBarHeader}
         slashCommands={slashCommands}
       />
-      <TabBar activeTab={activeTab} />
+      <TabBar activeTab={activeTab} usage={usage} />
     </Box>
   );
 }

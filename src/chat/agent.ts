@@ -27,6 +27,11 @@ import {
   STYLE_RULES,
 } from "../worker/prompt.ts";
 import type { ChatSession } from "./session.ts";
+import {
+  type ContextUsage,
+  estimateTokens,
+  partitionMessages,
+} from "./usage.ts";
 
 registerAllTools();
 
@@ -156,6 +161,12 @@ export interface ChatTurnCallbacks {
    *  the entire tool loop to finish. Each returned message is logged + pushed
    *  to `messages` before the next `messages.stream(...)` call. */
   takeInjections?: () => string[];
+  /** Fired after each finalized assistant turn with the prompt size the
+   *  server billed for (sum of fresh, cache-read, and cache-creation input
+   *  tokens), the model's max input tokens, and a local estimate of where
+   *  the bytes went. The TUI uses this to render the tab-bar indicator and
+   *  the breakdown shown on the Help tab. */
+  onUsage?: (info: ContextUsage) => void;
 }
 
 /**
@@ -243,6 +254,14 @@ export async function runChatTurn(input: {
       config,
       hasMcpTools: mcpxClient != null,
     });
+    // Re-derive the persistent-context portion (prompts files) so the Help
+    // tab can show how much of the system prompt is user-authored prompts vs
+    // built-in instructions. Cheap — same FS read just hit by
+    // buildChatSystemPrompt is still hot.
+    const persistentContext = await loadPersistentContext(
+      projectDir,
+      keywordSource ? extractKeywords(keywordSource) : null,
+    );
 
     fitToContextWindow(messages, systemPrompt, maxInputTokens);
     const stream = client.messages.stream({
@@ -312,6 +331,27 @@ export async function runChatTurn(input: {
     const durationMs = Date.now() - startTime;
     const tokenCount =
       response.usage.input_tokens + response.usage.output_tokens;
+    const promptTokens =
+      response.usage.input_tokens +
+      (response.usage.cache_read_input_tokens ?? 0) +
+      (response.usage.cache_creation_input_tokens ?? 0);
+    if (callbacks.onUsage) {
+      const { textChars, toolIoChars } = partitionMessages(messages);
+      const promptsChars = persistentContext.length;
+      const instructionsChars = Math.max(0, systemPrompt.length - promptsChars);
+      const toolsChars = JSON.stringify(chatTools).length;
+      callbacks.onUsage({
+        used: promptTokens,
+        max: maxInputTokens,
+        breakdown: {
+          prompts: estimateTokens(promptsChars),
+          instructions: estimateTokens(instructionsChars),
+          tools: estimateTokens(toolsChars),
+          messages: estimateTokens(textChars),
+          toolIo: estimateTokens(toolIoChars),
+        },
+      });
+    }
 
     // Log assistant text
     if (assistantText) {

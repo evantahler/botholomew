@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { APIUserAbortError } from "@anthropic-ai/sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import type { ContextUsage } from "../../src/chat/usage.ts";
 import { THREADS_DIR } from "../../src/constants.ts";
 import {
   mockEmbed,
@@ -207,6 +208,98 @@ describe("runChatTurn — steering / abort", () => {
       { role: "user", content: "second" },
     ]);
     expect(queued.length).toBe(0);
+  });
+
+  test("onUsage receives summed prompt tokens (input + cache_read + cache_creation), the model max, and a populated breakdown", async () => {
+    const session = makeSession();
+    const messages: MessageParam[] = [{ role: "user", content: "hi" }];
+
+    const { client } = makeClient(() => {
+      const s = new FakeMessageStream();
+      queueMicrotask(() => {
+        s.emit("text", "ok");
+        s.resolveFinal({
+          content: [{ type: "text", text: "ok" }],
+          stop_reason: "end_turn",
+          usage: {
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_input_tokens: 1_000,
+            cache_creation_input_tokens: 200,
+          },
+        });
+      });
+      return s;
+    });
+
+    const observed: ContextUsage[] = [];
+    await runChatTurn({
+      messages,
+      projectDir,
+      config: TEST_CONFIG,
+      dbPath,
+      threadId,
+      mcpxClient: null,
+      callbacks: {
+        ...noopCallbacks,
+        onUsage: (info) => observed.push(info),
+      },
+      session,
+      _testClient: client,
+      _testMaxInputTokens: 200_000,
+    });
+
+    expect(observed.length).toBe(1);
+    expect(observed[0]?.used).toBe(1_300);
+    expect(observed[0]?.max).toBe(200_000);
+    // Breakdown is an estimate, but every category should be a non-negative integer
+    // and instructions/tools should be > 0 since both the chat instructions block
+    // and the tool registry are non-empty.
+    const b = observed[0]?.breakdown;
+    expect(b?.instructions).toBeGreaterThan(0);
+    expect(b?.tools).toBeGreaterThan(0);
+    expect(b?.messages).toBeGreaterThanOrEqual(1);
+    expect(b?.prompts).toBeGreaterThanOrEqual(0);
+    expect(b?.toolIo).toBe(0);
+  });
+
+  test("onUsage handles missing cache_* fields", async () => {
+    const session = makeSession();
+    const messages: MessageParam[] = [{ role: "user", content: "hi" }];
+
+    const { client } = makeClient(() => {
+      const s = new FakeMessageStream();
+      queueMicrotask(() => {
+        s.emit("text", "ok");
+        s.resolveFinal({
+          content: [{ type: "text", text: "ok" }],
+          stop_reason: "end_turn",
+          usage: { input_tokens: 42, output_tokens: 7 },
+        });
+      });
+      return s;
+    });
+
+    const observed: ContextUsage[] = [];
+    await runChatTurn({
+      messages,
+      projectDir,
+      config: TEST_CONFIG,
+      dbPath,
+      threadId,
+      mcpxClient: null,
+      callbacks: {
+        ...noopCallbacks,
+        onUsage: (info) => observed.push(info),
+      },
+      session,
+      _testClient: client,
+      _testMaxInputTokens: 100_000,
+    });
+
+    expect(observed.length).toBe(1);
+    expect(observed[0]?.used).toBe(42);
+    expect(observed[0]?.max).toBe(100_000);
   });
 
   test("mid-stream abort with a pending tool_use does not append unmatched tool_use blocks", async () => {
