@@ -2,6 +2,7 @@ import { Box, Text } from "ink";
 import { useEffect, useState } from "react";
 import { listTasks } from "../../tasks/store.ts";
 import { listWorkers } from "../../workers/store.ts";
+import { useIdle } from "../idle.tsx";
 import { LogoChar } from "./Logo.tsx";
 
 interface StatusBarProps {
@@ -32,8 +33,10 @@ export function StatusBar({
     pendingCount: 0,
     inProgressCount: 0,
   });
+  const { isIdle } = useIdle();
 
   useEffect(() => {
+    if (isIdle) return;
     let mounted = true;
 
     // Errors here (e.g. transient DuckDB lock conflicts while a freshly
@@ -66,32 +69,32 @@ export function StatusBar({
       mounted = false;
       clearInterval(interval);
     };
-  }, [projectDir, onWorkerStatusChange]);
+  }, [projectDir, onWorkerStatusChange, isIdle]);
 
   return (
     <Box paddingX={0}>
       <LogoChar />
-      <Text bold color="blue">
+      <Text bold color={isIdle ? "gray" : "blue"}>
         Botholomew
       </Text>
       {chatTitle && (
         <>
           <Text dimColor> | </Text>
-          <Text color="cyan" bold italic>
+          <Text color={isIdle ? "gray" : "cyan"} bold italic>
             {chatTitle.length > 30 ? `${chatTitle.slice(0, 29)}…` : chatTitle}
           </Text>
         </>
       )}
       <Text dimColor> | </Text>
       {status.workerCount > 0 ? (
-        <Text color="green">
+        <Text color={isIdle ? "gray" : "green"}>
           {status.workerCount} worker{status.workerCount === 1 ? "" : "s"}
         </Text>
       ) : (
-        <Text color="yellow">no workers</Text>
+        <Text color={isIdle ? "gray" : "yellow"}>no workers</Text>
       )}
       <Text dimColor> | </Text>
-      <Text>
+      <Text dimColor={isIdle}>
         {status.pendingCount} pending, {status.inProgressCount} active
       </Text>
     </Box>

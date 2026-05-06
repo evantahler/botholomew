@@ -1,5 +1,6 @@
 import { Box, Text } from "ink";
 import { useEffect, useState } from "react";
+import { useIdle } from "../idle.tsx";
 import { theme } from "../theme.ts";
 
 interface SleepProgressProps {
@@ -17,11 +18,13 @@ export function SleepProgress({
   reason,
 }: SleepProgressProps) {
   const [now, setNow] = useState(() => Date.now());
+  const { isIdle } = useIdle();
 
   useEffect(() => {
+    if (isIdle) return;
     const id = setInterval(() => setNow(Date.now()), TICK_MS);
     return () => clearInterval(id);
-  }, []);
+  }, [isIdle]);
 
   const totalMs = totalSeconds * 1000;
   const elapsedMs = Math.min(totalMs, Math.max(0, now - startedAt.getTime()));
@@ -34,7 +37,7 @@ export function SleepProgress({
     <Box flexDirection="column">
       <Box>
         <Text dimColor>{"    "}</Text>
-        <Text color={theme.accent}>{bar}</Text>
+        <Text color={isIdle ? "gray" : theme.accent}>{bar}</Text>
         <Text dimColor>
           {" "}
           {elapsedSec}s / {totalSeconds}s

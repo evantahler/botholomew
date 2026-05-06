@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import type { SlashCommand } from "../../skills/commands.ts";
+import { useIdle } from "../idle.tsx";
 import { getSlashMatches, shouldSubmitOnEnter } from "../slashCompletion.ts";
 import { SlashCommandPopup } from "./SlashCommandPopup.tsx";
 
@@ -38,6 +39,7 @@ export const InputBar = memo(function InputBar({
   const [popupDismissed, setPopupDismissed] = useState(false);
   const savedInput = useRef("");
   const lastActivity = useRef(Date.now());
+  const { isIdle } = useIdle();
 
   // Refs for values read inside the input handler — eagerly updated so rapid
   // keystrokes that arrive before React re-renders always see fresh state.
@@ -94,7 +96,7 @@ export const InputBar = memo(function InputBar({
   // Blink cursor when input is active — skip ticks while typing so the
   // cursor stays solid and we avoid unnecessary renders during rapid input.
   useEffect(() => {
-    if (disabled) {
+    if (disabled || isIdle) {
       setCursorVisible(true);
       return;
     }
@@ -105,7 +107,7 @@ export const InputBar = memo(function InputBar({
       setCursorVisible((prev) => (prev === phase ? prev : phase));
     }, 530);
     return () => clearInterval(id);
-  }, [disabled]);
+  }, [disabled, isIdle]);
 
   // Stable input handler — the callback reference never changes, which
   // prevents Ink's useInput from removing/re-adding the stdin listener on
@@ -337,14 +339,14 @@ export const InputBar = memo(function InputBar({
       <Box
         flexDirection="column"
         borderStyle="single"
-        borderColor={disabled ? "gray" : "green"}
+        borderColor={disabled || isIdle ? "gray" : "green"}
         paddingX={1}
       >
         {header}
         {!disabled && (
           <Box flexDirection="column">
             <Box>
-              <Text color="green">{"› "}</Text>
+              <Text color={isIdle ? "gray" : "green"}>{"› "}</Text>
               {placeholder ? (
                 <Text dimColor>Type a message...</Text>
               ) : (

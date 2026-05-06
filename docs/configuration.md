@@ -20,6 +20,7 @@ project directory. The full schema lives in `src/config/schemas.ts`.
   "worker_stopped_retention_seconds": 3600,
   "schedule_min_interval_seconds": 60,
   "schedule_claim_stale_seconds": 300,
+  "tui_idle_timeout_seconds": 180,
   "log_level": ""
 }
 ```
@@ -45,6 +46,7 @@ project directory. The full schema lives in `src/config/schemas.ts`.
 | `worker_stopped_retention_seconds` | `3600` | Cleanly-stopped workers older than this are deleted from the `workers` table. Dead workers are kept as forensic evidence and not auto-pruned. |
 | `schedule_min_interval_seconds` | `60` | Minimum gap between successive evaluations of the same schedule. A schedule that ran less than this many seconds ago is skipped. |
 | `schedule_claim_stale_seconds` | `300` | If a worker claimed a schedule but never released it (crash), another worker may steal the claim after this many seconds. |
+| `tui_idle_timeout_seconds` | `180` | Seconds of inactivity (no keystrokes, no streamed agent tokens, no tool events) before the chat TUI freezes its visible animations and pauses the status-bar count refresh. Animations resume on the next activity. Set to `0` to disable (always animate — useful for demo recordings). |
 | `log_level` | `""` | Verbosity for `botholomew` CLI logs. One of `silent`, `error`, `warn`, `info`, `debug`. Empty string falls back to the runtime default (`info` normally, `error` under `NODE_ENV=test`). `BOTHOLOMEW_LOG_LEVEL` env var overrides this. |
 
 ---
