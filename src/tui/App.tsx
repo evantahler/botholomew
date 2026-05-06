@@ -14,8 +14,7 @@ import {
   handleSlashCommand,
   type SlashCommand,
 } from "../skills/commands.ts";
-import { getThread, type Interaction } from "../threads/store.ts";
-import { MAX_INLINE_CHARS, PAGE_SIZE_CHARS } from "../worker/large-results.ts";
+import { getThread } from "../threads/store.ts";
 import { ContextPanel } from "./components/ContextPanel.tsx";
 import { HelpPanel } from "./components/HelpPanel.tsx";
 import { InputBar } from "./components/InputBar.tsx";
@@ -35,6 +34,7 @@ import type { ToolCallData } from "./components/ToolCall.tsx";
 import { ToolPanel } from "./components/ToolPanel.tsx";
 import { WorkerPanel } from "./components/WorkerPanel.tsx";
 import { IdleProvider, useIdle } from "./idle.tsx";
+import { restoreMessagesFromInteractions } from "./restoreMessages.ts";
 import { buildSlashCommands, getSlashMatches } from "./slashCompletion.ts";
 import { ansi } from "./theme.ts";
 
@@ -80,78 +80,6 @@ const TAB_BY_CTRL_KEY: Record<string, TabId> = {
   "/": 8, // help (Kitty keyboard protocol)
   _: 8, // help (terminals that send Ctrl+/ as 0x1F)
 };
-
-function detectToolError(output: string | undefined): boolean {
-  if (!output) return false;
-  try {
-    const parsed = JSON.parse(output);
-    if (typeof parsed === "object" && parsed?.is_error === true) return true;
-  } catch {
-    /* not JSON */
-  }
-  return false;
-}
-
-function restoreMessagesFromInteractions(
-  interactions: Interaction[],
-): ChatMessage[] {
-  const result: ChatMessage[] = [];
-  let pendingTools: ToolCallData[] = [];
-
-  let restoredIdx = 0;
-  for (const ix of interactions) {
-    if (ix.kind === "tool_use") {
-      pendingTools.push({
-        id: `restored-${restoredIdx++}`,
-        name: ix.tool_name ?? "unknown",
-        input: ix.tool_input ?? "{}",
-        running: false,
-        timestamp: ix.created_at,
-      });
-    } else if (ix.kind === "tool_result") {
-      const tc = pendingTools.find((t) => t.name === ix.tool_name && !t.output);
-      if (tc) {
-        tc.output = ix.content;
-        tc.isError = detectToolError(ix.content);
-        if (ix.content.length > MAX_INLINE_CHARS) {
-          tc.largeResult = {
-            id: "(restored)",
-            chars: ix.content.length,
-            pages: Math.ceil(ix.content.length / PAGE_SIZE_CHARS),
-          };
-        }
-      }
-    } else if (ix.kind === "message" && ix.role === "user") {
-      result.push({
-        id: msgId(),
-        role: "user",
-        content: ix.content,
-        timestamp: ix.created_at,
-      });
-    } else if (ix.kind === "message" && ix.role === "assistant") {
-      result.push({
-        id: msgId(),
-        role: "assistant",
-        content: ix.content,
-        timestamp: ix.created_at,
-        toolCalls: pendingTools.length > 0 ? [...pendingTools] : undefined,
-      });
-      pendingTools = [];
-    }
-  }
-
-  if (pendingTools.length > 0) {
-    result.push({
-      id: msgId(),
-      role: "assistant",
-      content: "",
-      timestamp: new Date(),
-      toolCalls: [...pendingTools],
-    });
-  }
-
-  return result;
-}
 
 export function App({
   projectDir,
@@ -252,7 +180,10 @@ function AppInner({
         }
         sessionRef.current = session;
 
-        if (session.messages.length > 0) {
+        if (resumeThreadId) {
+          // Always hydrate on resume so the Tools tab and chat history
+          // pick up prior tool_use/tool_result rows from the CSV — even if
+          // the thread has no plain message-kind interactions yet.
           const threadData = await getThread(
             session.projectDir,
             session.threadId,
