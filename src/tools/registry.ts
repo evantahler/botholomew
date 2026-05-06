@@ -3,8 +3,6 @@ import { capabilitiesRefreshTool } from "./capabilities/refresh.ts";
 // Context tools
 import { pipeToContextTool } from "./context/pipe.ts";
 import { readLargeResultTool } from "./context/read-large-result.ts";
-import { updateBeliefsTool } from "./context/update-beliefs.ts";
-import { updateGoalsTool } from "./context/update-goals.ts";
 // Context — directory operations
 import { contextCreateDirTool } from "./dir/create.ts";
 import { contextDirSizeTool } from "./dir/size.ts";
@@ -24,8 +22,12 @@ import { mcpExecTool } from "./mcp/exec.ts";
 import { mcpInfoTool } from "./mcp/info.ts";
 import { mcpListToolsTool } from "./mcp/list-tools.ts";
 import { mcpSearchTool } from "./mcp/search.ts";
+// Prompt tools
+import { promptEditTool } from "./prompt/edit.ts";
+import { promptReadTool } from "./prompt/read.ts";
 // Schedule tools
 import { createScheduleTool } from "./schedule/create.ts";
+import { scheduleEditTool } from "./schedule/edit.ts";
 import { listSchedulesTool } from "./schedule/list.ts";
 // Search tools
 import { searchTool } from "./search/index.ts";
@@ -40,6 +42,7 @@ import { skillWriteTool } from "./skill/write.ts";
 import { completeTaskTool } from "./task/complete.ts";
 import { createTaskTool } from "./task/create.ts";
 import { deleteTaskTool } from "./task/delete.ts";
+import { taskEditTool } from "./task/edit.ts";
 import { failTaskTool } from "./task/fail.ts";
 import { listTasksTool } from "./task/list.ts";
 import { updateTaskTool } from "./task/update.ts";
@@ -62,6 +65,7 @@ export function registerAllTools(): void {
   registerTool(waitTaskTool);
   registerTool(createTaskTool);
   registerTool(updateTaskTool);
+  registerTool(taskEditTool);
   registerTool(deleteTaskTool);
   registerTool(listTasksTool);
   registerTool(viewTaskTool);
@@ -79,8 +83,8 @@ export function registerAllTools(): void {
   registerTool(contextInfoTool);
   registerTool(contextExistsTool);
   registerTool(contextCountLinesTool);
-  registerTool(updateBeliefsTool);
-  registerTool(updateGoalsTool);
+  registerTool(promptReadTool);
+  registerTool(promptEditTool);
   registerTool(readLargeResultTool);
   registerTool(pipeToContextTool);
 
@@ -89,6 +93,7 @@ export function registerAllTools(): void {
 
   // Schedule
   registerTool(createScheduleTool);
+  registerTool(scheduleEditTool);
   registerTool(listSchedulesTool);
 
   // Search

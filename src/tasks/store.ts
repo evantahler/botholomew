@@ -21,7 +21,7 @@ import {
   type TaskStatus,
 } from "./schema.ts";
 
-function taskFilePath(projectDir: string, id: string): string {
+export function taskFilePath(projectDir: string, id: string): string {
   return join(getTasksDir(projectDir), `${id}.md`);
 }
 
@@ -33,23 +33,23 @@ function taskLockPath(projectDir: string, id: string): string {
  * Render a Task to its on-disk markdown form. Frontmatter contains every
  * field; the body is preserved as-is. Trailing newline keeps line count sane.
  */
-function serializeTask(fm: TaskFrontmatter, body: string): string {
+export function serializeTask(fm: TaskFrontmatter, body: string): string {
   return matter.stringify(`\n${body.trim()}\n`, fm as Record<string, unknown>);
 }
 
-interface ParseResult {
+export interface TaskParseOk {
   ok: true;
   task: Task;
 }
-interface ParseFailure {
+export interface TaskParseFail {
   ok: false;
   reason: string;
 }
 
-function parseTaskFile(
+export function parseTaskFile(
   raw: string,
   mtimeMs: number,
-): ParseResult | ParseFailure {
+): TaskParseOk | TaskParseFail {
   let parsed: matter.GrayMatterFile<string>;
   try {
     parsed = matter(raw);

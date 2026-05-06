@@ -19,7 +19,7 @@ import {
   ScheduleFrontmatterSchema,
 } from "./schema.ts";
 
-function scheduleFilePath(projectDir: string, id: string): string {
+export function scheduleFilePath(projectDir: string, id: string): string {
   return join(getSchedulesDir(projectDir), `${id}.md`);
 }
 
@@ -27,20 +27,26 @@ function scheduleLockPath(projectDir: string, id: string): string {
   return join(getSchedulesLockDir(projectDir), `${id}.lock`);
 }
 
-function serializeSchedule(fm: ScheduleFrontmatter, body: string): string {
+export function serializeSchedule(
+  fm: ScheduleFrontmatter,
+  body: string,
+): string {
   return matter.stringify(`\n${body.trim()}\n`, fm as Record<string, unknown>);
 }
 
-interface ParseOk {
+export interface ScheduleParseOk {
   ok: true;
   schedule: Schedule;
 }
-interface ParseFail {
+export interface ScheduleParseFail {
   ok: false;
   reason: string;
 }
 
-function parseScheduleFile(raw: string, mtimeMs: number): ParseOk | ParseFail {
+export function parseScheduleFile(
+  raw: string,
+  mtimeMs: number,
+): ScheduleParseOk | ScheduleParseFail {
   let parsed: matter.GrayMatterFile<string>;
   try {
     parsed = matter(raw);

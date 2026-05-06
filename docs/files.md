@@ -72,11 +72,15 @@ Off-limits to the agent:
 - Everything outside the project root, full stop
 
 Tasks/schedules/threads/prompts/skills are also outside `context/` —
-the agent edits prompts via dedicated `update_beliefs`/`update_goals`
-tools (which know about frontmatter), interacts with tasks/schedules
-through their own typed tools, and reads threads through
-`view_thread` / `search_threads`. Files-on-disk all the way down, but
-each area has the right tool surface for its shape.
+the agent edits prompts via `prompt_read`/`prompt_edit`, edits skills
+via `skill_edit`, edits tasks via `task_edit` (pending-only) or
+`update_task` (typed field updater), edits schedules via
+`schedule_edit`, and reads threads through `view_thread` /
+`search_threads`. Every edit tool — `context_edit`, `skill_edit`,
+`schedule_edit`, `task_edit`, `prompt_edit` — uses the same
+[git-hunk patch format](#patch-format) so the agent learns one shape.
+Files-on-disk all the way down, but each area has the right tool
+surface for its shape.
 
 ---
 
@@ -195,7 +199,10 @@ target exists but is a directory.
 
 ---
 
-## Patch format for `context_edit`
+## Patch format
+
+The same patch shape is shared by every edit tool: `context_edit`,
+`skill_edit`, `schedule_edit`, `task_edit`, and `prompt_edit`.
 
 ```ts
 { start_line: number, end_line: number, content: string }
@@ -206,9 +213,14 @@ target exists but is a directory.
 - `content: ""` means **delete** the line range.
 - Patches are applied bottom-up (descending `start_line`) so earlier
   line numbers remain stable.
-- `context_edit` reads the file, applies patches in memory, and
-  atomic-writes-via-rename back over the original. A user editing the
-  file in `vim` at the same time is not corrupted.
+- The implementation lives in `src/fs/patches.ts::applyLinePatches`.
+  Each tool reads the file, applies patches in memory, validates the
+  result against the resource's schema (frontmatter still parses,
+  required fields still present), and atomic-writes-via-rename back
+  over the original. A user editing the file in `vim` at the same time
+  is not corrupted; for resources guarded by mtime
+  (`schedule_edit`, `task_edit`, `prompt_edit`) a concurrent change
+  surfaces as `error_type: "mtime_conflict"`.
 
 ---
 

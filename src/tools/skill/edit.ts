@@ -1,22 +1,13 @@
 import { join } from "node:path";
 import { z } from "zod";
 import { getSkillsDir } from "../../constants.ts";
+import { applyLinePatches, LinePatchSchema } from "../../fs/patches.ts";
 import { parseSkillFile } from "../../skills/parser.ts";
 import type { ToolDefinition } from "../tool.ts";
 
-const PatchSchema = z.object({
-  start_line: z.number().describe("1-based inclusive start line"),
-  end_line: z
-    .number()
-    .describe("1-based inclusive end line (0 to insert without replacing)"),
-  content: z
-    .string()
-    .describe("Replacement text (empty string to delete lines)"),
-});
-
 const inputSchema = z.object({
   name: z.string().describe("Skill name (case-insensitive)"),
-  patches: z.array(PatchSchema).describe("Patches to apply"),
+  patches: z.array(LinePatchSchema).describe("Patches to apply"),
 });
 
 const outputSchema = z.object({
@@ -29,27 +20,6 @@ const outputSchema = z.object({
   message: z.string().optional(),
   next_action_hint: z.string().optional(),
 });
-
-function applyPatches(
-  raw: string,
-  patches: Array<{ start_line: number; end_line: number; content: string }>,
-): string {
-  const lines = raw.split("\n");
-  const sorted = [...patches].sort((a, b) => b.start_line - a.start_line);
-
-  for (const patch of sorted) {
-    if (patch.end_line === 0) {
-      const insertLines = patch.content === "" ? [] : patch.content.split("\n");
-      lines.splice(patch.start_line - 1, 0, ...insertLines);
-    } else {
-      const deleteCount = patch.end_line - patch.start_line + 1;
-      const insertLines = patch.content === "" ? [] : patch.content.split("\n");
-      lines.splice(patch.start_line - 1, deleteCount, ...insertLines);
-    }
-  }
-
-  return lines.join("\n");
-}
 
 export const skillEditTool = {
   name: "skill_edit",
@@ -78,7 +48,7 @@ export const skillEditTool = {
     }
 
     const original = await file.text();
-    const updated = applyPatches(original, input.patches);
+    const updated = applyLinePatches(original, input.patches);
 
     try {
       const parsed = parseSkillFile(updated, filePath);

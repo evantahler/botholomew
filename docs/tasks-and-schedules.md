@@ -226,8 +226,25 @@ botholomew schedule trigger <id>
 ```
 
 All of the same operations are available to the chat agent (`create_task`,
-`list_tasks`, `view_task`, `update_task`, `delete_task`, `create_schedule`,
-`list_schedules`) so you can drive the queue conversationally too.
-`delete_task` refuses tasks in `in_progress` — the worker has no
-mid-execution interrupt, so wait for it to finish or run
-`botholomew task reset <id>` from the CLI first.
+`list_tasks`, `view_task`, `update_task`, `task_edit`, `delete_task`,
+`create_schedule`, `schedule_edit`, `list_schedules`) so you can drive
+the queue conversationally too. `delete_task` refuses tasks in
+`in_progress` — the worker has no mid-execution interrupt, so wait
+for it to finish or run `botholomew task reset <id>` from the CLI
+first.
+
+### Editing tasks and schedules
+
+Two complementary tools exist for tasks: `update_task` is the typed
+field updater (name, description, priority, blocked_by) with a
+DAG-cycle check, and `task_edit` applies line-range patches to the
+whole task file (frontmatter + body). `task_edit` refuses non-pending
+tasks and re-validates `blocked_by` so a body edit can't introduce a
+cycle. `schedule_edit` is the only edit path for schedules and works
+the same way.
+
+Both tools use the shared
+[git-hunk patch format](./files.md#patch-format), re-parse the
+patched output against their Zod schemas, refuse to write on
+validation failure, and bump `updated_at` on success. Concurrent
+edits surface as `error_type: "mtime_conflict"`.

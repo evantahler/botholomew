@@ -6,6 +6,7 @@ import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 import { getSchedulesDir, getSchedulesLockDir } from "../../src/constants.ts";
 import { createSchedule, updateSchedule } from "../../src/schedules/store.ts";
 import { createScheduleTool } from "../../src/tools/schedule/create.ts";
+import { scheduleEditTool } from "../../src/tools/schedule/edit.ts";
 import { listSchedulesTool } from "../../src/tools/schedule/list.ts";
 import type { ToolContext } from "../../src/tools/tool.ts";
 
@@ -95,5 +96,111 @@ describe("list_schedules", () => {
     const disabled = await listSchedulesTool.execute({ enabled: false }, ctx);
     expect(disabled.count).toBe(1);
     expect(disabled.schedules[0]?.name).toBe("a");
+  });
+});
+
+describe("schedule_edit", () => {
+  test("edits the body and bumps updated_at", async () => {
+    const s = await createSchedule(projectDir, {
+      name: "morning",
+      description: "the description",
+      frequency: "daily",
+    });
+    const filePath = join(getSchedulesDir(projectDir), `${s.id}.md`);
+    const original = await Bun.file(filePath).text();
+    const lines = original.split("\n");
+    // Find the body line (after the closing `---`).
+    const closingIdx = lines.findIndex((l, i) => i > 0 && l === "---");
+    const bodyIdx = closingIdx + 3; // 1-based: skip closing `---`, blank line
+
+    // Sleep so the timestamp can advance.
+    await new Promise((r) => setTimeout(r, 5));
+
+    const result = await scheduleEditTool.execute(
+      {
+        id: s.id,
+        patches: [
+          {
+            start_line: bodyIdx,
+            end_line: bodyIdx,
+            content: "completely new body",
+          },
+        ],
+      },
+      ctx,
+    );
+
+    expect(result.is_error).toBe(false);
+    expect(result.applied).toBe(1);
+    const after = await Bun.file(filePath).text();
+    expect(after).toContain("completely new body");
+    // updated_at was bumped past created_at
+    const created = original.match(/created_at:\s*'?([^'\n]+)/)?.[1];
+    const updated = after.match(/updated_at:\s*'?([^'\n]+)/)?.[1];
+    expect(created && updated).toBeTruthy();
+    expect(Date.parse(updated as string)).toBeGreaterThan(
+      Date.parse(created as string),
+    );
+  });
+
+  test("rolls back when patch breaks frontmatter", async () => {
+    const s = await createSchedule(projectDir, {
+      name: "n",
+      frequency: "daily",
+    });
+    const filePath = join(getSchedulesDir(projectDir), `${s.id}.md`);
+    const before = await Bun.file(filePath).text();
+
+    const result = await scheduleEditTool.execute(
+      {
+        id: s.id,
+        // Replace the closing `---` so frontmatter is unterminated.
+        patches: [{ start_line: 2, end_line: 2, content: "name: 'oops" }],
+      },
+      ctx,
+    );
+
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("invalid_schedule");
+    const after = await Bun.file(filePath).text();
+    expect(after).toBe(before);
+  });
+
+  test("rolls back when patch changes id frontmatter", async () => {
+    const s = await createSchedule(projectDir, {
+      name: "n",
+      frequency: "daily",
+    });
+    const filePath = join(getSchedulesDir(projectDir), `${s.id}.md`);
+    const before = await Bun.file(filePath).text();
+    const lines = before.split("\n");
+    const idLine = lines.findIndex((l) => l.startsWith("id:")) + 1;
+
+    const result = await scheduleEditTool.execute(
+      {
+        id: s.id,
+        patches: [
+          { start_line: idLine, end_line: idLine, content: "id: not-the-id" },
+        ],
+      },
+      ctx,
+    );
+
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("id_mismatch");
+    const after = await Bun.file(filePath).text();
+    expect(after).toBe(before);
+  });
+
+  test("returns not_found for missing schedule", async () => {
+    const result = await scheduleEditTool.execute(
+      {
+        id: "ghost",
+        patches: [{ start_line: 1, end_line: 1, content: "x" }],
+      },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_type).toBe("not_found");
   });
 });
