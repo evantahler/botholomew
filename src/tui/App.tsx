@@ -798,12 +798,16 @@ function AppInner({
           layout without destroying them.
           The chat tab's flexGrow box is overflow-clipped so streaming
           content can't push the rendered frame past the viewport — see
-          the comment on the `rows` state for why that matters. */}
+          the comment on the `rows` state for why that matters.
+          `justifyContent="flex-end"` keeps active streaming content + the
+          tool-call card pinned to the bottom of the chat area (just
+          above the input bar) instead of leaving a tall gap below them. */}
       <Box
         display={activeTab === 1 ? "flex" : "none"}
         flexDirection="column"
         flexGrow={1}
         overflow="hidden"
+        justifyContent="flex-end"
       >
         <MessageList
           streamingText={streamingText}
