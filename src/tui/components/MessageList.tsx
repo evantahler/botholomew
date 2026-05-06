@@ -18,6 +18,9 @@ interface MessageListProps {
   isLoading: boolean;
   activeToolCalls: ToolCallData[];
   preparingTool: { id: string; name: string } | null;
+  /** Timestamp the current streaming bubble started. Stable across token flushes
+   * so the displayed time doesn't flicker on every re-render. */
+  streamStartedAt: Date | null;
 }
 
 function formatTime(date: Date): string {
@@ -124,11 +127,46 @@ export const MessageBubble = memo(function MessageBubble({
   );
 });
 
+const ActiveToolsBox = memo(function ActiveToolsBox({
+  toolCalls,
+}: {
+  toolCalls: ToolCallData[];
+}) {
+  if (toolCalls.length === 0) return null;
+  return (
+    <Box
+      flexDirection="column"
+      marginLeft={1}
+      borderStyle="round"
+      borderColor={theme.accentBorder}
+      paddingX={1}
+    >
+      {toolCalls.map((tc) => (
+        <ToolCall key={tc.id} tool={tc} />
+      ))}
+    </Box>
+  );
+});
+
+const StreamingMarkdown = memo(function StreamingMarkdown({
+  text,
+}: {
+  text: string;
+}) {
+  const rendered = useMemo(() => renderMarkdown(text), [text]);
+  return (
+    <Box marginLeft={1}>
+      <Text>{rendered}</Text>
+    </Box>
+  );
+});
+
 export function MessageList({
   streamingText,
   isLoading,
   activeToolCalls,
   preparingTool,
+  streamStartedAt,
 }: MessageListProps) {
   return (
     <>
@@ -139,26 +177,10 @@ export function MessageList({
             <Text bold color="green">
               Botholomew
             </Text>
-            <Text dimColor> {formatTime(new Date())}</Text>
+            <Text dimColor> {formatTime(streamStartedAt ?? new Date())}</Text>
           </Box>
-          {activeToolCalls.length > 0 && (
-            <Box
-              flexDirection="column"
-              marginLeft={1}
-              borderStyle="round"
-              borderColor={theme.accentBorder}
-              paddingX={1}
-            >
-              {activeToolCalls.map((tc) => (
-                <ToolCall key={tc.id} tool={tc} />
-              ))}
-            </Box>
-          )}
-          {streamingText && (
-            <Box marginLeft={1}>
-              <Text>{renderMarkdown(streamingText)}</Text>
-            </Box>
-          )}
+          <ActiveToolsBox toolCalls={activeToolCalls} />
+          {streamingText && <StreamingMarkdown text={streamingText} />}
         </Box>
       )}
 
