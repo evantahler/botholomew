@@ -10,7 +10,7 @@ const TABS: { id: TabId; label: string; key: string }[] = [
   { id: 2, label: "Tools", key: "^o" },
   { id: 3, label: "Context", key: "^n" },
   { id: 4, label: "Tasks", key: "^t" },
-  { id: 5, label: "Threads", key: "^r" },
+  { id: 5, label: "Threads", key: "^e" },
   { id: 6, label: "Schedules", key: "^s" },
   { id: 7, label: "Workers", key: "^w" },
   { id: 8, label: "Help", key: "^g" },
