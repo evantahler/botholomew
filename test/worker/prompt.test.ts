@@ -122,6 +122,16 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain(projectDir);
   });
 
+  test("includes UTC time, local time, and IANA timezone in the meta header", async () => {
+    const prompt = await buildSystemPrompt(projectDir);
+    expect(prompt).toMatch(
+      /Current time \(UTC\): \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
+    );
+    expect(prompt).toContain("Current time (local):");
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    expect(prompt).toContain(`Timezone: ${timezone}`);
+  });
+
   test("includes the Instructions section and the Style block", async () => {
     const prompt = await buildSystemPrompt(projectDir);
     expect(prompt).toContain("## Instructions");

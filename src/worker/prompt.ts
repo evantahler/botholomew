@@ -76,8 +76,17 @@ export async function loadPersistentContext(
  * Build common meta header (version, time, OS, user).
  */
 export function buildMetaHeader(projectDir: string): string {
+  const now = new Date();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const localTime = now.toLocaleString("en-US", {
+    timeZone: timezone,
+    dateStyle: "full",
+    timeStyle: "long",
+  });
   return `# Botholomew v${pkg.version}
-Current time: ${new Date().toISOString()}
+Current time (UTC): ${now.toISOString()}
+Current time (local): ${localTime}
+Timezone: ${timezone}
 Project directory: ${projectDir}
 OS: ${process.platform} ${process.arch}
 User: ${process.env.USER || process.env.USERNAME || "unknown"}
