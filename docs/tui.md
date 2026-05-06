@@ -122,7 +122,7 @@ render as plain text.
 The task queue, with filters for status (pending / in_progress /
 completed / failed) and priority. Select a row to see the full task
 body, its payload, predecessor outputs (for DAG tasks), and the log of
-attempts. `r` refreshes. See [tasks-and-schedules.md](tasks-and-schedules.md).
+attempts. `Ctrl+R` refreshes. See [tasks-and-schedules.md](tasks-and-schedules.md).
 
 ### 5. Threads
 
@@ -136,7 +136,7 @@ thread you're currently attached to.
 
 ### 6. Schedules
 
-Recurring tasks. Toggle `e`nabled, `d`elete, or `r`efresh. Schedules
+Recurring tasks. Toggle `e`nabled, `d`elete, or `Ctrl+R` to refresh. Schedules
 are evaluated by an LLM pass during the tick loop against natural-language
 rules like "every weekday at 9am" — see
 [tasks-and-schedules.md](tasks-and-schedules.md).
@@ -308,10 +308,11 @@ on the agent side) and disappears when the wait elapses or you press
 | `Ctrl+o` | Tools |
 | `Ctrl+n` | Context |
 | `Ctrl+t` | Tasks |
-| `Ctrl+r` | Threads |
+| `Ctrl+e` | Threads |
 | `Ctrl+s` | Schedules |
 | `Ctrl+w` | Workers |
 | `Ctrl+g` | Help (`Ctrl+/` also works in most terminals — it's typically delivered as the same byte) |
+| `Ctrl+R` | Refresh the active list (Context · Tasks · Threads · Schedules · Workers) |
 | `Esc` | Return to Chat from any other tab |
 | `Ctrl+C` | Exit the TUI |
 
@@ -345,7 +346,7 @@ move the selection (list focus) or scroll the detail (detail focus).
 | `g` / `G` | Jump to top / bottom of detail |
 | `f` | Cycle filter (status, type, enabled — per panel) |
 | `p` | Cycle priority filter (Tasks only) |
-| `r` | Refresh from DB |
+| `Ctrl+R` | Refresh from disk |
 | `d` then `d` | Delete the selected item (Tasks, Threads, Schedules, Context). First press arms; second confirms. Any other key or 3s of inactivity disarms. The active chat thread cannot be deleted. |
 | `e` | Toggle enable/disable (Schedules only) |
 | `s` or `/` | Search (Threads only) |
