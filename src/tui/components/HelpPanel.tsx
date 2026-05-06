@@ -1,17 +1,42 @@
 import { Box, Text } from "ink";
 import { memo } from "react";
+import type { ContextUsage } from "../../chat/usage.ts";
 
 interface HelpPanelProps {
   projectDir: string;
   threadId: string;
   workerRunning: boolean;
+  usage?: ContextUsage | null;
+}
+
+function formatK(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+}
+
+function usageColorFor(pct: number): "red" | "yellow" | "green" {
+  if (pct >= 90) return "red";
+  if (pct >= 70) return "yellow";
+  return "green";
 }
 
 export const HelpPanel = memo(function HelpPanel({
   projectDir,
   threadId,
   workerRunning,
+  usage,
 }: HelpPanelProps) {
+  const pct =
+    usage && usage.max > 0 ? Math.round((usage.used / usage.max) * 100) : null;
+  const breakdownRows: { label: string; tokens: number }[] = usage
+    ? [
+        { label: "Prompts (files)", tokens: usage.breakdown.prompts },
+        { label: "Instructions   ", tokens: usage.breakdown.instructions },
+        { label: "Tools          ", tokens: usage.breakdown.tools },
+        { label: "Messages       ", tokens: usage.breakdown.messages },
+        { label: "Tool I/O       ", tokens: usage.breakdown.toolIo },
+      ]
+    : [];
+  const breakdownTotal = breakdownRows.reduce((s, r) => s + r.tokens, 0);
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
       <Box marginTop={1} flexDirection="column">
@@ -40,7 +65,7 @@ export const HelpPanel = memo(function HelpPanel({
           {"  "}Ctrl+w{"         "}Workers
         </Text>
         <Text>
-          {"  "}?{"              "}Help (from any non-chat tab)
+          {"  "}Ctrl+g{"        "}Help (Ctrl+/ also works in most terminals)
         </Text>
         <Text>
           {"  "}Escape{"         "}Return to Chat
@@ -147,6 +172,38 @@ export const HelpPanel = memo(function HelpPanel({
         <Text>
           {"  "}/exit{"          "}End the chat session
         </Text>
+      </Box>
+
+      <Box marginTop={1} flexDirection="column">
+        <Text bold color="cyan">
+          Context usage
+        </Text>
+        {usage && pct !== null ? (
+          <>
+            <Text>
+              {"  "}Total{"     "}
+              <Text color={usageColorFor(pct)}>
+                {formatK(usage.used)}/{formatK(usage.max)} ({pct}%)
+              </Text>
+            </Text>
+            <Text dimColor>
+              {"  "}Estimate (~4 chars/token, sums to ~{formatK(breakdownTotal)}
+              ):
+            </Text>
+            {breakdownRows.map((row) => (
+              <Text key={row.label}>
+                {"    "}
+                {row.label}
+                {"  "}
+                {formatK(row.tokens)}
+              </Text>
+            ))}
+          </>
+        ) : (
+          <Text dimColor>
+            {"  "}Send a message to see token usage for the next turn.
+          </Text>
+        )}
       </Box>
 
       <Box marginTop={1} flexDirection="column">

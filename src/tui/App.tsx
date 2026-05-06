@@ -8,6 +8,7 @@ import {
   sendMessage,
   startChatSession,
 } from "../chat/session.ts";
+import type { ContextUsage } from "../chat/usage.ts";
 import {
   BUILTIN_SLASH_COMMANDS,
   handleSlashCommand,
@@ -51,9 +52,14 @@ function msgId(): string {
 
 // Tab routing: Ctrl+<letter> jumps to a tab. Chosen for memorability — first
 // available letter that doesn't collide with other Ctrl bindings (Ctrl+C exit,
-// Ctrl+J/K/X/E queue ops on Chat). Help is bound to `?` instead of Ctrl+H
-// because most terminals send Ctrl+H as ASCII 0x08 (backspace), which Ink
-// reports as `key.backspace=true`, not `input='h'`.
+// Ctrl+J/K/X/E queue ops on Chat).
+//
+// Help is bound to Ctrl+G rather than Ctrl+H because most terminals deliver
+// Ctrl+H as ASCII 0x08 (backspace). Bonus: macOS Terminal.app and several
+// other terminals map Ctrl+/ to BEL (0x07), the same byte as Ctrl+G — so this
+// binding also catches the Ctrl+/ keystroke on those terminals "for free".
+// We also accept "/" and "_" as fallbacks for terminals that deliver Ctrl+/
+// as 0x1F or as the literal "/" with ctrl=true (Kitty keyboard protocol).
 const TAB_BY_CTRL_KEY: Record<string, TabId> = {
   a: 1, // ch[a]t
   o: 2, // t[o]ols
@@ -62,6 +68,9 @@ const TAB_BY_CTRL_KEY: Record<string, TabId> = {
   r: 5, // th[r]eads
   s: 6, // [s]chedules
   w: 7, // [w]orkers
+  g: 8, // help (also catches Ctrl+/ on terminals that map it to BEL)
+  "/": 8, // help (Kitty keyboard protocol)
+  _: 8, // help (terminals that send Ctrl+/ as 0x1F)
 };
 
 function detectToolError(output: string | undefined): boolean {
@@ -168,6 +177,7 @@ function AppInner({
   const { markActivity } = useIdle();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messagesEpoch, setMessagesEpoch] = useState(0);
+  const [usage, setUsage] = useState<ContextUsage | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -324,14 +334,6 @@ function AppInner({
         }
       }
 
-      // `?` jumps to the Help tab from any non-chat tab (on Chat, `?` is
-      // a regular character). Acts as the Help shortcut since Ctrl+H is
-      // unusable — most terminals send it as backspace.
-      if (input === "?" && activeTabRef.current !== 1) {
-        setActiveTab(8);
-        return;
-      }
-
       const tab = activeTabRef.current;
 
       // Esc on Chat tab while a turn is in flight: steer / interrupt.
@@ -474,6 +476,9 @@ function AppInner({
             }
             setActiveToolCalls([...pendingToolCalls]);
           },
+          onUsage: (info) => {
+            setUsage(info);
+          },
           takeInjections: () => {
             // Drain queued messages into the running turn so the agent sees
             // them on the next LLM call instead of after the whole tool loop.
@@ -570,7 +575,7 @@ function AppInner({
       if (trimmed === "/help") {
         const skills = sessionRef.current.skills;
         const lines: string[] = [
-          "For the full keyboard reference, switch to the Help tab (`?` from any non-chat tab) — this message lists chat commands only.",
+          "For the full keyboard reference, switch to the Help tab (`Ctrl+g`) — this message lists chat commands only.",
           "",
           "Slash commands:",
           "  /help           Show this message",
@@ -663,6 +668,7 @@ function AppInner({
                 setStreamingText("");
                 setActiveToolCalls([]);
                 setPreparingTool(null);
+                setUsage(null);
               } catch (err) {
                 setMessages((prev) => [
                   ...prev,
@@ -831,6 +837,7 @@ function AppInner({
           projectDir={projectDir}
           threadId={threadId}
           workerRunning={workerRunning}
+          usage={usage}
         />
       </Box>
 
@@ -852,7 +859,7 @@ function AppInner({
         header={inputBarHeader}
         slashCommands={slashCommands}
       />
-      <TabBar activeTab={activeTab} />
+      <TabBar activeTab={activeTab} usage={usage} />
     </Box>
   );
 }
