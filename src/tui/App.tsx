@@ -223,6 +223,7 @@ function AppInner({
   const [splashDone, setSplashDone] = useState(skipSplash);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<ChatSession | null>(null);
+  const shuttingDownRef = useRef(false);
   const [activeTab, setActiveTab] = useState<TabId>(1);
   const [workerRunning, setWorkerRunning] = useState(false);
   const [chatTitle, setChatTitle] = useState<string | undefined>(undefined);
@@ -282,15 +283,51 @@ function AppInner({
 
     return () => {
       cancelled = true;
+      // Fire-and-forget safety net: only triggers when unmount happens via a
+      // path that didn't go through performShutdown (which nulls sessionRef
+      // first). React doesn't await unmount cleanups, so the goodbye lands
+      // before mcpx finishes closing — that's fine for non-Ctrl-C paths.
       if (sessionRef.current) {
-        const threadId = sessionRef.current.threadId;
-        endChatSession(sessionRef.current);
+        const session = sessionRef.current;
+        const threadId = session.threadId;
+        abortActiveStream(session);
+        void endChatSession(session);
         process.stderr.write(
-          `\nThread: ${threadId}\nResume with: ${ansi.success}botholomew chat --thread-id ${threadId}${ansi.reset}\n`,
+          `\nThread: ${threadId}\nResume with: ${ansi.success}botholomew chat --thread-id ${threadId}${ansi.reset}\nBye!\n`,
         );
       }
     };
   }, [projectDir, resumeThreadId]);
+
+  const performShutdown = useCallback(async () => {
+    if (shuttingDownRef.current) {
+      // Second Ctrl-C while cleanup is in flight — give the user an escape
+      // hatch. 130 = standard SIGINT exit code.
+      process.exit(130);
+    }
+    shuttingDownRef.current = true;
+
+    const session = sessionRef.current;
+    // Null the ref so the useEffect cleanup that runs on Ink unmount becomes
+    // a no-op — otherwise it would double-print the goodbye and double-close
+    // the mcpx client.
+    sessionRef.current = null;
+
+    if (session) {
+      const threadId = session.threadId;
+      abortActiveStream(session);
+      try {
+        await endChatSession(session);
+      } catch {
+        // Best-effort: the user pressed Ctrl-C, surfacing a stack trace here
+        // would just hide the goodbye line.
+      }
+      process.stderr.write(
+        `\nThread: ${threadId}\nResume with: ${ansi.success}botholomew chat --thread-id ${threadId}${ansi.reset}\nBye!\n`,
+      );
+    }
+    exit();
+  }, [exit]);
 
   // Minimum splash screen duration
   useEffect(() => {
@@ -340,9 +377,12 @@ function AppInner({
     (input: string, key: any) => {
       markActivityRef.current();
 
-      // Ctrl+C exits
+      // Ctrl+C exits. Routed through performShutdown so the in-flight LLM
+      // stream is aborted and mcpx is closed before we unmount Ink — without
+      // that, one Ctrl-C prints the goodbye but the process stays pinned by
+      // the open HTTPS socket and a second Ctrl-C is needed.
       if (input === "c" && key.ctrl) {
-        exit();
+        void performShutdown();
         return;
       }
 
@@ -424,7 +464,7 @@ function AppInner({
         }
       }
     },
-    [exit, syncQueue],
+    [performShutdown, syncQueue],
   );
 
   useInput(stableAppHandler);
@@ -676,7 +716,7 @@ function AppInner({
             syncQueue();
             processQueue();
           },
-          exit,
+          exit: () => void performShutdown(),
           clearChat: () => {
             const session = sessionRef.current;
             if (!session) return;
@@ -750,7 +790,7 @@ function AppInner({
       syncQueue();
       processQueue();
     },
-    [exit, processQueue, syncQueue],
+    [performShutdown, processQueue, syncQueue],
   );
 
   const sessionDbPath = sessionRef.current?.dbPath;

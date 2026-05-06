@@ -84,7 +84,7 @@ describe("buildChatSystemPrompt", () => {
   test("includes always-loaded prompt files verbatim", async () => {
     await writePrompt(
       "soul.md",
-      "---\nloading: always\n---\n\nI am the wise owl.\n",
+      "---\ntitle: Soul\nloading: always\nagent-modification: true\n---\n\nI am the wise owl.\n",
     );
     const prompt = await buildChatSystemPrompt(projectDir);
     expect(prompt).toContain("I am the wise owl.");
@@ -93,7 +93,7 @@ describe("buildChatSystemPrompt", () => {
   test("includes contextual files when keywordSource matches", async () => {
     await writePrompt(
       "deploy.md",
-      "---\nloading: contextual\n---\n\nDeployment runbook.\n",
+      "---\ntitle: Deploy\nloading: contextual\nagent-modification: true\n---\n\nDeployment runbook.\n",
     );
     const prompt = await buildChatSystemPrompt(projectDir, {
       keywordSource: "I want to talk about deployment today",
@@ -104,7 +104,7 @@ describe("buildChatSystemPrompt", () => {
   test("excludes contextual files when keywordSource doesn't overlap", async () => {
     await writePrompt(
       "deploy.md",
-      "---\nloading: contextual\n---\n\nDeployment runbook.\n",
+      "---\ntitle: Deploy\nloading: contextual\nagent-modification: true\n---\n\nDeployment runbook.\n",
     );
     const prompt = await buildChatSystemPrompt(projectDir, {
       keywordSource: "completely unrelated topic about cooking",
@@ -115,7 +115,7 @@ describe("buildChatSystemPrompt", () => {
   test("excludes contextual files when no keywordSource is given", async () => {
     await writePrompt(
       "deploy.md",
-      "---\nloading: contextual\n---\n\nDeployment runbook.\n",
+      "---\ntitle: Deploy\nloading: contextual\nagent-modification: true\n---\n\nDeployment runbook.\n",
     );
     const prompt = await buildChatSystemPrompt(projectDir);
     expect(prompt).not.toContain("Deployment runbook.");

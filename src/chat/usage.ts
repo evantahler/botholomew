@@ -10,7 +10,7 @@ const CHARS_PER_TOKEN = 4;
  * line up exactly with the API's count.
  */
 export interface ContextBreakdown {
-  /** Persistent context files from `prompts/` (soul, beliefs, goals, capabilities, contextual). */
+  /** Files loaded from `prompts/` (always-on plus any contextual matches). */
   prompts: number;
   /** Chat instructions block + MCP guidance + style rules + meta header. */
   instructions: number;

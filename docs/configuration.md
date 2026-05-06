@@ -38,7 +38,7 @@ project directory. The full schema lives in `src/config/schemas.ts`.
 | `embedding_dimension` | `384` | Vector dimension. Must match the model. Changing model + dimension requires running `botholomew context reembed` to recompute every stored vector — old and new vectors aren't comparable. |
 | `tick_interval_seconds` | `300` | Seconds a `--persist` worker sleeps between ticks **when there's no work**. It ticks back-to-back while a backlog exists. |
 | `max_tick_duration_seconds` | `120` | Soft cap per tick. Stale-task reset fires at `3×` this value. |
-| `system_prompt_override` | `""` | Appended to the built-in system prompt. Use this for project-specific instructions that should be always-loaded without editing `soul.md`. |
+| `system_prompt_override` | `""` | Appended to the built-in system prompt. Use this for project-specific instructions that should be always-loaded without editing the files under `prompts/`. |
 | `max_turns` | `0` | Maximum tool-use turns per agent loop (0 = unlimited). Safety net against runaway loops. |
 | `worker_heartbeat_interval_seconds` | `15` | How often a running worker writes to `workers.last_heartbeat_at`. Runs on its own `setInterval`, independent of the tick loop, so long LLM calls don't starve the heartbeat. |
 | `worker_dead_after_seconds` | `60` | A worker whose heartbeat is older than this is considered dead. The reaper flips its status to `dead` and releases every task/schedule claim it held. |
@@ -89,7 +89,7 @@ defaults (30s reap, 60s threshold) are conservative.
 - Lower `max_turns` (e.g., 15) to hard-cap tool-use budgets.
 
 **For prompt-sensitive workflows:** use `system_prompt_override` to add
-instructions without touching `soul.md`. This keeps the default
+instructions without touching `prompts/goals.md`. This keeps the default
 personality intact while layering on project-specific rules ("always
 respond in British English", "never call mcp_exec on the slack server
 without confirmation", …).

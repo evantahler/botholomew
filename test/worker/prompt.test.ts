@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getPromptsDir } from "../../src/constants.ts";
 import type { Task } from "../../src/tasks/schema.ts";
+import { PromptValidationError } from "../../src/utils/frontmatter.ts";
 import {
   buildSystemPrompt,
   extractKeywords,
@@ -24,6 +25,16 @@ afterEach(async () => {
 
 async function writePrompt(name: string, body: string): Promise<void> {
   await writeFile(join(getPromptsDir(projectDir), name), body);
+}
+
+function fakePrompt(opts: {
+  title: string;
+  loading: "always" | "contextual";
+  body: string;
+  agentMod?: boolean;
+}): string {
+  const am = opts.agentMod ?? true;
+  return `---\ntitle: ${opts.title}\nloading: ${opts.loading}\nagent-modification: ${am}\n---\n\n${opts.body}\n`;
 }
 
 function fakeTask(name: string, description: string): Task {
@@ -62,7 +73,7 @@ describe("loadPersistentContext", () => {
   test("includes 'always' files unconditionally", async () => {
     await writePrompt(
       "soul.md",
-      "---\nloading: always\n---\n\nI am the agent.\n",
+      fakePrompt({ title: "Soul", loading: "always", body: "I am the agent." }),
     );
     const out = await loadPersistentContext(projectDir);
     expect(out).toContain("soul.md");
@@ -72,13 +83,15 @@ describe("loadPersistentContext", () => {
   test("includes 'contextual' files only when keywords overlap", async () => {
     await writePrompt(
       "deploy.md",
-      "---\nloading: contextual\n---\n\nDeployment runbook.\n",
+      fakePrompt({
+        title: "Deploy",
+        loading: "contextual",
+        body: "Deployment runbook.",
+      }),
     );
-    // No keywords → not included.
     const noKw = await loadPersistentContext(projectDir);
     expect(noKw).not.toContain("deploy.md");
 
-    // Matching keyword → included.
     const match = await loadPersistentContext(
       projectDir,
       new Set(["deployment"]),
@@ -90,7 +103,11 @@ describe("loadPersistentContext", () => {
   test("excludes 'contextual' files when keywords don't overlap", async () => {
     await writePrompt(
       "deploy.md",
-      "---\nloading: contextual\n---\n\nDeployment runbook.\n",
+      fakePrompt({
+        title: "Deploy",
+        loading: "contextual",
+        body: "Deployment runbook.",
+      }),
     );
     const out = await loadPersistentContext(
       projectDir,
@@ -112,6 +129,24 @@ describe("loadPersistentContext", () => {
   test("returns empty string gracefully when prompts/ is missing", async () => {
     await rm(getPromptsDir(projectDir), { recursive: true, force: true });
     expect(await loadPersistentContext(projectDir)).toBe("");
+  });
+
+  test("throws PromptValidationError when a prompt has invalid frontmatter", async () => {
+    await writePrompt("broken.md", "just a body, no frontmatter\n");
+    await expect(loadPersistentContext(projectDir)).rejects.toBeInstanceOf(
+      PromptValidationError,
+    );
+  });
+
+  test("validation error names the offending file", async () => {
+    await writePrompt("broken.md", "just a body, no frontmatter\n");
+    try {
+      await loadPersistentContext(projectDir);
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(PromptValidationError);
+      expect((err as Error).message).toContain("broken.md");
+    }
   });
 });
 
@@ -136,7 +171,6 @@ describe("buildSystemPrompt", () => {
     const prompt = await buildSystemPrompt(projectDir);
     expect(prompt).toContain("## Instructions");
     expect(prompt).toContain(STYLE_RULES);
-    // Style block trails the instructions.
     expect(prompt.indexOf("## Instructions")).toBeLessThan(
       prompt.indexOf(STYLE_RULES),
     );
@@ -145,7 +179,11 @@ describe("buildSystemPrompt", () => {
   test("includes always-loaded prompt files", async () => {
     await writePrompt(
       "soul.md",
-      "---\nloading: always\n---\n\nI am the wise owl.\n",
+      fakePrompt({
+        title: "Soul",
+        loading: "always",
+        body: "I am the wise owl.",
+      }),
     );
     const prompt = await buildSystemPrompt(projectDir);
     expect(prompt).toContain("I am the wise owl.");
@@ -154,7 +192,11 @@ describe("buildSystemPrompt", () => {
   test("includes contextual files when task keywords match", async () => {
     await writePrompt(
       "deploy.md",
-      "---\nloading: contextual\n---\n\nDeployment runbook.\n",
+      fakePrompt({
+        title: "Deploy",
+        loading: "contextual",
+        body: "Deployment runbook.",
+      }),
     );
     const task = fakeTask("Deploy app", "Push deployment to prod");
     const prompt = await buildSystemPrompt(projectDir, task);
@@ -164,7 +206,11 @@ describe("buildSystemPrompt", () => {
   test("excludes contextual files when no task is provided", async () => {
     await writePrompt(
       "deploy.md",
-      "---\nloading: contextual\n---\n\nDeployment runbook.\n",
+      fakePrompt({
+        title: "Deploy",
+        loading: "contextual",
+        body: "Deployment runbook.",
+      }),
     );
     const prompt = await buildSystemPrompt(projectDir);
     expect(prompt).not.toContain("Deployment runbook.");

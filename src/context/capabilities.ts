@@ -475,6 +475,7 @@ export async function writeCapabilitiesFile(
   const file = Bun.file(filePath);
 
   let meta: ContextFileMeta = {
+    title: "Capabilities",
     loading: "always",
     "agent-modification": true,
   };
@@ -485,6 +486,9 @@ export async function writeCapabilitiesFile(
     const parsed = parseContextFile(raw);
     if (parsed.meta && typeof parsed.meta === "object") {
       meta = {
+        title:
+          (typeof parsed.meta.title === "string" && parsed.meta.title) ||
+          meta.title,
         loading: parsed.meta.loading ?? meta.loading,
         "agent-modification":
           parsed.meta["agent-modification"] ?? meta["agent-modification"],
