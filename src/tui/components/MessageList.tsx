@@ -92,7 +92,6 @@ export const MessageBubble = memo(function MessageBubble({
         <Text color={theme.accent} dimColor>
           ⚠ {message.content}
         </Text>
-        <Text dimColor> {time}</Text>
       </Box>
     );
   }
