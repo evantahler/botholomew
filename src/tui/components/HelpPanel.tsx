@@ -19,19 +19,37 @@ export const HelpPanel = memo(function HelpPanel({
           Navigation
         </Text>
         <Text>
-          {"  "}Tab{"            "}Cycle between tabs
+          {"  "}Ctrl+a{"         "}Chat
         </Text>
         <Text>
-          {"  "}1-6{"            "}Jump to tab (non-chat tabs)
+          {"  "}Ctrl+o{"         "}Tools
         </Text>
         <Text>
-          {"  "}Escape{"         "}Return to Chat tab
+          {"  "}Ctrl+n{"         "}Context
+        </Text>
+        <Text>
+          {"  "}Ctrl+t{"         "}Tasks
+        </Text>
+        <Text>
+          {"  "}Ctrl+r{"         "}Threads
+        </Text>
+        <Text>
+          {"  "}Ctrl+s{"         "}Schedules
+        </Text>
+        <Text>
+          {"  "}Ctrl+w{"         "}Workers
+        </Text>
+        <Text>
+          {"  "}?{"              "}Help (from any non-chat tab)
+        </Text>
+        <Text>
+          {"  "}Escape{"         "}Return to Chat
         </Text>
       </Box>
 
       <Box marginTop={1} flexDirection="column">
         <Text bold color="cyan">
-          Chat (Tab 1)
+          Chat
         </Text>
         <Text>
           {"  "}Enter{"          "}Send message
@@ -42,89 +60,70 @@ export const HelpPanel = memo(function HelpPanel({
         <Text>
           {"  "}↑/↓{"            "}Browse input history
         </Text>
-      </Box>
-
-      <Box marginTop={1} flexDirection="column">
-        <Text bold color="cyan">
-          Tools (Tab 2)
-        </Text>
         <Text>
-          {"  "}↑/↓{"            "}Select tool call
-        </Text>
-        <Text>
-          {"  "}Shift+↑/↓{"      "}Scroll detail pane
-        </Text>
-        <Text>
-          {"  "}j / k{"          "}Scroll detail pane
+          {"  "}Esc{"            "}Steer / abort in-flight turn
         </Text>
       </Box>
 
       <Box marginTop={1} flexDirection="column">
         <Text bold color="cyan">
-          Context (Tab 3)
+          List panels (Tools/Tasks/Threads/Schedules/Workers/Context)
+        </Text>
+        <Text dimColor>
+          {"  "}List focus (default — dashed border on right pane):
         </Text>
         <Text>
-          {"  "}↑/↓{"            "}Navigate items
+          {"  "}↑/↓{"            "}Move list selection
         </Text>
         <Text>
-          {"  "}Enter{"          "}Expand directory / preview file
+          {"  "}→{"              "}Enter the right pane (border turns yellow)
+        </Text>
+        <Text dimColor>{"  "}Detail focus (yellow border on right pane):</Text>
+        <Text>
+          {"  "}↑/↓{"            "}Scroll the right pane (one line)
         </Text>
         <Text>
-          {"  "}Backspace{"      "}Go up one directory
+          {"  "}Shift+↑/↓{"      "}Page-scroll the right pane
+        </Text>
+        <Text>
+          {"  "}g / G{"          "}Top / bottom of the right pane
+        </Text>
+        <Text>
+          {"  "}←{"              "}Return to the list
+        </Text>
+      </Box>
+
+      <Box marginTop={1} flexDirection="column">
+        <Text bold color="cyan">
+          Context (extras)
+        </Text>
+        <Text>
+          {"  "}→{"              "}Drill into selected folder
+        </Text>
+        <Text>
+          {"  "}←{"              "}Go up one directory
         </Text>
         <Text>
           {"  "}/{"              "}Search context
         </Text>
-        <Text>
-          {"  "}d{"              "}Delete selected item (with confirmation)
-        </Text>
       </Box>
 
       <Box marginTop={1} flexDirection="column">
         <Text bold color="cyan">
-          Tasks (Tab 4)
+          Per-panel actions
         </Text>
         <Text>
-          {"  "}↑/↓{"            "}Navigate task list
+          {"  "}Tasks{"          "}f filter · p priority · d delete · r refresh
         </Text>
         <Text>
-          {"  "}Shift+↑/↓{"      "}Scroll detail pane
+          {"  "}Threads{"        "}f filter · s/ search · w follow · d delete ·
+          r refresh
         </Text>
         <Text>
-          {"  "}j / k{"          "}Scroll detail pane
+          {"  "}Schedules{"      "}f filter · e toggle · d delete · r refresh
         </Text>
         <Text>
-          {"  "}f{"              "}Cycle status filter
-        </Text>
-        <Text>
-          {"  "}p{"              "}Cycle priority filter
-        </Text>
-        <Text>
-          {"  "}r{"              "}Refresh tasks
-        </Text>
-      </Box>
-
-      <Box marginTop={1} flexDirection="column">
-        <Text bold color="cyan">
-          Threads (Tab 5)
-        </Text>
-        <Text>
-          {"  "}↑/↓{"            "}Navigate thread list
-        </Text>
-        <Text>
-          {"  "}Shift+↑/↓{"      "}Scroll detail pane
-        </Text>
-        <Text>
-          {"  "}j / k{"          "}Scroll detail pane
-        </Text>
-        <Text>
-          {"  "}f{"              "}Cycle type filter
-        </Text>
-        <Text>
-          {"  "}d{"              "}Delete thread (with confirmation)
-        </Text>
-        <Text>
-          {"  "}r{"              "}Refresh threads
+          {"  "}Workers{"        "}f filter · l toggle log/detail
         </Text>
       </Box>
 

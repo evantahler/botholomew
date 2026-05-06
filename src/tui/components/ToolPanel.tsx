@@ -1,6 +1,13 @@
 import { Box, Text, useInput, useStdout } from "ink";
 import { memo, useEffect, useMemo, useState } from "react";
+import {
+  detailPaneBorderProps,
+  type FocusState,
+  handleListDetailKey,
+} from "../listDetailKeys.ts";
 import { ansi, theme } from "../theme.ts";
+import { useLatestRef } from "../useLatestRef.ts";
+import { Scrollbar } from "./Scrollbar.tsx";
 import { resolveToolDisplay, type ToolCallData } from "./ToolCall.tsx";
 
 interface ToolPanelProps {
@@ -68,26 +75,9 @@ function colorizeValue(value: unknown, indent: number): string {
 function buildDetailAnsi(tool: ToolCallData): string {
   const lines: string[] = [];
 
-  const time = tool.timestamp.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  const { displayInput } = resolveToolDisplay(tool.name, tool.input);
 
-  const { displayName, displayInput } = resolveToolDisplay(
-    tool.name,
-    tool.input,
-  );
-  lines.push(`${ansi.bold}${ansi.info}${displayName}${ansi.reset}`);
-  if (tool.name === "mcp_exec") {
-    lines.push(`${ansi.dim}via mcp_exec${ansi.reset}`);
-  }
-  lines.push(`${ansi.dim}Time: ${time}${ansi.reset}`);
-  if (tool.running) {
-    lines.push(`${ansi.accent}⟳ running${ansi.reset}`);
-  }
-  lines.push("");
-
+  // Body only — name/server/status/time live in the panel header now.
   lines.push(`${ansi.bold}${ansi.primary}Input${ansi.reset}`);
   lines.push(colorizeJson(displayInput));
   lines.push("");
@@ -123,6 +113,7 @@ export const ToolPanel = memo(function ToolPanel({
   const termRows = stdout?.rows ?? 24;
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [detailScroll, setDetailScroll] = useState(0);
+  const [focus, setFocus] = useState<FocusState>("list");
 
   // Reverse-chronological order (most recent first)
   const reversedCalls = useMemo(() => [...toolCalls].reverse(), [toolCalls]);
@@ -163,57 +154,21 @@ export const ToolPanel = memo(function ToolPanel({
     setDetailScroll(0);
   }, [selectedIndex]);
 
+  const itemCountRef = useLatestRef(reversedCalls.length);
+  const maxDetailScrollRef = useLatestRef(maxDetailScroll);
+  const focusRef = useLatestRef(focus);
+
   useInput(
     (input, key) => {
-      if (key.upArrow) {
-        if (key.shift) {
-          // Shift+up scrolls detail
-          setDetailScroll((s) => Math.max(0, s - 1));
-        } else {
-          setSelectedIndex((i) => Math.max(0, i - 1));
-        }
-        return;
-      }
-      if (key.downArrow) {
-        if (key.shift) {
-          setDetailScroll((s) => Math.min(maxDetailScroll, s + 1));
-        } else {
-          setSelectedIndex((i) => Math.min(reversedCalls.length - 1, i + 1));
-        }
-        return;
-      }
-
-      // j/k vim-style for detail scrolling (single line)
-      if (input === "j") {
-        setDetailScroll((s) => Math.min(maxDetailScroll, s + 1));
-        return;
-      }
-      if (input === "k") {
-        setDetailScroll((s) => Math.max(0, s - 1));
-        return;
-      }
-
-      // J/K for page scrolling (hold shift or caps)
-      if (input === "J") {
-        setDetailScroll((s) =>
-          Math.min(maxDetailScroll, s + PAGE_SCROLL_LINES),
-        );
-        return;
-      }
-      if (input === "K") {
-        setDetailScroll((s) => Math.max(0, s - PAGE_SCROLL_LINES));
-        return;
-      }
-
-      // g/G for top/bottom
-      if (input === "g") {
-        setDetailScroll(0);
-        return;
-      }
-      if (input === "G") {
-        setDetailScroll(maxDetailScroll);
-        return;
-      }
+      handleListDetailKey(input, key, {
+        focusRef,
+        setFocus,
+        itemCountRef,
+        maxDetailScrollRef,
+        setSelectedIndex,
+        setDetailScroll,
+        pageScrollLines: PAGE_SCROLL_LINES,
+      });
     },
     { isActive },
   );
@@ -316,27 +271,71 @@ export const ToolPanel = memo(function ToolPanel({
         flexGrow={1}
         height={visibleRows + 1}
         paddingX={1}
+        {...detailPaneBorderProps(focus)}
         overflow="hidden"
       >
-        {detailVisible.map((line, i) => {
-          const lineNum = detailScroll + i;
-          return <Text key={lineNum}>{line || " "}</Text>;
-        })}
-        {detailLines.length > visibleRows && (
-          <Box>
-            <Text dimColor>
-              ↑↓ select · j/k scroll · J/K page · g/G top/bottom · [
-              {detailScroll + 1}–
-              {Math.min(detailScroll + visibleRows, detailLines.length)} of{" "}
-              {detailLines.length}]
-            </Text>
+        {selectedTool && <ToolDetailHeader tool={selectedTool} />}
+        <Box flexDirection="row" flexGrow={1} overflow="hidden">
+          <Box flexDirection="column" flexGrow={1} overflow="hidden">
+            {detailVisible.map((line, i) => {
+              const lineNum = detailScroll + i;
+              return (
+                <Text key={lineNum} wrap="truncate-end">
+                  {line || " "}
+                </Text>
+              );
+            })}
           </Box>
-        )}
-        {detailLines.length <= visibleRows && <Box flexGrow={1} />}
-        {detailLines.length <= visibleRows && (
-          <Text dimColor>↑↓ select tool calls</Text>
-        )}
+          <Scrollbar
+            total={detailLines.length}
+            visible={visibleRows - 3}
+            offset={detailScroll}
+            height={visibleRows - 3}
+            focused={focus === "detail"}
+          />
+        </Box>
+        <Text dimColor>
+          {focus === "detail"
+            ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
+            : "↑↓ select · → enter detail"}
+        </Text>
       </Box>
     </Box>
   );
 });
+
+function ToolDetailHeader({ tool }: { tool: ToolCallData }) {
+  const { displayName } = resolveToolDisplay(tool.name, tool.input);
+  const time = tool.timestamp.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const isMcp = tool.name === "mcp_exec";
+  const status = tool.running
+    ? { color: theme.accent, label: "⟳ running" }
+    : tool.isError
+      ? { color: theme.error, label: "✘ error" }
+      : tool.output
+        ? { color: theme.success, label: "✔ done" }
+        : { color: theme.muted, label: "— no output" };
+  return (
+    <Box flexDirection="column">
+      <Box>
+        <Text bold color={theme.info} wrap="truncate-end">
+          {displayName}
+        </Text>
+      </Box>
+      <Box>
+        <Text wrap="truncate-end">
+          <Text dimColor>{isMcp ? "mcp_exec · " : ""}</Text>
+          <Text color={status.color}>{status.label}</Text>
+          <Text dimColor> · {time}</Text>
+        </Text>
+      </Box>
+      <Box>
+        <Text dimColor>{"─".repeat(2)}</Text>
+      </Box>
+    </Box>
+  );
+}

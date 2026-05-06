@@ -5,13 +5,21 @@ export function registerChatCommand(program: Command) {
     .command("chat")
     .description(
       "Open the interactive chat TUI\n\n" +
-        "  Keyboard shortcuts:\n" +
+        "  Tab navigation (Ctrl+<letter> from any tab):\n" +
+        "    Ctrl+a  Chat        Ctrl+t  Tasks       Ctrl+w  Workers\n" +
+        "    Ctrl+o  Tools       Ctrl+r  Threads     ?       Help (non-chat)\n" +
+        "    Ctrl+n  Context     Ctrl+s  Schedules   Esc     Return to Chat\n\n" +
+        "  Chat input:\n" +
         "    Enter          Send message\n" +
-        "    ⌥+Enter        Insert newline (multiline input)\n" +
-        "    ↑/↓            Browse input history\n\n" +
-        "  Commands:\n" +
-        "    /help           Show keyboard shortcuts\n" +
-        "    /tools          Open tool call inspector\n" +
+        "    ⌥+Enter        Insert newline\n" +
+        "    ↑/↓            Browse input history\n" +
+        "    Esc            Steer / abort an in-flight turn\n" +
+        "    Ctrl+J/K       Navigate queued messages\n" +
+        "    Ctrl+E/X       Edit / remove the selected queued message\n\n" +
+        "  Slash commands:\n" +
+        "    /help           Show chat-command reference (Help tab has the full keymap)\n" +
+        "    /skills         List available skills\n" +
+        "    /clear          End current thread and start a new one\n" +
         "    /exit           End the chat session",
     )
     .option("--thread-id <id>", "Resume an existing chat thread")

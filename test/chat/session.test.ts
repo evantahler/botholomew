@@ -105,4 +105,28 @@ describe("clearChatSession", () => {
       await endChatSession(session);
     }
   });
+
+  test("aborts an in-flight stream so its callbacks stop firing", async () => {
+    // Issue #190: /clear must abort the active stream synchronously so the
+    // turn it interrupts can't finalize a stale assistant segment into the
+    // freshly-cleared UI on the next user submission.
+    const session = await startChatSession(projectDir);
+    try {
+      let aborted = false;
+      const fakeStream = {
+        aborted: false,
+        abort() {
+          aborted = true;
+          this.aborted = true;
+        },
+      };
+      // biome-ignore lint/suspicious/noExplicitAny: minimal MessageStream shape for the abort path
+      session.activeStream = fakeStream as any;
+      await clearChatSession(session);
+      expect(aborted).toBe(true);
+      expect(session.activeStream).toBeNull();
+    } finally {
+      await endChatSession(session);
+    }
+  });
 });

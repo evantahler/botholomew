@@ -9,7 +9,14 @@ import {
   listThreads,
   type Thread,
 } from "../../threads/store.ts";
+import {
+  detailPaneBorderProps,
+  type FocusState,
+  handleListDetailKey,
+} from "../listDetailKeys.ts";
 import { ansi, theme } from "../theme.ts";
+import { useLatestRef } from "../useLatestRef.ts";
+import { Scrollbar } from "./Scrollbar.tsx";
 
 interface ThreadPanelProps {
   projectDir: string;
@@ -38,11 +45,6 @@ const TYPE_ICONS: Record<Thread["type"], string> = {
 const TYPE_COLORS: Record<Thread["type"], string> = {
   worker_tick: theme.accent,
   chat_session: theme.info,
-};
-
-const TYPE_ANSI: Record<Thread["type"], string> = {
-  worker_tick: ansi.accent,
-  chat_session: ansi.info,
 };
 
 const ROLE_ANSI: Record<string, string> = {
@@ -76,44 +78,18 @@ function formatDate(d: Date): string {
 function buildThreadDetailAnsi(
   thread: Thread,
   interactions: Interaction[],
-  isActiveThread: boolean,
+  _isActiveThread: boolean,
 ): string {
   const lines: string[] = [];
 
-  lines.push(
-    `${ansi.bold}${ansi.italic}${ansi.info}${thread.title || "(untitled)"}${ansi.reset}`,
-  );
-  lines.push("");
-
-  const typeAnsi = TYPE_ANSI[thread.type];
-  lines.push(
-    `${ansi.bold}${ansi.primary}Type${ansi.reset}      ${typeAnsi}${TYPE_ICONS[thread.type]} ${TYPE_LABELS[thread.type]}${ansi.reset}`,
-  );
-
+  // Body only — title/type/timing live in the panel header.
   if (thread.task_id) {
     lines.push(
       `${ansi.bold}${ansi.primary}Task${ansi.reset}      ${ansi.dim}${thread.task_id}${ansi.reset}`,
     );
-  }
-
-  lines.push(
-    `${ansi.bold}${ansi.primary}Started${ansi.reset}   ${ansi.dim}${formatDate(thread.started_at)}${ansi.reset}`,
-  );
-  lines.push(
-    `${ansi.bold}${ansi.primary}Ended${ansi.reset}     ${thread.ended_at ? `${ansi.dim}${formatDate(thread.ended_at)}${ansi.reset}` : `${ansi.success}ongoing${ansi.reset}`}`,
-  );
-  lines.push(
-    `${ansi.bold}${ansi.primary}Duration${ansi.reset}  ${ansi.dim}${formatDuration(thread.started_at, thread.ended_at)}${ansi.reset}`,
-  );
-
-  if (isActiveThread) {
     lines.push("");
-    lines.push(
-      `${ansi.bold}${ansi.success}★ Current session thread${ansi.reset}`,
-    );
   }
 
-  lines.push("");
   lines.push(
     `${ansi.bold}${ansi.primary}Interactions${ansi.reset}  ${interactions.length} total`,
   );
@@ -189,6 +165,7 @@ export const ThreadPanel = memo(function ThreadPanel({
   const [threads, setThreads] = useState<Thread[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [detailScroll, setDetailScroll] = useState(0);
+  const [focus, setFocus] = useState<FocusState>("list");
   const [typeFilter, setTypeFilter] = useState<Thread["type"] | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -346,10 +323,21 @@ export const ThreadPanel = memo(function ThreadPanel({
     setRefreshTick((t) => t + 1);
   }, []);
 
+  // Mirror state into refs to dodge Ink's stale-closure bug.
+  const itemCountRef = useLatestRef(filteredThreads.length);
+  const maxDetailScrollRef = useLatestRef(maxDetailScroll);
+  const selectedThreadRef = useLatestRef(selectedThread);
+  const selectedDetailRef = useLatestRef(selectedDetail);
+  const searchingRef = useLatestRef(searching);
+  const confirmDeleteRef = useLatestRef(confirmDelete);
+  const isActiveSelectedRef = useLatestRef(isActiveSelected);
+  const followingRef = useLatestRef(following);
+  const focusRef = useLatestRef(focus);
+
   useInput(
     (input, key) => {
       // Search mode: capture typed characters
-      if (searching) {
+      if (searchingRef.current) {
         if (key.escape) {
           setSearching(false);
           setSearchQuery("");
@@ -373,10 +361,11 @@ export const ThreadPanel = memo(function ThreadPanel({
       }
 
       // Delete confirmation mode
-      if (confirmDelete) {
+      if (confirmDeleteRef.current) {
         if (input === "y" || input === "d") {
-          if (selectedThread && !isActiveSelected) {
-            deleteThread(projectDir, selectedThread.id).then(() => {
+          const t = selectedThreadRef.current;
+          if (t && !isActiveSelectedRef.current) {
+            deleteThread(projectDir, t.id).then(() => {
               forceRefresh();
             });
           }
@@ -387,47 +376,17 @@ export const ThreadPanel = memo(function ThreadPanel({
         return;
       }
 
-      if (key.upArrow) {
-        if (key.shift) {
-          setDetailScroll((s) => Math.max(0, s - 1));
-        } else {
-          setSelectedIndex((i) => Math.max(0, i - 1));
-        }
-        return;
-      }
-      if (key.downArrow) {
-        if (key.shift) {
-          setDetailScroll((s) => Math.min(maxDetailScroll, s + 1));
-        } else {
-          setSelectedIndex((i) => Math.min(filteredThreads.length - 1, i + 1));
-        }
-        return;
-      }
-
-      if (input === "j") {
-        setDetailScroll((s) => Math.min(maxDetailScroll, s + 1));
-        return;
-      }
-      if (input === "k") {
-        setDetailScroll((s) => Math.max(0, s - 1));
-        return;
-      }
-      if (input === "J") {
-        setDetailScroll((s) =>
-          Math.min(maxDetailScroll, s + PAGE_SCROLL_LINES),
-        );
-        return;
-      }
-      if (input === "K") {
-        setDetailScroll((s) => Math.max(0, s - PAGE_SCROLL_LINES));
-        return;
-      }
-      if (input === "g") {
-        setDetailScroll(0);
-        return;
-      }
-      if (input === "G") {
-        setDetailScroll(maxDetailScroll);
+      if (
+        handleListDetailKey(input, key, {
+          focusRef,
+          setFocus,
+          itemCountRef,
+          maxDetailScrollRef,
+          setSelectedIndex,
+          setDetailScroll,
+          pageScrollLines: PAGE_SCROLL_LINES,
+        })
+      ) {
         return;
       }
 
@@ -435,8 +394,8 @@ export const ThreadPanel = memo(function ThreadPanel({
         setTypeFilter((f) => cycleFilter(f, THREAD_TYPES));
         return;
       }
-      if (input === "d" && selectedThread) {
-        if (isActiveSelected) return; // Can't delete active thread
+      if (input === "d" && selectedThreadRef.current) {
+        if (isActiveSelectedRef.current) return; // Can't delete active thread
         setConfirmDelete(true);
         return;
       }
@@ -449,14 +408,17 @@ export const ThreadPanel = memo(function ThreadPanel({
         setSearchQuery("");
         return;
       }
-      if (input === "w" && selectedThread) {
-        if (following) {
+      if (input === "w") {
+        const t = selectedThreadRef.current;
+        if (!t) return;
+        if (followingRef.current) {
           setFollowing(false);
-        } else if (!selectedThread.ended_at) {
-          const maxSeq = selectedDetail?.interactions.at(-1)?.sequence ?? 0;
+        } else if (!t.ended_at) {
+          const maxSeq =
+            selectedDetailRef.current?.interactions.at(-1)?.sequence ?? 0;
           lastSeenSequenceRef.current = maxSeq;
           setFollowing(true);
-          setDetailScroll(maxDetailScroll);
+          setDetailScroll(maxDetailScrollRef.current);
         }
         return;
       }
@@ -583,46 +545,97 @@ export const ThreadPanel = memo(function ThreadPanel({
         flexGrow={1}
         height={visibleRows + 1}
         paddingX={1}
+        {...detailPaneBorderProps(focus)}
         overflow="hidden"
       >
-        {detailVisible.map((line, i) => {
-          const lineNum = detailScroll + i;
-          return <Text key={lineNum}>{line || " "}</Text>;
-        })}
-        {detailLines.length > visibleRows && (
-          <Box>
-            {following && (
-              <Text color={theme.success} bold>
-                {" "}
-                FOLLOWING{" "}
-              </Text>
-            )}
-            <Text dimColor>
-              s search · f filter · ↑↓ select · j/k scroll · d delete ·
-              {selectedThread && !selectedThread.ended_at ? " w follow ·" : ""}{" "}
-              r refresh · [{detailScroll + 1}–
-              {Math.min(detailScroll + visibleRows, detailLines.length)} of{" "}
-              {detailLines.length}]
-            </Text>
-          </Box>
+        {selectedThread && (
+          <ThreadDetailHeader
+            thread={selectedThread}
+            isActiveThread={isActiveSelected}
+          />
         )}
-        {detailLines.length <= visibleRows && <Box flexGrow={1} />}
-        {detailLines.length <= visibleRows && (
-          <Box>
-            {following && (
-              <Text color={theme.success} bold>
-                {" "}
-                FOLLOWING{" "}
-              </Text>
-            )}
-            <Text dimColor>
-              s search · f filter · ↑↓ select · d delete ·
-              {selectedThread && !selectedThread.ended_at ? " w follow ·" : ""}{" "}
-              r refresh
-            </Text>
+        <Box flexDirection="row" flexGrow={1} overflow="hidden">
+          <Box flexDirection="column" flexGrow={1} overflow="hidden">
+            {detailVisible.map((line, i) => {
+              const lineNum = detailScroll + i;
+              return (
+                <Text key={lineNum} wrap="truncate-end">
+                  {line || " "}
+                </Text>
+              );
+            })}
           </Box>
-        )}
+          <Scrollbar
+            total={detailLines.length}
+            visible={visibleRows - 3}
+            offset={detailScroll}
+            height={visibleRows - 3}
+            focused={focus === "detail"}
+          />
+        </Box>
+        <Box>
+          {following && (
+            <Text color={theme.success} bold>
+              {" "}
+              FOLLOWING{" "}
+            </Text>
+          )}
+          <Text dimColor>
+            {focus === "detail"
+              ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
+              : `↑↓ select · → enter detail · s search · f filter · d delete${selectedThread && !selectedThread.ended_at ? " · w follow" : ""} · r refresh`}
+          </Text>
+        </Box>
       </Box>
     </Box>
   );
 });
+
+function ThreadDetailHeader({
+  thread,
+  isActiveThread,
+}: {
+  thread: Thread;
+  isActiveThread: boolean;
+}) {
+  return (
+    <Box flexDirection="column">
+      <Box>
+        <Text wrap="truncate-end">
+          <Text bold italic color={theme.info}>
+            {thread.title || "(untitled)"}
+          </Text>
+          {isActiveThread && (
+            <Text bold color={theme.success}>
+              {" ★"}
+            </Text>
+          )}
+        </Text>
+      </Box>
+      <Box>
+        <Text wrap="truncate-end">
+          <Text color={TYPE_COLORS[thread.type]}>
+            {TYPE_ICONS[thread.type]} {TYPE_LABELS[thread.type]}
+          </Text>
+          <Text dimColor>
+            {" · started "}
+            {formatDate(thread.started_at)}
+            {" · "}
+          </Text>
+          {thread.ended_at ? (
+            <Text dimColor>ended {formatDate(thread.ended_at)}</Text>
+          ) : (
+            <Text color={theme.success}>ongoing</Text>
+          )}
+          <Text dimColor>
+            {" · "}
+            {formatDuration(thread.started_at, thread.ended_at)}
+          </Text>
+        </Text>
+      </Box>
+      <Box>
+        <Text dimColor>{"─".repeat(2)}</Text>
+      </Box>
+    </Box>
+  );
+}

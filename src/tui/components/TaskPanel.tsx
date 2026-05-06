@@ -6,7 +6,14 @@ import {
   type Task,
 } from "../../tasks/schema.ts";
 import { deleteTask, listTasks } from "../../tasks/store.ts";
+import {
+  detailPaneBorderProps,
+  type FocusState,
+  handleListDetailKey,
+} from "../listDetailKeys.ts";
 import { ansi, theme } from "../theme.ts";
+import { useLatestRef } from "../useLatestRef.ts";
+import { Scrollbar } from "./Scrollbar.tsx";
 
 interface TaskPanelProps {
   projectDir: string;
@@ -32,14 +39,6 @@ const STATUS_COLORS: Record<Task["status"], string> = {
   complete: theme.success,
 };
 
-const STATUS_ANSI: Record<Task["status"], string> = {
-  pending: ansi.muted,
-  in_progress: ansi.accent,
-  waiting: ansi.info,
-  failed: ansi.error,
-  complete: ansi.success,
-};
-
 const PRIORITY_LABELS: Record<Task["priority"], string> = {
   high: "HI",
   medium: "MD",
@@ -50,12 +49,6 @@ const PRIORITY_COLORS: Record<Task["priority"], string> = {
   high: theme.error,
   medium: theme.accent,
   low: theme.muted,
-};
-
-const PRIORITY_ANSI: Record<Task["priority"], string> = {
-  high: ansi.error,
-  medium: ansi.accent,
-  low: ansi.muted,
 };
 
 function formatTimestamp(iso: string): string {
@@ -72,28 +65,10 @@ function formatTimestamp(iso: string): string {
 function buildTaskDetailAnsi(task: Task): string {
   const lines: string[] = [];
 
-  lines.push(`${ansi.bold}${ansi.info}${task.name}${ansi.reset}`);
-  lines.push("");
-
-  const statusAnsi = STATUS_ANSI[task.status];
-  lines.push(
-    `${ansi.bold}${ansi.primary}Status${ansi.reset}    ${statusAnsi}${STATUS_ICONS[task.status]} ${task.status}${ansi.reset}`,
-  );
-
-  const priorityAnsi = PRIORITY_ANSI[task.priority];
-  lines.push(
-    `${ansi.bold}${ansi.primary}Priority${ansi.reset}  ${priorityAnsi}${task.priority}${ansi.reset}`,
-  );
-
+  // Body only — name/status/priority/claim/timestamps are rendered in the
+  // panel header.
   lines.push(
     `${ansi.bold}${ansi.primary}Claimed${ansi.reset}   ${task.claimed_by ? task.claimed_by : `${ansi.dim}(unclaimed)${ansi.reset}`}`,
-  );
-
-  lines.push(
-    `${ansi.bold}${ansi.primary}Created${ansi.reset}   ${ansi.dim}${formatTimestamp(task.created_at)}${ansi.reset}`,
-  );
-  lines.push(
-    `${ansi.bold}${ansi.primary}Updated${ansi.reset}   ${ansi.dim}${formatTimestamp(task.updated_at)}${ansi.reset}`,
   );
   lines.push("");
 
@@ -149,6 +124,7 @@ export const TaskPanel = memo(function TaskPanel({
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [detailScroll, setDetailScroll] = useState(0);
+  const [focus, setFocus] = useState<FocusState>("list");
   const [statusFilter, setStatusFilter] = useState<Task["status"] | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<Task["priority"] | null>(
     null,
@@ -218,49 +194,24 @@ export const TaskPanel = memo(function TaskPanel({
     setRefreshTick((t) => t + 1);
   }, []);
 
+  const itemCountRef = useLatestRef(tasks.length);
+  const maxDetailScrollRef = useLatestRef(maxDetailScroll);
+  const selectedTaskRef = useLatestRef(selectedTask);
+  const focusRef = useLatestRef(focus);
+
   useInput(
     (input, key) => {
-      if (key.upArrow) {
-        if (key.shift) {
-          setDetailScroll((s) => Math.max(0, s - 1));
-        } else {
-          setSelectedIndex((i) => Math.max(0, i - 1));
-        }
-        return;
-      }
-      if (key.downArrow) {
-        if (key.shift) {
-          setDetailScroll((s) => Math.min(maxDetailScroll, s + 1));
-        } else {
-          setSelectedIndex((i) => Math.min(tasks.length - 1, i + 1));
-        }
-        return;
-      }
-
-      if (input === "j") {
-        setDetailScroll((s) => Math.min(maxDetailScroll, s + 1));
-        return;
-      }
-      if (input === "k") {
-        setDetailScroll((s) => Math.max(0, s - 1));
-        return;
-      }
-      if (input === "J") {
-        setDetailScroll((s) =>
-          Math.min(maxDetailScroll, s + PAGE_SCROLL_LINES),
-        );
-        return;
-      }
-      if (input === "K") {
-        setDetailScroll((s) => Math.max(0, s - PAGE_SCROLL_LINES));
-        return;
-      }
-      if (input === "g") {
-        setDetailScroll(0);
-        return;
-      }
-      if (input === "G") {
-        setDetailScroll(maxDetailScroll);
+      if (
+        handleListDetailKey(input, key, {
+          focusRef,
+          setFocus,
+          itemCountRef,
+          maxDetailScrollRef,
+          setSelectedIndex,
+          setDetailScroll,
+          pageScrollLines: PAGE_SCROLL_LINES,
+        })
+      ) {
         return;
       }
 
@@ -272,8 +223,10 @@ export const TaskPanel = memo(function TaskPanel({
         setPriorityFilter((f) => cycleFilter(f, TASK_PRIORITIES));
         return;
       }
-      if (input === "d" && selectedTask) {
-        deleteTask(projectDir, selectedTask.id).then(() => {
+      if (input === "d") {
+        const t = selectedTaskRef.current;
+        if (!t) return;
+        deleteTask(projectDir, t.id).then(() => {
           forceRefresh();
         });
         return;
@@ -383,29 +336,67 @@ export const TaskPanel = memo(function TaskPanel({
         flexGrow={1}
         height={visibleRows + 1}
         paddingX={1}
+        {...detailPaneBorderProps(focus)}
         overflow="hidden"
       >
-        {detailVisible.map((line, i) => {
-          const lineNum = detailScroll + i;
-          return <Text key={lineNum}>{line || " "}</Text>;
-        })}
-        {detailLines.length > visibleRows && (
-          <Box>
-            <Text dimColor>
-              f filter · p priority · ↑↓ select · j/k scroll · d delete · r
-              refresh · [{detailScroll + 1}–
-              {Math.min(detailScroll + visibleRows, detailLines.length)} of{" "}
-              {detailLines.length}]
-            </Text>
+        {selectedTask && <TaskDetailHeader task={selectedTask} />}
+        <Box flexDirection="row" flexGrow={1} overflow="hidden">
+          <Box flexDirection="column" flexGrow={1} overflow="hidden">
+            {detailVisible.map((line, i) => {
+              const lineNum = detailScroll + i;
+              return (
+                <Text key={lineNum} wrap="truncate-end">
+                  {line || " "}
+                </Text>
+              );
+            })}
           </Box>
-        )}
-        {detailLines.length <= visibleRows && <Box flexGrow={1} />}
-        {detailLines.length <= visibleRows && (
-          <Text dimColor>
-            f filter · p priority · ↑↓ select · d delete · r refresh
-          </Text>
-        )}
+          <Scrollbar
+            total={detailLines.length}
+            visible={visibleRows - 3}
+            offset={detailScroll}
+            height={visibleRows - 3}
+            focused={focus === "detail"}
+          />
+        </Box>
+        <Text dimColor>
+          {focus === "detail"
+            ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
+            : "↑↓ select · → enter detail · f filter · p priority · d delete · r refresh"}
+        </Text>
       </Box>
     </Box>
   );
 });
+
+function TaskDetailHeader({ task }: { task: Task }) {
+  return (
+    <Box flexDirection="column">
+      <Box>
+        <Text bold color={theme.info} wrap="truncate-end">
+          {task.name}
+        </Text>
+      </Box>
+      <Box>
+        <Text wrap="truncate-end">
+          <Text color={STATUS_COLORS[task.status]}>
+            {STATUS_ICONS[task.status]} {task.status}
+          </Text>
+          <Text dimColor> · </Text>
+          <Text color={PRIORITY_COLORS[task.priority]}>
+            {PRIORITY_LABELS[task.priority]}
+          </Text>
+          <Text dimColor>
+            {" · created "}
+            {formatTimestamp(task.created_at)}
+            {" · updated "}
+            {formatTimestamp(task.updated_at)}
+          </Text>
+        </Text>
+      </Box>
+      <Box>
+        <Text dimColor>{"─".repeat(2)}</Text>
+      </Box>
+    </Box>
+  );
+}

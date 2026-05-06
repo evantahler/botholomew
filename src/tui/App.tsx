@@ -47,6 +47,21 @@ function msgId(): string {
   return `msg-${++nextMsgId}`;
 }
 
+// Tab routing: Ctrl+<letter> jumps to a tab. Chosen for memorability — first
+// available letter that doesn't collide with other Ctrl bindings (Ctrl+C exit,
+// Ctrl+J/K/X/E queue ops on Chat). Help is bound to `?` instead of Ctrl+H
+// because most terminals send Ctrl+H as ASCII 0x08 (backspace), which Ink
+// reports as `key.backspace=true`, not `input='h'`.
+const TAB_BY_CTRL_KEY: Record<string, TabId> = {
+  a: 1, // ch[a]t
+  o: 2, // t[o]ols
+  n: 3, // co[n]text
+  t: 4, // [t]asks
+  r: 5, // th[r]eads
+  s: 6, // [s]chedules
+  w: 7, // [w]orkers
+};
+
 function detectToolError(output: string | undefined): boolean {
   if (!output) return false;
   try {
@@ -187,7 +202,7 @@ export function App({
             id: msgId(),
             role: "system" as const,
             content:
-              "Press Tab to switch between panels. Type /help for commands.",
+              "Switch panels with Ctrl+<letter> (^a chat · ^o tools · ^n context · ^t tasks · ^r threads · ^s schedules · ^w workers) — `?` for help. Type /help for commands.",
             timestamp: new Date(),
           },
         ]);
@@ -259,17 +274,30 @@ export function App({
         return;
       }
 
-      // Tab key cycles tabs — but on the Chat tab, let InputBar consume it
-      // whenever the slash autocomplete popup would be open.
-      if (key.tab && !key.shift) {
-        if (activeTabRef.current === 1) {
-          const popupOpen = getSlashMatches(
-            inputValueRef.current,
-            slashCommandsRef.current,
-          );
-          if (popupOpen) return;
+      // Ctrl+<letter> jumps directly to a tab from any tab. On Chat, only
+      // suppress these if the slash-autocomplete popup needs the keystroke
+      // (Ctrl combos don't drive the popup, but keep the guard symmetric
+      // with the previous Tab-cycle behavior).
+      if (key.ctrl) {
+        const tabForKey = TAB_BY_CTRL_KEY[input];
+        if (tabForKey !== undefined) {
+          if (activeTabRef.current === 1) {
+            const popupOpen = getSlashMatches(
+              inputValueRef.current,
+              slashCommandsRef.current,
+            );
+            if (popupOpen) return;
+          }
+          setActiveTab(tabForKey);
+          return;
         }
-        setActiveTab((t) => ((t % 8) + 1) as TabId);
+      }
+
+      // `?` jumps to the Help tab from any non-chat tab (on Chat, `?` is
+      // a regular character). Acts as the Help shortcut since Ctrl+H is
+      // unusable — most terminals send it as backspace.
+      if (input === "?" && activeTabRef.current !== 1) {
+        setActiveTab(8);
         return;
       }
 
@@ -316,12 +344,6 @@ export function App({
       }
 
       if (tab !== 1) {
-        // Number keys jump to tab on non-chat tabs
-        const num = Number.parseInt(input, 10);
-        if (num >= 1 && num <= 8) {
-          setActiveTab(num as TabId);
-          return;
-        }
         // Escape returns to chat
         if (key.escape) {
           setActiveTab(1);
@@ -512,81 +534,30 @@ export function App({
 
       if (trimmed === "/help") {
         const skills = sessionRef.current.skills;
-        const skillLines: string[] = [];
+        const lines: string[] = [
+          "For the full keyboard reference, switch to the Help tab (`?` from any non-chat tab) — this message lists chat commands only.",
+          "",
+          "Slash commands:",
+          "  /help           Show this message",
+          "  /skills         List available skills",
+          "  /clear          End current thread and start a new one",
+          "  /exit           End the chat session",
+        ];
         if (skills.size > 0) {
-          skillLines.push("", "Skills:");
+          lines.push("", "Skills:");
           for (const [skillName, skill] of skills) {
-            skillLines.push(
+            lines.push(
               `  /${skillName.padEnd(14)} ${skill.description || "(no description)"}`,
             );
           }
         } else {
-          skillLines.push("", "Skills:", "  (none — add .md files to skills/)");
+          lines.push("", "Skills:", "  (none — add .md files to skills/)");
         }
 
         const helpMsg: ChatMessage = {
           id: msgId(),
           role: "system",
-          content: [
-            "Navigation:",
-            "  Tab            Cycle between panels",
-            "  1-7            Jump to panel (when not in Chat)",
-            "  Escape         Return to Chat",
-            "",
-            "Chat (Tab 1):",
-            "  Enter          Send message",
-            "  ⌥+Enter        Insert newline",
-            "  ↑/↓            Browse input history",
-            "  /              Open slash-command autocomplete",
-            "  Enter          Run highlighted command / insert if it takes args (popup open)",
-            "  Tab            Insert highlighted command without submitting (popup open)",
-            "  ↑/↓            Move highlight (popup open)",
-            "  Esc            Close popup",
-            "",
-            "Tools (Tab 2):",
-            "  ↑/↓            Select tool call",
-            "  Shift+↑/↓      Scroll detail pane",
-            "  j/k            Scroll detail pane",
-            "",
-            "Context (Tab 3):",
-            "  ↑/↓            Navigate items",
-            "  Enter          Expand directory / preview file",
-            "  Backspace      Go up one directory",
-            "  /              Search context",
-            "  d              Delete selected item",
-            "",
-            "Tasks (Tab 4):",
-            "  ↑/↓            Navigate task list",
-            "  Shift+↑/↓      Scroll detail pane",
-            "  j/k            Scroll detail pane",
-            "  f              Cycle status filter",
-            "  p              Cycle priority filter",
-            "  r              Refresh tasks",
-            "",
-            "Threads (Tab 5):",
-            "  ↑/↓            Navigate thread list",
-            "  Shift+↑/↓      Scroll detail pane",
-            "  j/k            Scroll detail pane",
-            "  f              Cycle type filter",
-            "  d              Delete thread (with confirmation)",
-            "  r              Refresh threads",
-            "",
-            "Schedules (Tab 6):",
-            "  ↑/↓            Navigate schedule list",
-            "  Shift+↑/↓      Scroll detail pane",
-            "  j/k            Scroll detail pane",
-            "  f              Cycle enabled/disabled filter",
-            "  e              Toggle enable/disable",
-            "  d              Delete schedule (with confirmation)",
-            "  r              Refresh schedules",
-            "",
-            "Commands:",
-            "  /help           Show this help",
-            "  /skills         List available skills",
-            "  /clear          End current thread and start a new one",
-            "  /exit           End the chat session",
-            ...skillLines,
-          ].join("\n"),
+          content: lines.join("\n"),
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, helpMsg]);
@@ -622,8 +593,23 @@ export function App({
             // Drain any queued messages so they don't leak into the new thread.
             queueRef.current.length = 0;
             syncQueue();
-            clearChatSession(session)
-              .then(({ previousThreadId, newThreadId }) => {
+            // Abort any in-flight stream synchronously so its callbacks stop
+            // firing before we reset UI state. clearChatSession also calls
+            // this, but doing it here lets us start the wait-for-quiesce
+            // poll below immediately rather than waiting on the
+            // createThread/endThread round trip first.
+            abortActiveStream(session);
+            void (async () => {
+              // Wait for any in-flight processQueue iteration to finish so
+              // its trailing `finalizeSegment` can't race our state reset
+              // and re-add the previous thread's assistant message after
+              // the UI has been cleared. (Issue #190.)
+              while (processingRef.current) {
+                await new Promise((r) => setTimeout(r, 10));
+              }
+              try {
+                const { previousThreadId, newThreadId } =
+                  await clearChatSession(session);
                 // Ink's <Static> writes messages to terminal scrollback and
                 // can't un-write them, so setMessages alone leaves the old
                 // lines visible. Clear the terminal (including scrollback)
@@ -639,8 +625,10 @@ export function App({
                 ]);
                 setMessagesEpoch((n) => n + 1);
                 setChatTitle(undefined);
-              })
-              .catch((err) => {
+                setStreamingText("");
+                setActiveToolCalls([]);
+                setPreparingTool(null);
+              } catch (err) {
                 setMessages((prev) => [
                   ...prev,
                   {
@@ -650,7 +638,8 @@ export function App({
                     timestamp: new Date(),
                   },
                 ]);
-              });
+              }
+            })();
           },
         });
         if (handled) return;
