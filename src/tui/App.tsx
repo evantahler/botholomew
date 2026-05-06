@@ -195,6 +195,12 @@ function AppInner({
   }, [stdout]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messagesEpoch, setMessagesEpoch] = useState(0);
+  // `clearing` gates new submissions while /clear's async work is in flight.
+  // Without it, a message submitted during the clearChatSession await runs
+  // sendMessage against the OLD thread id, then the IIFE's setMessages([sys])
+  // overwrites the user bubble it added — the message disappears.
+  const [clearing, setClearing] = useState(false);
+  const clearingRef = useRef(false);
   const [usage, setUsage] = useState<ContextUsage | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [inputHistory, setInputHistory] = useState<string[]>([]);
@@ -595,6 +601,8 @@ function AppInner({
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || !sessionRef.current) return;
+      // /clear is mid-flight: don't queue against the old thread id.
+      if (clearingRef.current) return;
 
       setInputValue("");
 
@@ -665,6 +673,12 @@ function AppInner({
             // poll below immediately rather than waiting on the
             // createThread/endThread round trip first.
             abortActiveStream(session);
+            // Block new submissions until the new thread id is in place —
+            // otherwise the user's first post-/clear message races the
+            // async createThread, runs against the old thread id, and is
+            // then wiped by setMessages([sys]) below.
+            clearingRef.current = true;
+            setClearing(true);
             void (async () => {
               // Wait for any in-flight processQueue iteration to finish so
               // its trailing `finalizeSegment` can't race our state reset
@@ -705,6 +719,9 @@ function AppInner({
                     timestamp: new Date(),
                   },
                 ]);
+              } finally {
+                clearingRef.current = false;
+                setClearing(false);
               }
             })();
           },
@@ -888,7 +905,7 @@ function AppInner({
         value={inputValue}
         onChange={setInputValue}
         onSubmit={handleSubmit}
-        disabled={activeTab !== 1}
+        disabled={activeTab !== 1 || clearing}
         history={inputHistory}
         header={inputBarHeader}
         slashCommands={slashCommands}
