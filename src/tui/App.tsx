@@ -50,6 +50,14 @@ function msgId(): string {
   return `msg-${++nextMsgId}`;
 }
 
+// Conservative line reservation for the bottom chrome — StatusBar (1) +
+// bordered InputBar (3) + multiline hint (1) + TabBar (1) + slack for the
+// SlashCommandPopup or QueuePanel (~4). The chat-tab body's `maxHeight` and
+// the panel boxes' `height` both subtract this from `rows` so the dynamic
+// frame's total output stays strictly below the viewport — see the comment
+// on the `rows` state in `AppInner` for why that matters.
+const FOOTER_RESERVE = 10;
+
 // Tab routing: Ctrl+<letter> jumps to a tab. Chosen for memorability — first
 // available letter that doesn't collide with other Ctrl bindings (Ctrl+C exit,
 // Ctrl+J/K/X/E queue ops on Chat).
@@ -176,14 +184,13 @@ function AppInner({
   const { exit } = useApp();
   const { stdout } = useStdout();
   const { markActivity } = useIdle();
-  // Pin the root box to a known viewport height so the rendered frame size
-  // never crosses the viewport boundary. Ink 7's renderer wipes scrollback
-  // (`shouldClearTerminalForFrame` → `ansiEscapes.clearTerminal`) whenever
-  // the dynamic frame transitions in/out of fullscreen, so a fluctuating
-  // `outputHeight` (streaming text + tool boxes appearing/disappearing) used
-  // to delete the chat history on every turn. Ink doesn't pin a height on
-  // its internal root, so a `height="100%"` on our root collapses to `auto`
-  // — we have to pass the explicit row count and re-read it on resize.
+  // Track the terminal's row count so we can cap the dynamic frame strictly
+  // below fullscreen. Ink 7 wipes scrollback (`shouldClearTerminalForFrame`
+  // → `ansiEscapes.clearTerminal`) whenever the dynamic frame is overflowing
+  // or transitions out of fullscreen — so as long as the rendered output
+  // height stays < `rows` on every render, scrollback is preserved. The
+  // chat-tab body and the seven panel boxes use this value to set explicit
+  // height/maxHeight constraints.
   const [rows, setRows] = useState(stdout?.rows ?? 24);
   useEffect(() => {
     if (!stdout) return;
@@ -808,8 +815,23 @@ function AppInner({
   const _dbPath = sessionRef.current.dbPath;
   const threadId = sessionRef.current.threadId;
 
+  const panelHeight = Math.max(1, rows - FOOTER_RESERVE);
+  const onChatTab = activeTab === 1;
+
   return (
-    <Box flexDirection="column" height={rows} overflow="hidden">
+    // The root box is auto-sized on the chat tab so the dynamic frame stays
+    // small and the static-rendered chat history (in scrollback above the
+    // frame) flows directly into the streaming reply with no blank pad.
+    //
+    // On every other tab we pin the root to `height={rows}` so the dynamic
+    // frame fills the entire viewport — without that, the panel + footer
+    // are shorter than the terminal and the bottom of the chat scrollback
+    // bleeds through above the active panel. Switching chat→panel goes
+    // small→rows (no wipe, since `nextOutputHeight === viewportRows` is
+    // not "overflowing"). Switching panel→chat goes rows→small, which
+    // does trip Ink's `isLeavingFullscreen` clear, but Ink immediately
+    // re-emits `fullStaticOutput` so chat history is preserved.
+    <Box flexDirection="column" {...(onChatTab ? {} : { height: rows })}>
       {/* Completed messages — rendered once to terminal scrollback.
           Must live outside the display="none" tab wrappers so the <Static>
           node always has proper terminal width in its Yoga layout.
@@ -822,16 +844,23 @@ function AppInner({
       {/* Tab content area — all panels stay mounted to avoid expensive
           remount cycles. display="none" hides inactive panels from
           layout without destroying them.
-          The chat tab's flexGrow box is overflow-clipped so streaming
-          content can't push the rendered frame past the viewport — see
-          the comment on the `rows` state for why that matters.
-          `justifyContent="flex-end"` keeps active streaming content + the
-          tool-call card pinned to the bottom of the chat area (just
-          above the input bar) instead of leaving a tall gap below them. */}
+
+          Chat tab: `maxHeight={panelHeight}` (not `height`) so the box
+          shrinks to its content when streaming is short or absent. When
+          streaming overflows, the box stops at `panelHeight`;
+          `justifyContent="flex-end"` + `overflow="hidden"` clip the *top*
+          so the most-recent tokens stay visible above the input bar.
+          The frame stays strictly below `rows`, so Ink never wipes
+          scrollback during a turn.
+
+          Other tabs: `flexGrow={1}` fills the root (which is pinned to
+          `rows` on those tabs) minus the footer's actual height, so the
+          panel always reaches the top of the viewport — no scrollback
+          leak above the panel regardless of footer height. */}
       <Box
-        display={activeTab === 1 ? "flex" : "none"}
+        display={onChatTab ? "flex" : "none"}
         flexDirection="column"
-        flexGrow={1}
+        maxHeight={panelHeight}
         overflow="hidden"
         justifyContent="flex-end"
       >
@@ -846,6 +875,7 @@ function AppInner({
         display={activeTab === 2 ? "flex" : "none"}
         flexDirection="column"
         flexGrow={1}
+        overflow="hidden"
       >
         <ToolPanel toolCalls={allToolCalls} isActive={activeTab === 2} />
       </Box>
@@ -853,6 +883,7 @@ function AppInner({
         display={activeTab === 3 ? "flex" : "none"}
         flexDirection="column"
         flexGrow={1}
+        overflow="hidden"
       >
         <ContextPanel projectDir={projectDir} isActive={activeTab === 3} />
       </Box>
@@ -860,6 +891,7 @@ function AppInner({
         display={activeTab === 4 ? "flex" : "none"}
         flexDirection="column"
         flexGrow={1}
+        overflow="hidden"
       >
         <TaskPanel projectDir={projectDir} isActive={activeTab === 4} />
       </Box>
@@ -867,6 +899,7 @@ function AppInner({
         display={activeTab === 5 ? "flex" : "none"}
         flexDirection="column"
         flexGrow={1}
+        overflow="hidden"
       >
         <ThreadPanel
           projectDir={projectDir}
@@ -878,6 +911,7 @@ function AppInner({
         display={activeTab === 6 ? "flex" : "none"}
         flexDirection="column"
         flexGrow={1}
+        overflow="hidden"
       >
         <SchedulePanel projectDir={projectDir} isActive={activeTab === 6} />
       </Box>
@@ -885,6 +919,7 @@ function AppInner({
         display={activeTab === 7 ? "flex" : "none"}
         flexDirection="column"
         flexGrow={1}
+        overflow="hidden"
       >
         <WorkerPanel projectDir={projectDir} isActive={activeTab === 7} />
       </Box>
@@ -892,6 +927,7 @@ function AppInner({
         display={activeTab === 8 ? "flex" : "none"}
         flexDirection="column"
         flexGrow={1}
+        overflow="hidden"
       >
         <HelpPanel
           projectDir={projectDir}

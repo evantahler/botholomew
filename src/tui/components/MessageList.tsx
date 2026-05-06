@@ -173,14 +173,15 @@ export function MessageList({
 
       {isLoading &&
         !preparingTool &&
-        !streamingText &&
         (activeToolCalls.length === 0 ||
           activeToolCalls.every((tc) => !tc.running)) && (
           <Box marginTop={1}>
             <Text color={theme.accent}>
               <Spinner type="dots" />
             </Text>
-            <Text dimColor> Thinking...</Text>
+            <Text dimColor>
+              {streamingText ? " Streaming..." : " Thinking..."}
+            </Text>
           </Box>
         )}
     </>

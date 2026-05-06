@@ -1,4 +1,4 @@
-import { Box, Text, useInput, useStdout } from "ink";
+import { Box, Text, useInput } from "ink";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { getDbPath } from "../../constants.ts";
 import {
@@ -24,6 +24,8 @@ import { isMarkdownPath, renderMarkdown } from "../markdown.ts";
 import { theme } from "../theme.ts";
 import { useDeleteConfirm } from "../useDeleteConfirm.ts";
 import { useLatestRef } from "../useLatestRef.ts";
+import { useTerminalSize } from "../useTerminalSize.ts";
+import { wrapDetailLines } from "../wrapDetail.ts";
 import { DeleteArmedBanner } from "./DeleteArmedBanner.tsx";
 import { Scrollbar } from "./Scrollbar.tsx";
 
@@ -39,8 +41,8 @@ export const ContextPanel = memo(function ContextPanel({
   projectDir,
   isActive,
 }: ContextPanelProps) {
-  const { stdout } = useStdout();
-  const termRows = stdout?.rows ?? 24;
+  const { rows: termRows, cols: termCols } = useTerminalSize();
+  const detailWidth = Math.max(1, termCols - SIDEBAR_WIDTH - 5);
 
   const [currentPath, setCurrentPath] = useState("");
   const [entries, setEntries] = useState<ContextEntry[]>([]);
@@ -150,8 +152,8 @@ export const ContextPanel = memo(function ContextPanel({
     const body = isMarkdownPath(fileContent.path)
       ? renderMarkdown(fileContent.content)
       : fileContent.content;
-    return body.split("\n");
-  }, [fileContent, selectedEntry]);
+    return wrapDetailLines(body, detailWidth);
+  }, [fileContent, selectedEntry, detailWidth]);
 
   const visibleDetailRows = Math.max(1, visibleRows - 2);
   const maxDetailScroll = Math.max(0, detailLines.length - visibleDetailRows);
