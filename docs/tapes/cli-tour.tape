@@ -22,7 +22,7 @@ Sleep 400ms
 Enter
 Sleep 2s
 
-Type "botholomew context list"
+Type "botholomew context tree"
 Sleep 400ms
 Enter
 Sleep 3s

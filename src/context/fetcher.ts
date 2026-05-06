@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type {
   Tool as AnthropicTool,
   MessageParam,
@@ -15,6 +14,7 @@ import { mcpSearchTool } from "../tools/mcp/search.ts";
 import type { ToolContext } from "../tools/tool.ts";
 import { type AnyToolDefinition, toAnthropicTool } from "../tools/tool.ts";
 import { logger } from "../utils/logger.ts";
+import { createLlmClient } from "../worker/llm-client.ts";
 import { FetchFailureError } from "./fetcher-errors.ts";
 import {
   convertToMarkdown,
@@ -165,7 +165,7 @@ async function runFetcherLoop(
   mcpxClient: McpxClient,
   promptAddition?: string,
 ): Promise<FetchedContent | null> {
-  const client = new Anthropic({ apiKey: config.anthropic_api_key });
+  const client = createLlmClient(config);
 
   const toolCtx: ToolContext = {
     conn: null as unknown as DbConnection,

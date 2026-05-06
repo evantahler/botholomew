@@ -17,6 +17,13 @@ export interface FakeTurn {
   chunkSize?: number;
   /** Delay between chunks in milliseconds. */
   delayMs?: number;
+  /**
+   * Initial wait before the first chunk emits, in milliseconds. Mirrors a
+   * real model's first-token latency — useful for capture fixtures where
+   * back-to-back turns would otherwise complete instantly and look
+   * unrealistic.
+   */
+  preDelayMs?: number;
   /** Optional tool calls to emit after text. */
   toolCalls?: Array<{
     id?: string;
@@ -125,6 +132,12 @@ function buildFinalMessage(
 class FakeMessageStream extends EventEmitter {
   private resolveFinal: (m: Message) => void = () => {};
   private readonly finalPromise: Promise<Message>;
+  // Buffered events for `for await` consumers; populated by `run()` so the
+  // EventEmitter and async-iterator interfaces stay in sync without
+  // double-driving the turn.
+  private readonly events: Array<Record<string, unknown>> = [];
+  private eventsDone = false;
+  private notifyEvent: (() => void) | null = null;
 
   constructor(private readonly turn: FakeTurn) {
     super();
@@ -134,13 +147,27 @@ class FakeMessageStream extends EventEmitter {
     queueMicrotask(() => this.run());
   }
 
+  private pushEvent(ev: Record<string, unknown>): void {
+    this.events.push(ev);
+    this.notifyEvent?.();
+  }
+
   private async run(): Promise<void> {
     const text = this.turn.text ?? this.turn.chunks?.join("") ?? "";
     const chunks =
       this.turn.chunks ?? chunkText(text, this.turn.chunkSize ?? 6);
     const delay = this.turn.delayMs ?? 40;
+    const preDelay = this.turn.preDelayMs ?? 0;
+    if (preDelay > 0) await new Promise((r) => setTimeout(r, preDelay));
     for (const chunk of chunks) {
       this.emit("text", chunk);
+      const ev = {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: chunk },
+      };
+      this.emit("streamEvent", ev);
+      this.pushEvent(ev);
       if (delay > 0) await new Promise((r) => setTimeout(r, delay));
     }
     const final = buildFinalMessage(text, this.turn.toolCalls);
@@ -162,7 +189,35 @@ class FakeMessageStream extends EventEmitter {
         blockIndex++;
       }
     }
+    const stop = { type: "message_stop" };
+    this.emit("streamEvent", stop);
+    this.pushEvent(stop);
+    this.eventsDone = true;
+    this.notifyEvent?.();
     this.resolveFinal(final);
+  }
+
+  /**
+   * Async iterator support so `for await (const event of stream)` callers
+   * (e.g. `src/context/markdown-converter.ts`) get the same shape as the
+   * real SDK. Events are sourced from the buffer populated by `run()`, so
+   * the iterator and the EventEmitter interface observe a single timeline.
+   */
+  async *[Symbol.asyncIterator](): AsyncIterableIterator<
+    Record<string, unknown>
+  > {
+    let cursor = 0;
+    while (true) {
+      while (cursor < this.events.length) {
+        const ev = this.events[cursor++];
+        if (ev) yield ev;
+      }
+      if (this.eventsDone) return;
+      await new Promise<void>((resolve) => {
+        this.notifyEvent = resolve;
+      });
+      this.notifyEvent = null;
+    }
   }
 
   finalMessage(): Promise<Message> {
@@ -207,6 +262,11 @@ export function createFakeAnthropicClient(): Anthropic {
           return buildFinalMessage("Chat session");
         }
         const turn = selectTurn(extractLastUserText(params.messages));
+        // Honour preDelayMs so non-streaming callers (e.g. the fetcher
+        // loop in src/context/fetcher.ts) get the same "thinking" pause
+        // a streaming caller would.
+        const preDelay = turn.preDelayMs ?? 0;
+        if (preDelay > 0) await new Promise((r) => setTimeout(r, preDelay));
         return buildFinalMessage(
           turn.text ?? turn.chunks?.join("") ?? "",
           turn.toolCalls,

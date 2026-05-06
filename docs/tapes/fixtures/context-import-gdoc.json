@@ -1,0 +1,59 @@
+{
+  "turns": [
+    {
+      "match": "docs\\.google\\.com|google.*doc",
+      "preDelayMs": 1500,
+      "text": "Looking for a Google Docs tool…\n\n",
+      "chunkSize": 4,
+      "delayMs": 30,
+      "toolCalls": [
+        {
+          "name": "mcp_search",
+          "input": { "query": "google docs" }
+        }
+      ]
+    },
+    {
+      "preDelayMs": 1800,
+      "text": "Found `google-docs / GetDocumentAsMarkdown`. Fetching the document as Markdown…\n\n",
+      "chunkSize": 4,
+      "delayMs": 30,
+      "toolCalls": [
+        {
+          "id": "toolu_capture_gdoc_exec",
+          "name": "mcp_exec",
+          "input": {
+            "server": "google-docs",
+            "tool": "GetDocumentAsMarkdown",
+            "args": {
+              "url": "https://docs.google.com/document/d/1abcDEFv08launchplan/edit"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "preDelayMs": 2000,
+      "text": "Looks good — saving as `Botholomew v0.8 launch plan`.",
+      "chunkSize": 4,
+      "delayMs": 30,
+      "toolCalls": [
+        {
+          "name": "accept_content",
+          "input": {
+            "exec_call_id": "toolu_capture_gdoc_exec",
+            "title": "Botholomew v0.8 launch plan",
+            "mime_type": "text/markdown"
+          }
+        }
+      ]
+    },
+    {
+      "match": "^Convert this",
+      "preDelayMs": 800,
+      "text": "# Botholomew v0.8 launch plan\n\n## Themes\n\n1. Better MCPX ergonomics — fewer steps to wire up a new server.\n2. Chat TUI polish — context indicator, idle-pause, slash menu.\n3. Doc captures — every GIF in the docs is hermetic + regenerable.\n\n## Milestones\n\n- [x] Move tasks/schedules/context onto disk\n- [x] Replace OpenAI embeddings with @huggingface/transformers\n- [ ] Ship `context import` for Google Docs end-to-end\n- [ ] Cut v0.8 release notes\n\n## Open questions\n\n- How do we version skill templates across releases?\n- Should `context refresh` rate-limit per source-domain?\n\n## Stakeholders\n\n- Pascal (design review)\n- Sterling (reliability + oncall sign-off)\n",
+      "chunkSize": 12,
+      "delayMs": 0
+    }
+  ]
+}

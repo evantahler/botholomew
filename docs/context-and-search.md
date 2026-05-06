@@ -204,6 +204,8 @@ source. Each file is then chunked, embedded, and indexed.
 
 ### Remote content via a loading agent
 
+![Importing a Google Doc into context](./assets/context-import-gdoc.gif)
+
 URLs aren't `fetch()`d directly. Botholomew runs a focused LLM agent
 (`src/context/fetcher.ts`) whose only job is to retrieve the content at
 a URL using the MCP tools you have configured:

@@ -1,6 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { logger } from "../utils/logger.ts";
+import { createLlmClient } from "../worker/llm-client.ts";
 import { FetchFailureError } from "./fetcher-errors.ts";
 
 const CONVERTER_MAX_TOKENS = 16_384;
@@ -122,7 +122,7 @@ export async function convertToMarkdown(
 ): Promise<string> {
   if (!config.anthropic_api_key) return content;
 
-  const client = new Anthropic({ apiKey: config.anthropic_api_key });
+  const client = createLlmClient(config);
   // Conversion is mechanical text-shaping — Haiku (the chunker model) is
   // plenty smart for this and ~5x faster than Opus on long documents.
   const model = config.chunker_model || config.model;
