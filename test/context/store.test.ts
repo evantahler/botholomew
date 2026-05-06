@@ -7,7 +7,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CONTEXT_DIR } from "../../src/constants.ts";
@@ -30,7 +31,10 @@ import {
   relativeFromContext,
   writeContextFile,
 } from "../../src/context/store.ts";
-import { _resetSandboxCacheForTests } from "../../src/fs/sandbox.ts";
+import {
+  _resetSandboxCacheForTests,
+  PathEscapeError,
+} from "../../src/fs/sandbox.ts";
 
 let projectDir: string;
 
@@ -357,6 +361,167 @@ describe("applyPatches", () => {
         { start_line: 1, end_line: 1, content: "x" },
       ]),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe("symlinks under context/", () => {
+  // Each test seeds "external content" outside <projectDir>/context/ and
+  // links it in. The contract: read/list/index follow the link, mutating
+  // ops refuse to traverse it, and delete only removes the link itself.
+  let externalDir: string;
+
+  beforeEach(async () => {
+    externalDir = await mkdtemp(join(tmpdir(), "both-context-external-"));
+  });
+
+  afterEach(async () => {
+    await rm(externalDir, { recursive: true, force: true });
+  });
+
+  test("listContextDir flags a symlinked file with is_symlink", async () => {
+    const target = join(externalDir, "ext.md");
+    await writeFile(target, "external content");
+    await symlink(target, join(projectDir, CONTEXT_DIR, "ref.md"));
+    const entries = await listContextDir(projectDir, "");
+    const ref = entries.find((e) => e.path === "ref.md");
+    expect(ref).toBeDefined();
+    expect(ref?.is_symlink).toBe(true);
+    expect(ref?.is_directory).toBe(false);
+    expect(ref?.is_textual).toBe(true);
+    expect(ref?.size).toBe("external content".length);
+  });
+
+  test("listContextDir recursive enumerates files inside a symlinked directory", async () => {
+    await mkdir(join(externalDir, "notes"), { recursive: true });
+    await writeFile(join(externalDir, "notes", "a.md"), "A");
+    await writeFile(join(externalDir, "notes", "b.md"), "B");
+    await symlink(
+      join(externalDir, "notes"),
+      join(projectDir, CONTEXT_DIR, "linked"),
+    );
+    const all = await listContextDir(projectDir, "", { recursive: true });
+    const paths = all.map((e) => e.path).sort();
+    expect(paths).toEqual(["linked", "linked/a.md", "linked/b.md"]);
+    const linkedDir = all.find((e) => e.path === "linked");
+    expect(linkedDir?.is_directory).toBe(true);
+    expect(linkedDir?.is_symlink).toBe(true);
+  });
+
+  test("readContextFile reads through a symlink", async () => {
+    const target = join(externalDir, "ext.md");
+    await writeFile(target, "secret data");
+    await symlink(target, join(projectDir, CONTEXT_DIR, "ref.md"));
+    expect(await readContextFile(projectDir, "ref.md")).toBe("secret data");
+  });
+
+  test("getInfo describes a symlink with is_symlink=true", async () => {
+    const target = join(externalDir, "ext.md");
+    await writeFile(target, "x");
+    await symlink(target, join(projectDir, CONTEXT_DIR, "ref.md"));
+    const info = await getInfo(projectDir, "ref.md");
+    expect(info?.is_symlink).toBe(true);
+    expect(info?.is_directory).toBe(false);
+  });
+
+  test("writeContextFile through a symlink is rejected", async () => {
+    const target = join(externalDir, "ext.md");
+    await writeFile(target, "original");
+    await symlink(target, join(projectDir, CONTEXT_DIR, "ref.md"));
+    await expect(
+      writeContextFile(projectDir, "ref.md", "tampered", {
+        onConflict: "overwrite",
+      }),
+    ).rejects.toBeInstanceOf(PathEscapeError);
+    expect(readFileSync(target, "utf-8")).toBe("original");
+  });
+
+  test("applyPatches through a symlink is rejected", async () => {
+    const target = join(externalDir, "ext.md");
+    await writeFile(target, "a\nb\nc");
+    await symlink(target, join(projectDir, CONTEXT_DIR, "ref.md"));
+    await expect(
+      applyPatches(projectDir, "ref.md", [
+        { start_line: 1, end_line: 1, content: "X" },
+      ]),
+    ).rejects.toBeInstanceOf(PathEscapeError);
+    expect(readFileSync(target, "utf-8")).toBe("a\nb\nc");
+  });
+
+  test("moveContextPath rejects sources that traverse a symlink", async () => {
+    await mkdir(join(externalDir, "d"), { recursive: true });
+    await writeFile(join(externalDir, "d", "x.md"), "x");
+    await symlink(
+      join(externalDir, "d"),
+      join(projectDir, CONTEXT_DIR, "linked"),
+    );
+    await expect(
+      moveContextPath(projectDir, "linked/x.md", "moved.md"),
+    ).rejects.toBeInstanceOf(PathEscapeError);
+  });
+
+  test("deleteContextPath unlinks a symlink-to-file without touching the target", async () => {
+    const target = join(externalDir, "ext.md");
+    await writeFile(target, "external");
+    const linkPath = join(projectDir, CONTEXT_DIR, "ref.md");
+    await symlink(target, linkPath);
+    const r = await deleteContextPath(projectDir, "ref.md");
+    expect(r.was_symlink).toBe(true);
+    expect(r.was_directory).toBe(false);
+    expect(r.removed).toBe(1);
+    expect(existsSync(linkPath)).toBe(false);
+    expect(readFileSync(target, "utf-8")).toBe("external");
+  });
+
+  test("deleteContextPath unlinks a symlink-to-directory without touching contents", async () => {
+    await mkdir(join(externalDir, "d"), { recursive: true });
+    await writeFile(join(externalDir, "d", "a.md"), "A");
+    const linkPath = join(projectDir, CONTEXT_DIR, "linked");
+    await symlink(join(externalDir, "d"), linkPath);
+    // No `recursive: true` needed — the symlink unlinks atomically.
+    const r = await deleteContextPath(projectDir, "linked");
+    expect(r.was_symlink).toBe(true);
+    expect(existsSync(linkPath)).toBe(false);
+    expect(readFileSync(join(externalDir, "d", "a.md"), "utf-8")).toBe("A");
+  });
+
+  test("listContextDir terminates on a symlink cycle", async () => {
+    // Create a self-referential symlink that points back at the context root.
+    await symlink(
+      join(projectDir, CONTEXT_DIR),
+      join(projectDir, CONTEXT_DIR, "loop"),
+    );
+    const all = await listContextDir(projectDir, "", { recursive: true });
+    // The link itself appears once; cycle detection prevents the contents
+    // of the link's target (== the very directory we're walking) from
+    // being re-enumerated under "loop/".
+    const paths = all.map((e) => e.path);
+    expect(paths.filter((p) => p === "loop")).toHaveLength(1);
+    expect(paths.some((p) => p.startsWith("loop/"))).toBe(false);
+  });
+
+  test("buildTree marks a symlinked node with is_symlink", async () => {
+    const target = join(externalDir, "ext.md");
+    await writeFile(target, "x");
+    await symlink(target, join(projectDir, CONTEXT_DIR, "ref.md"));
+    const root = await buildTree(projectDir, "");
+    const ref = root.children?.find((c) => c.name === "ref.md");
+    expect(ref?.is_symlink).toBe(true);
+  });
+
+  test("broken symlink shows in listings as a zero-byte symlink", async () => {
+    await symlink(
+      join(externalDir, "missing.md"),
+      join(projectDir, CONTEXT_DIR, "broken"),
+    );
+    // Sanity: the link exists (lstat) but the target does not (stat).
+    expect(
+      lstatSync(join(projectDir, CONTEXT_DIR, "broken")).isSymbolicLink(),
+    ).toBe(true);
+    const entries = await listContextDir(projectDir, "");
+    const broken = entries.find((e) => e.path === "broken");
+    expect(broken?.is_symlink).toBe(true);
+    expect(broken?.is_directory).toBe(false);
+    expect(broken?.size).toBe(0);
   });
 });
 

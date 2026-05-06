@@ -11,10 +11,11 @@ of the system:
 - **Safety.** The agent cannot read your home directory, cannot
   overwrite your SSH keys, cannot `rm -rf` anything, cannot exfiltrate
   files it wasn't handed. A prompt-injected instruction telling it to
-  "read `~/.ssh/id_rsa`" or "follow this symlink to `/etc/passwd`"
-  fails before any IO happens. The worst a rogue agent can do is
-  scribble inside `context/`, which `git diff` will catch and
-  `git checkout -- context/` will undo.
+  "read `~/.ssh/id_rsa`" fails before any IO happens. The worst a
+  rogue agent can do is scribble inside `context/`, which `git diff`
+  will catch and `git checkout -- context/` will undo. (You *can*
+  symlink external content into `context/` yourself — see below — and
+  the agent can read those, but it can never *write through* them.)
 - **Inspectability.** Every file the agent reads or writes is a real
   file. `vim`, `grep`, `git diff`, `cat`, and `less` all work. Drop a
   hand-written note into `context/` and the agent finds it on the next
@@ -44,9 +45,13 @@ context_tree({ path: "notes" })
 Absolute paths, leading `..`, NUL bytes, and paths over 4096 chars are
 rejected. The sandbox does NFC normalization (so vim's NFD-on-macOS
 roundtrips cleanly) and `lstat`-walks every path component, refusing
-the call if any segment is a symlink. This is robust against an agent
-that — accidentally or by prompt injection — creates a symlink and
-then tries to write through it.
+the call if any segment is a symlink — **unless** the caller passes
+`allowSymlinks: true`. Read-side ops (`context_read`, `context_tree`,
+`context_info`, search, reindex) opt in so users can drop symlinks
+into `context/` for content they don't want to duplicate; mutating ops
+(`context_write`, `context_edit`, `context_move`, `context_copy`,
+`context_create_dir`) keep the strict resolver, so the agent can never
+write through a user-placed symlink to external content.
 
 The path validator lives in `src/fs/sandbox.ts::resolveInRoot`. There
 is exactly one helper, used by every path-taking tool.
@@ -87,6 +92,39 @@ unless `--force` is passed.
 If you need a project on a synced volume, run `botholomew init` on a
 local path and copy/symlink the synced bits in by hand — but
 understand you're trading away the atomicity guarantee.
+
+---
+
+## User-placed symlinks under `context/`
+
+You can drop symlinks into `context/` to share content the agent should
+read but you don't want to duplicate. For example:
+
+```bash
+ln -s "$HOME/Documents/research" context/research
+ln -s "$HOME/notes/standup.md" context/standup.md
+```
+
+Both forms work — file symlinks and directory symlinks. The contract:
+
+- **Read, list, tree, search, index**: follow the link transparently. A
+  symlinked directory's contents are walked and indexed as if they
+  lived under `context/` directly. Cycles (`context/loop -> context/`)
+  are detected via a `dev:ino` visited set and walked at most once;
+  recursion is also capped at 32 levels.
+- **`context_info` / listings**: surface `is_symlink: true` so the
+  agent knows the entry is a reference.
+- **`context_delete`**: removes only the symlink. The target file or
+  directory is never touched. `recursive: true` is not required for a
+  symlinked directory — the link unlinks atomically.
+- **`context_write`, `context_edit`, `context_move`, `context_copy`,
+  `context_create_dir`**: refuse any path that traverses a symlink and
+  return `PathEscapeError`. This is what makes the "external content
+  is never modified" guarantee real. The recovery hint suggests
+  deleting the symlink first or writing to a real path.
+
+The agent itself cannot create symlinks — there is no tool for it. So
+"symlinks under `context/`" always means *user-placed* symlinks.
 
 ---
 
@@ -206,8 +244,9 @@ both. The current model:
 - **Real files**, so you can `vim`, `grep`, and `git` everything the
   agent does.
 - **One sandbox helper**, so safety isn't sprinkled across 12 tools
-  but lives in ~100 lines you can audit: NFC, lstat-walk, no `..`, no
-  symlinks, no NUL, no escape.
+  but lives in ~100 lines you can audit: NFC, lstat-walk, no `..`,
+  no NUL, no escape, and the agent can never *write through* a
+  symlink (read-through is opt-in for users who put one there).
 - **No shell.** The agent never gets `rm`, `cat`, or
   `bash -c "anything"` — only the typed tools above, every one of
   which routes through the sandbox.

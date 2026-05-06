@@ -16,8 +16,14 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `workers/` — Pidfile + heartbeat store under `workers/<id>.json`
   - `worker/` — Worker tick loop, LLM integration, prompt building, heartbeat
   - `db/` — DuckDB connection for the search-index sidecar (`@duckdb/node-api`), schema migrations
+  - `chat/` — Interactive chat session + agent loop powering `botholomew chat`
+  - `tools/` — Tool registry and `ToolDefinition`s (context_*, file/dir, schedule, search, mcp, capabilities)
+  - `mcpx/` — MCPX client for invoking external MCP servers
+  - `skills/` — Slash-command skill loader, parser, and writer
   - `init/` — Project initialization
   - `tui/` — Ink (React) TUI components
+  - `update/` — Self-update checker and background cache
+  - `types/` — Shared TypeScript ambient declarations
   - `utils/` — Logger, frontmatter, v7-date helpers
 - `test/` — Tests (mirrors src/ structure)
 - `docs/` — User-facing markdown docs (also published at [www.botholomew.com](https://www.botholomew.com))
@@ -57,7 +63,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 ## On-disk patterns
 
 - **Project root is the cwd.** `bothy init` writes its tree at `<cwd>/{config,prompts,context,tasks,schedules,threads,workers,logs,…}` — there is no `.botholomew/` wrapper.
-- **Path sandbox is non-negotiable.** Every tool that takes a `path` arg routes through `src/fs/sandbox.ts::resolveInRoot(root, userPath, opts)`. NFC-normalize, reject NUL/`..`/absolute, lstat-walk every component to refuse symlinks. New tools that touch paths MUST use this helper.
+- **Path sandbox is non-negotiable.** Every tool that takes a `path` arg routes through `src/fs/sandbox.ts::resolveInRoot(root, userPath, opts)`. NFC-normalize, reject NUL/`..`/absolute, lstat-walk every component. By default symlink components are rejected; read-side ops on `context/` (read, list, tree, info, search, reindex, delete) opt in via `allowSymlinks: true` so users can drop symlinks into the agent's tree, but mutating ops never set the flag — the agent cannot write/edit/move/copy/mkdir through a user-placed symlink. `deleteContextPath` is the one exception that allows symlinks: it `lstat`s the leaf and `unlink`s the link without touching its target. Walks (`walk`, `collectFiles`, `treeRecurse`) follow symlinks with `dev:ino` cycle detection capped at 32 levels. New tools that touch paths MUST use this helper.
 - **Atomic-write-via-rename for status mutations.** `src/fs/atomic.ts::atomicWrite` writes a `*.tmp.<wid>` then `fs.rename`s. Reads-before-writes (tasks/schedules/prompts) compare the file's `mtime` between read and write — abort and retry if it changed.
 - **`O_EXCL` lockfiles** for tasks, schedules, and reindex. Body holds the worker id and `claimed_at`. Release = `unlink`. Reaper walks the lock dirs and unlinks orphans whose owner is dead in `workers/`.
 - **Filesystem compatibility**: `init` and worker startup detect iCloud / Dropbox / OneDrive / NFS via path heuristics and refuse to run unless `--force` (sync overlays break `O_EXCL` and atomic rename).
@@ -76,7 +82,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - **Migrations**: always call `migrate(conn)` after opening — it's idempotent. The migration set now drops the retired tables (tasks/schedules/threads/interactions/workers/context_items) so an old `index.duckdb` upgrades cleanly to the slim schema (`_migrations` + `context_index`).
 - **Queries**: parameterized (`?1, ?2, ...`) — never string interpolation.
 - **Vectors**: `FLOAT[384]` with `array_cosine_distance()`; no HNSW.
-- **Full-text search**: BM25 over `context_index.chunk_content + title` via the `fts` extension. The FTS index is a snapshot — any writer must call `rebuildSearchIndex(conn)` after committing. The reindex pipeline (`src/context/reindex.ts`) is the only writer.
+- **Full-text search**: BM25 over `context_index.chunk_content + path` via the `fts` extension. The FTS index is a snapshot — any writer must call `rebuildSearchIndex(conn)` after committing. The reindex pipeline (`src/context/reindex.ts`) is the only writer.
 
 ## Embeddings
 
@@ -113,7 +119,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - Adding a CLI subcommand in `src/commands/` → update the CLI table in `README.md` and the doc for that area.
   - Changing config defaults in `src/config/schemas.ts` → update `docs/configuration.md`.
   - Changing the tick loop, schedule evaluation, or agent loop (`src/worker/*`) → update `docs/architecture.md` and/or `docs/tasks-and-schedules.md`.
-  - Changing worker registration, heartbeat, or reaping (`src/worker/heartbeat.ts`, `src/workers/store.ts`, `src/tasks/claim.ts`, `src/schedules/claim.ts`) → update `docs/architecture.md`.
+  - Changing worker registration, heartbeat, or reaping (`src/worker/heartbeat.ts`, `src/workers/store.ts`) or task/schedule claim logic (`src/tasks/store.ts`, `src/schedules/store.ts`) → update `docs/architecture.md`.
   - Adding or renaming a skill template in `src/init/templates.ts` → update `docs/skills.md` and `src/init/index.ts`.
   - Changing prompts loading (`src/worker/prompt.ts`) → update `docs/prompts.md`.
   - Changing anything in `src/tui/` (new tab, new shortcut, input behavior) → update `docs/tui.md`.

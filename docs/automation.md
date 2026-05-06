@@ -14,7 +14,7 @@ you copy the recipe that matches your needs.
 
 `botholomew worker run` (one-shot, default mode) does one thing and exits:
 
-1. Register a worker row in the DB.
+1. Write a worker pidfile to `workers/<id>.json` with PID and heartbeat metadata.
 2. Start a heartbeat `setInterval` so other workers know it's alive.
 3. Evaluate any due schedules and enqueue their tasks.
 4. Claim the next eligible pending task.
@@ -26,9 +26,11 @@ a tight cron without overlapping concerns.
 
 Two things make this safe to run concurrently with other workers:
 
-- Task claims are atomic (`UPDATE ... WHERE status='pending' RETURNING *`).
-- Schedule evaluation is gated by an atomic claim + a minimum-interval window,
-  so two workers can't enqueue duplicate task batches from the same schedule.
+- Task claims are atomic — the worker `open()`s an `O_EXCL` lockfile under
+  `tasks/.locks/<id>.lock`; only one worker wins.
+- Schedule evaluation is gated by an `O_EXCL` lockfile claim under
+  `schedules/.locks/<id>.lock` plus a minimum-interval window, so two workers
+  can't enqueue duplicate task batches from the same schedule.
 
 See [architecture.md](architecture.md#multi-worker-safety).
 
@@ -176,20 +178,23 @@ Same concurrency story as cron: each fire is one task at most.
 ## Troubleshooting
 
 - **"Nothing's happening."** `botholomew worker list` shows every worker
-  the DB has ever seen. Filter with `--status running` to see who's alive
-  right now. If you see zero running and a non-empty queue, spawn one:
-  `botholomew worker start --persist`.
-- **"I see dead workers piling up."** Reaped crashes stay in the table as
-  forensic evidence; only clean exits (`status='stopped'`) get auto-pruned
-  (after `worker_stopped_retention_seconds`, default 1 hour). If dead rows
-  are bothering you, `DELETE FROM workers WHERE status='dead'` clears them
-  safely. `botholomew worker list --status dead` shows the list first.
+  pidfile under `workers/`. Filter with `--status running` to see who's
+  alive right now. If you see zero running and a non-empty queue, spawn
+  one: `botholomew worker start --persist`.
+- **"I see dead workers piling up."** Reaped crashes keep their pidfiles
+  on disk as forensic evidence; only clean exits (`status='stopped'`) get
+  auto-pruned by the reaper after `worker_stopped_retention_seconds`
+  (default 1 hour). If dead pidfiles are bothering you, run
+  `botholomew worker reap` — it walks `workers/` and unlinks both stale
+  dead workers and stopped pidfiles past the retention window. You can
+  also `rm workers/<id>.json` directly. `botholomew worker list --status
+  dead` shows the list first.
 - **"Cron runs aren't firing."** Check `grep CRON /var/log/syslog`
   (Linux) or `log show --predicate 'process == "cron"'` (macOS). Common
   causes: minimal `PATH`, or a relative path to `botholomew`.
 - **"Two workers keep claiming the same task."** They don't — by design.
-  The `claimed_by` column is stamped by the atomic UPDATE, so only one
-  wins. If you're seeing duplicate **output**, it's because the task was
+  The lockfile body holds the worker id and `claimed_at` timestamp, so
+  only one worker wins the `O_EXCL` open. If you're seeing duplicate **output**, it's because the task was
   re-run after its worker was reaped — check `worker list --status dead`.
 - **"The log is getting huge."** Rotate it yourself (logrotate, newsyslog).
   Botholomew used to do this inside the old watchdog; it no longer does.

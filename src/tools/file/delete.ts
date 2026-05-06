@@ -21,6 +21,7 @@ const inputSchema = z.object({
 const outputSchema = z.object({
   deleted: z.number(),
   was_directory: z.boolean(),
+  was_symlink: z.boolean(),
   is_error: z.boolean(),
   error_type: z.string().optional(),
   message: z.string().optional(),
@@ -30,7 +31,7 @@ const outputSchema = z.object({
 export const contextDeleteTool = {
   name: "context_delete",
   description:
-    "[[ bash equivalent command: rm -r ]] Delete a file or (with recursive=true) a directory under context/.",
+    "[[ bash equivalent command: rm -r ]] Delete a file or (with recursive=true) a directory under context/. Symlinks are unlinked without touching their target — `recursive` is not required for a symlinked directory.",
   group: "context",
   inputSchema,
   outputSchema,
@@ -42,16 +43,23 @@ export const contextDeleteTool = {
       return {
         deleted: result.removed,
         was_directory: result.was_directory,
+        was_symlink: result.was_symlink,
         is_error: false,
       };
     } catch (err) {
       if (err instanceof NotFoundError) {
         if (input.force) {
-          return { deleted: 0, was_directory: false, is_error: false };
+          return {
+            deleted: 0,
+            was_directory: false,
+            was_symlink: false,
+            is_error: false,
+          };
         }
         return {
           deleted: 0,
           was_directory: false,
+          was_symlink: false,
           is_error: true,
           error_type: "not_found",
           message: `No file at context/${err.path}`,
@@ -61,6 +69,7 @@ export const contextDeleteTool = {
         return {
           deleted: 0,
           was_directory: true,
+          was_symlink: false,
           is_error: true,
           error_type: "is_directory",
           message: `context/${err.path} is a directory`,

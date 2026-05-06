@@ -1,5 +1,6 @@
 import { Box, Text } from "ink";
 import { theme } from "../theme.ts";
+import { parseSleepInput, SleepProgress } from "./SleepProgress.tsx";
 
 /**
  * For mcp_exec calls, extract server/tool into a top-level display name
@@ -53,6 +54,8 @@ export function ToolCall({ tool }: ToolCallProps) {
   const truncatedInput =
     displayInput.length > 60 ? `${displayInput.slice(0, 60)}…` : displayInput;
   const truncatedOutput = tool.output ? tool.output.slice(0, 120) : "";
+  const sleepArgs =
+    tool.name === "sleep" && tool.running ? parseSleepInput(tool.input) : null;
 
   return (
     <Box flexDirection="column">
@@ -83,6 +86,13 @@ export function ToolCall({ tool }: ToolCallProps) {
         {tool.name === "mcp_exec" && <Text dimColor> (exec)</Text>}
         <Text dimColor> ({truncatedInput})</Text>
       </Box>
+      {sleepArgs && (
+        <SleepProgress
+          startedAt={tool.timestamp}
+          totalSeconds={sleepArgs.seconds}
+          reason={sleepArgs.reason}
+        />
+      )}
       {truncatedOutput && !tool.running && (
         <Text dimColor wrap="truncate-end">
           {"    → "}

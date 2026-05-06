@@ -28,7 +28,7 @@ const outputSchema = z.object({
 export const contextWriteTool = {
   name: "context_write",
   description:
-    "[[ bash equivalent command: tee ]] Write text content to a file under context/. Fails if the path already exists unless on_conflict='overwrite'.",
+    "[[ bash equivalent command: tee ]] Write text content to a file under context/. Fails if the path already exists unless on_conflict='overwrite'. Writes that traverse a user symlink fail with PathEscapeError — delete the symlink first or write to a real path.",
   group: "context",
   inputSchema,
   outputSchema,

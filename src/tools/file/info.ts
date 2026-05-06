@@ -10,6 +10,7 @@ const fileSchema = z.object({
   path: z.string(),
   is_directory: z.boolean(),
   is_textual: z.boolean(),
+  is_symlink: z.boolean(),
   mime_type: z.string(),
   size: z.number(),
   lines: z.number(),
@@ -28,7 +29,7 @@ const outputSchema = z.object({
 export const contextInfoTool = {
   name: "context_info",
   description:
-    "[[ bash equivalent command: stat ]] Show metadata for a path under context/: size, MIME type, line count, mtime, content hash.",
+    "[[ bash equivalent command: stat ]] Show metadata for a path under context/: size, MIME type, line count, mtime, content hash. `is_symlink` is true when the path is a user-placed symlink.",
   group: "context",
   inputSchema,
   outputSchema,
@@ -52,6 +53,7 @@ export const contextInfoTool = {
         path: info.path,
         is_directory: info.is_directory,
         is_textual: info.is_textual,
+        is_symlink: info.is_symlink,
         mime_type: info.mime_type,
         size: info.size,
         lines,

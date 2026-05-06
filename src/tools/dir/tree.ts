@@ -21,7 +21,8 @@ export interface BuildContextTreeResult {
 function renderTree(node: TreeNode, prefix = "", isLast = true): string[] {
   const lines: string[] = [];
   const connector = prefix === "" ? "" : isLast ? "└── " : "├── ";
-  const label = node.is_directory ? `${node.name}/` : node.name;
+  const base = node.is_directory ? `${node.name}/` : node.name;
+  const label = node.is_symlink ? `${base} -> (symlink)` : base;
   lines.push(`${prefix}${connector}${label}`);
   if (node.is_directory && node.children) {
     const childPrefix =
@@ -72,7 +73,7 @@ const outputSchema = z.object({
 export const contextTreeTool = {
   name: "context_tree",
   description:
-    "[[ bash equivalent command: tree ]] Render the file tree under context/ (or a sub-directory).",
+    "[[ bash equivalent command: tree ]] Render the file tree under context/ (or a sub-directory). Symlinks are followed for listing and indexing; entries that are symlinks are tagged ' -> (symlink)' in the output.",
   group: "context",
   inputSchema,
   outputSchema,

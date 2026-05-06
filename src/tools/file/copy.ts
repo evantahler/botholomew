@@ -26,7 +26,7 @@ const outputSchema = z.object({
 export const contextCopyTool = {
   name: "context_copy",
   description:
-    "[[ bash equivalent command: cp ]] Copy a file under context/ to a new path.",
+    "[[ bash equivalent command: cp ]] Copy a file under context/ to a new path. Source/destination paths that traverse a user symlink fail with PathEscapeError.",
   group: "context",
   inputSchema,
   outputSchema,
