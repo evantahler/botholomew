@@ -6,6 +6,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 
 - `src/` — TypeScript source code
   - `cli.ts` — CLI entrypoint (Commander.js)
+  - `constants.ts` — Project-layout constants (dir names, `getDbPath`, `getWorkerLogPath`, `PROTECTED_AREAS`); the header comment is the canonical on-disk tree
   - `commands/` — CLI subcommand handlers
   - `config/` — Configuration loading/schemas
   - `fs/` — Path sandbox (`resolveInRoot`), atomic-write/lockfile helpers, sync-overlay-FS detector
@@ -43,7 +44,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - **Storage**: Real files on disk (markdown w/ frontmatter for tasks/schedules/prompts; CSV for threads; plain files for `context/`); DuckDB (`@duckdb/node-api`) for the search-index sidecar (`index.duckdb`) only — fully derivable from disk
 - **LLM**: Anthropic SDK (`@anthropic-ai/sdk`)
 - **CLI**: Commander.js
-- **TUI**: Ink 6 + React 19
+- **TUI**: Ink 7 + React 19
 - **Tools**: MCPX
 
 ## Conventions
@@ -59,6 +60,8 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - The agent has no shell. File access is exposed through `context_*` tools that pin to `<root>/context/`; tasks, schedules, and threads have their own typed tools
 - When designing or modifying agent tools, follow PATs (Patterns for Agentic Tools): https://arcade.dev/patterns/llm.txt — key principles: error-guided recovery, next-action hints, token-efficient outputs, error classification
 - **Tool descriptions mirror bash when applicable** — if an LLM tool behaves like a familiar CLI command (e.g., `cat`, `ls`, `mv`, `grep`), prefix its `description` with `[[ bash equivalent command: <cmd> ]] ` followed by the short description. This anchors the tool for the model and keeps the tag machine-parseable. Omit the tag for tools with no natural bash analog (e.g., `update_beliefs`, `read_large_result`).
+- **Unified line-patch edits.** Resource-edit tools (`context_edit`, `task_edit`, `schedule_edit`, `prompt_edit`, `skill_edit`) all use the same git-hunk-style patch from `src/fs/patches.ts` — `LinePatchSchema` (`{start_line, end_line, content}`) plus `applyLinePatches`. Reuse this for any new edit tool; don't invent a parallel shape.
+- **Prompts are a generic markdown bag.** Every `prompts/*.md` is treated identically by `src/worker/prompt.ts` — `init` only seeds `goals.md`, `beliefs.md`, `capabilities.md` as a starting point, but they are not special-cased. Frontmatter (`title`, `loading`, `agent-modification`) is strict-validated in `src/utils/frontmatter.ts` and failures **fast-fail** (abort the worker / chat turn) rather than quarantine, since prompts shape the agent's reasoning. Tasks/schedules keep the existing quarantine behavior. Full CRUD is exposed via `botholomew prompts *` and `prompt_*` agent tools.
 
 ## On-disk patterns
 
@@ -66,9 +69,10 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - **Path sandbox is non-negotiable.** Every tool that takes a `path` arg routes through `src/fs/sandbox.ts::resolveInRoot(root, userPath, opts)`. NFC-normalize, reject NUL/`..`/absolute, lstat-walk every component. By default symlink components are rejected; read-side ops on `context/` (read, list, tree, info, search, reindex) opt in via `allowSymlinks: true` so users can drop symlinks into the agent's tree, but mutating ops (write/edit/mv/cp/mkdir) never set the flag — the agent cannot write through a user-placed symlink. `deleteContextPath` uses the narrower `allowSymlinkLeaf: true`: the leaf may be a symlink (we `lstat` and `unlink` it without following the target), but parent components may not — `delete linked/x.md` where `linked` is a user-placed symlink is rejected with `PathEscapeError`, the same as `move`/`copy` already do. Walks (`walk`, `collectFiles`, `treeRecurse`) follow symlinks with `dev:ino` cycle detection capped at 32 levels. New tools that touch paths MUST use this helper.
 - **Atomic-write-via-rename for status mutations.** `src/fs/atomic.ts::atomicWrite` writes a `*.tmp.<wid>` then `fs.rename`s. Reads-before-writes (tasks/schedules/prompts) compare the file's `mtime` between read and write — abort and retry if it changed.
 - **`O_EXCL` lockfiles** for tasks, schedules, and reindex. Body holds the worker id and `claimed_at`. Release = `unlink`. Reaper walks the lock dirs and unlinks orphans whose owner is dead in `workers/`.
+- **Per-path context locks.** Mutating ops on `context/<path>` wrap in `src/context/locks.ts::withContextLock(projectDir, path, workerId, fn)`, which takes `<projectDir>/context/.locks/<sha1(path)>.lock` (`O_EXCL`, body holds owner id) and releases on completion. Stale locks are reaped alongside task/schedule locks. The `.locks/` dir is hidden from `context_tree` / `context_list`. New mutating context tools MUST use this helper.
 - **Filesystem compatibility**: `init` and worker startup detect iCloud / Dropbox / OneDrive / NFS via path heuristics and refuse to run unless `--force` (sync overlays break `O_EXCL` and atomic rename).
 - **IDs**: UUIDv7 via `uuidv7()` from `src/db/uuid.ts`. The 48-bit timestamp prefix is what `src/utils/v7-date.ts::dateForId` uses to derive the date subdir for threads and worker logs (pure function of the id).
-- **Frontmatter** for tasks/schedules/prompts is strict-Zod-validated (`src/{tasks,schedules}/schema.ts`). Validation failures quarantine the file: log a structured warning and skip — never crash the worker.
+- **Frontmatter** for tasks/schedules is strict-Zod-validated (`src/{tasks,schedules}/schema.ts`). Validation failures quarantine the file: log a structured warning and skip — never crash the worker. Prompts use the same frontmatter pattern but **fast-fail** (see Conventions below).
 - **Thread CSVs** are RFC-4180. The first row carries a `system / thread_meta` interaction whose `content` is a JSON blob with the thread's own metadata. `src/threads/store.ts` is the only writer; it handles escaping commas, quotes, and embedded newlines in agent output.
 
 ## DuckDB patterns (search-index sidecar only)
@@ -100,7 +104,9 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 ## Documentation
 
 - **Docs must track code.** Every PR that changes user-visible behavior must update the relevant doc(s). Treat docs as part of the code — not a follow-up task.
-- The user-facing doc set lives under `docs/`, is published at [www.botholomew.com](https://www.botholomew.com) via VitePress + GitHub Pages, and is linked from `README.md`:
+- The user-facing doc set lives under `docs/`, is published at [www.botholomew.com](https://www.botholomew.com) via VitePress + GitHub Pages, and is linked from `README.md`. The sidebar in `docs/.vitepress/config.ts` groups them into Getting Started / Core concepts / Knowledge work / Execution / Customization / Reference — keep the grouping in sync when adding or moving a doc:
+  - `docs/index.md` — landing page
+  - `docs/getting-started.md` — install & quickstart
   - `docs/architecture.md` — workers, chat, registration + heartbeat + reaping, the disk layout, the search-index sidecar
   - `docs/automation.md` — cron, tmux, optional launchd/systemd for running workers on a schedule
   - `docs/files.md` — the `context/` sandbox (NFC + lstat-walk), file/dir tools, patch format
@@ -112,6 +118,9 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `docs/mcpx.md` — `servers.json`, local servers vs. MCP gateways (Arcade), `mcp_*` meta-tools
   - `docs/configuration.md` — every key in `config.json`
   - `docs/tui.md` — the `botholomew chat` TUI: tabs, shortcuts, slash-command popup, message queue, streaming
+  - `docs/captures.md` — terminal recordings (VHS tapes) used as media in the docs site
+  - `docs/owl-character-sheet.md` — Botholomew's persona reference (used to seed prompts)
+  - `docs/changelog.md` — release notes
 - **When to update which doc:**
   - Touching `src/fs/sandbox.ts`, `src/fs/atomic.ts`, or `src/fs/compat.ts` → update `docs/files.md` and the "On-disk patterns" section in this file.
   - Touching `src/db/schema.ts` (the `context_index` table) → update `docs/context-and-search.md`.
@@ -121,7 +130,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - Changing the tick loop, schedule evaluation, or agent loop (`src/worker/*`) → update `docs/architecture.md` and/or `docs/tasks-and-schedules.md`.
   - Changing worker registration, heartbeat, or reaping (`src/worker/heartbeat.ts`, `src/workers/store.ts`) or task/schedule claim logic (`src/tasks/store.ts`, `src/schedules/store.ts`) → update `docs/architecture.md`.
   - Adding or renaming a skill template in `src/init/templates.ts` → update `docs/skills.md` and `src/init/index.ts`.
-  - Changing prompts loading (`src/worker/prompt.ts`) → update `docs/prompts.md`.
+  - Changing prompts loading or frontmatter schema (`src/worker/prompt.ts`, prompt validation in `src/utils/frontmatter.ts`) → update `docs/prompts.md`.
   - Changing anything in `src/tui/` (new tab, new shortcut, input behavior) → update `docs/tui.md`.
   - Adding a new top-level doc under `docs/` → also add it to the sidebar in `docs/.vitepress/config.ts` so it's reachable from the published site.
 - If a doc reference goes stale (links a renamed file, cites a removed behavior), fix it in the same PR — don't leave it for later.
