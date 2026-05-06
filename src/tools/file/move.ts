@@ -32,9 +32,14 @@ export const contextMoveTool = {
   execute: async (input, ctx) => {
     try {
       if (input.overwrite && (await fileExists(ctx.projectDir, input.dst))) {
-        await deleteContextPath(ctx.projectDir, input.dst, { recursive: true });
+        await deleteContextPath(ctx.projectDir, input.dst, {
+          recursive: true,
+          holderId: ctx.workerId,
+        });
       }
-      await moveContextPath(ctx.projectDir, input.src, input.dst);
+      await moveContextPath(ctx.projectDir, input.src, input.dst, {
+        holderId: ctx.workerId,
+      });
       return { src: input.src, dst: input.dst, is_error: false };
     } catch (err) {
       if (err instanceof NotFoundError) {

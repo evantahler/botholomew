@@ -67,6 +67,49 @@ describe("atomicWrite", () => {
     const entries = await readdir(dir);
     expect(entries.filter((e) => e.startsWith("x.md.tmp"))).toEqual([]);
   });
+
+  test("16 concurrent writes to the same target — every write resolves and the file holds one of the values", async () => {
+    // Regression for a bug where the default temp suffix (`pid.timeMs`)
+    // collided when two callers in the same process wrote in the same
+    // millisecond — both would open and overwrite the same temp file, then
+    // the second rename() would fail with ENOENT.
+    const path = join(dir, "race.md");
+    const writes = Array.from({ length: 16 }, (_, i) =>
+      atomicWrite(path, `value-${i}`),
+    );
+    const results = await Promise.allSettled(writes);
+    for (const r of results) {
+      if (r.status === "rejected") throw r.reason;
+    }
+    const final = await readFile(path, "utf-8");
+    expect(final).toMatch(/^value-\d+$/);
+    const { readdir } = await import("node:fs/promises");
+    const tmps = (await readdir(dir)).filter((e) =>
+      e.startsWith("race.md.tmp"),
+    );
+    expect(tmps).toEqual([]);
+  });
+
+  test("explicit tempSuffix collision is surfaced (O_EXCL — not silently overwritten)", async () => {
+    const path = join(dir, "x.md");
+    await atomicWrite(path, "a", { tempSuffix: "fixed" });
+    // First call already finished and renamed the temp file away, so a
+    // second call with the same suffix should succeed (the tmp slot is free).
+    await atomicWrite(path, "b", { tempSuffix: "fixed" });
+    expect(await readFile(path, "utf-8")).toBe("b");
+
+    // But two parallel writes that both compute the same fixed suffix MUST
+    // not silently coexist on the same temp file. One should error rather
+    // than letting the second writer truncate the first.
+    const racing = await Promise.allSettled([
+      atomicWrite(path, "p", { tempSuffix: "race" }),
+      atomicWrite(path, "q", { tempSuffix: "race" }),
+    ]);
+    const oks = racing.filter((r) => r.status === "fulfilled");
+    const errs = racing.filter((r) => r.status === "rejected");
+    expect(oks.length + errs.length).toBe(2);
+    expect(errs.length).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe("readWithMtime", () => {

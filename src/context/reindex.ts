@@ -15,6 +15,7 @@ import {
 import { logger } from "../utils/logger.ts";
 import { chunkByTextSplit } from "./chunker.ts";
 import { embed as defaultEmbed } from "./embedder.ts";
+import { isContextPathLocked } from "./locks.ts";
 import { listContextDir } from "./store.ts";
 
 /** Embed function shape — exported for tests that want to inject a fake. */
@@ -110,8 +111,16 @@ export async function reindexContext(
   }
 
   // 4. Anything left in indexedByPath is in the index but not on disk →
-  //    delete its rows so search results don't surface ghost files.
+  //    delete its rows so search results don't surface ghost files. Skip
+  //    paths with an active per-path write lock: a worker may have just
+  //    written the file *after* our `collectDiskFiles` walk snapshot, and
+  //    pruning now would drop the index row for a real file. Best-effort —
+  //    the next reindex will reconcile.
   for (const orphan of indexedByPath.keys()) {
+    if (await isContextPathLocked(projectDir, orphan)) {
+      logger.debug(`reindex: skipping orphan-prune for in-flight ${orphan}`);
+      continue;
+    }
     await withDb(dbPath, (conn) => deleteIndexedPath(conn, orphan));
     removed++;
   }

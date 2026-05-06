@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   applyPatches,
   IsDirectoryError,
+  MtimeConflictError,
   NotFoundError,
   readContextFile,
 } from "../../context/store.ts";
@@ -19,6 +20,7 @@ const outputSchema = z.object({
   is_error: z.boolean(),
   error_type: z.string().optional(),
   message: z.string().optional(),
+  next_action_hint: z.string().optional(),
 });
 
 export const contextEditTool = {
@@ -34,6 +36,7 @@ export const contextEditTool = {
         ctx.projectDir,
         input.path,
         input.patches,
+        { holderId: ctx.workerId },
       );
       const content = await readContextFile(ctx.projectDir, input.path);
       return { applied, content, is_error: false };
@@ -54,6 +57,17 @@ export const contextEditTool = {
           is_error: true,
           error_type: "is_directory",
           message: `context/${err.path} is a directory`,
+        };
+      }
+      if (err instanceof MtimeConflictError) {
+        return {
+          applied: 0,
+          content: "",
+          is_error: true,
+          error_type: "mtime_conflict",
+          message: `context/${input.path} was modified concurrently — another writer (or an external editor) changed it between read and write.`,
+          next_action_hint:
+            "Call context_read to fetch the current content, recompute your patches against the new line numbers, and retry.",
         };
       }
       throw err;

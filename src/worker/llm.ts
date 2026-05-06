@@ -53,6 +53,7 @@ export async function runAgentLoop(input: {
   dbPath: string;
   threadId: string;
   projectDir: string;
+  workerId?: string;
   mcpxClient?: McpxClient | null;
   callbacks?: WorkerStreamCallbacks;
 }): Promise<AgentLoopResult> {
@@ -63,6 +64,7 @@ export async function runAgentLoop(input: {
     dbPath,
     threadId,
     projectDir,
+    workerId,
     callbacks,
   } = input;
 
@@ -207,6 +209,7 @@ export async function runAgentLoop(input: {
           projectDir,
           config,
           mcpxClient: input.mcpxClient ?? null,
+          workerId,
         });
         const elapsed = Date.now() - start;
         callbacks?.onToolEnd(
@@ -265,6 +268,7 @@ interface ToolCallCtx {
   projectDir: string;
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;
+  workerId?: string;
 }
 
 async function executeToolCall(

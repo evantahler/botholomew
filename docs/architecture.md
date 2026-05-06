@@ -30,6 +30,16 @@ Concurrency is filesystem-level, not DB-level:
   atomic-write-via-rename on the canonical `<id>.md` file with an mtime
   check, so a user editing the same file in `vim` mid-claim makes the
   worker abort cleanly rather than clobber the edit.
+- **Context mutations** (`context_write`, `context_edit`,
+  `context_move`, `context_delete`, `context_copy`) take a per-path
+  O_EXCL lockfile under `context/.locks/<sha1(path)>.lock` for the
+  duration of the operation. Two workers asked to update the same file
+  serialize on the lock with a short jittered backoff; `context_edit`
+  also mtime-checks the read-modify-write so an external editor (vim,
+  IDE) racing the agent surfaces as a structured `mtime_conflict` for
+  the LLM to retry against. The lock body holds the worker id (or
+  `chat:` / `pid:` for non-worker holders) so the reaper can release
+  locks left behind by a crashed worker.
 - **Index DB writes** (only the `botholomew context reindex` and
   in-process indexers do these) still run under `withDb(dbPath, fn)`
   from `src/db/connection.ts` for a short-lived connection; DuckDB

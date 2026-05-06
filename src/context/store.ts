@@ -12,7 +12,12 @@ import {
 } from "node:fs/promises";
 import { dirname, join, posix, relative, sep } from "node:path";
 import { CONTEXT_DIR, PROTECTED_AREAS } from "../constants.ts";
-import { atomicWrite } from "../fs/atomic.ts";
+import {
+  atomicWrite,
+  atomicWriteIfUnchanged,
+  MtimeConflictError,
+  readWithMtime,
+} from "../fs/atomic.ts";
 import { applyLinePatches, type LinePatch } from "../fs/patches.ts";
 import {
   getCanonicalRoot,
@@ -20,6 +25,11 @@ import {
   resolveInRoot,
   toRelativePath,
 } from "../fs/sandbox.ts";
+import { withContextLock } from "./locks.ts";
+
+function defaultHolderId(): string {
+  return `pid:${process.pid}`;
+}
 
 /**
  * Disk-backed replacement for the old DuckDB context_items CRUD layer. All
@@ -310,7 +320,10 @@ export async function writeContextFile(
   projectDir: string,
   path: string,
   content: string,
-  opts: { onConflict?: "error" | "overwrite" } = {},
+  opts: {
+    onConflict?: "error" | "overwrite";
+    holderId?: string;
+  } = {},
 ): Promise<ContextEntry> {
   const abs = await resolveContext(projectDir, path);
   const normalized = normalizeContextPath(path);
@@ -321,28 +334,35 @@ export async function writeContextFile(
     );
   }
   const conflict = opts.onConflict ?? "overwrite";
-  let exists = false;
-  try {
-    const st = await stat(abs);
-    if (st.isDirectory()) throw new IsDirectoryError(normalized);
-    exists = true;
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
-  }
-  if (exists && conflict === "error") {
-    throw new PathConflictError(normalized);
-  }
-  await mkdir(dirname(abs), { recursive: true });
-  await atomicWrite(abs, content);
-  const entry = await getInfo(projectDir, normalized);
-  if (!entry) throw new Error(`Wrote ${normalized} but could not stat`);
-  return entry;
+  return withContextLock(
+    projectDir,
+    normalized,
+    opts.holderId ?? defaultHolderId(),
+    async () => {
+      let exists = false;
+      try {
+        const st = await stat(abs);
+        if (st.isDirectory()) throw new IsDirectoryError(normalized);
+        exists = true;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+      }
+      if (exists && conflict === "error") {
+        throw new PathConflictError(normalized);
+      }
+      await mkdir(dirname(abs), { recursive: true });
+      await atomicWrite(abs, content);
+      const entry = await getInfo(projectDir, normalized);
+      if (!entry) throw new Error(`Wrote ${normalized} but could not stat`);
+      return entry;
+    },
+  );
 }
 
 export async function deleteContextPath(
   projectDir: string,
   path: string,
-  opts: { recursive?: boolean } = {},
+  opts: { recursive?: boolean; holderId?: string } = {},
 ): Promise<{ removed: number; was_directory: boolean; was_symlink: boolean }> {
   const abs = await resolveContext(projectDir, path, {
     allowSymlinkLeaf: true,
@@ -351,61 +371,80 @@ export async function deleteContextPath(
   if (normalized === "") {
     throw new PathEscapeError("refusing to delete the context root", path);
   }
-  let lst: Awaited<ReturnType<typeof lstat>>;
-  try {
-    lst = await lstat(abs);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new NotFoundError(normalized);
-    }
-    throw err;
-  }
-  // A symlink (to a file or a directory, broken or not) is removed with a
-  // plain unlink — never follow into the target. This is what enforces
-  // "the symlink can be deleted, but not the original content".
-  if (lst.isSymbolicLink()) {
-    await unlink(abs);
-    return { removed: 1, was_directory: false, was_symlink: true };
-  }
-  if (lst.isDirectory()) {
-    if (!opts.recursive) {
-      throw new IsDirectoryError(normalized);
-    }
-    const removedPaths = await collectFiles(abs);
-    await rm(abs, { recursive: true, force: false });
-    return {
-      removed: removedPaths.length,
-      was_directory: true,
-      was_symlink: false,
-    };
-  }
-  await unlink(abs);
-  return { removed: 1, was_directory: false, was_symlink: false };
+  return withContextLock(
+    projectDir,
+    normalized,
+    opts.holderId ?? defaultHolderId(),
+    async () => {
+      let lst: Awaited<ReturnType<typeof lstat>>;
+      try {
+        lst = await lstat(abs);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+          throw new NotFoundError(normalized);
+        }
+        throw err;
+      }
+      // A symlink (to a file or a directory, broken or not) is removed with
+      // a plain unlink — never follow into the target. This is what enforces
+      // "the symlink can be deleted, but not the original content".
+      if (lst.isSymbolicLink()) {
+        await unlink(abs);
+        return { removed: 1, was_directory: false, was_symlink: true };
+      }
+      if (lst.isDirectory()) {
+        if (!opts.recursive) {
+          throw new IsDirectoryError(normalized);
+        }
+        const removedPaths = await collectFiles(abs);
+        await rm(abs, { recursive: true, force: false });
+        return {
+          removed: removedPaths.length,
+          was_directory: true,
+          was_symlink: false,
+        };
+      }
+      await unlink(abs);
+      return { removed: 1, was_directory: false, was_symlink: false };
+    },
+  );
 }
 
 export async function moveContextPath(
   projectDir: string,
   src: string,
   dst: string,
+  opts: { holderId?: string } = {},
 ): Promise<void> {
   const srcAbs = await resolveContext(projectDir, src);
   const dstAbs = await resolveContext(projectDir, dst);
-  try {
-    await stat(srcAbs);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new NotFoundError(normalizeContextPath(src));
-    }
-    throw err;
-  }
-  try {
-    await stat(dstAbs);
-    throw new PathConflictError(normalizeContextPath(dst));
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
-  }
-  await mkdir(dirname(dstAbs), { recursive: true });
-  await fsRename(srcAbs, dstAbs);
+  const srcNorm = normalizeContextPath(src);
+  const dstNorm = normalizeContextPath(dst);
+  // Acquire both locks in a stable order to avoid AB/BA deadlocks between
+  // concurrent moves that swap two paths. Sorted lexicographically.
+  const [firstNorm, secondNorm] =
+    srcNorm < dstNorm ? [srcNorm, dstNorm] : [dstNorm, srcNorm];
+  const holder = opts.holderId ?? defaultHolderId();
+  return withContextLock(projectDir, firstNorm, holder, () =>
+    withContextLock(projectDir, secondNorm, holder, async () => {
+      try {
+        await stat(srcAbs);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+          throw new NotFoundError(srcNorm);
+        }
+        throw err;
+      }
+      try {
+        await stat(dstAbs);
+        throw new PathConflictError(dstNorm);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+      }
+      await mkdir(dirname(dstAbs), { recursive: true });
+      await fsRename(srcAbs, dstAbs);
+    }),
+  );
 }
 
 export async function copyContextPath(
@@ -770,14 +809,25 @@ export async function applyPatches(
   projectDir: string,
   path: string,
   patches: Patch[],
+  opts: { holderId?: string } = {},
 ): Promise<{ applied: number; lines: number }> {
-  const content = await readContextFile(projectDir, path);
-  const newContent = applyLinePatches(content, patches);
-  await writeContextFile(projectDir, path, newContent, {
-    onConflict: "overwrite",
+  const abs = await resolveContext(projectDir, path);
+  const normalized = normalizeContextPath(path);
+  const holder = opts.holderId ?? defaultHolderId();
+  return withContextLock(projectDir, normalized, holder, async () => {
+    const read = await readWithMtime(abs);
+    if (!read) throw new NotFoundError(normalized);
+    const newContent = applyLinePatches(read.content, patches);
+    // The lock keeps other context tools out of this critical section, but
+    // an external editor (vim, IDE) can still mutate the file in parallel.
+    // The mtime guard catches that — agents and humans don't silently lose
+    // edits to each other.
+    await atomicWriteIfUnchanged(abs, newContent, read.mtimeMs);
+    return { applied: patches.length, lines: newContent.split("\n").length };
   });
-  return { applied: patches.length, lines: newContent.split("\n").length };
 }
+
+export { MtimeConflictError };
 
 /**
  * Convert an absolute filesystem path back to a context-relative path. Used
