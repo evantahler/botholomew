@@ -18,7 +18,7 @@ import { ansi, theme } from "../theme.ts";
 import { useDeleteConfirm } from "../useDeleteConfirm.ts";
 import { useLatestRef } from "../useLatestRef.ts";
 import { useTerminalSize } from "../useTerminalSize.ts";
-import { wrapDetailLines } from "../wrapDetail.ts";
+import { clampScroll, wrapDetailLines } from "../wrapDetail.ts";
 import { DeleteArmedBanner } from "./DeleteArmedBanner.tsx";
 import { Scrollbar } from "./Scrollbar.tsx";
 
@@ -449,9 +449,10 @@ export const ThreadPanel = memo(function ThreadPanel({
     sidebarScrollOffset + visibleRows,
   );
 
+  const safeDetailScroll = clampScroll(detailScroll, maxDetailScroll);
   const detailVisible = detailLines.slice(
-    detailScroll,
-    detailScroll + visibleRows,
+    safeDetailScroll,
+    safeDetailScroll + visibleRows,
   );
 
   return (
@@ -547,7 +548,7 @@ export const ThreadPanel = memo(function ThreadPanel({
         <Box flexDirection="row" flexGrow={1} overflow="hidden">
           <Box flexDirection="column" flexGrow={1} overflow="hidden">
             {detailVisible.map((line, i) => {
-              const lineNum = detailScroll + i;
+              const lineNum = safeDetailScroll + i;
               return (
                 <Text key={lineNum} wrap="truncate-end">
                   {line || " "}
@@ -558,7 +559,7 @@ export const ThreadPanel = memo(function ThreadPanel({
           <Scrollbar
             total={detailLines.length}
             visible={visibleRows - 3}
-            offset={detailScroll}
+            offset={safeDetailScroll}
             height={visibleRows - 3}
             focused={focus === "detail"}
           />
@@ -571,13 +572,13 @@ export const ThreadPanel = memo(function ThreadPanel({
           {following && (
             <Text color={theme.success} bold>
               {" "}
-              FOLLOWING{" "}
+              ● TAILING{" "}
             </Text>
           )}
           <Text dimColor>
             {focus === "detail"
               ? "↑↓ scroll · ⇧↑↓ page · g/G top/bot · ← back to list"
-              : `↑↓ select · → enter detail · s search · f filter · d delete (×2)${selectedThread && !selectedThread.ended_at ? " · w follow" : ""} · ^R refresh`}
+              : `↑↓ select · → enter detail · s search · f filter · ${selectedThread && !selectedThread.ended_at ? "w tail (live) · " : ""}d delete (×2) · ^R refresh`}
           </Text>
         </Box>
       </Box>
