@@ -13,6 +13,7 @@
 | 9 | [Worker Agents](milestone-9-worker-agents.md) | **Done** | Replace OS watchdog with in-DB worker registration + heartbeats; multi-worker support; chat-dispatched one-shot workers |
 | 10 | [Simplify Context Paths](milestone-10-simplify-context-paths.md) | **Done** | Collapse `source_path` + `context_path` into a single `drive:/path`; drop LLM path placement |
 | 11 | [Disk-Backed Project Layout](disk-backed-project-layout.md) | **In progress** | Move context, tasks, and schedules out of DuckDB onto real disk; lockfile claim; sandbox helper |
+| 12 | [Generic Prompts CRUD](milestone-12-generic-prompts-crud.md) | **Done** | Drop the four-file cast; strict Zod-validated frontmatter; full CRUD via CLI + agent tools |
 
 ## Stub/TODO Coverage
 
