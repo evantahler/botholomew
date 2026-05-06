@@ -55,7 +55,9 @@ export const createTaskTool = {
         blocked_by: input.blocked_by,
         context_paths: input.context_paths,
       });
-      logger.info(`Created subtask: ${newTask.name} (${newTask.id})`);
+      const msg = `Created subtask: ${newTask.name} (${newTask.id})`;
+      if (ctx.notify) ctx.notify(msg);
+      else logger.info(msg);
       return {
         id: newTask.id,
         name: newTask.name,

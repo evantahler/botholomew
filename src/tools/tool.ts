@@ -22,6 +22,13 @@ export interface ToolContext {
    * Esc-to-abort by reading `session.aborted`. Workers leave this `undefined`.
    */
   shouldAbort?: () => boolean;
+  /**
+   * Chat-mode only. Tools call this to surface a short human-readable
+   * side-effect message (e.g. "Created subtask: …") that the TUI renders
+   * inside the tool-call card. Workers leave this `undefined`; tools fall
+   * back to `logger.info` so worker logs are unchanged.
+   */
+  notify?: (message: string) => void;
 }
 
 type ToolOutputBase = { is_error: z.ZodBoolean };

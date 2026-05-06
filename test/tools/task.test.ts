@@ -114,6 +114,19 @@ describe("create_task", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  test("calls ctx.notify with the subtask message when provided", async () => {
+    const notes: string[] = [];
+    const notifyCtx: ToolContext = { ...ctx, notify: (m) => notes.push(m) };
+    const result = await createTaskTool.execute(
+      { name: "Notified" },
+      notifyCtx,
+    );
+    expect(result.is_error).toBe(false);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toContain("Created subtask: Notified");
+    expect(notes[0]).toContain(result.id ?? "");
+  });
 });
 
 // ── update_task ────────────────────────────────────────────
@@ -174,6 +187,18 @@ describe("update_task", () => {
     const result = updateTaskTool.inputSchema.safeParse({ name: "test" });
     expect(result.success).toBe(false);
   });
+
+  test("calls ctx.notify on success when provided", async () => {
+    const created = await makeTask({ name: "Original" });
+    const notes: string[] = [];
+    const notifyCtx: ToolContext = { ...ctx, notify: (m) => notes.push(m) };
+    await updateTaskTool.execute(
+      { id: created.id, name: "Renamed" },
+      notifyCtx,
+    );
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toContain("Updated task: Renamed");
+  });
 });
 
 // ── delete_task ────────────────────────────────────────────
@@ -231,6 +256,15 @@ describe("delete_task", () => {
     expect(result.is_error).toBe(true);
     expect(result.deleted_id).toBeNull();
     expect(result.message).toContain("not found");
+  });
+
+  test("calls ctx.notify on success when provided", async () => {
+    const task = await createTask(projectDir, { name: "scratch" });
+    const notes: string[] = [];
+    const notifyCtx: ToolContext = { ...ctx, notify: (m) => notes.push(m) };
+    await deleteTaskTool.execute({ id: task.id }, notifyCtx);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toContain("Deleted task: scratch");
   });
 });
 

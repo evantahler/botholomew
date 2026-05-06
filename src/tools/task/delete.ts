@@ -44,7 +44,9 @@ export const deleteTaskTool = {
         is_error: true,
       };
     }
-    logger.info(`Deleted task: ${existing.name} (${existing.id})`);
+    const msg = `Deleted task: ${existing.name} (${existing.id})`;
+    if (ctx.notify) ctx.notify(msg);
+    else logger.info(msg);
     return {
       deleted_id: existing.id,
       message: `Deleted task "${existing.name}" (${existing.id})`,
