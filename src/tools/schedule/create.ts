@@ -33,7 +33,9 @@ export const createScheduleTool = {
       description: input.description,
       frequency: input.frequency,
     });
-    logger.info(`Created schedule: ${schedule.name} (${schedule.id})`);
+    const msg = `Created schedule: ${schedule.name} (${schedule.id})`;
+    if (ctx.notify) ctx.notify(msg);
+    else logger.info(msg);
     return {
       id: schedule.id,
       name: schedule.name,

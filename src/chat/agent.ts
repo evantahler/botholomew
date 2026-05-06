@@ -156,6 +156,11 @@ export interface ChatTurnCallbacks {
     isError: boolean,
     meta?: ToolEndMeta,
   ) => void;
+  /** Side-effect notification from inside a tool ("Created subtask: …"). The
+   *  TUI renders these inside the tool-call card so they stay anchored to the
+   *  tool that produced them. Workers don't supply this; tools fall back to
+   *  `logger.info`. */
+  onToolNotify?: (toolUseId: string, message: string) => void;
   /** Called between LLM turns. The TUI returns any queued user messages so
    *  the agent can inject them into the running turn instead of waiting for
    *  the entire tool loop to finish. Each returned message is logged + pushed
@@ -406,6 +411,9 @@ export async function runChatTurn(input: {
           config,
           mcpxClient,
           shouldAbort: session ? () => session.aborted : undefined,
+          notify: callbacks.onToolNotify
+            ? (msg) => callbacks.onToolNotify?.(toolUse.id, msg)
+            : undefined,
         });
         const durationMs = Date.now() - start;
         const stored = maybeStoreResult(toolUse.name, result.output);
@@ -454,6 +462,7 @@ interface ChatToolCallCtx {
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;
   shouldAbort?: () => boolean;
+  notify?: (message: string) => void;
 }
 
 async function executeChatToolCall(

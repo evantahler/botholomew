@@ -476,6 +476,14 @@ function AppInner({
             }
             setActiveToolCalls([...pendingToolCalls]);
           },
+          onToolNotify: (id, message) => {
+            markActivityRef.current();
+            const tc = pendingToolCalls.find((t) => t.id === id);
+            if (tc) {
+              tc.notes = [...(tc.notes ?? []), message];
+              setActiveToolCalls([...pendingToolCalls]);
+            }
+          },
           onUsage: (info) => {
             setUsage(info);
           },
