@@ -202,7 +202,7 @@ function AppInner({
             id: msgId(),
             role: "system" as const,
             content:
-              "Switch panels with Ctrl+<letter> (^a chat · ^o tools · ^n context · ^t tasks · ^r threads · ^s schedules · ^w workers) — `?` for help. Type /help for commands.",
+              "Switch panels with Ctrl+<letter> (^a chat · ^o tools · ^n context · ^t tasks · ^e threads · ^s schedules · ^w workers) — `?` for help. Type /help for commands.",
             timestamp: new Date(),
           },
         ]);
