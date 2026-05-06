@@ -76,6 +76,8 @@ Requires [Bun](https://bun.sh) 1.1+.
 bun install -g botholomew
 ```
 
+The CLI installs as both `botholomew` and `bothy` — the same binary, two names.
+
 Or run the dev build from a checkout:
 
 ```bash

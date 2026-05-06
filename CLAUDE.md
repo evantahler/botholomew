@@ -62,7 +62,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 
 ## On-disk patterns
 
-- **Project root is the cwd.** `bothy init` writes its tree at `<cwd>/{config,prompts,context,tasks,schedules,threads,workers,logs,…}` — there is no `.botholomew/` wrapper.
+- **Project root is the cwd.** `botholomew init` writes its tree at `<cwd>/{config,prompts,context,tasks,schedules,threads,workers,logs,…}` — there is no `.botholomew/` wrapper.
 - **Path sandbox is non-negotiable.** Every tool that takes a `path` arg routes through `src/fs/sandbox.ts::resolveInRoot(root, userPath, opts)`. NFC-normalize, reject NUL/`..`/absolute, lstat-walk every component. By default symlink components are rejected; read-side ops on `context/` (read, list, tree, info, search, reindex, delete) opt in via `allowSymlinks: true` so users can drop symlinks into the agent's tree, but mutating ops never set the flag — the agent cannot write/edit/move/copy/mkdir through a user-placed symlink. `deleteContextPath` is the one exception that allows symlinks: it `lstat`s the leaf and `unlink`s the link without touching its target. Walks (`walk`, `collectFiles`, `treeRecurse`) follow symlinks with `dev:ino` cycle detection capped at 32 levels. New tools that touch paths MUST use this helper.
 - **Atomic-write-via-rename for status mutations.** `src/fs/atomic.ts::atomicWrite` writes a `*.tmp.<wid>` then `fs.rename`s. Reads-before-writes (tasks/schedules/prompts) compare the file's `mtime` between read and write — abort and retry if it changed.
 - **`O_EXCL` lockfiles** for tasks, schedules, and reindex. Body holds the worker id and `claimed_at`. Release = `unlink`. Reaper walks the lock dirs and unlinks orphans whose owner is dead in `workers/`.

@@ -39,7 +39,7 @@ export interface FetchedContent {
   /**
    * MCP server that produced the content (e.g. "google-docs", "github",
    * "firecrawl"), or null when we fell back to a plain HTTP fetch. Useful
-   * for `bothy context import` to pick a default destination subdirectory.
+   * for `botholomew context import` to pick a default destination subdirectory.
    */
   source: string | null;
 }

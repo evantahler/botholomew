@@ -3,7 +3,7 @@ import matter from "gray-matter";
 export interface ContextFileMeta {
   loading?: "always" | "contextual";
   "agent-modification"?: boolean;
-  // Set by `bothy context import <url>` so the saved file remembers
+  // Set by `botholomew context import <url>` so the saved file remembers
   // where it came from. Optional so files written by other paths
   // (prompts/, beliefs/, agent-authored notes) aren't required to
   // carry import metadata.

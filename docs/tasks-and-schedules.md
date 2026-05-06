@@ -45,7 +45,7 @@ The free-form body the LLM sees. Markdown all the way down.
 
 Frontmatter is strictly validated by Zod (`src/tasks/schema.ts`).
 Files that fail validation are quarantined — workers skip them and the
-DAG checker ignores them. `bothy tasks doctor` lists malformed files
+DAG checker ignores them. `botholomew tasks doctor` lists malformed files
 so you can fix them in place.
 
 ---
