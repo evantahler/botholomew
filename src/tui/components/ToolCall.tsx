@@ -1,4 +1,5 @@
 import { Box, Text } from "ink";
+import { memo } from "react";
 import { theme } from "../theme.ts";
 import { parseSleepInput, SleepProgress } from "./SleepProgress.tsx";
 
@@ -48,7 +49,7 @@ interface ToolCallProps {
   tool: ToolCallData;
 }
 
-export function ToolCall({ tool }: ToolCallProps) {
+export const ToolCall = memo(function ToolCall({ tool }: ToolCallProps) {
   const { displayName, displayInput } = resolveToolDisplay(
     tool.name,
     tool.input,
@@ -122,4 +123,4 @@ export function ToolCall({ tool }: ToolCallProps) {
       ))}
     </Box>
   );
-}
+});

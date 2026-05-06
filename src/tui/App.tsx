@@ -142,6 +142,7 @@ function AppInner({
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCallData[]>([]);
+  const [streamStartedAt, setStreamStartedAt] = useState<Date | null>(null);
   const [preparingTool, setPreparingTool] = useState<{
     id: string;
     name: string;
@@ -412,6 +413,7 @@ function AppInner({
       setStreamingText("");
       setActiveToolCalls([]);
       setPreparingTool(null);
+      setStreamStartedAt(new Date());
 
       const userMsg: ChatMessage = {
         id: msgId(),
@@ -439,6 +441,7 @@ function AppInner({
           pendingToolCalls = [];
           setStreamingText("");
           setActiveToolCalls([]);
+          setStreamStartedAt(new Date());
         }
       };
 
@@ -470,30 +473,39 @@ function AppInner({
               running: true,
               timestamp: new Date(),
             };
-            pendingToolCalls.push(tc);
-            setActiveToolCalls([...pendingToolCalls]);
+            pendingToolCalls = [...pendingToolCalls, tc];
+            setActiveToolCalls(pendingToolCalls);
             setPreparingTool(null);
           },
           onToolEnd: (id, _name, output, isError, meta) => {
             markActivityRef.current();
-            const tc = pendingToolCalls.find((t) => t.id === id);
-            if (tc) {
-              tc.running = false;
-              tc.output = output;
-              tc.isError = isError;
-              if (meta?.largeResult) {
-                tc.largeResult = meta.largeResult;
-              }
-            }
-            setActiveToolCalls([...pendingToolCalls]);
+            // Replace the matched entry with a new object so its identity
+            // changes (memoized ToolCall children rely on this); other entries
+            // keep their reference and skip re-render.
+            pendingToolCalls = pendingToolCalls.map((t) =>
+              t.id === id
+                ? {
+                    ...t,
+                    running: false,
+                    output,
+                    isError,
+                    ...(meta?.largeResult
+                      ? { largeResult: meta.largeResult }
+                      : {}),
+                  }
+                : t,
+            );
+            setActiveToolCalls(pendingToolCalls);
           },
           onToolNotify: (id, message) => {
             markActivityRef.current();
-            const tc = pendingToolCalls.find((t) => t.id === id);
-            if (tc) {
-              tc.notes = [...(tc.notes ?? []), message];
-              setActiveToolCalls([...pendingToolCalls]);
-            }
+            let touched = false;
+            pendingToolCalls = pendingToolCalls.map((t) => {
+              if (t.id !== id) return t;
+              touched = true;
+              return { ...t, notes: [...(t.notes ?? []), message] };
+            });
+            if (touched) setActiveToolCalls(pendingToolCalls);
           },
           onUsage: (info) => {
             setUsage(info);
@@ -540,6 +552,7 @@ function AppInner({
         setStreamingText("");
         setActiveToolCalls([]);
         setPreparingTool(null);
+        setStreamStartedAt(null);
       }
     }
 
@@ -695,6 +708,7 @@ function AppInner({
                 setStreamingText("");
                 setActiveToolCalls([]);
                 setPreparingTool(null);
+                setStreamStartedAt(null);
                 setUsage(null);
               } catch (err) {
                 setMessages((prev) => [
@@ -840,6 +854,7 @@ function AppInner({
           isLoading={isLoading}
           activeToolCalls={activeToolCalls}
           preparingTool={preparingTool}
+          streamStartedAt={streamStartedAt}
         />
       </Box>
       <Box
