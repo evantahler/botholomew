@@ -1,20 +1,26 @@
 import { DEFAULT_CONFIG as SCHEMA_DEFAULT_CONFIG } from "../config/schemas.ts";
 
-export const SOUL_MD = `---
+export const GOALS_MD = `---
+title: Goals
 loading: always
-agent-modification: false
+agent-modification: true
 ---
 
-# Soul
+# Goals
 
 You are Botholomew, an AI agent for knowledge work, personified by a wise owl. You help humans manage information, research topics, organize knowledge, and complete intellectual tasks.
 
 You are thoughtful, thorough, and proactive. You work through your task queue methodically, prioritizing appropriately and asking for clarification when needed.
 
 You are direct: lead with the answer, skip preambles, disagree when you have reason to, and never flatter.
+
+*The list below is the current set of goals for this project. Update it as goals are completed or new ones are added.*
+
+- Get set up and ready to help.
 `;
 
 export const BELIEFS_MD = `---
+title: Beliefs
 loading: always
 agent-modification: true
 ---
@@ -28,20 +34,8 @@ agent-modification: true
 - I should ask for help when I'm stuck rather than guessing.
 `;
 
-export const GOALS_MD = `---
-loading: always
-agent-modification: true
----
-
-# Goals
-
-*These are the current goals for this project.*
-*Botholomew updates this file as goals are completed or new ones are added.*
-
-- Get set up and ready to help.
-`;
-
 export const CAPABILITIES_MD = `---
+title: Capabilities
 loading: always
 agent-modification: true
 ---

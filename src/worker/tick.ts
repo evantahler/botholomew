@@ -149,13 +149,22 @@ async function runClaimedTask(opts: {
     `Working: ${task.name}`,
   );
 
-  const systemPrompt = await buildSystemPrompt(
-    projectDir,
-    task,
-    dbPath,
-    config,
-    { hasMcpTools: mcpxClient != null },
-  );
+  let systemPrompt: string;
+  try {
+    systemPrompt = await buildSystemPrompt(projectDir, task, dbPath, config, {
+      hasMcpTools: mcpxClient != null,
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    await updateTaskStatus(projectDir, task.id, "failed", reason, null);
+    await logInteraction(projectDir, threadId, {
+      role: "system",
+      kind: "status_change",
+      content: `Task ${task.id} failed during prompt load: ${reason}`,
+    });
+    logger.error(`Task ${task.id} failed during prompt load: ${reason}`);
+    return;
+  }
 
   try {
     const result = await runAgentLoop({

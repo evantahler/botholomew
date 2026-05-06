@@ -36,7 +36,6 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_MCPX_SERVERS,
   GOALS_MD,
-  SOUL_MD,
   STANDUP_SKILL,
   SUMMARIZE_SKILL,
 } from "./templates.ts";
@@ -74,9 +73,8 @@ export async function initProject(
 
   // Persistent-context template files
   const pcDir = getPromptsDir(projectDir);
-  await Bun.write(join(pcDir, "soul.md"), SOUL_MD);
-  await Bun.write(join(pcDir, "beliefs.md"), BELIEFS_MD);
   await Bun.write(join(pcDir, "goals.md"), GOALS_MD);
+  await Bun.write(join(pcDir, "beliefs.md"), BELIEFS_MD);
   await Bun.write(join(pcDir, "capabilities.md"), CAPABILITIES_MD);
 
   // Default skills
@@ -117,7 +115,9 @@ export async function initProject(
   logger.dim("");
   logger.dim("Layout:");
   logger.dim(`  ${CONFIG_DIR}/         settings`);
-  logger.dim(`  prompts/   soul, beliefs, goals, capabilities`);
+  logger.dim(
+    `  prompts/         goals, beliefs, capabilities (and any you add)`,
+  );
   logger.dim(`  ${CONTEXT_DIR}/        agent-writable knowledge tree`);
   logger.dim(`  ${TASKS_DIR}/          one markdown file per task`);
   logger.dim(`    ${LOCKS_SUBDIR}/        worker claim lockfiles`);

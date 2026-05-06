@@ -23,7 +23,10 @@ import { mcpInfoTool } from "./mcp/info.ts";
 import { mcpListToolsTool } from "./mcp/list-tools.ts";
 import { mcpSearchTool } from "./mcp/search.ts";
 // Prompt tools
+import { promptCreateTool } from "./prompt/create.ts";
+import { promptDeleteTool } from "./prompt/delete.ts";
 import { promptEditTool } from "./prompt/edit.ts";
+import { promptListTool } from "./prompt/list.ts";
 import { promptReadTool } from "./prompt/read.ts";
 // Schedule tools
 import { createScheduleTool } from "./schedule/create.ts";
@@ -83,8 +86,11 @@ export function registerAllTools(): void {
   registerTool(contextInfoTool);
   registerTool(contextExistsTool);
   registerTool(contextCountLinesTool);
+  registerTool(promptListTool);
   registerTool(promptReadTool);
+  registerTool(promptCreateTool);
   registerTool(promptEditTool);
+  registerTool(promptDeleteTool);
   registerTool(readLargeResultTool);
   registerTool(pipeToContextTool);
 
