@@ -149,8 +149,8 @@ export const HelpPanel = memo(function HelpPanel({
           {"  "}Tasks{"          "}f filter · p priority · d delete (×2)
         </Text>
         <Text>
-          {"  "}Threads{"        "}f filter · s/ search · w follow · d delete
-          (×2)
+          {"  "}Threads{"        "}f filter · s/ search · w tail live thread · d
+          delete (×2)
         </Text>
         <Text>
           {"  "}Schedules{"      "}f filter · e toggle · d delete (×2)

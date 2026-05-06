@@ -59,7 +59,7 @@ filter state survive a round trip.
 | 2 | **Tools** | Scrollable log of every tool call in the current session, with full input/output. |
 | 3 | **Context** | Browse the agent's `context/` tree on disk. Preview, search, delete. |
 | 4 | **Tasks** | Task queue with status + priority filters. View details, payloads, and predecessor outputs. |
-| 5 | **Threads** | Browse past chat and worker threads. View interactions, delete with confirmation. |
+| 5 | **Threads** | Browse chat and worker threads, including live ones. Press `w` to tail an in-progress thread. |
 | 6 | **Schedules** | Recurring work. Toggle enabled/disabled, delete, inspect last run. |
 | 7 | **Workers** | Live view of registered workers (running / stopped / dead), pid, mode, heartbeat age. `f` cycles the status filter. |
 | 8 | **Help** | System info, worker status, keyboard reference. |
@@ -126,10 +126,19 @@ attempts. `Ctrl+R` refreshes. See [tasks-and-schedules.md](tasks-and-schedules.m
 
 ### 5. Threads
 
-Every thread ever persisted to the project DB, with a type filter
+Every thread ever persisted to the project, with a type filter
 (chat vs. worker). Threads store the full interaction history
 (messages, tool calls, tool results) — the same data the agent uses to
 reconstruct context on resume.
+
+Press `w` on an ongoing thread to tail it like `tail -f`: the detail
+pane polls the thread CSV every ~1 s, appends new interactions as they
+land, and auto-scrolls to the bottom. A green `● TAILING` badge marks
+the active state. Tailing exits automatically when the thread ends; the
+`w` keypress is a no-op on already-ended threads (the hint disappears
+too). Pairs well with `Ctrl+e` to jump to a worker thread that's in
+flight — you get a live read of what the worker is doing without
+spawning a separate `tail` on its CSV.
 
 `d` deletes a thread, with a yes/no confirmation. You can't delete the
 thread you're currently attached to.
@@ -350,7 +359,7 @@ move the selection (list focus) or scroll the detail (detail focus).
 | `d` then `d` | Delete the selected item (Tasks, Threads, Schedules, Context). First press arms; second confirms. Any other key or 3s of inactivity disarms. The active chat thread cannot be deleted. |
 | `e` | Toggle enable/disable (Schedules only) |
 | `s` or `/` | Search (Threads only) |
-| `w` | Toggle follow-mode (Threads only) |
+| `w` | Toggle tail/follow on the selected ongoing thread (Threads only) |
 | `l` | Toggle detail / log view (Workers only) |
 | `d` then `d` (Workers, log view) | Delete the worker's on-disk log file. The worker record itself is preserved. |
 
