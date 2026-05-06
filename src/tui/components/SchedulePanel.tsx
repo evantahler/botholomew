@@ -1,4 +1,4 @@
-import { Box, Text, useInput, useStdout } from "ink";
+import { Box, Text, useInput } from "ink";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { Schedule } from "../../schedules/schema.ts";
 import {
@@ -14,6 +14,8 @@ import {
 import { ansi, theme } from "../theme.ts";
 import { useDeleteConfirm } from "../useDeleteConfirm.ts";
 import { useLatestRef } from "../useLatestRef.ts";
+import { useTerminalSize } from "../useTerminalSize.ts";
+import { wrapDetailLines } from "../wrapDetail.ts";
 import { DeleteArmedBanner } from "./DeleteArmedBanner.tsx";
 import { Scrollbar } from "./Scrollbar.tsx";
 
@@ -88,8 +90,8 @@ export const SchedulePanel = memo(function SchedulePanel({
   projectDir,
   isActive,
 }: SchedulePanelProps) {
-  const { stdout } = useStdout();
-  const termRows = stdout?.rows ?? 24;
+  const { rows: termRows, cols: termCols } = useTerminalSize();
+  const detailWidth = Math.max(1, termCols - SIDEBAR_WIDTH - 5);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [detailScroll, setDetailScroll] = useState(0);
@@ -133,8 +135,8 @@ export const SchedulePanel = memo(function SchedulePanel({
   }, [selectedSchedule]);
 
   const detailLines = useMemo(
-    () => renderedDetail.split("\n"),
-    [renderedDetail],
+    () => wrapDetailLines(renderedDetail, detailWidth),
+    [renderedDetail, detailWidth],
   );
 
   const visibleRows = Math.max(1, termRows - 6);

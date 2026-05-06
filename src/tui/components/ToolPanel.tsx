@@ -1,4 +1,4 @@
-import { Box, Text, useInput, useStdout } from "ink";
+import { Box, Text, useInput } from "ink";
 import { memo, useEffect, useMemo, useState } from "react";
 import {
   detailPaneBorderProps,
@@ -7,6 +7,8 @@ import {
 } from "../listDetailKeys.ts";
 import { ansi, theme } from "../theme.ts";
 import { useLatestRef } from "../useLatestRef.ts";
+import { useTerminalSize } from "../useTerminalSize.ts";
+import { wrapDetailLines } from "../wrapDetail.ts";
 import { Scrollbar } from "./Scrollbar.tsx";
 import { resolveToolDisplay, type ToolCallData } from "./ToolCall.tsx";
 
@@ -109,8 +111,10 @@ export const ToolPanel = memo(function ToolPanel({
   toolCalls,
   isActive,
 }: ToolPanelProps) {
-  const { stdout } = useStdout();
-  const termRows = stdout?.rows ?? 24;
+  const { rows: termRows, cols: termCols } = useTerminalSize();
+  // Detail-pane content width: total cols minus sidebar, minus 4 chars of
+  // border+padding on the right pane, minus 1 col for the scrollbar.
+  const detailWidth = Math.max(1, termCols - SIDEBAR_WIDTH - 5);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [detailScroll, setDetailScroll] = useState(0);
   const [focus, setFocus] = useState<FocusState>("list");
@@ -133,8 +137,8 @@ export const ToolPanel = memo(function ToolPanel({
   }, [selectedTool]);
 
   const detailLines = useMemo(
-    () => renderedDetail.split("\n"),
-    [renderedDetail],
+    () => wrapDetailLines(renderedDetail, detailWidth),
+    [renderedDetail, detailWidth],
   );
 
   // Visible area for sidebar and detail
