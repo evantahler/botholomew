@@ -22,6 +22,10 @@ processing tasks. For deeper background, see
 bun install -g botholomew
 ```
 
+The CLI installs as both `botholomew` and `bothy` — the same binary, two
+names. Examples in these docs use `botholomew`; substitute `bothy` if
+you prefer the shorter form.
+
 Or run from a checkout:
 
 ```bash
