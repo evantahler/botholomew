@@ -33,6 +33,7 @@ import { ThreadPanel } from "./components/ThreadPanel.tsx";
 import type { ToolCallData } from "./components/ToolCall.tsx";
 import { ToolPanel } from "./components/ToolPanel.tsx";
 import { WorkerPanel } from "./components/WorkerPanel.tsx";
+import { IdleProvider, useIdle } from "./idle.tsx";
 import { buildSlashCommands, getSlashMatches } from "./slashCompletion.ts";
 import { ansi } from "./theme.ts";
 
@@ -40,6 +41,7 @@ interface AppProps {
   projectDir: string;
   threadId?: string;
   initialPrompt?: string;
+  idleTimeoutMs: number;
 }
 
 let nextMsgId = 0;
@@ -138,8 +140,32 @@ export function App({
   projectDir,
   threadId: resumeThreadId,
   initialPrompt,
+  idleTimeoutMs,
 }: AppProps) {
+  return (
+    <IdleProvider timeoutMs={idleTimeoutMs}>
+      <AppInner
+        projectDir={projectDir}
+        threadId={resumeThreadId}
+        initialPrompt={initialPrompt}
+      />
+    </IdleProvider>
+  );
+}
+
+interface AppInnerProps {
+  projectDir: string;
+  threadId?: string;
+  initialPrompt?: string;
+}
+
+function AppInner({
+  projectDir,
+  threadId: resumeThreadId,
+  initialPrompt,
+}: AppInnerProps) {
   const { exit } = useApp();
+  const { markActivity } = useIdle();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messagesEpoch, setMessagesEpoch] = useState(0);
   const [inputValue, setInputValue] = useState("");
@@ -265,9 +291,14 @@ export function App({
   const slashCommandsRef = useRef<SlashCommand[]>([]);
   const inputValueRef = useRef("");
 
+  const markActivityRef = useRef(markActivity);
+  markActivityRef.current = markActivity;
+
   const stableAppHandler = useCallback(
     // biome-ignore lint/suspicious/noExplicitAny: Ink's Key type is not exported
     (input: string, key: any) => {
+      markActivityRef.current();
+
       // Ctrl+C exits
       if (input === "c" && key.ctrl) {
         exit();
@@ -407,12 +438,15 @@ export function App({
             if (now - lastStreamFlush >= 50) {
               setStreamingText(currentText);
               lastStreamFlush = now;
+              markActivityRef.current();
             }
           },
           onToolPreparing: (id, name) => {
+            markActivityRef.current();
             setPreparingTool({ id, name });
           },
           onToolStart: (id, name, input) => {
+            markActivityRef.current();
             if (currentText) {
               finalizeSegment();
             }
@@ -428,6 +462,7 @@ export function App({
             setPreparingTool(null);
           },
           onToolEnd: (id, _name, output, isError, meta) => {
+            markActivityRef.current();
             const tc = pendingToolCalls.find((t) => t.id === id);
             if (tc) {
               tc.running = false;

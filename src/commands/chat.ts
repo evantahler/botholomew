@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { loadConfig } from "../config/loader.ts";
 
 export function registerChatCommand(program: Command) {
   program
@@ -29,6 +30,8 @@ export function registerChatCommand(program: Command) {
       const React = await import("react");
       const { App } = await import("../tui/App.tsx");
       const dir = program.opts().dir;
+      const config = await loadConfig(dir);
+      const idleTimeoutMs = config.tui_idle_timeout_seconds * 1000;
 
       // VHS/ttyd doesn't fully negotiate the Kitty Keyboard protocol, so
       // Ink's "enabled" mode drops non-text keystrokes (Tab, Escape) under
@@ -41,6 +44,7 @@ export function registerChatCommand(program: Command) {
           projectDir: dir,
           threadId: opts.threadId,
           initialPrompt: opts.prompt,
+          idleTimeoutMs,
         }),
         {
           exitOnCtrlC: false,

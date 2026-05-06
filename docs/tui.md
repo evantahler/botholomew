@@ -394,6 +394,13 @@ A few choices worth knowing if you're reading or modifying the TUI:
   `disambiguateEscapeCodes` flag when starting Ink so modifiers
   (`Shift+↑`, `⌥+Enter`, etc.) are distinguishable from plain arrow /
   Enter presses on supporting terminals.
+- **Idle freeze.** After `tui_idle_timeout_seconds` (default 180) with no
+  keystrokes and no streamed agent activity, the cursor blink, status-bar
+  mascot, and status-bar count refresh all pause. Frozen elements (mascot,
+  status-bar text, input-bar border + prompt) also turn grey so it's
+  obvious the UI is idle rather than hung. Everything resumes — and
+  recolors — on the next keystroke or stream event. Set
+  `tui_idle_timeout_seconds: 0` to disable (useful for demo recordings).
 
 ---
 
