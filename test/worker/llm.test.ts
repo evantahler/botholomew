@@ -10,15 +10,14 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { MembotClient } from "membot";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 import {
-  getDbPath,
   getTasksDir,
   getTasksLockDir,
   getThreadsDir,
 } from "../../src/constants.ts";
-import { getConnection } from "../../src/db/connection.ts";
-import { migrate } from "../../src/db/schema.ts";
+import { openMembot } from "../../src/mem/client.ts";
 import { createTask } from "../../src/tasks/store.ts";
 import { createThread } from "../../src/threads/store.ts";
 
@@ -57,21 +56,20 @@ const TEST_CONFIG = {
 } as Required<typeof DEFAULT_CONFIG>;
 
 let projectDir: string;
-let dbPath: string;
+let mem: MembotClient;
 
 beforeEach(async () => {
   projectDir = await mkdtemp(join(tmpdir(), "both-llm-"));
   await mkdir(getTasksDir(projectDir), { recursive: true });
   await mkdir(getTasksLockDir(projectDir), { recursive: true });
   await mkdir(getThreadsDir(projectDir), { recursive: true });
-  dbPath = getDbPath(projectDir);
-  const conn = await getConnection(dbPath);
-  await migrate(conn);
-  conn.close();
+  mem = openMembot(projectDir);
+  await mem.connect();
   mockResponse = () => completionResponseLocal();
 });
 
 afterEach(async () => {
+  await mem.close();
   await rm(projectDir, { recursive: true, force: true });
 });
 
@@ -91,7 +89,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "test prompt",
       task,
       config: TEST_CONFIG,
-      dbPath,
+      mem,
       threadId,
       projectDir,
     });
@@ -118,7 +116,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task,
       config: TEST_CONFIG,
-      dbPath,
+      mem,
       threadId,
       projectDir,
     });
@@ -144,7 +142,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task,
       config: TEST_CONFIG,
-      dbPath,
+      mem,
       threadId,
       projectDir,
     });
@@ -163,7 +161,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task,
       config: TEST_CONFIG,
-      dbPath,
+      mem,
       threadId,
       projectDir,
     });
@@ -190,7 +188,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task,
       config: { ...TEST_CONFIG, max_turns: 2 },
-      dbPath,
+      mem,
       threadId,
       projectDir,
     });
@@ -223,7 +221,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task,
       config: TEST_CONFIG,
-      dbPath,
+      mem,
       threadId,
       projectDir,
     });
@@ -269,7 +267,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task: downstream,
       config: TEST_CONFIG,
-      dbPath,
+      mem,
       threadId,
       projectDir,
     });
@@ -316,7 +314,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task,
       config: TEST_CONFIG,
-      dbPath,
+      mem,
       threadId,
       projectDir,
     });

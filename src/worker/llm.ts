@@ -5,8 +5,8 @@ import type {
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
 import type { McpxClient } from "@evantahler/mcpx";
+import type { MembotClient } from "membot";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { withDb } from "../db/connection.ts";
 import type { Task } from "../tasks/schema.ts";
 import { getTask } from "../tasks/store.ts";
 import { logInteraction } from "../threads/store.ts";
@@ -50,7 +50,7 @@ export async function runAgentLoop(input: {
   systemPrompt: string;
   task: Task;
   config: Required<BotholomewConfig>;
-  dbPath: string;
+  mem: MembotClient;
   threadId: string;
   projectDir: string;
   workerId?: string;
@@ -61,7 +61,7 @@ export async function runAgentLoop(input: {
     systemPrompt,
     task,
     config,
-    dbPath,
+    mem,
     threadId,
     projectDir,
     workerId,
@@ -205,7 +205,7 @@ export async function runAgentLoop(input: {
       toolUseBlocks.map(async (toolUse) => {
         const start = Date.now();
         const result = await executeToolCall(toolUse, {
-          dbPath,
+          mem,
           projectDir,
           config,
           mcpxClient: input.mcpxClient ?? null,
@@ -264,7 +264,7 @@ interface ToolCallResult {
 }
 
 interface ToolCallCtx {
-  dbPath: string;
+  mem: MembotClient;
   projectDir: string;
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;
@@ -298,10 +298,8 @@ async function executeToolCall(
 
   let result: unknown;
   try {
-    result = await withDb(baseCtx.dbPath, (conn) => {
-      const ctx: ToolContext = { ...baseCtx, conn };
-      return tool.execute(parsed.data, ctx);
-    });
+    const ctx: ToolContext = baseCtx;
+    result = await tool.execute(parsed.data, ctx);
   } catch (err) {
     return {
       output: `Tool ${toolUse.name} threw an error: ${err}. You may retry with different parameters or try an alternative approach.`,

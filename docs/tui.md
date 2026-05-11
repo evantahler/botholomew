@@ -282,7 +282,7 @@ When a tool returns more than `MAX_INLINE_CHARS` (see
 through the large-results cache and shows a stub instead:
 
 ```
-  ✔ context_read ({"path":"big.md"})
+  ✔ membot_read ({"path":"big.md"})
     ⚡ Paginated for LLM [42K, 8pg]
 ```
 

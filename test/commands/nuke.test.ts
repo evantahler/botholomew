@@ -10,8 +10,6 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  CONTEXT_DIR,
-  getContextDir,
   getSchedulesDir,
   getSchedulesLockDir,
   getTasksDir,
@@ -37,7 +35,6 @@ let projectDir: string;
 beforeEach(async () => {
   projectDir = await mkdtemp(join(tmpdir(), "both-nuke-"));
   for (const dir of [
-    join(projectDir, CONTEXT_DIR),
     getTasksDir(projectDir),
     getTasksLockDir(projectDir),
     getSchedulesDir(projectDir),
@@ -91,20 +88,9 @@ describe("nuke primitives", () => {
     expect(await listThreads(projectDir)).toEqual([]);
   });
 
-  test("nuke context = removing the entire context/ tree", async () => {
-    await writeFile(join(projectDir, CONTEXT_DIR, "a.md"), "x");
-    await mkdir(join(projectDir, CONTEXT_DIR, "sub"), { recursive: true });
-    await writeFile(join(projectDir, CONTEXT_DIR, "sub/b.md"), "y");
-
-    await rm(getContextDir(projectDir), { recursive: true, force: true });
-    expect(await Bun.file(join(projectDir, CONTEXT_DIR, "a.md")).exists()).toBe(
-      false,
-    );
-  });
-
   test("nuke leaves prompts/, skills/, mcpx/, config/ alone", async () => {
-    // Sanity: the nuke verbs in src/commands/nuke.ts only touch context/,
-    // tasks/, schedules/, threads/. Other dirs aren't even imported.
+    // Sanity: the nuke verbs in src/commands/nuke.ts only touch the membot
+    // store and tasks/, schedules/, threads/. Other dirs aren't imported.
     const prompts = join(projectDir, "prompts");
     await mkdir(prompts, { recursive: true });
     await writeFile(join(prompts, "soul.md"), "I am.");
@@ -112,7 +98,6 @@ describe("nuke primitives", () => {
     await deleteAllTasks(projectDir);
     await deleteAllSchedules(projectDir);
     await deleteAllThreads(projectDir);
-    await rm(getContextDir(projectDir), { recursive: true, force: true });
 
     expect(await Bun.file(join(prompts, "soul.md")).exists()).toBe(true);
   });

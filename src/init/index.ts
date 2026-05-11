@@ -4,9 +4,7 @@ import { loadConfig } from "../config/loader.ts";
 import {
   CONFIG_DIR,
   CONFIG_FILENAME,
-  CONTEXT_DIR,
   getConfigPath,
-  getDbPath,
   getMcpxDir,
   getPromptsDir,
   getSchedulesDir,
@@ -22,11 +20,10 @@ import {
   SCHEDULES_DIR,
   TASKS_DIR,
 } from "../constants.ts";
-import { writeCapabilitiesFile } from "../context/capabilities.ts";
-import { getConnection } from "../db/connection.ts";
-import { migrate } from "../db/schema.ts";
 import { assertCompatibleFilesystem } from "../fs/compat.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
+import { openMembot } from "../mem/client.ts";
+import { writeCapabilitiesFile } from "../prompts/capabilities.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import { logger } from "../utils/logger.ts";
 import {
@@ -62,7 +59,6 @@ export async function initProject(
   await mkdir(getPromptsDir(projectDir), { recursive: true });
   await mkdir(getSkillsDir(projectDir), { recursive: true });
   await mkdir(getMcpxDir(projectDir), { recursive: true });
-  await mkdir(join(projectDir, CONTEXT_DIR), { recursive: true });
   await mkdir(getTasksDir(projectDir), { recursive: true });
   await mkdir(getTasksLockDir(projectDir), { recursive: true });
   await mkdir(getSchedulesDir(projectDir), { recursive: true });
@@ -92,11 +88,12 @@ export async function initProject(
     `${JSON.stringify(DEFAULT_MCPX_SERVERS, null, 2)}\n`,
   );
 
-  // Initialize the index database (search index sidecar; rebuildable).
-  const dbPath = getDbPath(projectDir);
-  const conn = await getConnection(dbPath);
-  await migrate(conn);
-  conn.close();
+  // Initialize the membot knowledge store. Opening + closing the client
+  // triggers membot's first-run migration so the project ships with a
+  // ready-to-use index.duckdb.
+  const mem = openMembot(projectDir);
+  await mem.connect();
+  await mem.close();
 
   // Populate capabilities.md with the real tool inventory.
   registerAllTools();
@@ -111,20 +108,20 @@ export async function initProject(
   logger.success("Initialized Botholomew project");
   logger.dim(`  Project root: ${projectDir}`);
   logger.dim(`  Config:       ${CONFIG_DIR}/${CONFIG_FILENAME}`);
-  logger.dim(`  Index DB:     ${dbPath}`);
+  logger.dim(`  Knowledge:    index.duckdb (managed by membot)`);
   logger.dim("");
   logger.dim("Layout:");
   logger.dim(`  ${CONFIG_DIR}/         settings`);
   logger.dim(
     `  prompts/         goals, beliefs, capabilities (and any you add)`,
   );
-  logger.dim(`  ${CONTEXT_DIR}/        agent-writable knowledge tree`);
+  logger.dim(`  index.duckdb     agent's knowledge store (membot)`);
   logger.dim(`  ${TASKS_DIR}/          one markdown file per task`);
   logger.dim(`    ${LOCKS_SUBDIR}/        worker claim lockfiles`);
   logger.dim(`  ${SCHEDULES_DIR}/      one markdown file per schedule`);
   logger.dim(`  threads/         one CSV per conversation, by UTC date`);
   logger.dim(`  workers/         one JSON pidfile per worker (heartbeats)`);
-  logger.dim(`  skills/, mcpx/, models/, logs/`);
+  logger.dim(`  skills/, mcpx/, logs/`);
   logger.dim("");
   logger.dim("Next steps:");
   logger.dim(

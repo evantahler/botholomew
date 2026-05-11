@@ -1,27 +1,12 @@
 // Capabilities tools
 import { capabilitiesRefreshTool } from "./capabilities/refresh.ts";
-// Context tools
-import { pipeToContextTool } from "./context/pipe.ts";
-import { readLargeResultTool } from "./context/read-large-result.ts";
-// Context — directory operations
-import { contextCreateDirTool } from "./dir/create.ts";
-import { contextDirSizeTool } from "./dir/size.ts";
-import { contextTreeTool } from "./dir/tree.ts";
-// Context — file operations
-import { contextCopyTool } from "./file/copy.ts";
-import { contextCountLinesTool } from "./file/count-lines.ts";
-import { contextDeleteTool } from "./file/delete.ts";
-import { contextEditTool } from "./file/edit.ts";
-import { contextExistsTool } from "./file/exists.ts";
-import { contextInfoTool } from "./file/info.ts";
-import { contextMoveTool } from "./file/move.ts";
-import { contextReadTool } from "./file/read.ts";
-import { contextWriteTool } from "./file/write.ts";
 // MCP tools
 import { mcpExecTool } from "./mcp/exec.ts";
 import { mcpInfoTool } from "./mcp/info.ts";
 import { mcpListToolsTool } from "./mcp/list-tools.ts";
 import { mcpSearchTool } from "./mcp/search.ts";
+// Membot tools (knowledge store)
+import { registerMembotTools } from "./membot/index.ts";
 // Prompt tools
 import { promptCreateTool } from "./prompt/create.ts";
 import { promptDeleteTool } from "./prompt/delete.ts";
@@ -32,8 +17,6 @@ import { promptReadTool } from "./prompt/read.ts";
 import { createScheduleTool } from "./schedule/create.ts";
 import { scheduleEditTool } from "./schedule/edit.ts";
 import { listSchedulesTool } from "./schedule/list.ts";
-// Search tools
-import { searchTool } from "./search/index.ts";
 // Skill tools
 import { skillDeleteTool } from "./skill/delete.ts";
 import { skillEditTool } from "./skill/edit.ts";
@@ -73,26 +56,15 @@ export function registerAllTools(): void {
   registerTool(listTasksTool);
   registerTool(viewTaskTool);
 
-  // Context (file/dir + self-reflection)
-  registerTool(contextCreateDirTool);
-  registerTool(contextTreeTool);
-  registerTool(contextDirSizeTool);
-  registerTool(contextReadTool);
-  registerTool(contextWriteTool);
-  registerTool(contextEditTool);
-  registerTool(contextDeleteTool);
-  registerTool(contextCopyTool);
-  registerTool(contextMoveTool);
-  registerTool(contextInfoTool);
-  registerTool(contextExistsTool);
-  registerTool(contextCountLinesTool);
+  // Knowledge store (membot) — add/read/write/edit/search/versions/refresh etc.
+  registerMembotTools();
+
+  // Prompts
   registerTool(promptListTool);
   registerTool(promptReadTool);
   registerTool(promptCreateTool);
   registerTool(promptEditTool);
   registerTool(promptDeleteTool);
-  registerTool(readLargeResultTool);
-  registerTool(pipeToContextTool);
 
   // Capabilities
   registerTool(capabilitiesRefreshTool);
@@ -101,9 +73,6 @@ export function registerAllTools(): void {
   registerTool(createScheduleTool);
   registerTool(scheduleEditTool);
   registerTool(listSchedulesTool);
-
-  // Search
-  registerTool(searchTool);
 
   // Skill
   registerTool(skillListTool);

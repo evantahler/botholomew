@@ -19,11 +19,11 @@ features:
   - title: Portable
     details: A project is a directory of files — markdown for prompts, tasks, and schedules; CSVs for conversation history. Copy it, share it, `git diff` it, check it in, or `.gitignore` it.
   - title: Your data, your disk
-    details: Tasks, schedules, threads, and the agent's context tree are all real files you can `vim`, `grep`, and `git`. DuckDB is demoted to a single search-index sidecar (`index.duckdb`) that's rebuildable from disk.
+    details: Tasks, schedules, threads, prompts, and skills are all real files you can `vim`, `grep`, and `git`. The knowledge store is a single local DuckDB file managed by [membot](https://github.com/evantahler/membot) — append-only, versioned, queryable.
   - title: Extensible
     details: External tools come from MCP servers via MCPX — run them locally (Gmail, Slack, GitHub) or connect through a gateway like Arcade.dev to reach hundreds of authenticated services.
   - title: Safe by default
-    details: The agent has no shell and no direct filesystem access. Every path-taking tool is sandboxed to the project's `context/` tree (NFC normalization + lstat-walk to reject symlinks at any level); every external capability is an MCP server you explicitly add.
+    details: The agent has no shell and no direct filesystem access. The knowledge store is addressed by `logical_path` (a DB key, not a filesystem path); the remaining file-system paths the agent touches (tasks, schedules, prompts, skills) all route through one sandbox helper (NFC normalization + lstat-walk to reject symlinks).
   - title: Concurrent
     details: Many workers can run at once. Each writes a pidfile and heartbeats; tasks and schedules are claimed via `O_EXCL` lockfiles, and crashed workers get reaped automatically.
   - title: Self-modifying
@@ -39,12 +39,14 @@ features:
 ## Why Botholomew?
 
 Botholomew has **no shell and no access to your real filesystem**. The
-agent's world is a sandboxed `context/` tree inside the project: it can
-read, write, edit, and grep files there, but cannot escape upward,
-follow symlinks, or touch anything outside. Local files and URLs are
-brought in through `botholomew context add`. External capabilities
-(email, Slack, the web, and hundreds of other services) are granted
-deliberately, per project, through MCP servers wired up via
+agent's world is a per-project knowledge store managed by
+[membot](https://github.com/evantahler/membot) — every read, write,
+search, and delete is addressed by `logical_path` (a DB key, not a
+filesystem path), so a prompt-injected attempt to reach `~/.ssh/id_rsa`
+has nowhere to land. Local files and URLs are brought in through
+`botholomew context add`. External capabilities (email, Slack, the web,
+and hundreds of other services) are granted deliberately, per project,
+through MCP servers wired up via
 [MCPX](https://github.com/evantahler/mcpx).
 
 ## Quickstart

@@ -1,8 +1,8 @@
 import { appendFile, readdir, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { getThreadsDir } from "../constants.ts";
-import { uuidv7 } from "../db/uuid.ts";
 import { atomicWrite } from "../fs/atomic.ts";
+import { uuidv7 } from "../utils/uuid.ts";
 import { DATE_DIR_RE, dateForId } from "../utils/v7-date.ts";
 
 /**

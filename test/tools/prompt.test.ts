@@ -30,8 +30,7 @@ async function seedPrompt(
 beforeEach(async () => {
   projectDir = await mkdtemp(join(tmpdir(), "both-prompt-tools-"));
   ctx = {
-    conn: null as never,
-    dbPath: ":memory:",
+    mem: null as never,
     projectDir,
     config: { ...DEFAULT_CONFIG, anthropic_api_key: "test-key" },
     mcpxClient: null,

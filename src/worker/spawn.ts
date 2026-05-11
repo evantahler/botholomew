@@ -1,8 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { getConfigPath, getWorkerLogPath } from "../constants.ts";
-import { uuidv7 } from "../db/uuid.ts";
 import { logger } from "../utils/logger.ts";
+import { uuidv7 } from "../utils/uuid.ts";
 import { dateForId } from "../utils/v7-date.ts";
 import type { WorkerMode } from "./index.ts";
 

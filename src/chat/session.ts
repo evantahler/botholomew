@@ -1,11 +1,10 @@
 import type { MessageStream } from "@anthropic-ai/sdk/lib/MessageStream";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import type { MembotClient } from "membot";
 import { loadConfig } from "../config/loader.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { getDbPath } from "../constants.ts";
-import { withDb } from "../db/connection.ts";
-import { migrate } from "../db/schema.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
+import { openMembot } from "../mem/client.ts";
 import { loadSkills } from "../skills/loader.ts";
 import type { SkillDefinition } from "../skills/parser.ts";
 import {
@@ -20,7 +19,7 @@ import { generateThreadTitle } from "../utils/title.ts";
 import { type ChatTurnCallbacks, runChatTurn } from "./agent.ts";
 
 export interface ChatSession {
-  dbPath: string;
+  mem: MembotClient;
   threadId: string;
   projectDir: string;
   config: Required<BotholomewConfig>;
@@ -61,8 +60,8 @@ export async function startChatSession(
     );
   }
 
-  const dbPath = getDbPath(projectDir);
-  await withDb(dbPath, (conn) => migrate(conn));
+  const mem = openMembot(projectDir);
+  await mem.connect();
   await ensureThreadsDir(projectDir);
 
   let threadId: string;
@@ -107,10 +106,11 @@ export async function startChatSession(
 
   const cleanup = async () => {
     await mcpxClient?.close();
+    await mem.close();
   };
 
   return {
-    dbPath,
+    mem,
     threadId,
     projectDir,
     config,
@@ -158,7 +158,7 @@ export async function sendMessage(
     messages: session.messages,
     projectDir: session.projectDir,
     config: session.config,
-    dbPath: session.dbPath,
+    mem: session.mem,
     threadId: session.threadId,
     mcpxClient: session.mcpxClient,
     callbacks,

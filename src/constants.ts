@@ -6,19 +6,22 @@ import { join } from "node:path";
  *
  *   <projectDir>/
  *     config/config.json
- *     prompts/*.md                     init seeds goals/beliefs/capabilities
+ *     config.json                       membot config (separate from ours)
+ *     index.duckdb                      membot-owned knowledge store
+ *     prompts/*.md                      init seeds goals/beliefs/capabilities
  *     skills/*.md
  *     mcpx/servers.json
- *     models/                          embedding model cache
- *     context/                         user-curated knowledge tree
- *     tasks/<id>.md                    tasks (status in frontmatter)
- *     tasks/.locks/<id>.lock           O_EXCL claim files
- *     schedules/<id>.md                schedules
+ *     tasks/<id>.md                     tasks (status in frontmatter)
+ *     tasks/.locks/<id>.lock            O_EXCL claim files
+ *     schedules/<id>.md
  *     schedules/.locks/<id>.lock
- *     threads/<YYYY-MM-DD>/<id>.csv    conversation history
- *     workers/<id>.json                pidfile + heartbeat
- *     logs/                            worker logs
- *     index.duckdb                     search index (rebuildable from disk)
+ *     threads/<YYYY-MM-DD>/<id>.csv     conversation history
+ *     workers/<id>.json                 pidfile + heartbeat
+ *     logs/                             worker logs
+ *
+ * The agent's knowledge ("what used to be `context/`") now lives in
+ * `index.duckdb`, managed by the `membot` library. Tasks, schedules, threads,
+ * workers, prompts, and skills remain real files on disk.
  */
 
 export const HOME_CONFIG_DIR = join(homedir(), ".botholomew");
@@ -32,14 +35,11 @@ export const DEFAULTS = {
   UPDATE_CHECK_TIMEOUT_MS: 5_000,
 } as const;
 
-export const INDEX_DB_FILENAME = "index.duckdb";
 export const CONFIG_DIR = "config";
 export const CONFIG_FILENAME = "config.json";
 export const PROMPTS_DIR = "prompts";
 export const SKILLS_DIR = "skills";
 export const MCPX_DIR = "mcpx";
-export const MODELS_DIR = "models";
-export const CONTEXT_DIR = "context";
 export const TASKS_DIR = "tasks";
 export const SCHEDULES_DIR = "schedules";
 export const LOCKS_SUBDIR = ".locks";
@@ -47,23 +47,17 @@ export const LOGS_DIR = "logs";
 export const WORKERS_DIR = "workers";
 export const THREADS_DIR = "threads";
 export const MCPX_SERVERS_FILENAME = "servers.json";
-export const EMBEDDING_DIMENSION = 384;
-export const EMBEDDING_MODEL = "Xenova/bge-small-en-v1.5";
 
 /**
- * Top-level areas tools must never touch directly. Use as a safelist when
- * validating tool path arguments — most file/dir tools pin to CONTEXT_DIR.
+ * Top-level areas tools must never touch directly. Tasks/schedule lockfile
+ * dirs are kept off-limits because their `O_EXCL` claim semantics break if
+ * something else writes into them.
  */
 export const PROTECTED_AREAS: ReadonlySet<string> = new Set([
-  MODELS_DIR,
   LOGS_DIR,
   `${TASKS_DIR}/${LOCKS_SUBDIR}`,
   `${SCHEDULES_DIR}/${LOCKS_SUBDIR}`,
 ]);
-
-export function getDbPath(projectDir: string): string {
-  return join(projectDir, INDEX_DB_FILENAME);
-}
 
 export function getWorkerLogsDir(projectDir: string): string {
   return join(projectDir, LOGS_DIR);
@@ -92,22 +86,12 @@ export function getMcpxDir(projectDir: string): string {
   return join(projectDir, MCPX_DIR);
 }
 
-export function getModelsDir(projectDir: string): string {
-  return (
-    process.env.BOTHOLOMEW_MODELS_DIR_OVERRIDE ?? join(projectDir, MODELS_DIR)
-  );
-}
-
 export function getSkillsDir(projectDir: string): string {
   return join(projectDir, SKILLS_DIR);
 }
 
 export function getPromptsDir(projectDir: string): string {
   return join(projectDir, PROMPTS_DIR);
-}
-
-export function getContextDir(projectDir: string): string {
-  return join(projectDir, CONTEXT_DIR);
 }
 
 export function getTasksDir(projectDir: string): string {

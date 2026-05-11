@@ -85,7 +85,7 @@ That means:
   and will be closed immediately after. Use it for ordinary tools that
   do one or two quick queries.
 - `ctx.dbPath` is for tools that run long enough that holding the file
-  lock would block the worker or CLI (e.g., `context_refresh` re-fetching
+  lock would block the worker or CLI (e.g., `membot_refresh` re-fetching
   many URLs). Wrap each DB touch in
   `await withDb(ctx.dbPath, async (conn) => { … })` so the lock is
   released between items.
@@ -103,7 +103,7 @@ schema to the Anthropic SDK's `Tool` type using `z.toJSONSchema()`:
 
 ```ts
 {
-  name: "context_write",
+  name: "membot_write",
   description:
     "Write a file under context/. By default, fails if the path already exists — pass on_conflict='overwrite' to replace.",
   input_schema: {
@@ -114,10 +114,10 @@ schema to the Anthropic SDK's `Tool` type using `z.toJSONSchema()`:
 }
 ```
 
-`context_write` accepts an optional `on_conflict: "error" | "overwrite"`
+`membot_write` accepts an optional `on_conflict: "error" | "overwrite"`
 input (default `"error"`). A collision returns `is_error: true`,
 `error_type: "path_conflict"`, and a `next_action_hint` that steers the
-model back to `context_read` or a retry with `on_conflict='overwrite'`.
+model back to `membot_read` or a retry with `on_conflict='overwrite'`.
 
 `runAgentLoop()` feeds this array into `client.messages.create({ tools:
 ... })`. When the model emits a `tool_use` block, the loop looks up the
@@ -164,7 +164,7 @@ command to wire. The Zod schema is the source of truth.
 ### Shared `LinePatchSchema` for edit tools
 
 Any tool that mutates a markdown file via line-range patches —
-`context_edit`, `skill_edit`, `schedule_edit`, `task_edit`,
+`membot_edit`, `skill_edit`, `schedule_edit`, `task_edit`,
 `prompt_edit` — should `import { LinePatchSchema, applyLinePatches }
 from "../../fs/patches.ts"` and reuse the same shape so the agent
 sees identical field descriptions across tools. The tool is
@@ -175,33 +175,33 @@ field semantics.
 
 ---
 
-## `pipe_to_context` — pipe a tool's output straight into context
+## `membot_pipe` — pipe a tool's output straight into context
 
 Sometimes the agent wants a tool's full output to be searchable later but
 doesn't actually need to *read* it. A web fetch, an `mcp_exec` that returns a
 big JSON dump, a `search_grep` over a wide pattern — all of these can blow
 through the conversation budget if the bytes round-trip through the LLM.
 
-`pipe_to_context` is a meta-tool: you give it the *name and arguments* of
+`membot_pipe` is a meta-tool: you give it the *name and arguments* of
 another tool, plus a destination `path`, and it dispatches the inner tool,
 captures the stringified result, and writes it under `context/` via the same
-ingest pipeline `context_write` uses (chunked + embedded + indexed). The model
+ingest pipeline `membot_write` uses (chunked + embedded + indexed). The model
 only ever sees a small acknowledgment — path, byte count, and a 200-char
 preview — never the raw bytes.
 
 ```text
-agent → pipe_to_context(tool_name="search_grep",
+agent → membot_pipe(tool_name="search_grep",
                          tool_input={...},
                          path="research/grep-results.txt")
         → { path: "research/grep-results.txt",
             bytes_written: 184321, preview: "…" }
-agent → context_search("the thing I actually wanted to know")
+agent → membot_search("the thing I actually wanted to know")
 ```
 
 Two guards apply at the dispatch site:
 
 - Terminal tools (`complete_task`, `fail_task`, `wait_task`) and
-  `pipe_to_context` itself are rejected with `error_type: "forbidden_tool"`.
+  `membot_pipe` itself are rejected with `error_type: "forbidden_tool"`.
   Piping a terminal tool would let the loop end without the orchestrator
   seeing the result; recursion is meaningless.
 - The inner tool's input is validated against its own `inputSchema` before

@@ -11,8 +11,6 @@ import { join } from "node:path";
 import {
   CONFIG_DIR,
   CONFIG_FILENAME,
-  CONTEXT_DIR,
-  getDbPath,
   getMcpxDir,
   getPromptsDir,
   getSchedulesDir,
@@ -57,7 +55,7 @@ describe("initProject", () => {
     expect(await isDir(getPromptsDir(projectDir))).toBe(true);
     expect(await isDir(getSkillsDir(projectDir))).toBe(true);
     expect(await isDir(getMcpxDir(projectDir))).toBe(true);
-    expect(await isDir(join(projectDir, CONTEXT_DIR))).toBe(true);
+    // No more `context/` directory — knowledge lives in index.duckdb (membot).
     expect(await isDir(getTasksDir(projectDir))).toBe(true);
     expect(await isDir(getTasksLockDir(projectDir))).toBe(true);
     expect(await isDir(getSchedulesDir(projectDir))).toBe(true);
@@ -133,9 +131,9 @@ describe("initProject", () => {
     expect(text).toContain("capabilities_refresh");
   });
 
-  test("creates index.duckdb with migrations applied", async () => {
+  test("creates index.duckdb (membot store) with migrations applied", async () => {
     await initProject(projectDir);
-    const dbPath = getDbPath(projectDir);
+    const dbPath = join(projectDir, "index.duckdb");
     expect(await Bun.file(dbPath).exists()).toBe(true);
   });
 

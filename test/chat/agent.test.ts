@@ -46,16 +46,14 @@ describe("getChatTools", () => {
     expect(names.has("list_tasks")).toBe(true);
     expect(names.has("view_thread")).toBe(true);
     expect(names.has("search_threads")).toBe(true);
-    expect(names.has("context_read")).toBe(true);
-    expect(names.has("search")).toBe(true);
+    expect(names.has("membot_read")).toBe(true);
+    expect(names.has("membot_search")).toBe(true);
     // Terminal worker-only tools must not leak in
     expect(names.has("complete_task")).toBe(false);
     expect(names.has("fail_task")).toBe(false);
     expect(names.has("wait_task")).toBe(false);
-    // Bulk-destructive file tools are out
-    expect(names.has("context_delete")).toBe(false);
-    expect(names.has("context_copy")).toBe(false);
-    expect(names.has("context_move")).toBe(false);
+    // Destructive ops that should stay out of chat mode
+    expect(names.has("membot_prune")).toBe(false);
   });
 });
 
@@ -126,7 +124,7 @@ describe("buildChatSystemPrompt", () => {
       hasMcpTools: true,
     });
     expect(prompt).toContain("## External Tools (MCP)");
-    expect(prompt).toContain("Local context first");
+    expect(prompt).toContain("Local knowledge store first");
     expect(prompt).toContain("mcp_info");
   });
 

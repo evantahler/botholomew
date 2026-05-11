@@ -167,4 +167,4 @@ You don't need a server when:
 - The work happens entirely inside the project directory (the
   `context/` tree, tasks, schedules, embeddings).
 - You just want Claude to *read* something you already put in context —
-  `context_read` / `search` are enough.
+  `membot_read` / `search` are enough.

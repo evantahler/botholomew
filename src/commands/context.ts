@@ -1,245 +1,146 @@
-import { stat } from "node:fs/promises";
+import { copyFileSync, existsSync, mkdirSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
+import { homedir } from "node:os";
 import { join } from "node:path";
-import ansis from "ansis";
+import { fileURLToPath } from "node:url";
 import type { Command } from "commander";
-import { createSpinner } from "nanospinner";
-import { loadConfig } from "../config/loader.ts";
-import { CONTEXT_DIR, getDbPath } from "../constants.ts";
-import { fetchUrl } from "../context/fetcher.ts";
-import { reindexContext } from "../context/reindex.ts";
-import {
-  buildTree,
-  fileExists,
-  listContextDir,
-  type TreeNode,
-  writeContextFile,
-} from "../context/store.ts";
-import { withDb } from "../db/connection.ts";
-import { indexStats } from "../db/embeddings.ts";
-import { migrate } from "../db/schema.ts";
-import { createMcpxClient } from "../mcpx/client.ts";
-import {
-  type ContextFileMeta,
-  serializeContextFile,
-} from "../utils/frontmatter.ts";
+import { defaultCliName, OPERATIONS } from "membot";
 import { logger } from "../utils/logger.ts";
+
+const require = createRequire(import.meta.url);
+const ourPkg = require("../../package.json");
+const membotPkg = require("membot/package.json");
+
+// Soft warning rather than a hard error — membot's SDK API is stable within a
+// minor version, and dev workspaces sometimes pin a newer copy.
+const requested = (ourPkg.dependencies.membot as string).replace(/^[\^~]/, "");
+if (!membotPkg.version.startsWith(requested.split(".")[0])) {
+  logger.warn(
+    `membot version drift: installed ${membotPkg.version}, expected ${ourPkg.dependencies.membot}`,
+  );
+}
+
+const MEMBOT_CLI = fileURLToPath(import.meta.resolve("membot/cli"));
+
+function getDir(program: Command): string {
+  return program.opts().dir;
+}
+
+/**
+ * Slice process.argv from the token after "context" so flags (including
+ * --help) and positional args flow through to upstream membot verbatim.
+ */
+function getRawContextArgs(): string[] {
+  const idx = process.argv.indexOf("context");
+  return idx === -1 ? [] : process.argv.slice(idx + 1);
+}
+
+async function runMembot(projectDir: string, args: string[]): Promise<number> {
+  // Point membot at <projectDir> as its data dir via the `--config` flag —
+  // each Botholomew project gets its own membot store at
+  // `<projectDir>/index.duckdb`. Forward stdio so the user sees the same
+  // output they would running `membot` directly.
+  const proc = Bun.spawn(["bun", MEMBOT_CLI, "--config", projectDir, ...args], {
+    stdout: "inherit",
+    stderr: "inherit",
+    stdin: "inherit",
+  });
+  return await proc.exited;
+}
+
+/**
+ * Copy the system-wide `~/.membot` data dir into the project, mirroring
+ * `botholomew mcpx import-global`. Useful when the user has built up a
+ * personal knowledge base globally and wants to seed a new project with it.
+ *
+ * Refuses to overwrite a non-empty project membot store unless `--force` is
+ * passed — accidentally clobbering an active project's index is much worse
+ * than re-running the import.
+ */
+function registerImportGlobal(parent: Command, program: Command): void {
+  parent
+    .command("import-global")
+    .description("Copy system-wide membot data (~/.membot) into this project")
+    .option(
+      "-f, --force",
+      "Overwrite an existing index.duckdb in the project",
+      false,
+    )
+    .action((opts: { force: boolean }) => {
+      const globalDir = join(homedir(), ".membot");
+      if (!existsSync(globalDir)) {
+        logger.error("No global membot data found at ~/.membot");
+        process.exit(1);
+      }
+
+      const projectDir = getDir(program);
+      const dest = (name: string) => join(projectDir, name);
+      const destDb = dest("index.duckdb");
+
+      if (existsSync(destDb) && !opts.force) {
+        const stat = statSync(destDb);
+        if (stat.size > 0) {
+          logger.error(
+            `Refusing to overwrite ${destDb} (${stat.size} bytes). Pass --force to replace it.`,
+          );
+          process.exit(1);
+        }
+      }
+
+      mkdirSync(projectDir, { recursive: true });
+
+      const filesToCopy = ["index.duckdb", "config.json"];
+      let copied = 0;
+      for (const file of filesToCopy) {
+        const src = join(globalDir, file);
+        if (!existsSync(src)) continue;
+        copyFileSync(src, dest(file));
+        logger.success(`Copied ${file}`);
+        copied++;
+      }
+
+      if (copied === 0) {
+        logger.warn("No files found in ~/.membot to copy.");
+        return;
+      }
+
+      logger.success(
+        `Imported ${copied} file(s) from ~/.membot into ${projectDir}`,
+      );
+    });
+}
 
 export function registerContextCommand(program: Command) {
   const context = program
     .command("context")
     .description(
-      "Inspect and manage the on-disk context/ tree (the agent's knowledge store)",
+      "Manage the project's knowledge store via membot (add, search, ls, read, …)",
     );
 
-  // ---- import --------------------------------------------------------------
-  context
-    .command("import <url>")
-    .description(
-      "Fetch a URL via MCP (Google Docs, Firecrawl, GitHub, etc.) and write the result into context/.",
-    )
-    .option(
-      "-p, --path <path>",
-      "destination path under context/ (default: derived from the URL)",
-    )
-    .option(
-      "--prompt <text>",
-      "extra guidance passed to the LLM-driven fetcher (e.g. 'export as markdown')",
-    )
-    .option("--overwrite", "replace an existing file at the destination path")
-    .action(async (url: string, opts) => {
-      const dir = program.opts().dir;
-      const config = await loadConfig(dir);
-      const mcpxClient = await createMcpxClient(dir);
-      logger.info(`importing ${url}`);
-      try {
-        const fetched = await fetchUrl(url, config, mcpxClient, opts.prompt);
-        const dest = opts.path ?? deriveContextPath(url, fetched.source);
-        const meta: ContextFileMeta = {
-          source_url: url,
-          imported_at: new Date().toISOString(),
-        };
-        // Title falls back to the URL when fetcher couldn't extract one —
-        // skip it in that case to avoid duplicating source_url.
-        if (fetched.title && fetched.title !== url) {
-          meta.title = fetched.title;
-        }
-        const body = serializeContextFile(meta, fetched.content);
-        await writeContextFile(dir, dest, body, {
-          onConflict: opts.overwrite ? "overwrite" : "error",
-        });
-        logger.success(
-          `imported ${body.length} bytes → ${ansis.bold(`context/${dest}`)} (source: ${fetched.source ?? "http"})`,
-        );
+  // Botholomew-specific helpers first so they show up before the membot
+  // passthrough subcommands in --help.
+  registerImportGlobal(context, program);
 
-        // Reindex so the new file is searchable. reindexContext is
-        // incremental — files whose content_hash matches the index are
-        // skipped, so this only embeds the file we just wrote.
-        const dbPath = getDbPath(dir);
-        await withDb(dbPath, migrate);
-        const summary = await reindexContext(dir, config, dbPath, {
-          onProgress: (msg) => logger.dim(`  ${msg}`),
-        });
-        logger.success(
-          `indexed: ${summary.added} added, ${summary.updated} updated, ${summary.unchanged} unchanged, ${summary.chunksWritten} chunks written`,
-        );
-      } catch (err) {
-        logger.error(
-          `import failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        process.exit(1);
-      } finally {
-        await mcpxClient?.close();
-      }
-    });
-
-  // ---- reindex -------------------------------------------------------------
-  context
-    .command("reindex")
-    .description(
-      "Walk context/ and reconcile the search index: embed new files, re-embed changed ones, drop rows for removed ones.",
-    )
-    .action(async () => {
-      const dir = program.opts().dir;
-      const config = await loadConfig(dir);
-      const dbPath = getDbPath(dir);
-      // The migrate() call ensures the index DB is initialized, including
-      // the context_index table from migration 19, before we try to write.
-      await withDb(dbPath, migrate);
-      const spinner = createSpinner("reindexing").start();
-      const summary = await reindexContext(dir, config, dbPath, {
-        onProgress: (msg) => spinner.update({ text: msg }),
+  // One Commander subcommand per membot Operation. We don't redeclare any
+  // flags — Commander hands the raw argv slice to membot, which owns the
+  // canonical schema.
+  for (const op of OPERATIONS) {
+    const name = defaultCliName(op);
+    context
+      .command(name)
+      .description(op.description.split("\n")[0] ?? op.description)
+      .allowUnknownOption(true)
+      .helpOption(false)
+      .argument("[args...]", "arguments forwarded to membot")
+      .action(async () => {
+        const exitCode = await runMembot(getDir(program), getRawContextArgs());
+        if (exitCode !== 0) process.exit(exitCode);
       });
-      const parts = [
-        `${summary.added} added`,
-        `${summary.updated} updated`,
-        `${summary.unchanged} unchanged`,
-        `${summary.removed} removed`,
-        `${summary.chunksWritten} chunks written`,
-      ];
-      spinner.success({ text: parts.join(", ") });
-    });
-
-  // ---- tree ---------------------------------------------------------------
-  context
-    .command("tree [path]")
-    .description("Render the context/ tree (or a subdirectory).")
-    .option(
-      "-d, --max-depth <n>",
-      "max directory depth to render",
-      Number.parseInt,
-      10,
-    )
-    .action(async (path: string | undefined, opts) => {
-      const dir = program.opts().dir;
-      const node = await buildTree(dir, path ?? "", opts.maxDepth);
-      console.log(renderTreeAnsi(node));
-    });
-
-  // ---- stats --------------------------------------------------------------
-  context
-    .command("stats")
-    .description(
-      "Counts and sizes for files under context/ and rows in the search index.",
-    )
-    .action(async () => {
-      const dir = program.opts().dir;
-      const dbPath = getDbPath(dir);
-      const exists = await fileExists(dir, "");
-      if (!exists) {
-        logger.dim(`context/ does not exist under ${dir}`);
-        return;
-      }
-      const entries = await listContextDir(dir, "", { recursive: true });
-      let files = 0;
-      let textual = 0;
-      let bytes = 0;
-      for (const e of entries) {
-        if (e.is_directory) continue;
-        files++;
-        if (e.is_textual) textual++;
-        try {
-          const st = await stat(join(dir, CONTEXT_DIR, e.path));
-          bytes += st.size;
-        } catch {
-          // file vanished mid-walk — skip
-        }
-      }
-      const idx = await withDb(dbPath, async (conn) => {
-        await migrate(conn);
-        return indexStats(conn);
-      });
-      const rows = [
-        ["files", String(files)],
-        ["textual", String(textual)],
-        ["binary", String(files - textual)],
-        ["bytes on disk", formatBytes(bytes)],
-        ["indexed paths", String(idx.paths)],
-        ["index chunks", String(idx.chunks)],
-        ["embedded chunks", String(idx.embedded)],
-      ];
-      const labelWidth = Math.max(...rows.map((r) => r[0]?.length ?? 0));
-      for (const [label, value] of rows) {
-        console.log(
-          `  ${ansis.dim((label ?? "").padEnd(labelWidth))}  ${value}`,
-        );
-      }
-    });
-}
-
-/**
- * Pick a sensible default destination under context/ when the user didn't
- * supply --path. Strategy:
- *  - "<source>/<slugified-url>.md" for MCP-served fetches (e.g. google-docs/...)
- *  - "url/<slugified-url>.md" for raw HTTP fallbacks
- */
-function deriveContextPath(url: string, source: string | null): string {
-  const slug = slugifyUrl(url);
-  const root = source ?? "url";
-  return `${root}/${slug}.md`;
-}
-
-function slugifyUrl(url: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return url.replace(/[^a-z0-9]+/gi, "-").slice(0, 80);
   }
-  const path = parsed.pathname.replace(/^\/+|\/+$/g, "").replace(/\//g, "_");
-  const base = path || parsed.hostname;
-  return `${parsed.hostname}_${base}`
-    .replace(/[^a-z0-9._-]+/gi, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 80);
-}
 
-function renderTreeAnsi(
-  node: TreeNode,
-  prefix = "",
-  isLast = true,
-  isRoot = true,
-): string {
-  const lines: string[] = [];
-  const connector = isRoot ? "" : isLast ? "└── " : "├── ";
-  const base = node.is_directory
-    ? ansis.blue(node.name === "." ? "context/" : `${node.name}/`)
-    : node.name;
-  const label = node.is_symlink ? `${base} ${ansis.cyan("→")}` : base;
-  lines.push(`${prefix}${connector}${label}`);
-  if (node.is_directory && node.children) {
-    const childPrefix = isRoot ? "" : prefix + (isLast ? "    " : "│   ");
-    const children = node.children;
-    children.forEach((c, i) => {
-      const last = i === children.length - 1;
-      lines.push(renderTreeAnsi(c, childPrefix, last, false));
-    });
-  }
-  return lines.join("\n");
-}
-
-function formatBytes(n: number): string {
-  if (n === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(n) / Math.log(1024));
-  return `${(n / 1024 ** i).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+  // `botholomew context` (no subcommand) → membot's default action.
+  context.action(async () => {
+    const exitCode = await runMembot(getDir(program), getRawContextArgs());
+    if (exitCode !== 0) process.exit(exitCode);
+  });
 }

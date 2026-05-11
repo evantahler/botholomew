@@ -1,278 +1,122 @@
-# Files & the sandbox
+# The knowledge store
 
-Botholomew's agent has no access to your real filesystem. Its world is
-the `context/` tree inside the project directory — real markdown and
-text files, but reachable only through a sandbox helper that rejects
-anything pointing outside.
+Botholomew's agent has no access to your real filesystem. Its world is the
+[`membot`](https://github.com/evantahler/membot) knowledge store backing this
+project — a single DuckDB file at `<projectDir>/index.duckdb`, addressed by
+`logical_path` (an opaque string key, not a filesystem path). Every read,
+write, search, and delete the agent makes goes through the `membot_*` tools.
 
-This is deliberate, and it's the single most important safety property
-of the system:
+The safety properties this gives you:
 
-- **Safety.** The agent cannot read your home directory, cannot
-  overwrite your SSH keys, cannot `rm -rf` anything, cannot exfiltrate
-  files it wasn't handed. A prompt-injected instruction telling it to
-  "read `~/.ssh/id_rsa`" fails before any IO happens. The worst a
-  rogue agent can do is scribble inside `context/`, which `git diff`
-  will catch and `git checkout -- context/` will undo. (You *can*
-  symlink external content into `context/` yourself — see below — and
-  the agent can read those, but it can never *write through* them.)
-- **Inspectability.** Every file the agent reads or writes is a real
-  file. `vim`, `grep`, `git diff`, `cat`, and `less` all work. Drop a
-  hand-written note into `context/` and the agent finds it on the next
-  search.
-- **Searchability.** Every write triggers a per-path reindex into
-  `index.duckdb` (the search-index sidecar over `context/`), so the
-  agent's `context_search` finds new content within milliseconds. The
-  index is fully derivable — `botholomew context reindex --full`
-  rebuilds it from disk.
-- **History.** Every write the agent does is recorded in the
-  conversation thread (`threads/<date>/<id>.csv`), so you can audit
-  every change.
+- **No filesystem access.** A prompt-injected instruction to "read
+  `~/.ssh/id_rsa`" fails because there is no tool that takes a host-filesystem
+  path. The agent can only address entries already in the store.
+- **Versioned.** Every `membot_write` / `membot_edit` creates a new
+  `version_id`. Deletes are tombstones, not unlinks. Use `membot_versions`
+  to inspect history, `membot_diff` to compare two snapshots, and
+  `botholomew context prune` to permanently drop old versions when you want
+  to.
+- **Auditable.** The DB is local, plain DuckDB, and your data lives in tables
+  you can query directly with the DuckDB CLI if you ever want to.
 
----
+The store itself is owned by membot — including the ingestion pipeline
+(PDF/DOCX/HTML → markdown, local WASM embeddings, hybrid BM25 + semantic
+search), URL refresh, and append-only versioning. This page documents the
+Botholomew-side surface: the agent tools, the line-patch edit shape, and the
+CLI passthrough.
 
-## Where the agent's files live
+## Agent tools
 
-Everything under `<project-root>/context/` is part of the agent's
-world. The agent always uses **project-relative forward-slash paths**:
+Each `membot_*` tool wraps one membot operation. Names mirror upstream membot
+exactly so reading membot's docs gives you the same vocabulary the agent uses.
 
-```
-context_read({ path: "notes/meeting.md" })
-context_write({ path: "research/2026-q1.md", content: "..." })
-context_tree({ path: "notes" })
-```
-
-Absolute paths, leading `..`, NUL bytes, and paths over 4096 chars are
-rejected. The sandbox does NFC normalization (so vim's NFD-on-macOS
-roundtrips cleanly) and `lstat`-walks every path component, refusing
-the call if any segment is a symlink — **unless** the caller passes
-`allowSymlinks: true`. Read-side ops (`context_read`, `context_tree`,
-`context_info`, search, reindex) opt in so users can drop symlinks
-into `context/` for content they don't want to duplicate; mutating ops
-(`context_write`, `context_edit`, `context_move`, `context_copy`,
-`context_create_dir`) keep the strict resolver, so the agent can never
-write through a user-placed symlink to external content.
-
-The path validator lives in `src/fs/sandbox.ts::resolveInRoot`. There
-is exactly one helper, used by every path-taking tool.
-
----
-
-## Safelisted areas
-
-The sandbox is a safelist. By default tools pin to `<root>/context/`.
-Off-limits to the agent:
-
-- `models/` — embedding model cache; rewriting it would corrupt search
-- `logs/` — worker logs (system metadata, not knowledge)
-- `tasks/.locks/`, `schedules/.locks/`, `context/.locks/` — claim files
-  for tasks, schedules, and per-path context writes. The agent should
-  never poke at lockfiles directly. `context/.locks/` is invisible to
-  `context_list` and `context_tree` (the walks skip dot-prefixed names).
-- `index.duckdb` — derived state; rebuild via `context reindex` if it
-  goes wrong
-- Everything outside the project root, full stop
-
-Tasks/schedules/threads/prompts/skills are also outside `context/` —
-the agent edits prompts via `prompt_read`/`prompt_edit`, edits skills
-via `skill_edit`, edits tasks via `task_edit` (pending-only) or
-`update_task` (typed field updater), edits schedules via
-`schedule_edit`, and reads threads through `view_thread` /
-`search_threads`. Every edit tool — `context_edit`, `skill_edit`,
-`schedule_edit`, `task_edit`, `prompt_edit` — uses the same
-[git-hunk patch format](#patch-format) so the agent learns one shape.
-Files-on-disk all the way down, but each area has the right tool
-surface for its shape.
-
----
-
-## Filesystem compatibility
-
-`fs.rename` and `O_EXCL` are unreliable on sync-overlay filesystems
-(iCloud, Dropbox, Google Drive, OneDrive) and NFS — the files appear
-to write, but the atomicity guarantee that tasks/schedules and
-context-edit need quietly doesn't hold. `botholomew init` and worker
-startup detect these via path heuristics and refuse to run there
-unless `--force` is passed.
-
-If you need a project on a synced volume, run `botholomew init` on a
-local path and copy/symlink the synced bits in by hand — but
-understand you're trading away the atomicity guarantee.
-
----
-
-## User-placed symlinks under `context/`
-
-You can drop symlinks into `context/` to share content the agent should
-read but you don't want to duplicate. For example:
-
-```bash
-ln -s "$HOME/Documents/research" context/research
-ln -s "$HOME/notes/standup.md" context/standup.md
-```
-
-Both forms work — file symlinks and directory symlinks. The contract:
-
-- **Read, list, tree, search, index**: follow the link transparently. A
-  symlinked directory's contents are walked and indexed as if they
-  lived under `context/` directly. Cycles (`context/loop -> context/`)
-  are detected via a `dev:ino` visited set and walked at most once;
-  recursion is also capped at 32 levels.
-- **`context_info` / listings**: surface `is_symlink: true` so the
-  agent knows the entry is a reference.
-- **`context_delete`**: removes only the symlink itself. The target
-  file or directory is never touched. `recursive: true` is not required
-  for a symlinked directory — the link unlinks atomically. The leaf
-  must be the symlink: `context_delete linked/file.md` (where
-  `linked` is a user-placed symlink) is rejected with `PathEscapeError`,
-  the same as `context_move` / `context_copy` already do, so the agent
-  can't reach external content via a symlinked parent directory.
-- **`context_write`, `context_edit`, `context_move`, `context_copy`,
-  `context_create_dir`**: refuse any path that traverses a symlink and
-  return `PathEscapeError`. This is what makes the "external content
-  is never modified" guarantee real. The recovery hint suggests
-  deleting the symlink first or writing to a real path.
-
-The agent itself cannot create symlinks — there is no tool for it. So
-"symlinks under `context/`" always means *user-placed* symlinks.
-
----
-
-## The agent's file/dir tools
-
-All paths are project-relative under `context/`.
-
-**Discovery:**
-
-| Tool | What it does |
+| Tool | Purpose |
 |---|---|
-| `context_tree`        | List the tree at a path; the agent's bird's-eye view of `context/` |
-| `context_dir_size`    | Sum the byte size of files under a directory |
+| `membot_add` | Ingest a local file, directory, glob, URL, or `inline:<text>` literal. |
+| `membot_list` | List current entries (one row per `logical_path`). |
+| `membot_tree` | Render the path tree synthesized from `/` segments in `logical_path`. |
+| `membot_read` | Read the current (or a historical) version of an entry. |
+| `membot_search` | Hybrid semantic + BM25 search with RRF fusion. |
+| `membot_info` | Inspect metadata (source, mime, sha256s, refresh status) for one entry. |
+| `membot_stats` | Counts and storage summary for the whole store. |
+| `membot_versions` | List every version of an entry (newest first). |
+| `membot_diff` | Unified diff between two versions of an entry. |
+| `membot_write` | Write inline content as a new version. Whole-file replace. |
+| `membot_move` | Rename a `logical_path` (creates a new version, tombstones the old). |
+| `membot_delete` | Tombstone one or more entries. Use `membot_prune` to GC. |
+| `membot_refresh` | Re-fetch a URL-backed entry (if its source supports refresh). |
+| `membot_prune` | Permanently drop history older than a cutoff. |
 
-**Directory operations:**
+Botholomew adds five wrappers on top so the agent can use the file-shaped
+idioms it already knows:
 
-| Tool | What it does |
+| Wrapper | Behavior |
 |---|---|
-| `context_create_dir` | Create a directory (intermediate dirs created as needed) |
+| `membot_edit` | `read` → apply git-hunk line patches → `write`. Same `LinePatchSchema` as `task_edit`, `schedule_edit`, `prompt_edit`. |
+| `membot_copy` | `read` → `write` under a new `logical_path`. The source is untouched (use `membot_move` if you want to rename). |
+| `membot_exists` | `info` + catch `not_found`. Returns `{ exists: true \| false }` — never throws. |
+| `membot_count_lines` | `wc -l` over the markdown surrogate. Useful before a paginated read. |
+| `membot_pipe` | Run another tool and write its output as a new membot entry without ever flowing the body through the conversation. |
 
-**File operations:**
+## The patch format
 
-| Tool | What it does |
-|---|---|
-| `context_read`        | Read a file's contents; slice by line (`offset`/`limit`) |
-| `context_write`       | Write a file; refuses if the path exists unless `on_conflict='overwrite'`. Triggers a per-path reindex |
-| `context_edit`        | Apply git-style line-range patches |
-| `context_delete`      | Remove a file or recursively a directory |
-| `context_copy`        | Copy a file to a new path |
-| `context_move`        | Rename or relocate a file |
-| `context_info`        | Return metadata (size, lines, mime, mtime) |
-| `context_exists`      | Path-existence check |
-| `context_count_lines` | Count `\n` in a file's contents |
+`membot_edit` uses the shared `LinePatchSchema` from `src/fs/patches.ts`:
 
-These are also exposed from the host CLI — see the `botholomew
-context …` subcommands. Bare paths are interpreted as project-relative,
-the same way the tools resolve them:
-
-```bash
-botholomew context tree notes
-botholomew context read notes/meeting.md
-botholomew context write notes/scratch.md "..."
-```
-
----
-
-## Structured errors from `context_read` / `context_info`
-
-When the agent passes a path that doesn't resolve, these tools return a
-structured `is_error: true` response (they do **not** throw) so the
-model can recover inside the same tool loop:
-
-```json
+```ts
 {
-  "is_error": true,
-  "error_type": "not_found",
-  "message": "No file at context/notes/architecture.md",
-  "next_action_hint": "Call context_tree({ path: \"notes\" }) to see what's there."
+  start_line: number,  // 1-based, inclusive
+  end_line: number,    // 1-based, inclusive; 0 = insert without replacing
+  content: string      // empty string deletes
 }
 ```
 
-`context_read` also returns `error_type: "is_directory"` when the
-target exists but is a directory.
+Patches are applied bottom-up so earlier line numbers stay stable across a
+multi-hunk edit. The same shape powers `task_edit`, `schedule_edit`,
+`prompt_edit`, and `skill_edit` — one mental model across every resource the
+agent can mutate in place.
 
----
+## CLI passthrough
 
-## Patch format
+`botholomew context <verb> …` spawns `membot <verb> … --config <projectDir>`
+and forwards stdio. Run `botholomew context --help` for the verb list.
 
-The same patch shape is shared by every edit tool: `context_edit`,
-`skill_edit`, `schedule_edit`, `task_edit`, and `prompt_edit`.
-
-```ts
-{ start_line: number, end_line: number, content: string }
+```bash
+botholomew context add ./docs/howto.md
+botholomew context add https://docs.google.com/document/d/...
+botholomew context search "how does the worker tick claim tasks?"
+botholomew context ls
+botholomew context tree
+botholomew context read docs/howto.md
+botholomew context versions docs/howto.md
+botholomew context diff docs/howto.md v1 v2
 ```
 
-- `start_line` / `end_line` are 1-based inclusive.
-- `end_line: 0` means **insert** without replacing.
-- `content: ""` means **delete** the line range.
-- Patches are applied bottom-up (descending `start_line`) so earlier
-  line numbers remain stable.
-- The implementation lives in `src/fs/patches.ts::applyLinePatches`.
-  Each tool reads the file, applies patches in memory, validates the
-  result against the resource's schema (frontmatter still parses,
-  required fields still present), and atomic-writes-via-rename back
-  over the original. Every edit tool — `context_edit`, `schedule_edit`,
-  `task_edit`, `prompt_edit` — is mtime-guarded: a concurrent change
-  (another worker, a chat session, or an external editor like `vim`)
-  surfaces as `error_type: "mtime_conflict"` with a `next_action_hint`
-  to re-read and retry, never a silent overwrite. `context_*`
-  mutations also serialize on a per-path lockfile under
-  `context/.locks/` so two agents can't interleave their patches on
-  the same file.
+The Botholomew-specific helper is:
 
----
+```bash
+botholomew context import-global
+```
 
-## Reindex on write
+It copies `~/.membot/index.duckdb` and `~/.membot/config.json` into the
+project so you can seed a new project with whatever you've built up in your
+personal membot. Refuses to overwrite a non-empty project store unless you
+pass `--force`.
 
-Every mutating tool (`context_write`, `context_edit`, `context_move`,
-`context_delete`, `context_copy`) calls `reindexPath()` after the
-on-disk write commits. That helper:
+## Where Botholomew still uses real files
 
-1. Deletes existing `context_index` rows for the path.
-2. Reads the file (skipped on delete).
-3. Re-chunks and re-embeds the new content.
-4. Inserts fresh rows and rebuilds the FTS index.
+Knowledge is the only thing that moved into membot. These still live as real
+files under `<projectDir>/`:
 
-External edits — you opening `vim context/notes/foo.md` and saving —
-are picked up by a 30-second background reindex pass that any running
-worker performs, or on demand via `botholomew context reindex`
-(content-hash drift detection, so it only re-embeds files that
-actually changed).
+- `tasks/<id>.md`, `schedules/<id>.md` — markdown + strict frontmatter, with
+  `O_EXCL` lockfiles for worker claim
+- `threads/<YYYY-MM-DD>/<id>.csv` — RFC-4180 conversation logs
+- `workers/<id>.json` — pidfile + heartbeat per worker
+- `prompts/*.md` — agent's persistent context (goals, beliefs, capabilities,
+  and any you add)
+- `skills/*.md` — slash-command skills
+- `logs/<YYYY-MM-DD>/<workerId>.log` — worker stdout/stderr
+- `config/config.json`, `mcpx/servers.json` — settings
 
-If `index.duckdb` is missing entirely, `botholomew context reindex
---full` rebuilds it from scratch.
-
-See [context-and-search.md](context-and-search.md) for the chunker,
-embedder, and the search itself.
-
----
-
-## Why not give the agent a real shell?
-
-An older version of this doc was titled "the virtual filesystem" and
-argued that the agent's files should be DuckDB rows so a path like
-`/etc/passwd` simply didn't exist in its world. That was the wrong
-abstraction — it traded inspectability for safety, and we can have
-both. The current model:
-
-- **Real files**, so you can `vim`, `grep`, and `git` everything the
-  agent does.
-- **One sandbox helper**, so safety isn't sprinkled across 12 tools
-  but lives in ~100 lines you can audit: NFC, lstat-walk, no `..`,
-  no NUL, no escape, and the agent can never *write through* a
-  symlink (read-through is opt-in for users who put one there).
-- **No shell.** The agent never gets `rm`, `cat`, or
-  `bash -c "anything"` — only the typed tools above, every one of
-  which routes through the sandbox.
-
-If you're comfortable letting a model make decisions on your behalf
-but not comfortable letting it touch your disk outside `context/`,
-that's exactly the trade Botholomew makes.
+All of those still route through `src/fs/sandbox.ts::resolveInRoot` for path
+safety (NFC normalize, reject `..` / NUL / absolute paths, lstat-walk every
+component) — that helper is general, not specific to knowledge content.

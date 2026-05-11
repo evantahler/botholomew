@@ -1,4 +1,3 @@
-import { reapOrphanContextLocks } from "../context/locks.ts";
 import { reapOrphanScheduleLocks } from "../schedules/store.ts";
 import { reapOrphanLocks as reapOrphanTaskLocks } from "../tasks/store.ts";
 import { logger } from "../utils/logger.ts";
@@ -80,25 +79,6 @@ export function startReaper(
       }
     } catch (err) {
       logger.warn(`schedule lock reap failed: ${err}`);
-    }
-
-    try {
-      // Context locks store either a `workerId` (worker holders) or a
-      // free-form id like `chat` / `pid:<n>` (chat sessions, CLI). Only
-      // expire holders that look like worker ids; conservatively treat
-      // any other holder as alive — we don't manage the chat session's
-      // lifecycle here.
-      const released = await reapOrphanContextLocks(projectDir, async (id) => {
-        if (id.startsWith("pid:") || id.startsWith("chat")) return true;
-        return await isAlive(id);
-      });
-      if (released.length > 0) {
-        logger.warn(
-          `released ${released.length} orphan context lock(s): ${released.join(", ")}`,
-        );
-      }
-    } catch (err) {
-      logger.warn(`context lock reap failed: ${err}`);
     }
 
     try {

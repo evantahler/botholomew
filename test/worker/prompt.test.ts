@@ -217,15 +217,11 @@ describe("buildSystemPrompt", () => {
   });
 
   test("includes MCP guidance when hasMcpTools is true", async () => {
-    const prompt = await buildSystemPrompt(
-      projectDir,
-      undefined,
-      undefined,
-      undefined,
-      { hasMcpTools: true },
-    );
+    const prompt = await buildSystemPrompt(projectDir, undefined, undefined, {
+      hasMcpTools: true,
+    });
     expect(prompt).toContain("## External Tools (MCP)");
-    expect(prompt).toContain("Local context first");
+    expect(prompt).toContain("Local knowledge store first");
     expect(prompt).toContain("mcp_info");
   });
 
@@ -235,13 +231,9 @@ describe("buildSystemPrompt", () => {
   });
 
   test("Style block lands after the MCP block when both are present", async () => {
-    const prompt = await buildSystemPrompt(
-      projectDir,
-      undefined,
-      undefined,
-      undefined,
-      { hasMcpTools: true },
-    );
+    const prompt = await buildSystemPrompt(projectDir, undefined, undefined, {
+      hasMcpTools: true,
+    });
     const mcpIdx = prompt.indexOf("## External Tools (MCP)");
     const styleIdx = prompt.indexOf(STYLE_RULES);
     expect(mcpIdx).toBeGreaterThan(0);

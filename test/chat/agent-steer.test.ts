@@ -7,21 +7,12 @@ import { APIUserAbortError } from "@anthropic-ai/sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ContextUsage } from "../../src/chat/usage.ts";
 import { THREADS_DIR } from "../../src/constants.ts";
-import {
-  mockEmbed,
-  mockEmbedSingle,
-  silentLogger,
-  TEST_CONFIG,
-} from "../helpers.ts";
+import { silentLogger, TEST_CONFIG } from "../helpers.ts";
 
-// Embedder + logger are safe to mock globally — they're already swapped out in
-// other test files. We deliberately do NOT mock createLlmClient or
-// getMaxInputTokens here (mock.module is global to the bun test runner and
-// leaks across files); instead we inject a test client into runChatTurn.
-mock.module("../../src/context/embedder.ts", () => ({
-  embed: mockEmbed,
-  embedSingle: mockEmbedSingle,
-}));
+// Logger is safe to mock globally — it's already swapped out in other test
+// files. We deliberately do NOT mock createLlmClient or getMaxInputTokens
+// here (mock.module is global to the bun test runner and leaks across
+// files); instead we inject a test client into runChatTurn.
 mock.module("../../src/utils/logger.ts", () => silentLogger);
 
 const { runChatTurn } = await import("../../src/chat/agent.ts");
@@ -66,14 +57,13 @@ function makeClient(streamFactory: () => FakeMessageStream) {
   return { client, callCount: () => calls };
 }
 
-let dbPath: string;
+// no dbPath needed — chat session now uses MembotClient
 let threadId: string;
 let projectDir: string;
 
 beforeEach(async () => {
   projectDir = await mkdtemp(join(tmpdir(), "chat-steer-"));
   await mkdir(join(projectDir, THREADS_DIR), { recursive: true });
-  dbPath = join(projectDir, "index.duckdb");
   threadId = await createThread(projectDir, "chat_session", undefined, "test");
 });
 
@@ -89,7 +79,7 @@ const noopCallbacks = {
 
 function makeSession() {
   return {
-    dbPath,
+    mem: null as never,
     threadId,
     projectDir,
     config: TEST_CONFIG,
@@ -122,7 +112,7 @@ describe("runChatTurn — steering / abort", () => {
       messages,
       projectDir,
       config: TEST_CONFIG,
-      dbPath,
+      mem: null as never,
       threadId,
       mcpxClient: null,
       callbacks: noopCallbacks,
@@ -153,7 +143,7 @@ describe("runChatTurn — steering / abort", () => {
       messages,
       projectDir,
       config: TEST_CONFIG,
-      dbPath,
+      mem: null as never,
       threadId,
       mcpxClient: null,
       callbacks: noopCallbacks,
@@ -190,7 +180,7 @@ describe("runChatTurn — steering / abort", () => {
       messages,
       projectDir,
       config: TEST_CONFIG,
-      dbPath,
+      mem: null as never,
       threadId,
       mcpxClient: null,
       callbacks: {
@@ -237,7 +227,7 @@ describe("runChatTurn — steering / abort", () => {
       messages,
       projectDir,
       config: TEST_CONFIG,
-      dbPath,
+      mem: null as never,
       threadId,
       mcpxClient: null,
       callbacks: {
@@ -285,7 +275,7 @@ describe("runChatTurn — steering / abort", () => {
       messages,
       projectDir,
       config: TEST_CONFIG,
-      dbPath,
+      mem: null as never,
       threadId,
       mcpxClient: null,
       callbacks: {
@@ -329,7 +319,7 @@ describe("runChatTurn — steering / abort", () => {
       messages,
       projectDir,
       config: TEST_CONFIG,
-      dbPath,
+      mem: null as never,
       threadId,
       mcpxClient: null,
       callbacks: noopCallbacks,

@@ -175,9 +175,9 @@ export default defineConfig({
       {
         text: "Knowledge work",
         items: [
-          { text: "Files & the sandbox", link: "/files" },
+          { text: "The knowledge store", link: "/files" },
           {
-            text: "Context & hybrid search",
+            text: "Context & search (membot)",
             link: "/context-and-search",
           },
           { text: "Prompts", link: "/prompts" },
