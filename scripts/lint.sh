@@ -2,12 +2,15 @@
 # Lint runner: tsc --noEmit + biome check, with a narrow filter for one
 # specific upstream type error.
 #
-# Membot v0.12.4 ships its TS source as `main`/`types`, and one cast in
-# `node_modules/membot/src/mount/mcp.ts:25` doesn't satisfy the MCP SDK's
-# `AnySchema | ZodRawShapeCompat` union type. The mismatch is harmless at
-# runtime (we don't even reach the MCP-mount code path from Botholomew)
-# but `tsc` walks the transitive import graph from `membot/src/sdk.ts`,
-# so it blocks CI on every consumer of membot.
+# Membot ships its TS source as `main`/`types`, and one cast in
+# `node_modules/membot/src/mount/mcp.ts` doesn't satisfy the MCP SDK's
+# `AnySchema | ZodRawShapeCompat` union. v0.12.4 (cast → `as
+# z.ZodRawShape`) and v0.13.1 (cast → `as unknown as Record<string,
+# z.ZodTypeAny>`) both attempted a fix that didn't take — neither cast
+# narrows to one branch of the union. The mismatch is harmless at
+# runtime (we don't reach the MCP-mount code path from Botholomew) but
+# `tsc` walks the transitive import graph from `membot/src/sdk.ts`, so
+# it blocks CI on every consumer of membot.
 #
 # Tracked upstream at:
 #   https://github.com/evantahler/membot/issues/57
