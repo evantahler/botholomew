@@ -20,7 +20,7 @@
     "dev": "bun run src/cli.ts -d .botholomew",
     "dev:demo": "bun run src/cli.ts chat -p 'learn everything you can about me from the connected MCP services and then save what you'\\''ve learned about me to context'",
     "test": "bun test",
-    "lint": "tsc --noEmit && biome check .",
+    "lint": "scripts/lint.sh",
     "capture": "bun run scripts/capture.ts",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
