@@ -29,9 +29,13 @@ program
   .configureHelp({
     styleTitle: (str) => ansis.bold(str),
     styleUsage: (str) => ansis.cyan(str),
-    styleCommandText: (str) => ansis.green(str),
+    styleCommandText: (str) => ansis.cyan.bold(str),
+    styleSubcommandTerm: (str) => ansis.green(str),
+    styleSubcommandDescription: (str) => ansis.dim(str),
     styleOptionTerm: (str) => ansis.yellow(str),
-    styleDescriptionText: (str) => ansis.dim(str),
+    styleOptionDescription: (str) => ansis.dim(str),
+    styleArgumentTerm: (str) => ansis.magenta(str),
+    styleArgumentDescription: (str) => ansis.dim(str),
   });
 
 registerInitCommand(program);
