@@ -1,7 +1,8 @@
 import { Box, Text, useInput } from "ink";
 import type { MembotClient } from "membot";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { openMembot } from "../../mem/client.ts";
+import { loadConfig } from "../../config/loader.ts";
+import { openMembot, resolveMembotDir } from "../../mem/client.ts";
 import {
   detailPaneBorderProps,
   type FocusState,
@@ -36,8 +37,8 @@ const PAGE_SCROLL_LINES = 10;
  * Browse the membot knowledge store. Each row is a current-version entry; the
  * detail pane shows the cleaned markdown surrogate. Membot has no real
  * directories — `logical_path` segments are just slashes — so this is a flat
- * paginated list rather than a tree drill-in. Use `botholomew context tree` /
- * `botholomew context search` for hierarchical or content-based discovery.
+ * paginated list rather than a tree drill-in. Use `botholomew membot tree` /
+ * `botholomew membot search` for hierarchical or content-based discovery.
  */
 export const ContextPanel = memo(function ContextPanel({
   projectDir,
@@ -47,13 +48,22 @@ export const ContextPanel = memo(function ContextPanel({
   const detailWidth = Math.max(1, termCols - SIDEBAR_WIDTH - 5);
 
   // One MembotClient per panel mount. Membot manages its DB lock per-op so
-  // sharing the file with the chat session / workers is safe.
+  // sharing the file with the chat session / workers is safe. The data dir is
+  // resolved from `membot_scope` (global → ~/.membot, project → <projectDir>)
+  // so the tab agrees with the worker / chat session / CLI.
   const [client, setClient] = useState<MembotClient | null>(null);
   useEffect(() => {
-    const c = openMembot(projectDir);
-    setClient(c);
+    let cancelled = false;
+    let opened: MembotClient | null = null;
+    (async () => {
+      const config = await loadConfig(projectDir);
+      if (cancelled) return;
+      opened = openMembot(resolveMembotDir(projectDir, config));
+      setClient(opened);
+    })();
     return () => {
-      void c.close();
+      cancelled = true;
+      if (opened) void opened.close();
     };
   }, [projectDir]);
 
@@ -227,7 +237,7 @@ export const ContextPanel = memo(function ContextPanel({
         </Box>
         {entries.length === 0 ? (
           <Box paddingX={1}>
-            <Text dimColor>(empty — try `botholomew context add …`)</Text>
+            <Text dimColor>(empty — try `botholomew membot add …`)</Text>
           </Box>
         ) : (
           visibleItems.map((entry, vi) => {

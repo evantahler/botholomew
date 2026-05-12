@@ -103,7 +103,7 @@ export function adaptOperation(
           error_type: "internal_error",
           message: err instanceof Error ? err.message : String(err),
           next_action_hint:
-            "Check the project's membot store (run `botholomew context stats`) and try again. If this persists, file a bug.",
+            "Check the project's membot store (run `botholomew membot stats`) and try again. If this persists, file a bug.",
         };
       }
     },

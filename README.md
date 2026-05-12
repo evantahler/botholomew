@@ -19,7 +19,7 @@ agent's world is a per-project knowledge store managed by
 search, and delete is addressed by `logical_path` (a DB key, not a
 filesystem path), so a prompt-injected attempt to reach `~/.ssh/id_rsa`
 has nowhere to land. Local files and URLs are brought in through
-`botholomew context add`. External capabilities (email, Slack, the web,
+`botholomew membot add`. External capabilities (email, Slack, the web,
 and hundreds of other services) are granted deliberately, per project,
 through MCP servers wired up via
 [MCPX](https://github.com/evantahler/mcpx).
@@ -165,11 +165,6 @@ semantic search, append-only versioning, and URL refresh all live there.
 
 ![CLI walkthrough: task list, task add, schedule list, context list](docs/assets/cli-tour.gif)
 
-Pulling a remote document straight into the knowledge store via an
-LLM-driven fetcher (`mcp_search` → `mcp_exec` → `membot_pipe`):
-
-![Importing a Google Doc into context](docs/assets/context-import-gdoc.gif)
-
 | Command | Purpose |
 |---|---|
 | `botholomew init` | Initialize the current directory as a project (refuses on iCloud/Dropbox/NFS without `--force`) |
@@ -178,8 +173,8 @@ LLM-driven fetcher (`mcp_search` → `mcp_exec` → `membot_pipe`):
 | `botholomew chat` | Interactive Ink/React TUI |
 | `botholomew task list\|add\|view\|update\|reset\|delete` | Manage the task queue (markdown files in `tasks/`) |
 | `botholomew schedule list\|add\|view\|enable\|disable\|trigger\|delete` | Recurring work (markdown files in `schedules/`) |
-| `botholomew context add\|ls\|tree\|read\|write\|search\|info\|versions\|diff\|refresh\|…` | Knowledge-store passthrough to [`membot`](https://github.com/evantahler/membot) — `--config` is set to the project dir automatically |
-| `botholomew context import-global` | Seed the project from `~/.membot` (copies `index.duckdb` + `config.json` in) |
+| `botholomew membot add\|ls\|tree\|read\|write\|search\|info\|versions\|diff\|refresh\|…` | Knowledge-store passthrough to [`membot`](https://github.com/evantahler/membot) — `--config` is resolved from `membot_scope` (default `~/.membot`) |
+| `botholomew membot import-global` | Seed the project from `~/.membot` (copies `index.duckdb` + `config.json` in) |
 | `botholomew capabilities` | Rescan built-in + MCPX tools and rewrite `prompts/capabilities.md` |
 | `botholomew prompts list\|show\|create\|edit\|delete\|validate` | CRUD over the markdown files in `prompts/` (with strict frontmatter validation) |
 | `botholomew mcpx servers\|list\|add\|remove\|info\|search\|exec\|ping\|auth\|deauth\|import-global\|…` | Configure external MCP servers (passthrough to `mcpx`) |

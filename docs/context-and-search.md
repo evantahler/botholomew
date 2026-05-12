@@ -23,10 +23,10 @@ This page is intentionally short — the canonical docs live with membot.
 
 ## Calling membot from Botholomew
 
-- **CLI**: `botholomew context <verb> …` is a thin passthrough that spawns
+- **CLI**: `botholomew membot <verb> …` is a thin passthrough that spawns
   `membot <verb> … --config <resolvedDir>`, where `<resolvedDir>` follows the
-  `membot_scope` setting (see below). Run `botholomew context --help` for the
-  verb list. `botholomew context import-global` is the only Botholomew-specific
+  `membot_scope` setting (see below). Run `botholomew membot --help` for the
+  verb list. `botholomew membot import-global` is the only Botholomew-specific
   subcommand — it copies `~/.membot` into `<projectDir>` (useful when migrating
   global → project).
 - **Chat agent**: the agent calls `membot_add`, `membot_search`, `membot_read`,
@@ -54,7 +54,7 @@ Switch with one of:
 
 - `botholomew init --membot-scope=project` (new project)
 - Edit `config/config.json` and set `"membot_scope": "project"` (existing project)
-- Run `botholomew context import-global` to seed the project-local store from
+- Run `botholomew membot import-global` to seed the project-local store from
   `~/.membot` before flipping the scope.
 
 ## On-disk layout

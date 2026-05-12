@@ -29,11 +29,11 @@ function getDir(program: Command): string {
 }
 
 /**
- * Slice process.argv from the token after "context" so flags (including
+ * Slice process.argv from the token after "membot" so flags (including
  * --help) and positional args flow through to upstream membot verbatim.
  */
-function getRawContextArgs(): string[] {
-  const idx = process.argv.indexOf("context");
+function getRawMembotArgs(): string[] {
+  const idx = process.argv.indexOf("membot");
   return idx === -1 ? [] : process.argv.slice(idx + 1);
 }
 
@@ -121,37 +121,37 @@ function registerImportGlobal(parent: Command, program: Command): void {
     });
 }
 
-export function registerContextCommand(program: Command) {
-  const context = program
-    .command("context")
+export function registerMembotCommand(program: Command) {
+  const membot = program
+    .command("membot")
     .description(
-      "Manage the project's knowledge store via membot (add, search, ls, read, …)",
+      "Manage the project's knowledge store (passthrough to membot: add, search, ls, read, …)",
     );
 
   // Botholomew-specific helpers first so they show up before the membot
   // passthrough subcommands in --help.
-  registerImportGlobal(context, program);
+  registerImportGlobal(membot, program);
 
   // One Commander subcommand per membot Operation. We don't redeclare any
   // flags — Commander hands the raw argv slice to membot, which owns the
   // canonical schema.
   for (const op of OPERATIONS) {
     const name = defaultCliName(op);
-    context
+    membot
       .command(name)
       .description(op.description.split("\n")[0] ?? op.description)
       .allowUnknownOption(true)
       .helpOption(false)
       .argument("[args...]", "arguments forwarded to membot")
       .action(async () => {
-        const exitCode = await runMembot(getDir(program), getRawContextArgs());
+        const exitCode = await runMembot(getDir(program), getRawMembotArgs());
         if (exitCode !== 0) process.exit(exitCode);
       });
   }
 
-  // `botholomew context` (no subcommand) → membot's default action.
-  context.action(async () => {
-    const exitCode = await runMembot(getDir(program), getRawContextArgs());
+  // `botholomew membot` (no subcommand) → membot's default action.
+  membot.action(async () => {
+    const exitCode = await runMembot(getDir(program), getRawMembotArgs());
     if (exitCode !== 0) process.exit(exitCode);
   });
 }
