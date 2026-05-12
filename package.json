@@ -1,6 +1,6 @@
 {
   "name": "botholomew",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "An autonomous AI agent for knowledge work — works your task queue while you sleep.",
   "type": "module",
   "bin": {
@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
-    "@evantahler/mcpx": "0.21.3",
+    "@evantahler/mcpx": "0.21.6",
     "ansis": "^4.2.0",
     "commander": "^14.0.0",
     "gray-matter": "^4.0.3",
@@ -36,7 +36,7 @@
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
     "istextorbinary": "^9.5.0",
-    "membot": "^0.13.3",
+    "membot": "^0.14.0",
     "nanospinner": "^1.2.2",
     "react": "^19.2.0",
     "uuid": "^14.0.0",

@@ -19,6 +19,11 @@ tasks/schedules/prompts/skills, CSV for conversation history, JSON for
 worker pidfiles. The agent's *knowledge store* lives in `index.duckdb`,
 managed by the [`membot`](https://github.com/evantahler/membot) library —
 membot owns the schema, the ingestion pipeline, and the search index.
+By default that store is shared across projects at `~/.membot/`; set
+`membot_scope` to `"project"` in `config/config.json` to use a
+project-local `<projectDir>/index.duckdb`. The same toggle exists for
+MCP server config (`mcpx_scope` → `~/.mcpx/` vs. `<projectDir>/mcpx/`).
+See [Configuration](./configuration.md#per-project-vs-global).
 
 Concurrency:
 
@@ -251,9 +256,10 @@ The membot store is opened lazily — every Botholomew process holds one
 - **Chat**: each turn writes thread interactions to CSV; the same
   `ctx.mem` is shared across tool calls in one turn.
 - **CLI invocations**: `botholomew context <verb>` is a passthrough to
-  the `membot` binary — it spawns a fresh process with `--config <projectDir>`,
-  forwards stdio, and exits with the child's code. No long-lived
-  connection in the Botholomew process at all.
+  the `membot` binary — it spawns a fresh process with `--config
+  <resolvedDir>` (where `<resolvedDir>` is `~/.membot` or `<projectDir>`
+  depending on `membot_scope`), forwards stdio, and exits with the
+  child's code. No long-lived connection in the Botholomew process at all.
 - **Cross-process safety**: membot's lock-with-backoff means a worker
   and a `botholomew context add …` running side-by-side serialize on
   DuckDB's file lock automatically — no extra coordination on our side

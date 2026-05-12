@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { loadConfig } from "../config/loader.ts";
-import { openMembot } from "../mem/client.ts";
+import { openMembot, resolveMembotDir } from "../mem/client.ts";
 import { logger } from "../utils/logger.ts";
 
 export function registerPrepareCommand(program: Command) {
@@ -13,8 +13,7 @@ export function registerPrepareCommand(program: Command) {
       const projectDir = program.opts().dir as string;
       logger.info("Preparing Botholomew...");
       const config = await loadConfig(projectDir);
-      void config;
-      const mem = openMembot(projectDir);
+      const mem = openMembot(resolveMembotDir(projectDir, config));
       try {
         await mem.connect();
         logger.success("membot knowledge store opened successfully");

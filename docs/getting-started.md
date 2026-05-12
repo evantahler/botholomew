@@ -49,21 +49,27 @@ the agent or worker touches is a real file you can `vim`, `grep`, and
 
 ```
 my-project/
-  config/config.json                # models, tick interval, API keys
+  config/config.json                # models, tick interval, API keys, scope settings
   prompts/                          # markdown loaded into every system prompt (or keyword-loaded)
     goals.md                        #   identity + current goals (agent-editable)
     beliefs.md                      #   agent-editable priors
     capabilities.md                 #   auto-generated tool inventory
   skills/                           # slash commands (built-ins + user-defined)
-  mcpx/servers.json                 # external MCP servers (Gmail, Slack, …)
   tasks/<id>.md                     # tasks (status in frontmatter)
   schedules/<id>.md                 # schedules
   threads/<YYYY-MM-DD>/<id>.csv     # conversation history
   workers/<id>.json                 # worker pidfile + heartbeat
   logs/<YYYY-MM-DD>/<id>.log        # per-worker logs
-  index.duckdb                      # knowledge store (managed by membot)
-  config.json                       # membot config
 ```
+
+By default the knowledge store (`membot`) and MCP server config (`mcpx`)
+are **shared globally** at `~/.membot/` and `~/.mcpx/`, so personal
+knowledge and authenticated MCP servers carry across every Botholomew
+project on the machine. Pass `--membot-scope=project` or
+`--mcpx-scope=project` to `botholomew init` (or flip the corresponding
+key in `config/config.json` later) to use project-local
+`<projectDir>/index.duckdb` and `<projectDir>/mcpx/` instead. See
+[Configuration → Per-project vs. global](./configuration.md#per-project-vs-global).
 
 The agent has no shell and no filesystem-path surface to its knowledge
 store — every entry is addressed by `logical_path` (an opaque DB key).

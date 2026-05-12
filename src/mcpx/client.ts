@@ -1,16 +1,33 @@
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { type CallToolResult, McpxClient } from "@evantahler/mcpx";
+import type { BotholomewConfig } from "../config/schemas.ts";
 import { getMcpxDir, MCPX_SERVERS_FILENAME } from "../constants.ts";
 
 /**
- * Create an McpxClient from the project's mcpx/servers.json.
- * Returns null if the file is missing or has no servers configured.
+ * Resolve the mcpx config directory for a project, honoring `mcpx_scope`:
+ *   - "global"  → `~/.mcpx` (shared across all Botholomew projects)
+ *   - "project" → `<projectDir>/mcpx` (isolated per project)
+ */
+export function resolveMcpxDir(
+  projectDir: string,
+  config: Pick<BotholomewConfig, "mcpx_scope">,
+): string {
+  return config.mcpx_scope === "project"
+    ? getMcpxDir(projectDir)
+    : join(homedir(), ".mcpx");
+}
+
+/**
+ * Create an McpxClient from `<mcpxDir>/servers.json`. Returns null if the
+ * file is missing or has no servers configured. The caller is responsible
+ * for resolving `mcpxDir` via `resolveMcpxDir`.
  */
 export async function createMcpxClient(
-  projectDir: string,
+  mcpxDir: string,
 ): Promise<McpxClient | null> {
-  const serversPath = join(getMcpxDir(projectDir), MCPX_SERVERS_FILENAME);
+  const serversPath = join(mcpxDir, MCPX_SERVERS_FILENAME);
   if (!existsSync(serversPath)) return null;
 
   const raw = await Bun.file(serversPath).text();
@@ -20,7 +37,6 @@ export async function createMcpxClient(
     return null;
   }
 
-  const mcpxDir = getMcpxDir(projectDir);
   const authPath = join(mcpxDir, "auth.json");
   const auth = existsSync(authPath)
     ? JSON.parse(await Bun.file(authPath).text())

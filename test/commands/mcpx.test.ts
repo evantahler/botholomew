@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { runMcpx } from "../../src/commands/mcpx.ts";
@@ -6,6 +6,16 @@ import { runMcpx } from "../../src/commands/mcpx.ts";
 const TMP_DIR = join(import.meta.dir, ".tmp-mcpx-cmd-test");
 const MCPX_DIR = join(TMP_DIR, "mcpx");
 const CLI_PATH = join(import.meta.dir, "..", "..", "src", "cli.ts");
+
+// Force project-local mcpx for these tests — the default is "global", which
+// would point runMcpx at ~/.mcpx and pollute / leak real user state.
+beforeEach(async () => {
+  mkdirSync(join(TMP_DIR, "config"), { recursive: true });
+  await Bun.write(
+    join(TMP_DIR, "config", "config.json"),
+    JSON.stringify({ mcpx_scope: "project", membot_scope: "project" }),
+  );
+});
 
 afterEach(() => {
   if (existsSync(TMP_DIR)) {

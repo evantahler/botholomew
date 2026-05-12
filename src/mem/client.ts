@@ -1,17 +1,33 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { MembotClient } from "membot";
+import type { BotholomewConfig } from "../config/schemas.ts";
 
 /**
- * Open a per-project membot client. Each Botholomew project gets its own
- * membot data dir (`<projectDir>/config.json` + `<projectDir>/index.duckdb`)
- * so projects don't share knowledge. The caller is responsible for `close()`
- * on shutdown.
+ * Resolve the membot data directory for a project, honoring `membot_scope`:
+ *   - "global"  → `~/.membot` (shared across all Botholomew projects)
+ *   - "project" → `<projectDir>` (isolated per project)
  *
  * Membot's `configFlag` doubles as its data-dir flag (see
- * `membot/src/config/loader.ts::resolveDataDir`): an explicit value wins over
- * `$MEMBOT_HOME` and the `~/.membot` default. We pass the project directory
- * unconditionally so a stray `MEMBOT_HOME` in the user's environment cannot
- * redirect Botholomew at a different store.
+ * `node_modules/membot/src/config/loader.ts::resolveDataDir`): an explicit
+ * value wins over `$MEMBOT_HOME` and the `~/.membot` default. We always pass
+ * an explicit value so a stray `MEMBOT_HOME` cannot redirect Botholomew at a
+ * different store.
  */
-export function openMembot(projectDir: string): MembotClient {
-  return new MembotClient({ configFlag: projectDir });
+export function resolveMembotDir(
+  projectDir: string,
+  config: Pick<BotholomewConfig, "membot_scope">,
+): string {
+  return config.membot_scope === "project"
+    ? projectDir
+    : join(homedir(), ".membot");
+}
+
+/**
+ * Open a membot client rooted at `dataDir`. The caller is responsible for
+ * resolving the directory (via `resolveMembotDir`) and for `close()` on
+ * shutdown.
+ */
+export function openMembot(dataDir: string): MembotClient {
+  return new MembotClient({ configFlag: dataDir });
 }

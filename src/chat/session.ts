@@ -3,8 +3,8 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { MembotClient } from "membot";
 import { loadConfig } from "../config/loader.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { createMcpxClient } from "../mcpx/client.ts";
-import { openMembot } from "../mem/client.ts";
+import { createMcpxClient, resolveMcpxDir } from "../mcpx/client.ts";
+import { openMembot, resolveMembotDir } from "../mem/client.ts";
 import { loadSkills } from "../skills/loader.ts";
 import type { SkillDefinition } from "../skills/parser.ts";
 import {
@@ -60,7 +60,7 @@ export async function startChatSession(
     );
   }
 
-  const mem = openMembot(projectDir);
+  const mem = openMembot(resolveMembotDir(projectDir, config));
   await mem.connect();
   await ensureThreadsDir(projectDir);
 
@@ -101,7 +101,7 @@ export async function startChatSession(
     );
   }
 
-  const mcpxClient = await createMcpxClient(projectDir);
+  const mcpxClient = await createMcpxClient(resolveMcpxDir(projectDir, config));
   const skills = await loadSkills(projectDir);
 
   const cleanup = async () => {

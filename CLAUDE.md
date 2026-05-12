@@ -66,7 +66,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 
 ## On-disk patterns
 
-- **Project root is the cwd.** `botholomew init` writes its tree at `<cwd>/{config,prompts,skills,mcpx,tasks,schedules,threads,workers,logs}` plus `index.duckdb` (membot's knowledge store) — there is no `.botholomew/` wrapper.
+- **Project root is the cwd.** `botholomew init` writes its tree at `<cwd>/{config,prompts,skills,mcpx,tasks,schedules,threads,workers,logs}`. There is no `.botholomew/` wrapper. The membot knowledge store (`index.duckdb`) and the seeded mcpx `servers.json` are only written into `<cwd>` when `membot_scope` / `mcpx_scope` in `config/config.json` is `"project"`; the default is `"global"`, which resolves to `~/.membot/` and `~/.mcpx/` (shared across every project on the machine). Pass `--membot-scope=project` / `--mcpx-scope=project` to `botholomew init` to opt out per project.
 - **Path sandbox is non-negotiable.** Every tool that takes a `path` arg routes through `src/fs/sandbox.ts::resolveInRoot(root, userPath, opts)`. NFC-normalize, reject NUL/`..`/absolute, lstat-walk every component. By default symlink components are rejected. Tasks, schedules, prompts, and skills all depend on this helper. (Membot owns its own path semantics for `logical_path`, which is a DB key — not a filesystem path.)
 - **Atomic-write-via-rename for status mutations.** `src/fs/atomic.ts::atomicWrite` writes a `*.tmp.<wid>` then `fs.rename`s. Reads-before-writes (tasks/schedules/prompts) compare the file's `mtime` between read and write — abort and retry if it changed.
 - **`O_EXCL` lockfiles** for tasks and schedules. Body holds the worker id and `claimed_at`. Release = `unlink`. Reaper walks the lock dirs and unlinks orphans whose owner is dead in `workers/`.
@@ -77,11 +77,11 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 
 ## Knowledge store (membot)
 
-- **One `MembotClient` per process.** `src/mem/client.ts::openMembot(projectDir)` returns a per-project client pointed at `<projectDir>/index.duckdb` (via membot's `--config <projectDir>` flag — see `node_modules/membot/src/config/loader.ts`). Workers, chat sessions, and TUI panels each open one on startup and close on shutdown.
+- **One `MembotClient` per process.** `src/mem/client.ts::openMembot(dataDir)` takes a resolved data directory. Callers compute it with `resolveMembotDir(projectDir, config)`: `"global"` → `~/.membot`, `"project"` → `<projectDir>`. Workers, chat sessions, TUI panels, and init each call this pair on startup. The default scope is `"global"`, so a fresh project shares knowledge with every other project on the machine unless the user opts out. The same shape exists for mcpx (`createMcpxClient(mcpxDir)` + `resolveMcpxDir(projectDir, config)` in `src/mcpx/client.ts`).
 - **`ToolContext.mem` is the only handle the agent sees.** Every `membot_*` tool routes through it. Membot manages its DuckDB lock per-op so multiple in-process consumers (worker + chat + TUI panel) share the file safely.
 - **No direct DuckDB access from Botholomew.** We don't import `@duckdb/node-api` or `@huggingface/transformers`. Every DB / embedding concern lives behind the membot SDK.
 - **Agent tools live in `src/tools/membot/`.** `adapter.ts` turns each upstream membot `Operation` into a Botholomew `ToolDefinition`; `edit.ts`, `copy.ts`, `exists.ts`, `count_lines.ts`, and `pipe.ts` add the file-shaped UX our agents already know (git-hunk patches, presence checks, etc.) on top of membot's whole-file `write`.
-- **CLI passthrough.** `botholomew context <args…>` spawns `membot <args…> --config <projectDir>` and forwards stdio (mirrors how `botholomew mcpx …` proxies to upstream mcpx). There is no Botholomew-side `context_*` command implementation.
+- **CLI passthrough.** `botholomew context <args…>` spawns `membot <args…> --config <resolvedDir>` (resolved from `membot_scope`); `botholomew mcpx <args…>` spawns `mcpx <args…> -c <resolvedDir>` (from `mcpx_scope`). Both forward stdio. There is no Botholomew-side `context_*` command implementation. The Botholomew-specific `context import-global` / `mcpx import-global` always copy into the **project** dir (so users can seed a project store before flipping scope to `"project"`).
 
 ## Testing
 

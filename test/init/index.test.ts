@@ -131,18 +131,51 @@ describe("initProject", () => {
     expect(text).toContain("capabilities_refresh");
   });
 
-  test("creates index.duckdb (membot store) with migrations applied", async () => {
-    await initProject(projectDir);
+  test("creates index.duckdb (membot store) with migrations applied when membot_scope=project", async () => {
+    await initProject(projectDir, { membotScope: "project" });
     const dbPath = join(projectDir, "index.duckdb");
     expect(await Bun.file(dbPath).exists()).toBe(true);
   });
 
-  test("writes mcpx/servers.json with default content", async () => {
+  test("does NOT create a project-local index.duckdb under the default (global) scope", async () => {
     await initProject(projectDir);
+    const dbPath = join(projectDir, "index.duckdb");
+    expect(await Bun.file(dbPath).exists()).toBe(false);
+  });
+
+  test("writes mcpx/servers.json with default content when mcpx_scope=project", async () => {
+    await initProject(projectDir, { mcpxScope: "project" });
     const path = join(getMcpxDir(projectDir), MCPX_SERVERS_FILENAME);
     expect(await Bun.file(path).exists()).toBe(true);
     const cfg = JSON.parse(await fileText(path));
     expect(cfg).toBeDefined();
+  });
+
+  test("does NOT seed a project-local mcpx/servers.json under the default (global) scope", async () => {
+    await initProject(projectDir);
+    const path = join(getMcpxDir(projectDir), MCPX_SERVERS_FILENAME);
+    expect(await Bun.file(path).exists()).toBe(false);
+  });
+
+  test("config.json records the scope choices that were applied", async () => {
+    await initProject(projectDir);
+    const cfg = JSON.parse(
+      await fileText(join(projectDir, CONFIG_DIR, CONFIG_FILENAME)),
+    );
+    expect(cfg.membot_scope).toBe("global");
+    expect(cfg.mcpx_scope).toBe("global");
+
+    await rm(projectDir, { recursive: true, force: true });
+    projectDir = await mkdtemp(join(tmpdir(), "both-init-"));
+    await initProject(projectDir, {
+      membotScope: "project",
+      mcpxScope: "project",
+    });
+    const cfg2 = JSON.parse(
+      await fileText(join(projectDir, CONFIG_DIR, CONFIG_FILENAME)),
+    );
+    expect(cfg2.membot_scope).toBe("project");
+    expect(cfg2.mcpx_scope).toBe("project");
   });
 
   test("refuses to re-init without --force", async () => {

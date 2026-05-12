@@ -50,4 +50,9 @@ describe("DEFAULT_CONFIG", () => {
       DEFAULT_CONFIG.max_tick_duration_seconds,
     );
   });
+
+  test("membot_scope and mcpx_scope default to global so new projects share ~/.membot and ~/.mcpx", () => {
+    expect(DEFAULT_CONFIG.membot_scope).toBe("global");
+    expect(DEFAULT_CONFIG.mcpx_scope).toBe("global");
+  });
 });
