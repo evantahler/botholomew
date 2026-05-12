@@ -45,6 +45,8 @@ describe("maybeStoreResult", () => {
     expect(result.text).toContain(`id="${result.stored?.id}"`);
     expect(result.text).toContain("page=<n>");
     expect(result.text).toContain(`(1–${result.stored?.pages})`);
+    expect(result.text).toContain("read_large_result");
+    expect(result.text).toContain("NOT via mcp_exec");
   });
 });
 

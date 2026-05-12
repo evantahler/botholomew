@@ -38,7 +38,7 @@ const outputSchema = z.object({
 
 export const readLargeResultTool = {
   name: "read_large_result",
-  description: `[[ bash equivalent command: sed -n '<page>p' ]] Read one page of a large tool result that was cached because its inline payload exceeded the response budget. Use the id from the "Paginated for LLM" stub. Pages are 1-based and ~${PAGE_SIZE_CHARS} chars each; loop from page=1 to total_pages.`,
+  description: `[[ bash equivalent command: sed -n '<page>p' ]] Read one page of a large tool result that Botholomew cached because its inline payload exceeded the response budget. This is a TOP-LEVEL Botholomew tool — call it directly by name, do NOT route it through mcp_exec (it is not an MCP tool, even if the originating result came from an MCP server). Use the id from the "Paginated for LLM" stub. Pages are 1-based and ~${PAGE_SIZE_CHARS} chars each; loop from page=1 to total_pages.`,
   group: "util",
   inputSchema,
   outputSchema,
