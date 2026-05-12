@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Command } from "commander";
 import { defaultCliName, OPERATIONS } from "membot";
+import { loadConfig } from "../config/loader.ts";
+import { resolveMembotDir } from "../mem/client.ts";
 import { logger } from "../utils/logger.ts";
 
 const require = createRequire(import.meta.url);
@@ -36,11 +38,14 @@ function getRawContextArgs(): string[] {
 }
 
 async function runMembot(projectDir: string, args: string[]): Promise<number> {
-  // Point membot at <projectDir> as its data dir via the `--config` flag —
-  // each Botholomew project gets its own membot store at
-  // `<projectDir>/index.duckdb`. Forward stdio so the user sees the same
-  // output they would running `membot` directly.
-  const proc = Bun.spawn(["bun", MEMBOT_CLI, "--config", projectDir, ...args], {
+  // Resolve membot's data dir from `membot_scope`:
+  //   - "global"  → ~/.membot (default, shared)
+  //   - "project" → <projectDir>
+  // Forward stdio so the user sees the same output they would running
+  // `membot` directly.
+  const config = await loadConfig(projectDir);
+  const membotDir = resolveMembotDir(projectDir, config);
+  const proc = Bun.spawn(["bun", MEMBOT_CLI, "--config", membotDir, ...args], {
     stdout: "inherit",
     stderr: "inherit",
     stdin: "inherit",
@@ -66,7 +71,7 @@ function registerImportGlobal(parent: Command, program: Command): void {
       "Overwrite an existing index.duckdb in the project",
       false,
     )
-    .action((opts: { force: boolean }) => {
+    .action(async (opts: { force: boolean }) => {
       const globalDir = join(homedir(), ".membot");
       if (!existsSync(globalDir)) {
         logger.error("No global membot data found at ~/.membot");
@@ -74,6 +79,12 @@ function registerImportGlobal(parent: Command, program: Command): void {
       }
 
       const projectDir = getDir(program);
+      const config = await loadConfig(projectDir);
+      if (config.membot_scope !== "project") {
+        logger.warn(
+          `membot_scope is "${config.membot_scope}" — Botholomew currently reads from ~/.membot. After this import, set membot_scope to "project" in ${getDir(program)}/config/config.json for the project-local copy to take effect.`,
+        );
+      }
       const dest = (name: string) => join(projectDir, name);
       const destDb = dest("index.duckdb");
 

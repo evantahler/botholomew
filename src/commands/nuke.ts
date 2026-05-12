@@ -2,8 +2,9 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import ansis from "ansis";
 import type { Command } from "commander";
+import { loadConfig } from "../config/loader.ts";
 import { SCHEDULES_DIR, TASKS_DIR, THREADS_DIR } from "../constants.ts";
-import { openMembot } from "../mem/client.ts";
+import { openMembot, resolveMembotDir } from "../mem/client.ts";
 import { deleteAllSchedules } from "../schedules/store.ts";
 import { deleteAllTasks } from "../tasks/store.ts";
 import { deleteAllThreads } from "../threads/store.ts";
@@ -34,9 +35,16 @@ async function ensureNoRunningWorkers(projectDir: string): Promise<boolean> {
  * we fall back to deleting it outright.
  */
 async function nukeKnowledge(projectDir: string): Promise<void> {
-  const indexPath = join(projectDir, "index.duckdb");
+  const config = await loadConfig(projectDir);
+  const membotDir = resolveMembotDir(projectDir, config);
+  const indexPath = join(membotDir, "index.duckdb");
+  if (config.membot_scope !== "project") {
+    logger.warn(
+      `membot_scope is "${config.membot_scope}"; this will erase the SHARED knowledge store at ${membotDir}`,
+    );
+  }
   try {
-    const mem = openMembot(projectDir);
+    const mem = openMembot(membotDir);
     try {
       const list = await mem.list({ limit: 100_000 });
       const paths = list.entries.map((e) => e.logical_path);

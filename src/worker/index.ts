@@ -1,8 +1,8 @@
 import { hostname } from "node:os";
 import ansis from "ansis";
 import { loadConfig } from "../config/loader.ts";
-import { createMcpxClient } from "../mcpx/client.ts";
-import { openMembot } from "../mem/client.ts";
+import { createMcpxClient, resolveMcpxDir } from "../mcpx/client.ts";
+import { openMembot, resolveMembotDir } from "../mem/client.ts";
 import { logger } from "../utils/logger.ts";
 import { uuidv7 } from "../utils/uuid.ts";
 import { markWorkerStopped, registerWorker } from "../workers/store.ts";
@@ -87,12 +87,12 @@ export async function startWorker(
   const evalSchedules = options.evalSchedules ?? !taskId;
 
   const config = await loadConfig(projectDir);
-  const mem = openMembot(projectDir);
+  const mem = openMembot(resolveMembotDir(projectDir, config));
   // Surface init-time failures (bad config, locked DB) up front rather than
   // letting the first tool call do it.
   await mem.connect();
 
-  const mcpxClient = await createMcpxClient(projectDir);
+  const mcpxClient = await createMcpxClient(resolveMcpxDir(projectDir, config));
   if (mcpxClient) {
     logger.info("MCPX client initialized with external tools");
   }

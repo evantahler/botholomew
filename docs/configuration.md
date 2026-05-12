@@ -21,7 +21,9 @@ project directory. The full schema lives in `src/config/schemas.ts`.
   "schedule_min_interval_seconds": 60,
   "schedule_claim_stale_seconds": 300,
   "tui_idle_timeout_seconds": 180,
-  "log_level": ""
+  "log_level": "",
+  "membot_scope": "global",
+  "mcpx_scope": "global"
 }
 ```
 
@@ -48,6 +50,8 @@ project directory. The full schema lives in `src/config/schemas.ts`.
 | `schedule_claim_stale_seconds` | `300` | If a worker claimed a schedule but never released it (crash), another worker may steal the claim after this many seconds. |
 | `tui_idle_timeout_seconds` | `180` | Seconds of inactivity (no keystrokes, no streamed agent tokens, no tool events) before the chat TUI freezes its visible animations and pauses the status-bar count refresh. Animations resume on the next activity. Set to `0` to disable (always animate — useful for demo recordings). |
 | `log_level` | `""` | Verbosity for `botholomew` CLI logs. One of `silent`, `error`, `warn`, `info`, `debug`. Empty string falls back to the runtime default (`info` normally, `error` under `NODE_ENV=test`). `BOTHOLOMEW_LOG_LEVEL` env var overrides this. |
+| `membot_scope` | `"global"` | Where this project's knowledge store lives. `"global"` → `~/.membot/index.duckdb` (shared across every Botholomew project on the machine). `"project"` → `<projectDir>/index.duckdb` (isolated). Affects both the agent and the `botholomew context …` CLI passthrough. |
+| `mcpx_scope` | `"global"` | Where this project's MCP server config lives. `"global"` → `~/.mcpx/` (shared). `"project"` → `<projectDir>/mcpx/` (isolated). Affects both the agent and the `botholomew mcpx …` CLI passthrough. |
 
 ---
 
@@ -98,7 +102,37 @@ without confirmation", …).
 
 ## Per-project vs. global
 
-There is no global config — everything is per-project. This is
-deliberate: different projects have different goals, different MCP
-servers, different beliefs. One Botholomew project's config shouldn't
-leak into another's.
+`config.json` itself is always per-project — different projects have
+different goals, beliefs, and tuning. But the two data stores it points
+at (`membot` for knowledge, `mcpx` for MCP servers) default to **shared
+global** locations, because reusing a personal knowledge base and a set
+of authenticated MCP servers across every project is almost always what
+you want.
+
+Defaults for new projects:
+
+| Concern | Default scope | Resolves to |
+|---|---|---|
+| `membot_scope` | `"global"` | `~/.membot/` |
+| `mcpx_scope` | `"global"` | `~/.mcpx/` |
+
+To opt one (or both) into per-project isolation, set the key to
+`"project"` in `config/config.json`, or pass `--membot-scope=project` /
+`--mcpx-scope=project` to `botholomew init`. The agent loop, chat
+session, TUI, and CLI passthroughs (`botholomew context …`, `botholomew
+mcpx …`) all honour the scope on every invocation.
+
+Migrating between scopes:
+
+- **Global → project**: `botholomew context import-global` (copies
+  `~/.membot/` into the project) or `botholomew mcpx import-global`
+  (copies `~/.mcpx/`), then flip the scope key to `"project"`.
+- **Project → global**: copy `<projectDir>/index.duckdb` to
+  `~/.membot/index.duckdb` (or `<projectDir>/mcpx/*.json` to `~/.mcpx/`),
+  then flip the scope key to `"global"`.
+
+Projects initialized before the scope settings existed have no
+`membot_scope` / `mcpx_scope` keys; both default to `"global"`, so the
+agent reads the shared store. Any pre-existing project-local
+`index.duckdb` or `mcpx/servers.json` is left in place but unused until
+you flip the scope back.

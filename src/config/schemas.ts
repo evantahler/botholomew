@@ -1,3 +1,5 @@
+export type Scope = "global" | "project";
+
 export interface BotholomewConfig {
   anthropic_api_key?: string;
   model?: string;
@@ -16,6 +18,8 @@ export interface BotholomewConfig {
   schedule_claim_stale_seconds?: number;
   tui_idle_timeout_seconds?: number;
   log_level?: string;
+  membot_scope?: Scope;
+  mcpx_scope?: Scope;
 }
 
 export const DEFAULT_CONFIG: Required<BotholomewConfig> = {
@@ -36,4 +40,6 @@ export const DEFAULT_CONFIG: Required<BotholomewConfig> = {
   schedule_claim_stale_seconds: 300,
   tui_idle_timeout_seconds: 180,
   log_level: "",
+  membot_scope: "global",
+  mcpx_scope: "global",
 };

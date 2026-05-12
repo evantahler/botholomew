@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { createSpinner } from "nanospinner";
 import { loadConfig } from "../config/loader.ts";
-import { createMcpxClient } from "../mcpx/client.ts";
+import { createMcpxClient, resolveMcpxDir } from "../mcpx/client.ts";
 import { writeCapabilitiesFile } from "../prompts/capabilities.ts";
 import { registerAllTools } from "../tools/registry.ts";
 
@@ -19,7 +19,9 @@ export function registerCapabilitiesCommand(program: Command) {
       const spinner = createSpinner("Loading config").start();
       const config = await loadConfig(dir);
       spinner.update({ text: "Connecting to MCPX servers" });
-      const mcpxClient = includeMcp ? await createMcpxClient(dir) : null;
+      const mcpxClient = includeMcp
+        ? await createMcpxClient(resolveMcpxDir(dir, config))
+        : null;
       try {
         const result = await writeCapabilitiesFile(
           dir,

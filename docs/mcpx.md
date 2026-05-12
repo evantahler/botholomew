@@ -5,10 +5,14 @@ own. Everything external — reading email, searching the web, talking to
 GitHub — comes from MCP servers, managed per project via
 [**MCPX**](https://github.com/evantahler/mcpx).
 
-Think of MCPX as the `package.json` of the agent's tools: a
-project-local manifest (`mcpx/servers.json`) lists the MCP
-servers this project can use, and workers and the chat session connect
-to them at startup.
+Think of MCPX as the `package.json` of the agent's tools: a manifest
+(`servers.json`) lists the MCP servers a project can use, and workers
+and the chat session connect to them at startup. By default that
+manifest is **shared globally** at `~/.mcpx/`, so the OAuth tokens and
+server list you configure once carry over to every project — switch
+`mcpx_scope` to `"project"` in `config/config.json` to use a
+per-project `<projectDir>/mcpx/` directory instead. See
+[Storage scope](#storage-scope) below.
 
 You have two options for *how* those servers run:
 
@@ -97,9 +101,28 @@ your shell doesn't split them (e.g. `--args "-y,@scope/pkg"`).
 
 ---
 
+## Storage scope
+
+`mcpx_scope` in `config/config.json` controls where MCPX reads/writes:
+
+| Value | Resolves to | Use when |
+|---|---|---|
+| `"global"` (default) | `~/.mcpx/` | You want one set of authenticated MCP servers reused across every Botholomew project. |
+| `"project"` | `<projectDir>/mcpx/` | You want strict per-project isolation (different OAuth identities, gateway endpoints, or tool surfaces per project). |
+
+Switch with one of:
+
+- `botholomew init --mcpx-scope=project` (new project)
+- Edit `config/config.json` and set `"mcpx_scope": "project"` (existing project)
+- Run `botholomew mcpx import-global` to seed `<projectDir>/mcpx/` from
+  `~/.mcpx/` before flipping the scope.
+
+---
+
 ## Lifecycle
 
-`createMcpxClient(projectDir)` in `src/mcpx/client.ts`:
+`createMcpxClient(mcpxDir)` in `src/mcpx/client.ts` (called with the dir
+returned by `resolveMcpxDir(projectDir, config)`):
 
 1. Reads `servers.json`.
 2. Connects to every server.
