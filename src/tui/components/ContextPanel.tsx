@@ -240,7 +240,7 @@ export const ContextPanel = memo(function ContextPanel({
         ? `🔍 match (score=${selectedRow.hit.score.toFixed(3)}, chunk #${selectedRow.hit.chunk_index})\n${selectedRow.hit.snippet}\n\n---\n\n`
         : "";
     const body = isMarkdownPath(fileContent.logical_path)
-      ? renderMarkdown(fileContent.content)
+      ? renderMarkdown(fileContent.content, detailWidth)
       : fileContent.content;
     return wrapDetailLines(snippetHeader + body, detailWidth);
   }, [selectedRow, fileContent, detailWidth]);
