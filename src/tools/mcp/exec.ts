@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { formatCallToolResult } from "../../mcpx/client.ts";
 import { fakeMcpExec, isCaptureMode } from "../../worker/fake-mcp.ts";
-import type { ToolDefinition } from "../tool.ts";
+import { getTool, type ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({
   server: z.string().describe("MCP server name"),
@@ -82,6 +82,18 @@ export const mcpExecTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
+    // Guard: the agent sometimes routes a top-level Botholomew tool through
+    // mcp_exec (e.g. read_large_result on a payload that originated from an
+    // MCP server). Bounce with a clear redirect rather than forwarding to a
+    // server that doesn't have the tool.
+    if (getTool(input.tool)) {
+      return {
+        result: `\`${input.tool}\` is a top-level Botholomew tool, not an MCP tool. Call it directly by name instead of routing it through mcp_exec.`,
+        is_error: true,
+        error_kind: "input_error" as const,
+        hint: `Re-emit a tool_use block with name="${input.tool}" and its own input schema. Do not wrap it in mcp_exec.`,
+      };
+    }
     if (isCaptureMode()) {
       const canned = fakeMcpExec(input.server, input.tool, input.args);
       if (canned) {

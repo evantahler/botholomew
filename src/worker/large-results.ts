@@ -80,7 +80,7 @@ export function buildResultStub(
     preview,
     preview.length < content.length ? "..." : "",
     "",
-    `Use read_large_result with id="${id}" and page=<n> (1–${totalPages}) to read it in ~${PAGE_SIZE_CHARS}-char pages.`,
+    `To read the full result, call the top-level Botholomew tool \`read_large_result\` (NOT via mcp_exec — it is not an MCP tool) with id="${id}" and page=<n> (1–${totalPages}). Each page is ~${PAGE_SIZE_CHARS} chars.`,
   ].join("\n");
 }
 

@@ -1,7 +1,10 @@
 import { describe, expect, mock, test } from "bun:test";
 import type { McpxClient } from "@evantahler/mcpx";
 import { mcpExecTool } from "../../../src/tools/mcp/exec.ts";
+import { registerAllTools } from "../../../src/tools/registry.ts";
 import { setupToolContext } from "../../helpers.ts";
+
+registerAllTools();
 
 function mockClient(
   response: { content: Array<{ type: string; text?: string }> },
@@ -128,6 +131,23 @@ describe("mcp_exec", () => {
     expect(result.is_error).toBe(true);
     expect(result.error_kind).toBe("permanent");
     expect(result.hint).toContain("alternative tool");
+  });
+
+  test("rejects calls that target a top-level Botholomew tool", async () => {
+    const { ctx } = await setupToolContext();
+    // mcpxClient stays null — the guard should fire before we touch it.
+    const result = await mcpExecTool.execute(
+      {
+        server: "huckleberry-ts",
+        tool: "read_large_result",
+        args: { id: "lr_1", page: 1 },
+      },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_kind).toBe("input_error");
+    expect(result.result).toContain("top-level Botholomew tool");
+    expect(result.hint).toContain('name="read_large_result"');
   });
 
   test("passes args through to exec", async () => {
