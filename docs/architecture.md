@@ -14,13 +14,13 @@ directory on disk:
    search`, `worker list`, …).
 
 The project root is just a directory. **Tasks, schedules, threads, and
-the agent's context tree are all real files** — markdown with
-frontmatter for tasks/schedules/prompts, CSV for conversation history,
-plain files for `context/`. The only opaque artifact is `index.duckdb`,
-a search-index sidecar over `context/` that's fully derivable from disk
-and safe to delete (rebuilt by `botholomew context reindex`).
+worker pidfiles are real files** — markdown with frontmatter for
+tasks/schedules/prompts/skills, CSV for conversation history, JSON for
+worker pidfiles. The agent's *knowledge store* lives in `index.duckdb`,
+managed by the [`membot`](https://github.com/evantahler/membot) library —
+membot owns the schema, the ingestion pipeline, and the search index.
 
-Concurrency is filesystem-level, not DB-level:
+Concurrency:
 
 - **Tasks and schedules** are claimed by creating a lockfile under
   `tasks/.locks/<id>.lock` or `schedules/.locks/<id>.lock` with
@@ -30,34 +30,25 @@ Concurrency is filesystem-level, not DB-level:
   atomic-write-via-rename on the canonical `<id>.md` file with an mtime
   check, so a user editing the same file in `vim` mid-claim makes the
   worker abort cleanly rather than clobber the edit.
-- **Context mutations** (`context_write`, `context_edit`,
-  `context_move`, `context_delete`, `context_copy`) take a per-path
-  O_EXCL lockfile under `context/.locks/<sha1(path)>.lock` for the
-  duration of the operation. Two workers asked to update the same file
-  serialize on the lock with a short jittered backoff; `context_edit`
-  also mtime-checks the read-modify-write so an external editor (vim,
-  IDE) racing the agent surfaces as a structured `mtime_conflict` for
-  the LLM to retry against. The lock body holds the worker id (or
-  `chat:` / `pid:` for non-worker holders) so the reaper can release
-  locks left behind by a crashed worker.
-- **Index DB writes** (only the `botholomew context reindex` and
-  in-process indexers do these) still run under `withDb(dbPath, fn)`
-  from `src/db/connection.ts` for a short-lived connection; DuckDB
-  remains a single-writer-at-a-time store, but it's no longer the
-  source of truth.
+- **Knowledge-store writes** (`membot_add`, `membot_write`,
+  `membot_edit`, `membot_move`, `membot_delete`, `membot_refresh`) go
+  through membot's `MembotClient`. Membot manages its own DuckDB lock
+  per-operation with exponential backoff, so multiple in-process
+  consumers (worker, chat session, TUI Context panel) share the file
+  safely. Every write creates a new `version_id` rather than mutating in
+  place — there is no read-modify-write race to lock around.
 
 **Safety note.** Workers are the only things executing LLM tool calls,
 and every path-taking tool routes through a single sandbox helper
 (`src/fs/sandbox.ts::resolveInRoot`) that NFC-normalizes the input,
-rejects `..`/absolute/NUL paths, and `lstat`-walks each component.
-Read-side `context_*` ops (read, list, tree, info, search, reindex,
-delete) opt in to symlinks via `allowSymlinks: true` so users can drop
-symlinks into the agent's tree, but mutating ops (write, edit, move,
-copy, mkdir) never set the flag and reject any symlink component. Tools
-are pinned to `context/`;
-`models/`, `logs/`, `tasks/.locks/`, and `schedules/.locks/` are
-explicitly off-limits. There is no "just read the file system" escape
-hatch. See [the files doc](files.md) for the full argument.
+rejects `..`/absolute/NUL paths, and `lstat`-walks each component. The
+helper is general — tasks, schedules, prompts, and skills all depend on
+it. The agent's knowledge store has no filesystem-path surface at all:
+membot addresses entries by `logical_path` (an opaque DB key), so a
+prompt-injected attempt to read `~/.ssh/id_rsa` has nowhere to land.
+`logs/`, `tasks/.locks/`, and `schedules/.locks/` are explicitly
+off-limits via `PROTECTED_AREAS`. See [the files doc](files.md) for the
+full argument.
 
 ---
 
@@ -166,8 +157,8 @@ set — it does **not** execute long-running work itself. Instead, it:
 - spawns workers on demand (via `spawn_worker`) when the user wants work
   run right now,
 - reads worker activity (`list_threads`, `view_thread`, `search_threads`),
-- looks up files by path (`context_info`, `context_search`) and can
-  refresh ingested URLs in place (`context_refresh`),
+- looks up files by path (`membot_info`, `membot_search`) and can
+  refresh ingested URLs in place (`membot_refresh`),
 - invokes **skills** (`/review`, `/standup`, …) defined in `skills/`,
 - manages prompt files in `prompts/` via the `prompt_*` tools
   (`prompt_list`, `prompt_read`, `prompt_create`, `prompt_edit`,
@@ -198,9 +189,9 @@ split:
   take as long as it needs.
 
 Both share the same project directory, so a worker's outputs (a task's
-new `status: complete` frontmatter, a freshly-written `context/` file,
-a closed thread CSV) are immediately visible to the chat agent — and
-the chat agent can dispatch workers without blocking.
+new `status: complete` frontmatter, a freshly-written membot entry, a
+closed thread CSV) are immediately visible to the chat agent — and the
+chat agent can dispatch workers without blocking.
 
 ---
 
@@ -237,9 +228,8 @@ Two consequences of being plain files:
 - The agent has its own `search_threads` tool that regex-walks every
   thread; results pair `(thread_id, sequence)` so the model can hand
   the sequence to `view_thread({ offset })` and read context around the
-  hit. Threads are deliberately *outside* `context/` so
-  `botholomew context reindex` doesn't drag conversation history into
-  the search index.
+  hit. Threads are deliberately outside the membot knowledge store so
+  conversation history doesn't drag itself into hybrid search results.
 
 Thread types are `worker_tick` and `chat_session`. CSV schema lives in
 `src/threads/store.ts`.
@@ -249,37 +239,36 @@ Thread types are `worker_tick` and `chat_session`. CSV schema lives in
 ## Connection model
 
 Most state is on disk, so most operations don't touch DuckDB at all.
-The index DB is opened only when something needs the search index:
+The membot store is opened lazily — every Botholomew process holds one
+`MembotClient` at most:
 
 - **Workers**: `tick()` is mostly file IO — `claim` writes a lockfile,
   `logInteraction` appends to a CSV, status updates atomic-rename a
-  markdown file. The DB only opens when a tool calls into the search
-  path (`context_search`, post-write reindex of a single path). Those
-  paths are wrapped in `withDb(dbPath, fn)` from
-  `src/db/connection.ts`, which acquires a connection, runs the
-  callback, and closes immediately.
+  markdown file. The membot client is only reached when a tool reads
+  or writes the knowledge store; each `ctx.mem.<op>` claims membot's DB
+  lock for one operation and releases it.
 - **Heartbeat**: rewrites the worker's pidfile. No DB.
-- **Chat**: each turn writes thread interactions to CSV; tools that
-  read or write the search index wrap their DB touches in `withDb`.
-- **CLI invocations**: `withDb` in `src/commands/with-db.ts` opens a
-  connection only for commands that need it (e.g.,
-  `botholomew context reindex`, `botholomew context search`), applies
-  migrations, and closes when the callback returns.
-- **`botholomew context reindex` is the single batch writer**: it
-  acquires a file lock and refuses to run while a worker is up, since
-  DuckDB is single-writer and overlapping reindexes would conflict.
+- **Chat**: each turn writes thread interactions to CSV; the same
+  `ctx.mem` is shared across tool calls in one turn.
+- **CLI invocations**: `botholomew context <verb>` is a passthrough to
+  the `membot` binary — it spawns a fresh process with `--config <projectDir>`,
+  forwards stdio, and exits with the child's code. No long-lived
+  connection in the Botholomew process at all.
+- **Cross-process safety**: membot's lock-with-backoff means a worker
+  and a `botholomew context add …` running side-by-side serialize on
+  DuckDB's file lock automatically — no extra coordination on our side
+  is needed.
 
-DuckDB's file lock is process-wide and held by the *instance*, not
-individual connections. Within one process we refcount a shared instance
-so overlapping `withDb` calls (e.g., parallel tool execution via
-`Promise.all`) don't trip DuckDB's "don't open the same DB twice" rule;
-when the last caller in the process releases, we close the instance and
-free the OS-level lock so another process can claim it.
+Membot owns the DuckDB instance lifecycle: each `MembotClient` operation
+claims the lock, runs, and releases between ops, with exponential
+backoff on lock contention. From Botholomew's side that's invisible —
+tools just call `await ctx.mem.read(...)` / `await ctx.mem.search(...)` /
+etc.
 
-Vector search uses `array_cosine_distance()` (core DuckDB, no
-extension) over a linear scan of the `context_index.embedding` column;
-the FTS extension (`INSTALL fts; LOAD fts;`) is loaded at connect time
-for BM25 keyword search. See `src/db/connection.ts`.
+Hybrid search (vector + BM25) lives in membot. The agent reaches it
+through `membot_search`; see [the files doc](files.md) for the tool
+surface and the [membot README](https://github.com/evantahler/membot)
+for the underlying algorithm.
 
 ---
 
@@ -325,7 +314,7 @@ one area of state without blowing away your prompts, skills, or config.
 
 | Scope | Clears |
 |---|---|
-| `nuke context` | `context/` tree + the search index over it |
+| `nuke knowledge` | Every current entry in the membot store, then prunes history (`mem.remove` + `mem.prune`). Falls back to deleting `index.duckdb` outright if the membot call fails. |
 | `nuke tasks` | every `tasks/<id>.md` and any orphaned task lockfiles |
 | `nuke schedules` | every `schedules/<id>.md` and any orphaned schedule lockfiles |
 | `nuke threads` | every `threads/<date>/<id>.csv` (worker ticks + chat sessions) |
@@ -343,28 +332,11 @@ See `src/commands/nuke.ts`.
 
 ---
 
-## DB doctor: detect and repair index corruption
+## DB integrity
 
-Under rare circumstances — typically after a hard crash or interrupted
-write — DuckDB's primary-key index can fall out of sync with the row
-data. The symptom is that `UPDATE`/`DELETE` against the affected rows
-fails with `Invalid Input Error: Failed to delete all rows from index`.
-Inside Bun, that FATAL error unwinds past the NAPI boundary as a C++
-exception, surfacing as `panic: A C++ exception occurred` from
-`Zig__GlobalObject__onCrash`.
-
-Because the index DB is now derivable from `context/`, the simplest
-recovery is to just delete `index.duckdb` and run
-`botholomew context reindex --full`. `botholomew db doctor` is still
-available for cases where you want to preserve the existing index:
-
-| Mode | What it does |
-|---|---|
-| `db doctor` (default) | Probes each table in `index.duckdb` in a child Bun process. Reports `ok` / `empty` / `missing` / `corrupt` per table. The child-process isolation is essential — a panic in the probe stays out of the doctor itself. |
-| `db doctor --repair` | Refuses if any worker pidfile is alive. Runs `CHECKPOINT`, `EXPORT DATABASE` to a timestamped directory, renames the original `index.duckdb` (and `.wal`) to `index.duckdb.bak-<timestamp>`, opens a fresh DB at the original path, and `IMPORT DATABASE`s back. Indexes are rebuilt from data, which restores write integrity. |
-
-Repair is idempotent and non-destructive: the original DB is preserved
-as a `.bak-<timestamp>` file next to the new one. Delete the backup once
-you've confirmed the rebuilt index looks right.
+The knowledge-store DB is owned by membot. See the
+[membot docs](https://github.com/evantahler/membot) for its
+own integrity-check / repair tooling. Botholomew itself no longer ships a
+`db doctor` command.
 
 See `src/db/doctor.ts` and `src/commands/db.ts`.

@@ -1,18 +1,16 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { MembotClient } from "membot";
 import type { BotholomewConfig } from "../src/config/schemas.ts";
 import { DEFAULT_CONFIG } from "../src/config/schemas.ts";
-import { EMBEDDING_DIMENSION } from "../src/constants.ts";
-import { type DbConnection, getConnection } from "../src/db/connection.ts";
-import { migrate } from "../src/db/schema.ts";
+import { openMembot } from "../src/mem/client.ts";
 import type { ToolContext } from "../src/tools/tool.ts";
 
 // ---------------------------------------------------------------------------
 // Mock helpers — Anthropic SDK
 // ---------------------------------------------------------------------------
 
-/** Standard LLM response shape returned by mock Anthropic clients. */
 export interface MockLLMResponse {
   content: Array<
     | { type: "text"; text: string }
@@ -41,12 +39,7 @@ export function completionResponse(
   };
 }
 
-/**
- * Mock Anthropic SDK module value for `beta.models.retrieve()`.
- *
- * Returns `max_input_tokens: 100_000` for most models, throws for `"fail-model"`.
- * Use with `mock.module("@anthropic-ai/sdk", () => ({ default: MockAnthropicModels }))`.
- */
+/** Mock Anthropic SDK module for `beta.models.retrieve()` tests. */
 export class MockAnthropicModels {
   beta = {
     models: {
@@ -72,127 +65,59 @@ export const silentLogger = {
 };
 
 // ---------------------------------------------------------------------------
-// Mock helpers — embeddings
-// ---------------------------------------------------------------------------
-
-/** Mock embedder that returns zero vectors without calling a real API. */
-export const mockEmbed = async (texts: string[]) =>
-  texts.map(() => new Array(EMBEDDING_DIMENSION).fill(0));
-
-/** Mock single-text embedder (returns a zero vector). */
-export const mockEmbedSingle = async () =>
-  new Array(EMBEDDING_DIMENSION).fill(0);
-
-/**
- * Content-aware deterministic embedder for search-pipeline tests.
- *
- * Unlike `mockEmbed` (zero vectors), this produces vectors whose cosine
- * similarity tracks word overlap: each vocab word maps to a dedicated hot
- * dimension, the resulting vector is unit-normalized, and two texts sharing
- * any vocab word produce a positive dot product.
- *
- * Use for tests that exercise `searchEmbeddings` / `hybridSearch` — zero
- * vectors produce valid-but-meaningless cosine distances and mask real bugs.
- */
-const FAKE_EMBED_VOCAB: Record<string, number> = {
-  paternity: 10,
-  leave: 20,
-  parental: 30,
-  time: 40,
-  off: 50,
-  newborn: 60,
-  plan: 70,
-  childcare: 80,
-  revenue: 100,
-  forecast: 110,
-  quota: 120,
-  kubernetes: 200,
-  helm: 210,
-  deployment: 220,
-  rollout: 230,
-};
-
-export function fakeEmbed(text: string): number[] {
-  const v = new Array(EMBEDDING_DIMENSION).fill(0);
-  const lower = text.toLowerCase();
-  for (const [word, dim] of Object.entries(FAKE_EMBED_VOCAB)) {
-    if (lower.includes(word)) v[dim] = 1;
-  }
-  const mag = Math.sqrt(v.reduce((s, x) => s + x * x, 0));
-  return mag === 0 ? v : v.map((x) => x / mag);
-}
-
-// ---------------------------------------------------------------------------
 // Test config
 // ---------------------------------------------------------------------------
 
-/** Daemon config suitable for tests — includes a fake API key. */
 export const TEST_CONFIG: Required<BotholomewConfig> = {
   ...DEFAULT_CONFIG,
   anthropic_api_key: "test-key",
 };
 
-/** Create a fresh in-memory database with migrations applied. */
-export async function setupTestDb(): Promise<DbConnection> {
-  const conn = await getConnection();
-  await migrate(conn);
-  return conn;
-}
+// ---------------------------------------------------------------------------
+// Membot test fixtures
+// ---------------------------------------------------------------------------
 
 /**
- * Create a fresh file-backed database with migrations applied. Use this when
- * a test needs to pass a `dbPath` to production code that opens/closes its
- * own connections — `:memory:` can't be shared across `withDb` calls.
- *
- * Returns `{ conn, dbPath, cleanup }`. Call `cleanup()` in `afterEach`.
+ * Spin up a per-test membot store rooted at a fresh temp directory. The
+ * caller gets a `MembotClient`, the project dir (suitable for passing as a
+ * Botholomew `projectDir` to other code), and a `cleanup()` that closes the
+ * client and removes the temp dir. Always call `cleanup()` in `afterEach`.
  */
-export async function setupTestDbFile(): Promise<{
-  conn: DbConnection;
-  dbPath: string;
+export async function setupTestMembot(): Promise<{
+  mem: MembotClient;
+  projectDir: string;
   cleanup: () => Promise<void>;
 }> {
-  const dir = await mkdtemp(join(tmpdir(), "both-db-"));
-  const dbPath = join(dir, "test.duckdb");
-  const conn = await getConnection(dbPath);
-  await migrate(conn);
+  const projectDir = await mkdtemp(join(tmpdir(), "both-mem-"));
+  const mem = openMembot(projectDir);
+  await mem.connect();
   return {
-    conn,
-    dbPath,
+    mem,
+    projectDir,
     cleanup: async () => {
-      conn.close();
-      await rm(dir, { recursive: true, force: true });
+      await mem.close();
+      await rm(projectDir, { recursive: true, force: true });
     },
   };
 }
 
-/** Create a ToolContext backed by a fresh in-memory database. */
+/**
+ * Build a fully-wired {@link ToolContext} backed by a fresh per-test membot
+ * store. Use for tool-execution tests that need a real `ctx.mem`. Cleanup
+ * tears down the underlying store.
+ */
 export async function setupToolContext(): Promise<{
-  conn: DbConnection;
+  mem: MembotClient;
+  projectDir: string;
   ctx: ToolContext;
+  cleanup: () => Promise<void>;
 }> {
-  const conn = await setupTestDb();
+  const { mem, projectDir, cleanup } = await setupTestMembot();
   const ctx: ToolContext = {
-    conn,
-    dbPath: ":memory:",
-    projectDir: "/tmp/test",
+    mem,
+    projectDir,
     config: { ...DEFAULT_CONFIG },
     mcpxClient: null,
   };
-  return { conn, ctx };
-}
-
-/**
- * Seed a textual file under `<projectDir>/context/`. The legacy `(drive, path)`
- * form is gone; pass a project-relative path string.
- */
-export async function seedFile(
-  projectDir: string,
-  path: string,
-  content: string,
-): Promise<void> {
-  const { mkdir } = await import("node:fs/promises");
-  const { dirname } = await import("node:path");
-  const target = join(projectDir, "context", path);
-  await mkdir(dirname(target), { recursive: true });
-  await Bun.write(target, content);
+  return { mem, projectDir, ctx, cleanup };
 }

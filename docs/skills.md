@@ -194,7 +194,7 @@ invalid skill never lands on disk.
 `skill_edit` re-parses after applying patches and refuses to write
 if the result fails validation, so you can't break a skill from chat.
 It uses the same
-[git-hunk patch format](./files.md#patch-format) as `context_edit`,
+[git-hunk patch format](./files.md#patch-format) as `membot_edit`,
 `schedule_edit`, `task_edit`, and `prompt_edit` — every edit tool
 takes the same `{ start_line, end_line, content }[]` shape.
 
@@ -238,7 +238,7 @@ active session, but won't appear retroactively in history.
   can reference each argument either positionally (`$1`, `$2`) or by
   the name you gave it (`$file`, `$focus`) — pick whichever reads
   better.
-- **Reference tools by name.** "Read the file with `context_read`" nudges
+- **Reference tools by name.** "Read the file with `membot_read`" nudges
   the agent toward the right tool and keeps token counts down.
 - **Keep them short.** A skill is a prompt, not a program. If your skill
   is 200 lines of conditional logic, it probably wants to be a real

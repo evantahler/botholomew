@@ -3,14 +3,9 @@ import { join } from "node:path";
 import {
   CONFIG_DIR,
   CONFIG_FILENAME,
-  CONTEXT_DIR,
   DEFAULTS,
-  EMBEDDING_DIMENSION,
-  EMBEDDING_MODEL,
   ENV,
   getConfigPath,
-  getContextDir,
-  getDbPath,
   getMcpxDir,
   getPromptsDir,
   getSchedulesDir,
@@ -20,7 +15,6 @@ import {
   getTasksLockDir,
   getWorkerLogPath,
   getWorkerLogsDir,
-  INDEX_DB_FILENAME,
   LOGS_DIR,
   MCPX_DIR,
   PROMPTS_DIR,
@@ -32,7 +26,6 @@ import {
 describe("constants", () => {
   test("top-level layout names are stable", () => {
     expect(CONFIG_DIR).toBe("config");
-    expect(CONTEXT_DIR).toBe("context");
     expect(PROMPTS_DIR).toBe("prompts");
     expect(SKILLS_DIR).toBe("skills");
     expect(MCPX_DIR).toBe("mcpx");
@@ -42,13 +35,7 @@ describe("constants", () => {
   });
 
   test("file name constants are defined", () => {
-    expect(INDEX_DB_FILENAME).toBe("index.duckdb");
     expect(CONFIG_FILENAME).toBe("config.json");
-  });
-
-  test("embedding constants are defined", () => {
-    expect(EMBEDDING_DIMENSION).toBe(384);
-    expect(EMBEDDING_MODEL).toBe("Xenova/bge-small-en-v1.5");
   });
 
   test("environment variable keys are defined", () => {
@@ -68,10 +55,6 @@ describe("path helpers", () => {
     expect(getConfigPath(projectDir)).toBe(
       join(projectDir, "config", "config.json"),
     );
-  });
-
-  test("getDbPath returns project/index.duckdb", () => {
-    expect(getDbPath(projectDir)).toBe(join(projectDir, "index.duckdb"));
   });
 
   test("getWorkerLogsDir returns project/logs", () => {
@@ -94,10 +77,6 @@ describe("path helpers", () => {
 
   test("getPromptsDir returns project/prompts", () => {
     expect(getPromptsDir(projectDir)).toBe(join(projectDir, "prompts"));
-  });
-
-  test("getContextDir returns project/context", () => {
-    expect(getContextDir(projectDir)).toBe(join(projectDir, "context"));
   });
 
   test("getTasksDir / getTasksLockDir", () => {

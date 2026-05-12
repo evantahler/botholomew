@@ -186,18 +186,17 @@ function AppInner({
     setUsage,
   });
 
-  const sessionDbPath = sessionRef.current?.dbPath;
+  const sessionReady = sessionRef.current != null;
   const inputBarHeader = useMemo(
     () =>
-      sessionDbPath ? (
+      sessionReady ? (
         <StatusBar
           projectDir={projectDir}
-          dbPath={sessionDbPath}
           chatTitle={chatTitle}
           onWorkerStatusChange={setWorkerRunning}
         />
       ) : null,
-    [projectDir, sessionDbPath, chatTitle],
+    [projectDir, sessionReady, chatTitle],
   );
 
   const allToolCalls = useMemo(

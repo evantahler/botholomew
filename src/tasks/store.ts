@@ -2,7 +2,6 @@ import { readdir, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import matter from "gray-matter";
 import { getTasksDir, getTasksLockDir } from "../constants.ts";
-import { uuidv7 } from "../db/uuid.ts";
 import {
   acquireLock,
   atomicWrite,
@@ -13,6 +12,7 @@ import {
   releaseLock,
 } from "../fs/atomic.ts";
 import { logger } from "../utils/logger.ts";
+import { uuidv7 } from "../utils/uuid.ts";
 import {
   type Task,
   type TaskFrontmatter,

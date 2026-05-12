@@ -7,8 +7,8 @@ import type { Command } from "commander";
 import { createSpinner } from "nanospinner";
 import { loadConfig } from "../config/loader.ts";
 import { getMcpxDir } from "../constants.ts";
-import { writeCapabilitiesFile } from "../context/capabilities.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
+import { writeCapabilitiesFile } from "../prompts/capabilities.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import { logger } from "../utils/logger.ts";
 

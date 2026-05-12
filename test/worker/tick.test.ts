@@ -9,9 +9,9 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { MembotClient } from "membot";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 import {
-  getDbPath,
   getSchedulesDir,
   getSchedulesLockDir,
   getTasksDir,
@@ -19,8 +19,7 @@ import {
   getThreadsDir,
   getWorkersDir,
 } from "../../src/constants.ts";
-import { getConnection } from "../../src/db/connection.ts";
-import { migrate } from "../../src/db/schema.ts";
+import { openMembot } from "../../src/mem/client.ts";
 import { createTask, getTask } from "../../src/tasks/store.ts";
 import { listThreads } from "../../src/threads/store.ts";
 import { completionResponse } from "../helpers.ts";
@@ -43,7 +42,7 @@ const TEST_CONFIG = {
 } as Required<typeof DEFAULT_CONFIG>;
 
 let projectDir: string;
-let dbPath: string;
+let mem: MembotClient;
 
 beforeEach(async () => {
   projectDir = await mkdtemp(join(tmpdir(), "both-tick-"));
@@ -54,17 +53,14 @@ beforeEach(async () => {
   await mkdir(getThreadsDir(projectDir), { recursive: true });
   await mkdir(getWorkersDir(projectDir), { recursive: true });
 
-  dbPath = getDbPath(projectDir);
-  // Tools wrap their conn in withDb(dbPath, ...) — index.duckdb must exist
-  // and be migrated for any tool to run, even ones that don't read from it.
-  const conn = await getConnection(dbPath);
-  await migrate(conn);
-  conn.close();
+  mem = openMembot(projectDir);
+  await mem.connect();
 
   mockResponse = () => completionResponse();
 });
 
 afterEach(async () => {
+  await mem.close();
   await rm(projectDir, { recursive: true, force: true });
 });
 
@@ -77,7 +73,7 @@ describe("worker tick", () => {
 
     const didWork = await tick({
       projectDir,
-      dbPath,
+      mem,
       config: TEST_CONFIG,
       workerId: "worker-A",
       evalSchedules: false,
@@ -93,7 +89,7 @@ describe("worker tick", () => {
   test("returns false and creates no threads when no tasks are available", async () => {
     const didWork = await tick({
       projectDir,
-      dbPath,
+      mem,
       config: TEST_CONFIG,
       workerId: "worker-A",
       evalSchedules: false,
@@ -112,7 +108,7 @@ describe("worker tick", () => {
     });
     await tick({
       projectDir,
-      dbPath,
+      mem,
       config: TEST_CONFIG,
       workerId: "worker-A",
       evalSchedules: false,
@@ -144,7 +140,7 @@ describe("worker tick", () => {
     });
     await tick({
       projectDir,
-      dbPath,
+      mem,
       config: TEST_CONFIG,
       workerId: "worker-A",
       evalSchedules: false,
@@ -168,7 +164,7 @@ describe("worker tick", () => {
     });
     await tick({
       projectDir,
-      dbPath,
+      mem,
       config: TEST_CONFIG,
       workerId: "worker-A",
       evalSchedules: false,

@@ -7,11 +7,6 @@ import { LogoChar } from "./Logo.tsx";
 
 interface StatusBarProps {
   projectDir: string;
-  /**
-   * Retained for callers that pass it; unused now that workers + tasks
-   * both live on disk. Drop on the next TUI cleanup pass.
-   */
-  dbPath?: string;
   chatTitle?: string;
   onWorkerStatusChange?: (running: boolean) => void;
 }
@@ -24,7 +19,6 @@ interface Status {
 
 export function StatusBar({
   projectDir,
-  dbPath: _dbPath,
   chatTitle,
   onWorkerStatusChange,
 }: StatusBarProps) {

@@ -1,9 +1,21 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { SERVER_INSTRUCTIONS as MEMBOT_INSTRUCTIONS } from "membot";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { getPromptsDir } from "../constants.ts";
 import type { Task } from "../tasks/schema.ts";
 import { parsePromptFile } from "../utils/frontmatter.ts";
+
+/**
+ * Section header rendered above membot's upstream {@link MEMBOT_INSTRUCTIONS}
+ * blob in every system prompt. Pulling the body verbatim from the SDK keeps
+ * the agent's mental model of `membot_*` tools aligned with whatever the
+ * pinned membot version ships, with no per-bump prose edits on our side.
+ */
+export const MEMBOT_PROMPT_SECTION = `## Knowledge store (membot)
+
+${MEMBOT_INSTRUCTIONS}
+`;
 
 const pkg = await Bun.file(
   new URL("../../package.json", import.meta.url),
@@ -103,7 +115,6 @@ User: ${process.env.USER || process.env.USERNAME || "unknown"}
 export async function buildSystemPrompt(
   projectDir: string,
   task?: Task,
-  dbPath?: string,
   _config?: Required<BotholomewConfig>,
   options?: { hasMcpTools?: boolean },
 ): Promise<string> {
@@ -115,11 +126,10 @@ export async function buildSystemPrompt(
 
   prompt += await loadPersistentContext(projectDir, taskKeywords);
 
-  // The agent finds task-relevant content via the `search` tool on demand
-  // rather than having chunks pre-stuffed into the system prompt — keeps the
-  // prompt small and lets the model decide what it actually needs to read.
+  // The agent finds task-relevant content via the `membot_search` tool on
+  // demand rather than having chunks pre-stuffed into the system prompt —
+  // keeps the prompt small and lets the model decide what to read.
   void task;
-  void dbPath;
   void _config;
 
   prompt += `## Instructions
@@ -128,26 +138,28 @@ You are Botholomew, a wise-owl worker that works through tasks. Use available to
 When calling complete_task, write a summary that captures your key findings, decisions, and outputs. This summary becomes the task's output and is provided to any downstream tasks that depend on this one. Include specific results (data, names, paths, conclusions) rather than vague descriptions of what you did — downstream tasks will rely on this information to do their work.
 `;
 
+  prompt += `\n${MEMBOT_PROMPT_SECTION}`;
+
   if (options?.hasMcpTools) {
     prompt += `
 ## External Tools (MCP)
 
-### Local context first
+### Local knowledge store first
 
-**Before any MCP read, search local context.** Files in \`context/\` (Gmail dumps, GitHub fetches, URL ingests, prior agent outputs) are usually already there — refetching is slower, costs tokens, and risks rate limits.
+**Before any MCP read, search the membot knowledge store.** Prior ingests (Gmail dumps, GitHub fetches, URL captures, prior agent outputs) are usually already there — refetching is slower, costs tokens, and risks rate limits.
 
 Workflow for any "look up / find / read" intent:
 
-1. \`search\` (hybrid regexp + semantic) over \`context/\`, then \`context_read\` / \`context_tree\` to drill in.
-2. If freshness matters, call \`context_info\` and check the file's mtime. To re-pull stale content, write fresh into \`context/\` (\`pipe_to_context\` from an \`mcp_exec\` call is the typical path) rather than going to MCP for the whole document on every question.
+1. \`membot_search\` (hybrid semantic + BM25) over the store, then \`membot_read\` / \`membot_tree\` to drill in.
+2. If freshness matters, call \`membot_info\` and check the source mtime / refresh status. To re-pull stale content, call \`membot_refresh\` for URL-backed entries, or \`membot_pipe\` from an \`mcp_exec\` call for fresh captures.
 3. Only call \`mcp_exec\` for reads when the data is genuinely missing locally **or** must be real-time (e.g., "what's on my calendar right now").
 
-Writes always go through MCP — sending an email, creating an issue, posting to Slack. Don't search context first for those.
+Writes to external systems always go through MCP — sending an email, creating an issue, posting to Slack. Don't search membot first for those.
 
 Examples:
-- "What does doc X say?" → \`search\` first.
-- "Any new emails from Y?" → \`search\` for the sender under \`context/gmail/\` (or wherever you've been ingesting mail) before hitting Gmail MCP.
-- "Send an email to Y" → MCP write directly; no context lookup.
+- "What does doc X say?" → \`membot_search\` first.
+- "Any new emails from Y?" → \`membot_search\` for the sender's name before hitting Gmail MCP.
+- "Send an email to Y" → MCP write directly; no membot lookup.
 
 ### Calling MCP tools
 

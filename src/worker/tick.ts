@@ -1,4 +1,5 @@
 import type { McpxClient } from "@evantahler/mcpx";
+import type { MembotClient } from "membot";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { Task } from "../tasks/schema.ts";
 import {
@@ -18,7 +19,7 @@ import { processSchedules } from "./schedules.ts";
 
 export interface TickOptions {
   projectDir: string;
-  dbPath: string;
+  mem: MembotClient;
   config: Required<BotholomewConfig>;
   workerId: string;
   mcpxClient?: McpxClient | null;
@@ -34,7 +35,7 @@ export interface TickOptions {
 export async function tick(opts: TickOptions): Promise<boolean> {
   const {
     projectDir,
-    dbPath,
+    mem,
     config,
     workerId,
     mcpxClient,
@@ -75,7 +76,7 @@ export async function tick(opts: TickOptions): Promise<boolean> {
 
   await runClaimedTask({
     projectDir,
-    dbPath,
+    mem,
     config,
     workerId,
     mcpxClient,
@@ -94,7 +95,7 @@ export async function tick(opts: TickOptions): Promise<boolean> {
  */
 export async function runSpecificTask(opts: {
   projectDir: string;
-  dbPath: string;
+  mem: MembotClient;
   config: Required<BotholomewConfig>;
   workerId: string;
   taskId: string;
@@ -114,7 +115,7 @@ export async function runSpecificTask(opts: {
   }
   await runClaimedTask({
     projectDir: opts.projectDir,
-    dbPath: opts.dbPath,
+    mem: opts.mem,
     config: opts.config,
     workerId: opts.workerId,
     mcpxClient: opts.mcpxClient,
@@ -126,14 +127,14 @@ export async function runSpecificTask(opts: {
 
 async function runClaimedTask(opts: {
   projectDir: string;
-  dbPath: string;
+  mem: MembotClient;
   config: Required<BotholomewConfig>;
   workerId: string;
   mcpxClient?: McpxClient | null;
   callbacks?: WorkerStreamCallbacks;
   task: Task;
 }): Promise<void> {
-  const { projectDir, dbPath, config, workerId, mcpxClient, callbacks, task } =
+  const { projectDir, mem, config, workerId, mcpxClient, callbacks, task } =
     opts;
 
   logger.info(`Claimed task: ${task.name} (${task.id})`);
@@ -151,7 +152,7 @@ async function runClaimedTask(opts: {
 
   let systemPrompt: string;
   try {
-    systemPrompt = await buildSystemPrompt(projectDir, task, dbPath, config, {
+    systemPrompt = await buildSystemPrompt(projectDir, task, config, {
       hasMcpTools: mcpxClient != null,
     });
   } catch (err) {
@@ -171,7 +172,7 @@ async function runClaimedTask(opts: {
       systemPrompt,
       task,
       config,
-      dbPath,
+      mem,
       threadId,
       projectDir,
       workerId,

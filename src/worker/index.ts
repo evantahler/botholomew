@@ -1,12 +1,10 @@
 import { hostname } from "node:os";
 import ansis from "ansis";
 import { loadConfig } from "../config/loader.ts";
-import { getDbPath } from "../constants.ts";
-import { withDb } from "../db/connection.ts";
-import { migrate } from "../db/schema.ts";
-import { uuidv7 } from "../db/uuid.ts";
 import { createMcpxClient } from "../mcpx/client.ts";
+import { openMembot } from "../mem/client.ts";
 import { logger } from "../utils/logger.ts";
+import { uuidv7 } from "../utils/uuid.ts";
 import { markWorkerStopped, registerWorker } from "../workers/store.ts";
 import { startHeartbeat, startReaper } from "./heartbeat.ts";
 import type { WorkerStreamCallbacks } from "./llm.ts";
@@ -89,10 +87,10 @@ export async function startWorker(
   const evalSchedules = options.evalSchedules ?? !taskId;
 
   const config = await loadConfig(projectDir);
-  const dbPath = getDbPath(projectDir);
-
-  // One short-lived connection to apply migrations, then release the lock.
-  await withDb(dbPath, (conn) => migrate(conn));
+  const mem = openMembot(projectDir);
+  // Surface init-time failures (bad config, locked DB) up front rather than
+  // letting the first tool call do it.
+  await mem.connect();
 
   const mcpxClient = await createMcpxClient(projectDir);
   if (mcpxClient) {
@@ -129,6 +127,7 @@ export async function startWorker(
     stopHeartbeat();
     stopReaper();
     await mcpxClient?.close();
+    await mem.close();
     try {
       await markWorkerStopped(projectDir, workerId);
     } catch (err) {
@@ -151,7 +150,7 @@ export async function startWorker(
       if (taskId) {
         await runSpecificTask({
           projectDir,
-          dbPath,
+          mem,
           config,
           workerId,
           taskId,
@@ -161,7 +160,7 @@ export async function startWorker(
       } else {
         await tick({
           projectDir,
-          dbPath,
+          mem,
           config,
           workerId,
           mcpxClient,
@@ -182,7 +181,7 @@ export async function startWorker(
       try {
         didWork = await tick({
           projectDir,
-          dbPath,
+          mem,
           config,
           workerId,
           mcpxClient,
@@ -208,5 +207,6 @@ export async function startWorker(
       logger.warn(`failed to mark worker stopped: ${err}`);
     }
     await mcpxClient?.close();
+    await mem.close();
   }
 }

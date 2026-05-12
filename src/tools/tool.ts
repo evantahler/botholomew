@@ -1,19 +1,17 @@
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
 import type { McpxClient } from "@evantahler/mcpx";
+import type { MembotClient } from "membot";
 import { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import type { DbConnection } from "../db/connection.ts";
 
 export interface ToolContext {
   /**
-   * Short-lived DB connection scoped to this tool call. Safe for single-query
-   * tools. Do NOT hold it across slow work (network, embedding, long loops) —
-   * the instance-level file lock stays held until every connection closes.
-   * For long-running tools, use `dbPath` with `withDb` per logical operation.
+   * Per-process membot client. Backs every `membot_*` tool. Membot manages
+   * its own DuckDB connection lifecycle internally (lazy claim, release
+   * between operations), so tools just call `ctx.mem.<op>(...)` directly —
+   * no per-call open/close needed.
    */
-  conn: DbConnection;
-  /** Path to the DuckDB file. Use with `withDb` for long-running tools. */
-  dbPath: string;
+  mem: MembotClient;
   projectDir: string;
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;

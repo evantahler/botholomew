@@ -29,8 +29,7 @@ beforeEach(async () => {
   await mkdir(getTasksDir(projectDir), { recursive: true });
   await mkdir(getTasksLockDir(projectDir), { recursive: true });
   ctx = {
-    conn: null as never,
-    dbPath: ":memory:",
+    mem: null as never,
     projectDir,
     config: { ...DEFAULT_CONFIG, anthropic_api_key: "test-key" },
     mcpxClient: null,

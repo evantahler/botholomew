@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { writeCapabilitiesFile } from "../../context/capabilities.ts";
+import { writeCapabilitiesFile } from "../../prompts/capabilities.ts";
 import type { ToolDefinition } from "../tool.ts";
 
 const inputSchema = z.object({

@@ -56,19 +56,20 @@ my-project/
     capabilities.md                 #   auto-generated tool inventory
   skills/                           # slash commands (built-ins + user-defined)
   mcpx/servers.json                 # external MCP servers (Gmail, Slack, …)
-  models/                           # local embedding model cache
-  context/                          # agent-writable knowledge tree
   tasks/<id>.md                     # tasks (status in frontmatter)
   schedules/<id>.md                 # schedules
   threads/<YYYY-MM-DD>/<id>.csv     # conversation history
   workers/<id>.json                 # worker pidfile + heartbeat
   logs/<YYYY-MM-DD>/<id>.log        # per-worker logs
-  index.duckdb                      # search-index sidecar (rebuildable)
+  index.duckdb                      # knowledge store (managed by membot)
+  config.json                       # membot config
 ```
 
-The agent can only touch files under `context/`, and only through a
-sandbox that rejects symlinks and traversal — see
-[Files & the sandbox](./files.md) for why.
+The agent has no shell and no filesystem-path surface to its knowledge
+store — every entry is addressed by `logical_path` (an opaque DB key).
+See [The knowledge store](./files.md) for the full tool surface, and
+[Context & search](./context-and-search.md) for how ingestion / search /
+versioning work via membot.
 
 > `init` refuses to run on iCloud/Dropbox/OneDrive/NFS volumes (they
 > break the atomic-rename and `O_EXCL` guarantees that

@@ -7,8 +7,8 @@ import type {
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
 import type { McpxClient } from "@evantahler/mcpx";
+import type { MembotClient } from "membot";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { withDb } from "../db/connection.ts";
 import { logInteraction } from "../threads/store.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
@@ -24,6 +24,7 @@ import {
   buildMetaHeader,
   extractKeywords,
   loadPersistentContext,
+  MEMBOT_PROMPT_SECTION,
   STYLE_RULES,
 } from "../worker/prompt.ts";
 import type { ChatSession } from "./session.ts";
@@ -35,19 +36,29 @@ import {
 
 registerAllTools();
 
-/** Tools available in chat mode — no worker terminal tools (complete/fail/wait), no bulk-destructive file tools (copy/move, dir ops) */
+/** Tools available in chat mode — no worker terminal tools (complete/fail/wait), and the destructive `membot_prune` is omitted (chat shouldn't permanently GC history). */
 const CHAT_TOOL_NAMES = new Set([
   "create_task",
   "list_tasks",
   "view_task",
   "update_task",
   "delete_task",
-  "context_info",
-  "context_tree",
-  "context_read",
-  "context_write",
-  "context_edit",
-  "search",
+  "membot_add",
+  "membot_list",
+  "membot_tree",
+  "membot_read",
+  "membot_write",
+  "membot_edit",
+  "membot_search",
+  "membot_info",
+  "membot_stats",
+  "membot_versions",
+  "membot_diff",
+  "membot_refresh",
+  "membot_exists",
+  "membot_count_lines",
+  "membot_copy",
+  "membot_pipe",
   "list_threads",
   "view_thread",
   "search_threads",
@@ -62,8 +73,6 @@ const CHAT_TOOL_NAMES = new Set([
   "mcp_search",
   "mcp_info",
   "mcp_exec",
-  "read_large_result",
-  "pipe_to_context",
   "spawn_worker",
   "skill_list",
   "skill_read",
@@ -84,7 +93,6 @@ export async function buildChatSystemPrompt(
   projectDir: string,
   options?: {
     keywordSource?: string;
-    dbPath?: string;
     config?: Required<BotholomewConfig>;
     hasMcpTools?: boolean;
   },
@@ -97,9 +105,9 @@ export async function buildChatSystemPrompt(
   prompt += await loadPersistentContext(projectDir, taskKeywords);
 
   prompt += `## Instructions
-You are Botholomew, an AI agent personified by a wise owl. This is your interactive chat interface. Help the user manage tasks, review results from background worker activity, search context, and answer questions.
+You are Botholomew, an AI agent personified by a wise owl. This is your interactive chat interface. Help the user manage tasks, review results from background worker activity, search the knowledge store, and answer questions.
 You do NOT execute long-running work directly — enqueue tasks for a background worker instead using create_task, and spawn a worker via spawn_worker when the user wants the task run now.
-Use the available tools to look up tasks, threads, schedules, and context when the user asks about them. Files the agent can read and write live under \`context/\` as project-relative paths (e.g. \`notes/foo.md\`). Use \`context_tree\` to see what's there, \`search\` (hybrid regexp + semantic) to find content, then \`context_read\` / \`context_info\` to drill in.
+Use the available tools to look up tasks, threads, schedules, and the knowledge store when the user asks about them. The agent's knowledge lives in the membot store, keyed by \`logical_path\` (e.g. \`notes/foo.md\`). Use \`membot_tree\` to see what's there, \`membot_search\` (hybrid semantic + BM25) to find content, then \`membot_read\` / \`membot_info\` to drill in. Every write creates a new version — use \`membot_versions\` / \`membot_diff\` to inspect history.
 Past conversations live in CSV files under \`threads/\`; use \`list_threads\`, \`search_threads\`, and \`view_thread\` to find and page through them.
 When multiple tool calls are independent of each other (i.e., one does not depend on the result of another), call them all in a single response. They will be executed in parallel, which is faster than calling them one at a time.
 You can manage the agent's prompt files (always-on or keyword-loaded notes the agent sees in every turn) under \`prompts/\` via \`prompt_list\`, \`prompt_read\`, \`prompt_create\`, \`prompt_edit\` (git-style line-range patches), and \`prompt_delete\`. Files marked \`agent-modification: false\` are read-only — \`prompt_edit\` and \`prompt_delete\` will refuse them.
@@ -107,26 +115,28 @@ You can author and refine slash-command skills (reusable prompt templates stored
 Format your responses using Markdown. Use headings, bold, italic, lists, and code blocks to make your responses clear and well-structured.
 `;
 
+  prompt += `\n${MEMBOT_PROMPT_SECTION}`;
+
   if (options?.hasMcpTools) {
     prompt += `
 ## External Tools (MCP)
 
-### Local context first
+### Local knowledge store first
 
-**Before any MCP read, search local context.** Files in \`context/\` (Gmail dumps, GitHub fetches, URL ingests, prior agent outputs) are usually already there — refetching is slower, costs tokens, and risks rate limits.
+**Before any MCP read, search the membot knowledge store.** Prior ingests (Gmail dumps, GitHub fetches, URL captures, prior agent outputs) are usually already there — refetching is slower, costs tokens, and risks rate limits.
 
 Workflow for any "look up / find / read" intent:
 
-1. \`search\` (hybrid regexp + semantic) over \`context/\`, then \`context_read\` / \`context_tree\` to drill in.
-2. If freshness matters, call \`context_info\` and check the file's mtime. To re-pull stale content, write fresh into \`context/\` (\`pipe_to_context\` from an \`mcp_exec\` call is the typical path) rather than going to MCP for the whole document on every question.
+1. \`membot_search\` (hybrid semantic + BM25) over the store, then \`membot_read\` / \`membot_tree\` to drill in.
+2. If freshness matters, call \`membot_info\` and check the source mtime / refresh status. To re-pull stale content, call \`membot_refresh\` for URL-backed entries, or \`membot_pipe\` an \`mcp_exec\` call to capture a fresh snapshot.
 3. Only call \`mcp_exec\` for reads when the data is genuinely missing locally **or** must be real-time (e.g., "what's on my calendar right now").
 
-Writes always go through MCP — sending an email, creating an issue, posting to Slack. Don't search context first for those.
+Writes to external systems always go through MCP — sending an email, creating an issue, posting to Slack. Don't search membot first for those.
 
 Examples:
-- "What does doc X say?" → \`search\` first.
-- "Any new emails from Y?" → \`search\` for the sender under \`context/gmail/\` (or wherever you've been ingesting mail) before hitting Gmail MCP.
-- "Send an email to Y" → MCP write directly; no context lookup.
+- "What does doc X say?" → \`membot_search\` first.
+- "Any new emails from Y?" → \`membot_search\` for the sender's name before hitting Gmail MCP.
+- "Send an email to Y" → MCP write directly; no membot lookup.
 
 ### Calling MCP tools
 
@@ -201,7 +211,7 @@ export async function runChatTurn(input: {
   messages: MessageParam[];
   projectDir: string;
   config: Required<BotholomewConfig>;
-  dbPath: string;
+  mem: MembotClient;
   threadId: string;
   mcpxClient: McpxClient | null;
   callbacks: ChatTurnCallbacks;
@@ -218,7 +228,7 @@ export async function runChatTurn(input: {
     messages,
     projectDir,
     config,
-    dbPath,
+    mem,
     threadId,
     mcpxClient,
     callbacks,
@@ -259,7 +269,6 @@ export async function runChatTurn(input: {
     const keywordSource = findLastUserText(messages);
     const systemPrompt = await buildChatSystemPrompt(projectDir, {
       keywordSource,
-      dbPath,
       config,
       hasMcpTools: mcpxClient != null,
     });
@@ -410,7 +419,7 @@ export async function runChatTurn(input: {
       toolUseBlocks.map(async (toolUse) => {
         const start = Date.now();
         const result = await executeChatToolCall(toolUse, {
-          dbPath,
+          mem,
           projectDir,
           config,
           mcpxClient,
@@ -461,7 +470,7 @@ export async function runChatTurn(input: {
 }
 
 interface ChatToolCallCtx {
-  dbPath: string;
+  mem: MembotClient;
   projectDir: string;
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;
@@ -490,20 +499,8 @@ async function executeChatToolCall(
   }
 
   try {
-    // `sleep` deliberately yields for up to an hour; opening a DuckDB
-    // connection for that whole window would hold the instance-level file
-    // lock and block any worker that also wants the DB. Run it without a
-    // connection — the tool doesn't touch the DB.
-    const runWithoutDb = tool.name === "sleep";
-    const result = runWithoutDb
-      ? await tool.execute(parsed.data, {
-          ...baseCtx,
-          conn: undefined as unknown as ToolContext["conn"],
-        })
-      : await withDb(baseCtx.dbPath, (conn) => {
-          const ctx: ToolContext = { ...baseCtx, conn };
-          return tool.execute(parsed.data, ctx);
-        });
+    const ctx: ToolContext = baseCtx;
+    const result = await tool.execute(parsed.data, ctx);
     const isError =
       typeof result === "object" && result !== null && "is_error" in result
         ? (result as { is_error: boolean }).is_error
