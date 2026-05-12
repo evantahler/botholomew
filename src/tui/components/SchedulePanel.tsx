@@ -350,14 +350,19 @@ export const SchedulePanel = memo(function SchedulePanel({
 function ScheduleDetailHeader({ schedule }: { schedule: Schedule }) {
   const enabledKey = String(schedule.enabled);
   return (
-    <Box flexDirection="column" width="100%" backgroundColor={theme.headerBg}>
+    <Box flexDirection="column" width="100%">
       <Box>
-        <Text bold color={theme.info} wrap="truncate-end">
+        <Text
+          bold
+          color={theme.info}
+          backgroundColor={theme.headerBg}
+          wrap="truncate-end"
+        >
           {schedule.name}
         </Text>
       </Box>
       <Box>
-        <Text wrap="truncate-end">
+        <Text backgroundColor={theme.headerBg} wrap="truncate-end">
           <Text color={ENABLED_COLORS[enabledKey]}>
             {ENABLED_ICONS[enabledKey]} {ENABLED_LABELS[enabledKey]}
           </Text>

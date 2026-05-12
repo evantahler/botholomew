@@ -594,9 +594,9 @@ function ThreadDetailHeader({
   isActiveThread: boolean;
 }) {
   return (
-    <Box flexDirection="column" width="100%" backgroundColor={theme.headerBg}>
+    <Box flexDirection="column" width="100%">
       <Box>
-        <Text wrap="truncate-end">
+        <Text backgroundColor={theme.headerBg} wrap="truncate-end">
           <Text bold italic color={theme.info}>
             {thread.title || "(untitled)"}
           </Text>
@@ -608,7 +608,7 @@ function ThreadDetailHeader({
         </Text>
       </Box>
       <Box>
-        <Text wrap="truncate-end">
+        <Text backgroundColor={theme.headerBg} wrap="truncate-end">
           <Text color={TYPE_COLORS[thread.type]}>
             {TYPE_ICONS[thread.type]} {TYPE_LABELS[thread.type]}
           </Text>

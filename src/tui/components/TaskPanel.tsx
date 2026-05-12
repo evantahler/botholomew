@@ -387,14 +387,19 @@ export const TaskPanel = memo(function TaskPanel({
 
 function TaskDetailHeader({ task }: { task: Task }) {
   return (
-    <Box flexDirection="column" width="100%" backgroundColor={theme.headerBg}>
+    <Box flexDirection="column" width="100%">
       <Box>
-        <Text bold color={theme.info} wrap="truncate-end">
+        <Text
+          bold
+          color={theme.info}
+          backgroundColor={theme.headerBg}
+          wrap="truncate-end"
+        >
           {task.name}
         </Text>
       </Box>
       <Box>
-        <Text wrap="truncate-end">
+        <Text backgroundColor={theme.headerBg} wrap="truncate-end">
           <Text color={STATUS_COLORS[task.status]}>
             {STATUS_ICONS[task.status]} {task.status}
           </Text>
