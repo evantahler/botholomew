@@ -101,16 +101,41 @@ toolset.
 
 ### 3. Context
 
-Interactive browser for files in the project's `context/` tree —
+Interactive browser for the membot knowledge store —
 see [files.md](files.md) and
 [context-and-search.md](context-and-search.md).
 
-- `↑`/`↓` navigate.
-- `→` drills into a directory or previews a file.
-- `←` goes up one directory level (or closes a preview).
-- `↑`/`↓` scroll an open file preview; `←` or `Esc` close it.
-- `/` opens a hybrid (keyword + vector) search across `context/`.
-- `d` deletes the selected file.
+The panel has two modes that share the same list/detail layout:
+
+**Tree browse (default).** The sidebar shows the immediate children of
+a `currentPrefix` path. Directories are synthesised from `/` separators
+in `logical_path` (membot itself has no real folders) and shown as
+`📁 name/`; files as `📄 name`.
+
+- `↑`/`↓` move the selection.
+- `→` on a directory drills in; on a file shifts focus into the
+  detail pane.
+- `←` from the list pops one directory segment back up; from the
+  detail pane returns focus to the list.
+- `^R` refreshes the current level.
+
+**Search.** Press `/` (or `s`) to open an inline input below the
+sidebar header.
+
+- Type a query; `Enter` commits.
+- The query is sent to `mem.search()` (hybrid semantic + BM25) and the
+  sidebar is replaced with ranked hits — each row shows the fusion
+  score plus the matching `logical_path`. A `🔍 match (...) snippet`
+  preview is prepended to the rendered file in the detail pane so you
+  can see *why* a hit matched.
+- `Esc` (or `←` from the list) returns to tree-browse mode at the
+  prefix you were on before.
+- `Esc` while the input is open cancels typing and stays on the
+  current view.
+
+`d` then `d` deletes the selected entry (a file is tombstoned; a
+directory is removed recursively). The active chat thread's project
+data is not protected at this layer — be sure before confirming.
 
 Markdown files (detected by mime type or a `.md` extension) are
 rendered through `Bun.markdown.ansi` so headers, emphasis, lists, and
@@ -360,7 +385,7 @@ move the selection (list focus) or scroll the detail (detail focus).
 | `Ctrl+R` | Refresh from disk |
 | `d` then `d` | Delete the selected item (Tasks, Threads, Schedules, Context). First press arms; second confirms. Any other key or 3s of inactivity disarms. The active chat thread cannot be deleted. |
 | `e` | Toggle enable/disable (Schedules only) |
-| `s` or `/` | Search (Threads only) |
+| `s` or `/` | Search (Threads, Context) |
 | `w` | Toggle tail/follow on the selected ongoing thread (Threads only) |
 | `l` | Toggle detail / log view (Workers only) |
 | `d` then `d` (Workers, log view) | Delete the worker's on-disk log file. The worker record itself is preserved. |
@@ -369,11 +394,15 @@ move the selection (list focus) or scroll the detail (detail focus).
 
 | Key | Action |
 |---|---|
-| `↑` / `↓` | Navigate / scroll preview |
-| `→` | Drill into folder · open file preview |
-| `←` | Go up one directory · close preview |
-| `/` | Search |
-| `d` then `d` | Delete the selected file or folder. Folders delete recursively; index entries are removed and the search index is rebuilt. Symlinks are unlinked safely (the target is never touched). |
+| `↑` / `↓` | Move selection (list) · scroll detail (detail) |
+| `→` | Drill into directory · enter detail pane |
+| `←` | Pop one directory level · exit search → tree · return to list |
+| `/` or `s` | Open the hybrid (semantic + BM25) search input |
+| `Enter` (search input) | Run the query against `mem.search()` |
+| `Esc` (search input) | Cancel typing; stay on current view |
+| `Esc` (search results) | Return to tree-browse at the previous prefix |
+| `d` then `d` | Delete the selected file (tombstoned) or directory (recursive). Old versions remain queryable via `botholomew membot versions`. |
+| `Ctrl+R` | Refresh the current tree level |
 
 ---
 
