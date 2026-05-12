@@ -11,15 +11,15 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { MembotClient } from "membot";
-import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 import {
   getTasksDir,
   getTasksLockDir,
   getThreadsDir,
 } from "../../src/constants.ts";
-import { openMembot } from "../../src/mem/client.ts";
+import { openMembot, sharedWithMem } from "../../src/mem/client.ts";
 import { createTask } from "../../src/tasks/store.ts";
 import { createThread } from "../../src/threads/store.ts";
+import { TEST_CONFIG as BASE_TEST_CONFIG } from "../helpers.ts";
 
 let mockResponse: () => unknown = () => completionResponseLocal();
 
@@ -50,10 +50,9 @@ mock.module("@anthropic-ai/sdk", () => ({
 const { runAgentLoop } = await import("../../src/worker/llm.ts");
 
 const TEST_CONFIG = {
-  ...DEFAULT_CONFIG,
-  anthropic_api_key: "test-key",
+  ...BASE_TEST_CONFIG,
   max_turns: 5,
-} as Required<typeof DEFAULT_CONFIG>;
+};
 
 let projectDir: string;
 let mem: MembotClient;
@@ -89,7 +88,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "test prompt",
       task,
       config: TEST_CONFIG,
-      mem,
+      withMem: sharedWithMem(mem),
       threadId,
       projectDir,
     });
@@ -116,7 +115,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task,
       config: TEST_CONFIG,
-      mem,
+      withMem: sharedWithMem(mem),
       threadId,
       projectDir,
     });
@@ -142,7 +141,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task,
       config: TEST_CONFIG,
-      mem,
+      withMem: sharedWithMem(mem),
       threadId,
       projectDir,
     });
@@ -161,7 +160,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task,
       config: TEST_CONFIG,
-      mem,
+      withMem: sharedWithMem(mem),
       threadId,
       projectDir,
     });
@@ -188,7 +187,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task,
       config: { ...TEST_CONFIG, max_turns: 2 },
-      mem,
+      withMem: sharedWithMem(mem),
       threadId,
       projectDir,
     });
@@ -221,7 +220,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task,
       config: TEST_CONFIG,
-      mem,
+      withMem: sharedWithMem(mem),
       threadId,
       projectDir,
     });
@@ -267,7 +266,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task: downstream,
       config: TEST_CONFIG,
-      mem,
+      withMem: sharedWithMem(mem),
       threadId,
       projectDir,
     });
@@ -314,7 +313,7 @@ describe("runAgentLoop", () => {
       systemPrompt: "p",
       task,
       config: TEST_CONFIG,
-      mem,
+      withMem: sharedWithMem(mem),
       threadId,
       projectDir,
     });

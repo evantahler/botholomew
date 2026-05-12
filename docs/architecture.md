@@ -244,17 +244,22 @@ Thread types are `worker_tick` and `chat_session`. CSV schema lives in
 ## Connection model
 
 Most state is on disk, so most operations don't touch DuckDB at all.
-The membot store is opened lazily — every Botholomew process holds one
-`MembotClient` at most:
+The membot store is only opened while a scope is actively doing work,
+not for the lifetime of the process:
 
-- **Workers**: `tick()` is mostly file IO — `claim` writes a lockfile,
-  `logInteraction` appends to a CSV, status updates atomic-rename a
-  markdown file. The membot client is only reached when a tool reads
-  or writes the knowledge store; each `ctx.mem.<op>` claims membot's DB
-  lock for one operation and releases it.
+- **Workers**: `tick()` opens a `MembotClient` at the top of the tick
+  and closes it in `finally`. Most of a tick is file IO — `claim`
+  writes a lockfile, `logInteraction` appends to a CSV, status updates
+  atomic-rename a markdown file. The shared client is reached through
+  `ctx.withMem((mem) => …)` whenever a `membot_*` tool fires; between
+  ticks (and between ticks's sleep), the DuckDB file lock is released.
 - **Heartbeat**: rewrites the worker's pidfile. No DB.
-- **Chat**: each turn writes thread interactions to CSV; the same
-  `ctx.mem` is shared across tool calls in one turn.
+- **Chat**: each turn of `runChatTurn` opens its own client, shares it
+  via `ctx.withMem` across the parallel tool calls in that turn, and
+  closes on the way out — an idle chat session holds no DuckDB lock.
+- **TUI context panel**: opens a fresh client per op (list / read /
+  delete) via `scopedWithMem`, so navigating the panel doesn't block
+  workers or chat from the same store.
 - **CLI invocations**: `botholomew context <verb>` is a passthrough to
   the `membot` binary — it spawns a fresh process with
   `--config <resolvedDir>` (where `<resolvedDir>` is `~/.membot` or
@@ -269,8 +274,8 @@ The membot store is opened lazily — every Botholomew process holds one
 Membot owns the DuckDB instance lifecycle: each `MembotClient` operation
 claims the lock, runs, and releases between ops, with exponential
 backoff on lock contention. From Botholomew's side that's invisible —
-tools just call `await ctx.mem.read(...)` / `await ctx.mem.search(...)` /
-etc.
+tools just call `await ctx.withMem((mem) => mem.read(...))` /
+`await ctx.withMem((mem) => mem.search(...))` / etc.
 
 Hybrid search (vector + BM25) lives in membot. The agent reaches it
 through `membot_search`; see [the files doc](files.md) for the tool

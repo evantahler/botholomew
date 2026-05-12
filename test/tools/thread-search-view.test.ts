@@ -26,7 +26,7 @@ afterEach(async () => {
 
 function ctx(): ToolContext {
   return {
-    mem: null as never,
+    withMem: null as never,
     projectDir,
     config: { ...DEFAULT_CONFIG, anthropic_api_key: "test-key" },
     mcpxClient: null,

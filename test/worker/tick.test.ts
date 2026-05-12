@@ -9,8 +9,6 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { MembotClient } from "membot";
-import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 import {
   getSchedulesDir,
   getSchedulesLockDir,
@@ -19,10 +17,9 @@ import {
   getThreadsDir,
   getWorkersDir,
 } from "../../src/constants.ts";
-import { openMembot } from "../../src/mem/client.ts";
 import { createTask, getTask } from "../../src/tasks/store.ts";
 import { listThreads } from "../../src/threads/store.ts";
-import { completionResponse } from "../helpers.ts";
+import { completionResponse, TEST_CONFIG } from "../helpers.ts";
 
 let mockResponse: () => unknown = () => completionResponse();
 
@@ -36,13 +33,7 @@ mock.module("@anthropic-ai/sdk", () => ({
 
 const { tick } = await import("../../src/worker/tick.ts");
 
-const TEST_CONFIG = {
-  ...DEFAULT_CONFIG,
-  anthropic_api_key: "test-key",
-} as Required<typeof DEFAULT_CONFIG>;
-
 let projectDir: string;
-let mem: MembotClient;
 
 beforeEach(async () => {
   projectDir = await mkdtemp(join(tmpdir(), "both-tick-"));
@@ -53,14 +44,10 @@ beforeEach(async () => {
   await mkdir(getThreadsDir(projectDir), { recursive: true });
   await mkdir(getWorkersDir(projectDir), { recursive: true });
 
-  mem = openMembot(projectDir);
-  await mem.connect();
-
   mockResponse = () => completionResponse();
 });
 
 afterEach(async () => {
-  await mem.close();
   await rm(projectDir, { recursive: true, force: true });
 });
 
@@ -73,7 +60,6 @@ describe("worker tick", () => {
 
     const didWork = await tick({
       projectDir,
-      mem,
       config: TEST_CONFIG,
       workerId: "worker-A",
       evalSchedules: false,
@@ -89,7 +75,6 @@ describe("worker tick", () => {
   test("returns false and creates no threads when no tasks are available", async () => {
     const didWork = await tick({
       projectDir,
-      mem,
       config: TEST_CONFIG,
       workerId: "worker-A",
       evalSchedules: false,
@@ -108,7 +93,6 @@ describe("worker tick", () => {
     });
     await tick({
       projectDir,
-      mem,
       config: TEST_CONFIG,
       workerId: "worker-A",
       evalSchedules: false,
@@ -140,7 +124,6 @@ describe("worker tick", () => {
     });
     await tick({
       projectDir,
-      mem,
       config: TEST_CONFIG,
       workerId: "worker-A",
       evalSchedules: false,
@@ -164,7 +147,6 @@ describe("worker tick", () => {
     });
     await tick({
       projectDir,
-      mem,
       config: TEST_CONFIG,
       workerId: "worker-A",
       evalSchedules: false,

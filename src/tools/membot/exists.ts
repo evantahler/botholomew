@@ -23,7 +23,9 @@ export const membotExistsTool = {
   outputSchema,
   execute: async (input, ctx) => {
     try {
-      await ctx.mem.info({ logical_path: input.logical_path });
+      await ctx.withMem((mem) =>
+        mem.info({ logical_path: input.logical_path }),
+      );
       return {
         is_error: false,
         exists: true,

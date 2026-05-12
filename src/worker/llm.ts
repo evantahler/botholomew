@@ -5,8 +5,8 @@ import type {
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
 import type { McpxClient } from "@evantahler/mcpx";
-import type { MembotClient } from "membot";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import type { WithMem } from "../mem/client.ts";
 import type { Task } from "../tasks/schema.ts";
 import { getTask } from "../tasks/store.ts";
 import { logInteraction } from "../threads/store.ts";
@@ -50,7 +50,7 @@ export async function runAgentLoop(input: {
   systemPrompt: string;
   task: Task;
   config: Required<BotholomewConfig>;
-  mem: MembotClient;
+  withMem: WithMem;
   threadId: string;
   projectDir: string;
   workerId?: string;
@@ -61,7 +61,7 @@ export async function runAgentLoop(input: {
     systemPrompt,
     task,
     config,
-    mem,
+    withMem,
     threadId,
     projectDir,
     workerId,
@@ -205,7 +205,7 @@ export async function runAgentLoop(input: {
       toolUseBlocks.map(async (toolUse) => {
         const start = Date.now();
         const result = await executeToolCall(toolUse, {
-          mem,
+          withMem,
           projectDir,
           config,
           mcpxClient: input.mcpxClient ?? null,
@@ -264,7 +264,7 @@ interface ToolCallResult {
 }
 
 interface ToolCallCtx {
-  mem: MembotClient;
+  withMem: WithMem;
   projectDir: string;
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;

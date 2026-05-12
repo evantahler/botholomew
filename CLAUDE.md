@@ -54,11 +54,11 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - Bump `version` in `package.json` for every change merged to `main` — the auto-release workflow uses this to determine when to publish. **Exception**: docs-only changes (anything under `docs/`, plus `README.md`) do not need a version bump, since they don't affect the published binary.
 - Run `bun run lint` and `bun test` before committing
 - `bun run lint` runs both `tsc --noEmit` and `biome check`
-- Each on-disk area has its own store module: `src/tasks/store.ts`, `src/schedules/store.ts`, `src/threads/store.ts`, `src/workers/store.ts`. The knowledge store has no in-tree CRUD module — it's `ctx.mem`, a `MembotClient`.
+- Each on-disk area has its own store module: `src/tasks/store.ts`, `src/schedules/store.ts`, `src/threads/store.ts`, `src/workers/store.ts`. The knowledge store has no in-tree CRUD module — agent tools call into it via `ctx.withMem((mem) => …)`, a scope-bound `MembotClient` accessor.
 - All path-taking tools route through `src/fs/sandbox.ts::resolveInRoot` — no exceptions
 - All agent interactions are logged to the thread CSV at `threads/<YYYY-MM-DD>/<id>.csv`
 - **List operations always support `-l, --limit <n>` and `-o, --offset <n>`** — applies to every CLI `list` subcommand and every list function in `src/{tasks,schedules,threads,workers}/store.ts`. Pick a stable sort (typically newest-first by `id`, since uuidv7 is time-ordered) so pagination is deterministic.
-- The agent has no shell. Knowledge access is exposed through `membot_*` tools that wrap `ctx.mem`; tasks, schedules, prompts, skills, and threads have their own typed tools.
+- The agent has no shell. Knowledge access is exposed through `membot_*` tools that wrap `ctx.withMem`; tasks, schedules, prompts, skills, and threads have their own typed tools.
 - When designing or modifying agent tools, follow PATs (Patterns for Agentic Tools): https://arcade.dev/patterns/llm.txt — key principles: error-guided recovery, next-action hints, token-efficient outputs, error classification
 - **Tool descriptions mirror bash when applicable** — if an LLM tool behaves like a familiar CLI command (e.g., `cat`, `ls`, `mv`, `grep`), prefix its `description` with `[[ bash equivalent command: <cmd> ]] ` followed by the short description. This anchors the tool for the model and keeps the tag machine-parseable. Membot ops already follow this convention upstream; the Botholomew adapter passes their descriptions through verbatim.
 - **Unified line-patch edits.** Resource-edit tools (`task_edit`, `schedule_edit`, `prompt_edit`, `skill_edit`, `membot_edit`) all use the same git-hunk-style patch from `src/fs/patches.ts` — `LinePatchSchema` (`{start_line, end_line, content}`) plus `applyLinePatches`. Reuse this for any new edit tool; don't invent a parallel shape.
@@ -87,7 +87,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 
 - **Tests are required**: all new features and bug fixes must include tests. `bun test` and `bun run lint` must pass before merging.
 - For tests that need a real membot store, use `setupTestMembot()` from `test/helpers.ts` — it spins up a per-test temp dir, opens a `MembotClient`, and returns a `cleanup()` that closes the client and removes the temp dir. Always call `cleanup()` in `afterEach`.
-- For pure tool-context tests that don't actually exercise membot, you can pass `mem: null as never` to `ToolContext` — the type checker accepts it and the tool body never reaches it.
+- For pure tool-context tests that don't actually exercise membot, you can pass `withMem: null as never` to `ToolContext` — the type checker accepts it and the tool body never reaches it.
 
 ## Documentation
 

@@ -31,3 +31,37 @@ export function resolveMembotDir(
 export function openMembot(dataDir: string): MembotClient {
   return new MembotClient({ configFlag: dataDir });
 }
+
+/**
+ * A scope-bound membot accessor passed via `ToolContext.withMem`. Each call
+ * runs `fn` with a live `MembotClient` and is responsible for whatever
+ * open/close lifecycle is appropriate for the surrounding scope.
+ */
+export type WithMem = <T>(fn: (mem: MembotClient) => Promise<T>) => Promise<T>;
+
+/**
+ * Build a `WithMem` that just forwards to an already-open client. Used inside
+ * a chat turn or worker tick that opens membot once and shares it across all
+ * tool calls within that scope. No per-call open/close cost.
+ */
+export function sharedWithMem(mem: MembotClient): WithMem {
+  return (fn) => fn(mem);
+}
+
+/**
+ * Build a `WithMem` that opens a fresh `MembotClient` per call, runs `fn`,
+ * and closes it in `finally`. Used in sparse, user-triggered contexts (e.g.
+ * the TUI ContextPanel) where holding the DuckDB file lock between ops would
+ * block other Botholomew processes from the shared `~/.membot` store.
+ */
+export function scopedWithMem(dataDir: string): WithMem {
+  return async (fn) => {
+    const mem = openMembot(dataDir);
+    try {
+      await mem.connect();
+      return await fn(mem);
+    } finally {
+      await mem.close();
+    }
+  };
+}

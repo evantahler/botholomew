@@ -86,8 +86,10 @@ export function adaptOperation(
     outputSchema: membotOutputSchema,
     execute: async (input, ctx: ToolContext) => {
       try {
-        const method = ctx.mem[methodName] as (i: unknown) => Promise<unknown>;
-        const data = await method.call(ctx.mem, input);
+        const data = await ctx.withMem(async (mem) => {
+          const method = mem[methodName] as (i: unknown) => Promise<unknown>;
+          return method.call(mem, input);
+        });
         return { is_error: false, data };
       } catch (err) {
         if (isHelpfulError(err)) {

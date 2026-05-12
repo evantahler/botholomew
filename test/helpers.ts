@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { MembotClient } from "membot";
 import type { BotholomewConfig } from "../src/config/schemas.ts";
 import { DEFAULT_CONFIG } from "../src/config/schemas.ts";
-import { openMembot } from "../src/mem/client.ts";
+import { openMembot, sharedWithMem } from "../src/mem/client.ts";
 import type { ToolContext } from "../src/tools/tool.ts";
 
 // ---------------------------------------------------------------------------
@@ -71,6 +71,9 @@ export const silentLogger = {
 export const TEST_CONFIG: Required<BotholomewConfig> = {
   ...DEFAULT_CONFIG,
   anthropic_api_key: "test-key",
+  // Force project-scoped membot in tests so per-tick / per-turn opens hit the
+  // test's temp dir, not the developer's real `~/.membot` store.
+  membot_scope: "project",
 };
 
 // ---------------------------------------------------------------------------
@@ -103,8 +106,8 @@ export async function setupTestMembot(): Promise<{
 
 /**
  * Build a fully-wired {@link ToolContext} backed by a fresh per-test membot
- * store. Use for tool-execution tests that need a real `ctx.mem`. Cleanup
- * tears down the underlying store.
+ * store. Use for tool-execution tests that need a real `withMem` accessor.
+ * Cleanup tears down the underlying store.
  */
 export async function setupToolContext(): Promise<{
   mem: MembotClient;
@@ -114,7 +117,7 @@ export async function setupToolContext(): Promise<{
 }> {
   const { mem, projectDir, cleanup } = await setupTestMembot();
   const ctx: ToolContext = {
-    mem,
+    withMem: sharedWithMem(mem),
     projectDir,
     config: { ...DEFAULT_CONFIG },
     mcpxClient: null,

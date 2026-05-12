@@ -38,12 +38,14 @@ export const membotEditTool = {
   outputSchema,
   execute: async (input, ctx) => {
     try {
-      const current = await ctx.mem.read({ logical_path: input.logical_path });
-      const next = applyLinePatches(current.content ?? "", input.patches);
-      const result = await ctx.mem.write({
-        logical_path: input.logical_path,
-        content: next,
-        change_note: input.change_note,
+      const result = await ctx.withMem(async (mem) => {
+        const current = await mem.read({ logical_path: input.logical_path });
+        const next = applyLinePatches(current.content ?? "", input.patches);
+        return mem.write({
+          logical_path: input.logical_path,
+          content: next,
+          change_note: input.change_note,
+        });
       });
       return {
         is_error: false,

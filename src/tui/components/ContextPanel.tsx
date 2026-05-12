@@ -1,7 +1,7 @@
 import { Box, Text, useInput } from "ink";
-import type { MembotClient } from "membot";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { openMembot } from "../../mem/client.ts";
+import { loadConfig } from "../../config/loader.ts";
+import { resolveMembotDir, scopedWithMem } from "../../mem/client.ts";
 import {
   detailPaneBorderProps,
   type FocusState,
@@ -46,16 +46,26 @@ export const ContextPanel = memo(function ContextPanel({
   const { rows: termRows, cols: termCols } = useTerminalSize();
   const detailWidth = Math.max(1, termCols - SIDEBAR_WIDTH - 5);
 
-  // One MembotClient per panel mount. Membot manages its DB lock per-op so
-  // sharing the file with the chat session / workers is safe.
-  const [client, setClient] = useState<MembotClient | null>(null);
+  // Open a fresh membot client per op (list/read/delete) instead of holding
+  // one for the panel's lifetime. Holding the DuckDB file lock for the panel
+  // mount would block other Botholomew processes (workers, chat turns, the
+  // membot CLI) from the shared `~/.membot` store while this panel sits idle.
+  const [membotDir, setMembotDir] = useState<string | null>(null);
   useEffect(() => {
-    const c = openMembot(projectDir);
-    setClient(c);
+    let cancelled = false;
+    (async () => {
+      const config = await loadConfig(projectDir);
+      if (cancelled) return;
+      setMembotDir(resolveMembotDir(projectDir, config));
+    })();
     return () => {
-      void c.close();
+      cancelled = true;
     };
   }, [projectDir]);
+  const withMem = useMemo(
+    () => (membotDir ? scopedWithMem(membotDir) : null),
+    [membotDir],
+  );
 
   const [entries, setEntries] = useState<ContextEntry[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -70,9 +80,9 @@ export const ContextPanel = memo(function ContextPanel({
   const visibleRows = Math.max(1, termRows - 6);
 
   const refresh = useCallback(async () => {
-    if (!client) return;
+    if (!withMem) return;
     try {
-      const out = await client.list({ limit: 500 });
+      const out = await withMem((mem) => mem.list({ limit: 500 }));
       const list = out.entries.map((e) => ({
         logical_path: e.logical_path,
         version_id: e.version_id,
@@ -89,7 +99,7 @@ export const ContextPanel = memo(function ContextPanel({
       setSelectedIndex(0);
       setSidebarScrollOffset(0);
     }
-  }, [client]);
+  }, [withMem]);
 
   useEffect(() => {
     refresh();
@@ -107,14 +117,13 @@ export const ContextPanel = memo(function ContextPanel({
 
   useEffect(() => {
     let cancelled = false;
-    if (!selectedEntry || !client) {
+    if (!selectedEntry || !withMem) {
       setFileContent(null);
       setDetailScroll(0);
       return;
     }
     setDetailScroll(0);
-    client
-      .read({ logical_path: selectedEntry.logical_path })
+    withMem((mem) => mem.read({ logical_path: selectedEntry.logical_path }))
       .then((result) => {
         if (cancelled) return;
         setFileContent({
@@ -132,7 +141,7 @@ export const ContextPanel = memo(function ContextPanel({
     return () => {
       cancelled = true;
     };
-  }, [client, selectedEntry]);
+  }, [withMem, selectedEntry]);
 
   const detailLines = useMemo(() => {
     if (!fileContent || !selectedEntry) return [];
@@ -157,11 +166,11 @@ export const ContextPanel = memo(function ContextPanel({
 
   const deleteConfirm = useDeleteConfirm(() => {
     const entry = selectedEntryRef.current;
-    if (!entry || !client) return;
+    if (!entry || !withMem) return;
     const path = entry.logical_path;
     (async () => {
       try {
-        await client.remove({ paths: [path] });
+        await withMem((mem) => mem.remove({ paths: [path] }));
       } catch {
         // ignore — refresh will reflect any partial state
       }
