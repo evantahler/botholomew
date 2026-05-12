@@ -256,10 +256,11 @@ The membot store is opened lazily — every Botholomew process holds one
 - **Chat**: each turn writes thread interactions to CSV; the same
   `ctx.mem` is shared across tool calls in one turn.
 - **CLI invocations**: `botholomew context <verb>` is a passthrough to
-  the `membot` binary — it spawns a fresh process with `--config
-  <resolvedDir>` (where `<resolvedDir>` is `~/.membot` or `<projectDir>`
-  depending on `membot_scope`), forwards stdio, and exits with the
-  child's code. No long-lived connection in the Botholomew process at all.
+  the `membot` binary — it spawns a fresh process with
+  `--config <resolvedDir>` (where `<resolvedDir>` is `~/.membot` or
+  `<projectDir>` depending on `membot_scope`), forwards stdio, and exits
+  with the child's code. No long-lived connection in the Botholomew
+  process at all.
 - **Cross-process safety**: membot's lock-with-backoff means a worker
   and a `botholomew context add …` running side-by-side serialize on
   DuckDB's file lock automatically — no extra coordination on our side
