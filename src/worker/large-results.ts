@@ -52,6 +52,19 @@ export function readLargeResultPage(
   return { content, page, totalPages: entry.totalPages };
 }
 
+/** Inspect a stored result without consuming a page. Returns null if unknown. */
+export function peekLargeResult(
+  id: string,
+): { toolName: string; totalChars: number; totalPages: number } | null {
+  const entry = store.get(id);
+  if (!entry) return null;
+  return {
+    toolName: entry.toolName,
+    totalChars: entry.totalChars,
+    totalPages: entry.totalPages,
+  };
+}
+
 /** Build the inline stub that replaces the full result in the conversation */
 export function buildResultStub(
   id: string,
@@ -67,7 +80,7 @@ export function buildResultStub(
     preview,
     preview.length < content.length ? "..." : "",
     "",
-    `Use read_large_result with id="${id}" to read page-by-page (pages 1–${totalPages}).`,
+    `Use read_large_result with id="${id}" and page=<n> (1–${totalPages}) to read it in ~${PAGE_SIZE_CHARS}-char pages.`,
   ].join("\n");
 }
 

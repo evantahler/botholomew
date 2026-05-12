@@ -40,6 +40,7 @@ import { searchThreadsTool } from "./thread/search.ts";
 import { viewThreadTool } from "./thread/view.ts";
 import { registerTool } from "./tool.ts";
 // Util tools
+import { readLargeResultTool } from "./util/read_large_result.ts";
 import { sleepTool } from "./util/sleep.ts";
 // Worker tools
 import { spawnWorkerTool } from "./worker/spawn.ts";
@@ -95,6 +96,7 @@ export function registerAllTools(): void {
 
   // Util
   registerTool(sleepTool);
+  registerTool(readLargeResultTool);
 
   // Worker
   registerTool(spawnWorkerTool);
