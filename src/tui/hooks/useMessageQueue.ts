@@ -123,6 +123,13 @@ export function useMessageQueue({
       try {
         await sendMessage(sessionRef.current, entry.content, {
           onToken: (token) => {
+            // Mirror the text→tool flush in onToolStart: when text begins
+            // streaming after one or more completed tool calls, push the
+            // pending tools into Static so the dynamic frame doesn't
+            // re-reconcile their boxes on every token flush.
+            if (!currentText && pendingToolCalls.length > 0) {
+              finalizeSegment();
+            }
             currentText += token;
             const now = Date.now();
             if (now - lastStreamFlush >= 50) {
