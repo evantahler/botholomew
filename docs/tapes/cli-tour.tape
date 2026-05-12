@@ -22,7 +22,7 @@ Sleep 400ms
 Enter
 Sleep 2s
 
-Type "botholomew context tree"
+Type "botholomew membot tree"
 Sleep 400ms
 Enter
 Sleep 3s

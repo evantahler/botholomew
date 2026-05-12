@@ -26,13 +26,14 @@ import {
 import { hostname, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { uuidv7 } from "../src/db/uuid.ts";
+import { openMembot } from "../src/mem/client.ts";
 import {
   createThread,
   endThread,
   logInteraction,
   updateThreadTitle,
 } from "../src/threads/store.ts";
+import { uuidv7 } from "../src/utils/uuid.ts";
 import { registerWorker } from "../src/workers/store.ts";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -131,13 +132,16 @@ async function addContextFile(
   relativePath: string,
   body: string,
 ): Promise<void> {
-  // The Context tab and `context tree` read straight from disk, so writing
-  // the file into <workDir>/context/<relativePath> is all we need. The
-  // search index is rebuilt lazily on the first reindex (and isn't visible
-  // in the captures anyway).
-  const fsPath = join(workDir, "context", relativePath);
-  mkdirSync(dirname(fsPath), { recursive: true });
-  writeFileSync(fsPath, body);
+  // Captures init with --membot-scope=project, so the membot store lives at
+  // <workDir>/index.duckdb. Write through the SDK so the Context tab and
+  // `botholomew membot tree` see the seeded entries.
+  const mem = openMembot(workDir);
+  try {
+    await mem.connect();
+    await mem.write({ logical_path: relativePath, content: body });
+  } finally {
+    await mem.close();
+  }
 }
 
 async function addHistoricalThread(workDir: string): Promise<void> {
@@ -208,7 +212,9 @@ function seedMcpxServers(workDir: string): void {
 async function seedProject(workDir: string): Promise<void> {
   const env = { ...process.env, BOTHOLOMEW_NO_UPDATE_CHECK: "1" };
 
-  const init = await $`bun run ${cliPath} --dir ${workDir} init`
+  // Pin both stores to the temp workDir so captures stay hermetic (no read
+  // or write against the user's real ~/.membot / ~/.mcpx).
+  const init = await $`bun run ${cliPath} --dir ${workDir} init --membot-scope project --mcpx-scope project`
     .cwd(workDir)
     .env(env)
     .nothrow();
@@ -305,8 +311,9 @@ async function seedProject(workDir: string): Promise<void> {
     "# Sterling\n\n- Weekly 1:1 Fridays at 4:30 PM\n- Focus areas: reliability, oncall rotation\n- Prefers written agenda 24h ahead\n",
   );
 
-  // Stub mcpx so `botholomew context import` enters the MCP path under
-  // capture mode (canned fakeMcpSearch/fakeMcpExec take over from there).
+  // Stub mcpx so chat/worker tapes that exercise mcp_search/mcp_exec see a
+  // non-null mcpx client — canned fakeMcpSearch/fakeMcpExec take over from
+  // there during capture mode.
   seedMcpxServers(workDir);
 
   // Empty-state tabs in the TUI: seed one historical thread and one
