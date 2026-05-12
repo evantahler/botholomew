@@ -40,12 +40,27 @@ export function openMembot(dataDir: string): MembotClient {
 export type WithMem = <T>(fn: (mem: MembotClient) => Promise<T>) => Promise<T>;
 
 /**
- * Build a `WithMem` that just forwards to an already-open client. Used inside
- * a chat turn or worker tick that opens membot once and shares it across all
- * tool calls within that scope. No per-call open/close cost.
+ * Build a `WithMem` that forwards to an already-open client, **serializing**
+ * concurrent callers through a per-client queue. Used inside a chat turn or
+ * worker tick that opens membot once and shares it across all tool calls
+ * within that scope.
+ *
+ * Why serialize: every `MembotClient.<op>` releases the underlying DuckDB
+ * instance in `finally` (so other processes can grab the file lock). When
+ * two ops run on the same client in parallel via `Promise.all`, the first to
+ * finish closes the connection out from under the slower one, and the slower
+ * op's next query hangs on a disposed handle. Queuing here keeps the "many
+ * parallel tool calls in one chat turn" pattern correct without forcing
+ * unrelated (non-membot) tool calls to serialize.
  */
 export function sharedWithMem(mem: MembotClient): WithMem {
-  return (fn) => fn(mem);
+  let queue: Promise<unknown> = Promise.resolve();
+  return <T>(fn: (m: MembotClient) => Promise<T>): Promise<T> => {
+    const result = queue.then(() => fn(mem));
+    // One failed op shouldn't poison the rest of the queue.
+    queue = result.catch(() => {});
+    return result as Promise<T>;
+  };
 }
 
 /**
