@@ -37,7 +37,7 @@ project directory. The full schema lives in `src/config/schemas.ts`.
 | `model` | `claude-opus-4-6` | Claude model for the main agent loop (workers + chat). |
 | `chunker_model` | `claude-haiku-4-5-20251001` | Smaller/cheaper model used to propose chunk boundaries during ingestion and evaluate schedules. |
 | `embedding_model` | `Xenova/bge-small-en-v1.5` | A local [`@huggingface/transformers`](https://huggingface.co/docs/transformers.js) feature-extraction model. Weights are downloaded on first use and cached under the project's `models/` directory. Any feature-extraction model in the Xenova/* namespace works — e.g. `Xenova/multilingual-e5-small` (also 384-dim) for non-English content. |
-| `embedding_dimension` | `384` | Vector dimension. Must match the model. Changing model + dimension requires running `botholomew context reembed` to recompute every stored vector — old and new vectors aren't comparable. |
+| `embedding_dimension` | `384` | Vector dimension. Must match the model. Changing model + dimension requires running `botholomew membot reembed` to recompute every stored vector — old and new vectors aren't comparable. |
 | `tick_interval_seconds` | `300` | Seconds a `--persist` worker sleeps between ticks **when there's no work**. It ticks back-to-back while a backlog exists. |
 | `max_tick_duration_seconds` | `120` | Soft cap per tick. Stale-task reset fires at `3×` this value. |
 | `system_prompt_override` | `""` | Appended to the built-in system prompt. Use this for project-specific instructions that should be always-loaded without editing the files under `prompts/`. |
@@ -50,7 +50,7 @@ project directory. The full schema lives in `src/config/schemas.ts`.
 | `schedule_claim_stale_seconds` | `300` | If a worker claimed a schedule but never released it (crash), another worker may steal the claim after this many seconds. |
 | `tui_idle_timeout_seconds` | `180` | Seconds of inactivity (no keystrokes, no streamed agent tokens, no tool events) before the chat TUI freezes its visible animations and pauses the status-bar count refresh. Animations resume on the next activity. Set to `0` to disable (always animate — useful for demo recordings). |
 | `log_level` | `""` | Verbosity for `botholomew` CLI logs. One of `silent`, `error`, `warn`, `info`, `debug`. Empty string falls back to the runtime default (`info` normally, `error` under `NODE_ENV=test`). `BOTHOLOMEW_LOG_LEVEL` env var overrides this. |
-| `membot_scope` | `"global"` | Where this project's knowledge store lives. `"global"` → `~/.membot/index.duckdb` (shared across every Botholomew project on the machine). `"project"` → `<projectDir>/index.duckdb` (isolated). Affects both the agent and the `botholomew context …` CLI passthrough. |
+| `membot_scope` | `"global"` | Where this project's knowledge store lives. `"global"` → `~/.membot/index.duckdb` (shared across every Botholomew project on the machine). `"project"` → `<projectDir>/index.duckdb` (isolated). Affects both the agent and the `botholomew membot …` CLI passthrough. |
 | `mcpx_scope` | `"global"` | Where this project's MCP server config lives. `"global"` → `~/.mcpx/` (shared). `"project"` → `<projectDir>/mcpx/` (isolated). Affects both the agent and the `botholomew mcpx …` CLI passthrough. |
 
 ---
@@ -119,12 +119,12 @@ Defaults for new projects:
 To opt one (or both) into per-project isolation, set the key to
 `"project"` in `config/config.json`, or pass `--membot-scope=project` /
 `--mcpx-scope=project` to `botholomew init`. The agent loop, chat
-session, TUI, and CLI passthroughs (`botholomew context …`, `botholomew
+session, TUI, and CLI passthroughs (`botholomew membot …`, `botholomew
 mcpx …`) all honour the scope on every invocation.
 
 Migrating between scopes:
 
-- **Global → project**: `botholomew context import-global` (copies
+- **Global → project**: `botholomew membot import-global` (copies
   `~/.membot/` into the project) or `botholomew mcpx import-global`
   (copies `~/.mcpx/`), then flip the scope key to `"project"`.
 - **Project → global**: copy `<projectDir>/index.duckdb` to

@@ -137,9 +137,9 @@ any of which transitions the task out of `in_progress`.
 Commander subcommand per tool, grouped by `group`:
 
 ```bash
-botholomew context read notes/meeting.md --offset 10 --limit 20
-botholomew context tree notes --max-depth 3
-botholomew context search "quarterly revenue"
+botholomew membot read notes/meeting.md --offset 10 --limit 20
+botholomew membot tree notes --max-depth 3
+botholomew membot search "quarterly revenue"
 ```
 
 Positional args and `--options` are derived from the Zod schema shape.

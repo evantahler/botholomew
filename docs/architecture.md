@@ -260,14 +260,14 @@ not for the lifetime of the process:
 - **TUI context panel**: opens a fresh client per op (list / read /
   delete) via `scopedWithMem`, so navigating the panel doesn't block
   workers or chat from the same store.
-- **CLI invocations**: `botholomew context <verb>` is a passthrough to
+- **CLI invocations**: `botholomew membot <verb>` is a passthrough to
   the `membot` binary — it spawns a fresh process with
   `--config <resolvedDir>` (where `<resolvedDir>` is `~/.membot` or
   `<projectDir>` depending on `membot_scope`), forwards stdio, and exits
   with the child's code. No long-lived connection in the Botholomew
   process at all.
 - **Cross-process safety**: membot's lock-with-backoff means a worker
-  and a `botholomew context add …` running side-by-side serialize on
+  and a `botholomew membot add …` running side-by-side serialize on
   DuckDB's file lock automatically — no extra coordination on our side
   is needed.
 

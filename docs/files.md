@@ -14,7 +14,7 @@ The safety properties this gives you:
 - **Versioned.** Every `membot_write` / `membot_edit` creates a new
   `version_id`. Deletes are tombstones, not unlinks. Use `membot_versions`
   to inspect history, `membot_diff` to compare two snapshots, and
-  `botholomew context prune` to permanently drop old versions when you want
+  `botholomew membot prune` to permanently drop old versions when you want
   to.
 - **Auditable.** The DB is local, plain DuckDB, and your data lives in tables
   you can query directly with the DuckDB CLI if you ever want to.
@@ -77,24 +77,26 @@ agent can mutate in place.
 
 ## CLI passthrough
 
-`botholomew context <verb> …` spawns `membot <verb> … --config <projectDir>`
-and forwards stdio. Run `botholomew context --help` for the verb list.
+`botholomew membot <verb> …` spawns `membot <verb> … --config <resolvedDir>`
+(resolved from `membot_scope` — `~/.membot` by default, `<projectDir>` if
+scope is `"project"`) and forwards stdio. Run `botholomew membot --help`
+for the verb list.
 
 ```bash
-botholomew context add ./docs/howto.md
-botholomew context add https://docs.google.com/document/d/...
-botholomew context search "how does the worker tick claim tasks?"
-botholomew context ls
-botholomew context tree
-botholomew context read docs/howto.md
-botholomew context versions docs/howto.md
-botholomew context diff docs/howto.md v1 v2
+botholomew membot add ./docs/howto.md
+botholomew membot add https://docs.google.com/document/d/...
+botholomew membot search "how does the worker tick claim tasks?"
+botholomew membot ls
+botholomew membot tree
+botholomew membot read docs/howto.md
+botholomew membot versions docs/howto.md
+botholomew membot diff docs/howto.md v1 v2
 ```
 
 The Botholomew-specific helper is:
 
 ```bash
-botholomew context import-global
+botholomew membot import-global
 ```
 
 It copies `~/.membot/index.duckdb` and `~/.membot/config.json` into the

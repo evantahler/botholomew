@@ -7,7 +7,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - `src/` — TypeScript source code
   - `cli.ts` — CLI entrypoint (Commander.js)
   - `constants.ts` — Project-layout constants (dir names, `getWorkerLogPath`, `PROTECTED_AREAS`); the header comment is the canonical on-disk tree
-  - `commands/` — CLI subcommand handlers (the `context` group is a thin passthrough to the `membot` CLI)
+  - `commands/` — CLI subcommand handlers (the `membot` group is a thin passthrough to the `membot` CLI)
   - `config/` — Configuration loading/schemas
   - `fs/` — Path sandbox (`resolveInRoot`), atomic-write/lockfile helpers, sync-overlay-FS detector, shared line-patch helper
   - `mem/` — Per-project `MembotClient` singleton (`openMembot(projectDir)`)
@@ -81,7 +81,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - **`ToolContext.mem` is the only handle the agent sees.** Every `membot_*` tool routes through it. Membot manages its DuckDB lock per-op so multiple in-process consumers (worker + chat + TUI panel) share the file safely.
 - **No direct DuckDB access from Botholomew.** We don't import `@duckdb/node-api` or `@huggingface/transformers`. Every DB / embedding concern lives behind the membot SDK.
 - **Agent tools live in `src/tools/membot/`.** `adapter.ts` turns each upstream membot `Operation` into a Botholomew `ToolDefinition`; `edit.ts`, `copy.ts`, `exists.ts`, `count_lines.ts`, and `pipe.ts` add the file-shaped UX our agents already know (git-hunk patches, presence checks, etc.) on top of membot's whole-file `write`.
-- **CLI passthrough.** `botholomew context <args…>` spawns `membot <args…> --config <resolvedDir>` (resolved from `membot_scope`); `botholomew mcpx <args…>` spawns `mcpx <args…> -c <resolvedDir>` (from `mcpx_scope`). Both forward stdio. There is no Botholomew-side `context_*` command implementation. The Botholomew-specific `context import-global` / `mcpx import-global` always copy into the **project** dir (so users can seed a project store before flipping scope to `"project"`).
+- **CLI passthrough.** `botholomew membot <args…>` spawns `membot <args…> --config <resolvedDir>` (resolved from `membot_scope`); `botholomew mcpx <args…>` spawns `mcpx <args…> -c <resolvedDir>` (from `mcpx_scope`). Both forward stdio. There is no Botholomew-side `membot_*` command implementation. The Botholomew-specific `membot import-global` / `mcpx import-global` always copy into the **project** dir (so users can seed a project store before flipping scope to `"project"`).
 
 ## Testing
 

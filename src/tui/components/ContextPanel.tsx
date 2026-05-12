@@ -36,8 +36,8 @@ const PAGE_SCROLL_LINES = 10;
  * Browse the membot knowledge store. Each row is a current-version entry; the
  * detail pane shows the cleaned markdown surrogate. Membot has no real
  * directories — `logical_path` segments are just slashes — so this is a flat
- * paginated list rather than a tree drill-in. Use `botholomew context tree` /
- * `botholomew context search` for hierarchical or content-based discovery.
+ * paginated list rather than a tree drill-in. Use `botholomew membot tree` /
+ * `botholomew membot search` for hierarchical or content-based discovery.
  */
 export const ContextPanel = memo(function ContextPanel({
   projectDir,
@@ -236,7 +236,7 @@ export const ContextPanel = memo(function ContextPanel({
         </Box>
         {entries.length === 0 ? (
           <Box paddingX={1}>
-            <Text dimColor>(empty — try `botholomew context add …`)</Text>
+            <Text dimColor>(empty — try `botholomew membot add …`)</Text>
           </Box>
         ) : (
           visibleItems.map((entry, vi) => {

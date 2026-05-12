@@ -44,7 +44,7 @@ agent's world is a per-project knowledge store managed by
 search, and delete is addressed by `logical_path` (a DB key, not a
 filesystem path), so a prompt-injected attempt to reach `~/.ssh/id_rsa`
 has nowhere to land. Local files and URLs are brought in through
-`botholomew context add`. External capabilities (email, Slack, the web,
+`botholomew membot add`. External capabilities (email, Slack, the web,
 and hundreds of other services) are granted deliberately, per project,
 through MCP servers wired up via
 [MCPX](https://github.com/evantahler/mcpx).
