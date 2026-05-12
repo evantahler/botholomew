@@ -286,7 +286,9 @@ through the large-results cache and shows a stub instead:
     ⚡ Paginated for LLM [42K, 8pg]
 ```
 
-The agent sees paged access to the result via dedicated tools; the TUI
+The agent reads the full payload back via the `read_large_result` tool
+— `read_large_result(id="lr_1", page=1)` returns one ~8 KB page at a
+time along with `total_pages` so the agent knows when to stop. The TUI
 just shows the summary to keep the chat view compact.
 
 ### Sleep progress bar
