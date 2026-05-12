@@ -146,7 +146,7 @@ export const ContextPanel = memo(function ContextPanel({
   const detailLines = useMemo(() => {
     if (!fileContent || !selectedEntry) return [];
     const body = isMarkdownPath(fileContent.logical_path)
-      ? renderMarkdown(fileContent.content)
+      ? renderMarkdown(fileContent.content, detailWidth)
       : fileContent.content;
     return wrapDetailLines(body, detailWidth);
   }, [fileContent, selectedEntry, detailWidth]);
