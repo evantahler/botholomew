@@ -7,7 +7,15 @@ import { APIUserAbortError } from "@anthropic-ai/sdk";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import type { ContextUsage } from "../../src/chat/usage.ts";
 import { THREADS_DIR } from "../../src/constants.ts";
+import type { WithMem } from "../../src/mem/client.ts";
 import { silentLogger, TEST_CONFIG } from "../helpers.ts";
+
+// Chat-steer tests never trigger a membot tool call, so this stub is never
+// invoked — but `runChatTurn` requires *something* to short-circuit opening
+// a real membot client per turn.
+const noopWithMem: WithMem = () => {
+  throw new Error("test stub — membot must not be used in this test");
+};
 
 // Logger is safe to mock globally — it's already swapped out in other test
 // files. We deliberately do NOT mock createLlmClient or getMaxInputTokens
@@ -79,7 +87,6 @@ const noopCallbacks = {
 
 function makeSession() {
   return {
-    mem: null as never,
     threadId,
     projectDir,
     config: TEST_CONFIG,
@@ -112,7 +119,7 @@ describe("runChatTurn — steering / abort", () => {
       messages,
       projectDir,
       config: TEST_CONFIG,
-      mem: null as never,
+      _testWithMem: noopWithMem,
       threadId,
       mcpxClient: null,
       callbacks: noopCallbacks,
@@ -143,7 +150,7 @@ describe("runChatTurn — steering / abort", () => {
       messages,
       projectDir,
       config: TEST_CONFIG,
-      mem: null as never,
+      _testWithMem: noopWithMem,
       threadId,
       mcpxClient: null,
       callbacks: noopCallbacks,
@@ -180,7 +187,7 @@ describe("runChatTurn — steering / abort", () => {
       messages,
       projectDir,
       config: TEST_CONFIG,
-      mem: null as never,
+      _testWithMem: noopWithMem,
       threadId,
       mcpxClient: null,
       callbacks: {
@@ -227,7 +234,7 @@ describe("runChatTurn — steering / abort", () => {
       messages,
       projectDir,
       config: TEST_CONFIG,
-      mem: null as never,
+      _testWithMem: noopWithMem,
       threadId,
       mcpxClient: null,
       callbacks: {
@@ -275,7 +282,7 @@ describe("runChatTurn — steering / abort", () => {
       messages,
       projectDir,
       config: TEST_CONFIG,
-      mem: null as never,
+      _testWithMem: noopWithMem,
       threadId,
       mcpxClient: null,
       callbacks: {
@@ -319,7 +326,7 @@ describe("runChatTurn — steering / abort", () => {
       messages,
       projectDir,
       config: TEST_CONFIG,
-      mem: null as never,
+      _testWithMem: noopWithMem,
       threadId,
       mcpxClient: null,
       callbacks: noopCallbacks,

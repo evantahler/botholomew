@@ -25,7 +25,9 @@ export const membotCountLinesTool = {
   outputSchema,
   execute: async (input, ctx) => {
     try {
-      const result = await ctx.mem.read({ logical_path: input.logical_path });
+      const result = await ctx.withMem((mem) =>
+        mem.read({ logical_path: input.logical_path }),
+      );
       const content = result.content ?? "";
       const lineCount = content === "" ? 0 : content.split("\n").length;
       return {

@@ -2,7 +2,6 @@ import { hostname } from "node:os";
 import ansis from "ansis";
 import { loadConfig } from "../config/loader.ts";
 import { createMcpxClient, resolveMcpxDir } from "../mcpx/client.ts";
-import { openMembot, resolveMembotDir } from "../mem/client.ts";
 import { logger } from "../utils/logger.ts";
 import { uuidv7 } from "../utils/uuid.ts";
 import { markWorkerStopped, registerWorker } from "../workers/store.ts";
@@ -87,10 +86,6 @@ export async function startWorker(
   const evalSchedules = options.evalSchedules ?? !taskId;
 
   const config = await loadConfig(projectDir);
-  const mem = openMembot(resolveMembotDir(projectDir, config));
-  // Surface init-time failures (bad config, locked DB) up front rather than
-  // letting the first tool call do it.
-  await mem.connect();
 
   const mcpxClient = await createMcpxClient(resolveMcpxDir(projectDir, config));
   if (mcpxClient) {
@@ -127,7 +122,6 @@ export async function startWorker(
     stopHeartbeat();
     stopReaper();
     await mcpxClient?.close();
-    await mem.close();
     try {
       await markWorkerStopped(projectDir, workerId);
     } catch (err) {
@@ -150,7 +144,6 @@ export async function startWorker(
       if (taskId) {
         await runSpecificTask({
           projectDir,
-          mem,
           config,
           workerId,
           taskId,
@@ -160,7 +153,6 @@ export async function startWorker(
       } else {
         await tick({
           projectDir,
-          mem,
           config,
           workerId,
           mcpxClient,
@@ -181,7 +173,6 @@ export async function startWorker(
       try {
         didWork = await tick({
           projectDir,
-          mem,
           config,
           workerId,
           mcpxClient,
@@ -207,6 +198,5 @@ export async function startWorker(
       logger.warn(`failed to mark worker stopped: ${err}`);
     }
     await mcpxClient?.close();
-    await mem.close();
   }
 }

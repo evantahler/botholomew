@@ -1,17 +1,18 @@
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
 import type { McpxClient } from "@evantahler/mcpx";
-import type { MembotClient } from "membot";
 import { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import type { WithMem } from "../mem/client.ts";
 
 export interface ToolContext {
   /**
-   * Per-process membot client. Backs every `membot_*` tool. Membot manages
-   * its own DuckDB connection lifecycle internally (lazy claim, release
-   * between operations), so tools just call `ctx.mem.<op>(...)` directly —
-   * no per-call open/close needed.
+   * Scope-bound membot accessor. Each `membot_*` tool wraps its work in
+   * `ctx.withMem((mem) => mem.<op>(...))`. Backed by `sharedWithMem` inside a
+   * chat turn / worker tick (one connection, many ops) or `scopedWithMem` in
+   * sparse callers like the TUI panel (open per op, release the DuckDB file
+   * lock between calls).
    */
-  mem: MembotClient;
+  withMem: WithMem;
   projectDir: string;
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;

@@ -7,8 +7,13 @@ import type {
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
 import type { McpxClient } from "@evantahler/mcpx";
-import type { MembotClient } from "membot";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import {
+  openMembot,
+  resolveMembotDir,
+  sharedWithMem,
+  type WithMem,
+} from "../mem/client.ts";
 import { logInteraction } from "../threads/store.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import {
@@ -211,7 +216,6 @@ export async function runChatTurn(input: {
   messages: MessageParam[];
   projectDir: string;
   config: Required<BotholomewConfig>;
-  mem: MembotClient;
   threadId: string;
   mcpxClient: McpxClient | null;
   callbacks: ChatTurnCallbacks;
@@ -223,12 +227,43 @@ export async function runChatTurn(input: {
    *  Production callers should leave both unset. */
   _testClient?: Anthropic;
   _testMaxInputTokens?: number;
+  /** Test seam: when set, the turn uses this `withMem` instead of opening its
+   *  own membot client. Production callers leave this unset. */
+  _testWithMem?: WithMem;
+}): Promise<void> {
+  // Open membot for the duration of this turn so the DuckDB file lock is held
+  // only while the turn is actively executing — idle chat sessions leave the
+  // shared `~/.membot` store available to other Botholomew processes.
+  if (input._testWithMem) {
+    await runChatTurnBody({ ...input, withMem: input._testWithMem });
+    return;
+  }
+  const mem = openMembot(resolveMembotDir(input.projectDir, input.config));
+  await mem.connect();
+  try {
+    await runChatTurnBody({ ...input, withMem: sharedWithMem(mem) });
+  } finally {
+    await mem.close();
+  }
+}
+
+async function runChatTurnBody(input: {
+  messages: MessageParam[];
+  projectDir: string;
+  config: Required<BotholomewConfig>;
+  withMem: WithMem;
+  threadId: string;
+  mcpxClient: McpxClient | null;
+  callbacks: ChatTurnCallbacks;
+  session?: ChatSession;
+  _testClient?: Anthropic;
+  _testMaxInputTokens?: number;
 }): Promise<void> {
   const {
     messages,
     projectDir,
     config,
-    mem,
+    withMem,
     threadId,
     mcpxClient,
     callbacks,
@@ -419,7 +454,7 @@ export async function runChatTurn(input: {
       toolUseBlocks.map(async (toolUse) => {
         const start = Date.now();
         const result = await executeChatToolCall(toolUse, {
-          mem,
+          withMem,
           projectDir,
           config,
           mcpxClient,
@@ -470,7 +505,7 @@ export async function runChatTurn(input: {
 }
 
 interface ChatToolCallCtx {
-  mem: MembotClient;
+  withMem: WithMem;
   projectDir: string;
   config: Required<BotholomewConfig>;
   mcpxClient: McpxClient | null;

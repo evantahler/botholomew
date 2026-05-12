@@ -4,7 +4,7 @@ import { sleepTool } from "../../../src/tools/util/sleep.ts";
 
 function makeCtx(shouldAbort?: () => boolean): ToolContext {
   return {
-    mem: undefined as unknown as ToolContext["mem"],
+    withMem: undefined as unknown as ToolContext["withMem"],
     projectDir: "/tmp/sleep-test",
     // biome-ignore lint/suspicious/noExplicitAny: tests don't exercise config
     config: {} as any,

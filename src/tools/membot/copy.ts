@@ -27,12 +27,14 @@ export const membotCopyTool = {
   outputSchema,
   execute: async (input, ctx) => {
     try {
-      const src = await ctx.mem.read({ logical_path: input.from_logical_path });
-      const written = await ctx.mem.write({
-        logical_path: input.to_logical_path,
-        content: src.content ?? "",
-        change_note:
-          input.change_note ?? `copied from ${input.from_logical_path}`,
+      const written = await ctx.withMem(async (mem) => {
+        const src = await mem.read({ logical_path: input.from_logical_path });
+        return mem.write({
+          logical_path: input.to_logical_path,
+          content: src.content ?? "",
+          change_note:
+            input.change_note ?? `copied from ${input.from_logical_path}`,
+        });
       });
       return {
         is_error: false,

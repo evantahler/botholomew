@@ -1,6 +1,11 @@
 import type { McpxClient } from "@evantahler/mcpx";
-import type { MembotClient } from "membot";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import {
+  openMembot,
+  resolveMembotDir,
+  sharedWithMem,
+  type WithMem,
+} from "../mem/client.ts";
 import type { Task } from "../tasks/schema.ts";
 import {
   claimNextTask,
@@ -19,7 +24,6 @@ import { processSchedules } from "./schedules.ts";
 
 export interface TickOptions {
   projectDir: string;
-  mem: MembotClient;
   config: Required<BotholomewConfig>;
   workerId: string;
   mcpxClient?: McpxClient | null;
@@ -31,11 +35,15 @@ export interface TickOptions {
 /**
  * Run one unit of work for a worker: optionally evaluate schedules, claim
  * the next eligible task, and process it. Returns true if work was done.
+ *
+ * Opens a membot client for the duration of this tick and closes it on the
+ * way out so the DuckDB file lock is released between ticks — other
+ * Botholomew processes (other workers, chat, the membot CLI) can read the
+ * shared `~/.membot` store while this worker is idle.
  */
 export async function tick(opts: TickOptions): Promise<boolean> {
   const {
     projectDir,
-    mem,
     config,
     workerId,
     mcpxClient,
@@ -74,15 +82,21 @@ export async function tick(opts: TickOptions): Promise<boolean> {
     return false;
   }
 
-  await runClaimedTask({
-    projectDir,
-    mem,
-    config,
-    workerId,
-    mcpxClient,
-    callbacks,
-    task,
-  });
+  const mem = openMembot(resolveMembotDir(projectDir, config));
+  await mem.connect();
+  try {
+    await runClaimedTask({
+      projectDir,
+      withMem: sharedWithMem(mem),
+      config,
+      workerId,
+      mcpxClient,
+      callbacks,
+      task,
+    });
+  } finally {
+    await mem.close();
+  }
 
   const elapsed = ((Date.now() - tickStart) / 1000).toFixed(1);
   logger.phase("tick-end", `#${tickNum} ${elapsed}s didWork=true`);
@@ -95,7 +109,6 @@ export async function tick(opts: TickOptions): Promise<boolean> {
  */
 export async function runSpecificTask(opts: {
   projectDir: string;
-  mem: MembotClient;
   config: Required<BotholomewConfig>;
   workerId: string;
   taskId: string;
@@ -113,28 +126,34 @@ export async function runSpecificTask(opts: {
     );
     return false;
   }
-  await runClaimedTask({
-    projectDir: opts.projectDir,
-    mem: opts.mem,
-    config: opts.config,
-    workerId: opts.workerId,
-    mcpxClient: opts.mcpxClient,
-    callbacks: opts.callbacks,
-    task,
-  });
+  const mem = openMembot(resolveMembotDir(opts.projectDir, opts.config));
+  await mem.connect();
+  try {
+    await runClaimedTask({
+      projectDir: opts.projectDir,
+      withMem: sharedWithMem(mem),
+      config: opts.config,
+      workerId: opts.workerId,
+      mcpxClient: opts.mcpxClient,
+      callbacks: opts.callbacks,
+      task,
+    });
+  } finally {
+    await mem.close();
+  }
   return true;
 }
 
 async function runClaimedTask(opts: {
   projectDir: string;
-  mem: MembotClient;
+  withMem: WithMem;
   config: Required<BotholomewConfig>;
   workerId: string;
   mcpxClient?: McpxClient | null;
   callbacks?: WorkerStreamCallbacks;
   task: Task;
 }): Promise<void> {
-  const { projectDir, mem, config, workerId, mcpxClient, callbacks, task } =
+  const { projectDir, withMem, config, workerId, mcpxClient, callbacks, task } =
     opts;
 
   logger.info(`Claimed task: ${task.name} (${task.id})`);
@@ -172,7 +191,7 @@ async function runClaimedTask(opts: {
       systemPrompt,
       task,
       config,
-      mem,
+      withMem,
       threadId,
       projectDir,
       workerId,

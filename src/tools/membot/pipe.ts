@@ -143,11 +143,13 @@ export const membotPipeTool = {
     }
 
     try {
-      const written = await ctx.mem.write({
-        logical_path: input.logical_path,
-        content: innerOutput,
-        change_note: input.change_note,
-      });
+      const written = await ctx.withMem((mem) =>
+        mem.write({
+          logical_path: input.logical_path,
+          content: innerOutput,
+          change_note: input.change_note,
+        }),
+      );
       return {
         is_error: false,
         logical_path: written.logical_path,
