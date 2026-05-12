@@ -317,21 +317,26 @@ function formatSize(bytes: number | null): string {
 
 function ContextDetailHeader({ entry }: { entry: ContextEntry }) {
   return (
-    <Box flexDirection="column" width="100%" backgroundColor={theme.headerBg}>
+    <Box flexDirection="column" width="100%">
       <Box>
-        <Text bold color="cyan" wrap="truncate-end">
+        <Text
+          bold
+          color="cyan"
+          backgroundColor={theme.headerBg}
+          wrap="truncate-end"
+        >
           📄 {entry.logical_path}
         </Text>
       </Box>
       <Box>
-        <Text dimColor wrap="truncate-end">
+        <Text dimColor backgroundColor={theme.headerBg} wrap="truncate-end">
           {entry.mime_type ?? "?"} · {formatSize(entry.size_bytes)} · v=
           {entry.version_id}
         </Text>
       </Box>
       {entry.description ? (
         <Box>
-          <Text dimColor wrap="truncate-end">
+          <Text dimColor backgroundColor={theme.headerBg} wrap="truncate-end">
             {entry.description}
           </Text>
         </Box>
