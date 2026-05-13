@@ -36,7 +36,7 @@ Concurrency:
   check, so a user editing the same file in `vim` mid-claim makes the
   worker abort cleanly rather than clobber the edit.
 - **Knowledge-store writes** (`membot_add`, `membot_write`,
-  `membot_edit`, `membot_move`, `membot_delete`, `membot_refresh`) go
+  `membot_edit`, `membot_move`, `membot_remove`, `membot_refresh`) go
   through membot's `MembotClient`. Membot manages its own DuckDB lock
   per-operation with exponential backoff, so multiple in-process
   consumers (worker, chat session, TUI Context panel) share the file

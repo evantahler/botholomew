@@ -43,7 +43,7 @@ exactly so reading membot's docs gives you the same vocabulary the agent uses.
 | `membot_diff` | Unified diff between two versions of an entry. |
 | `membot_write` | Write inline content as a new version. Whole-file replace. |
 | `membot_move` | Rename a `logical_path` (creates a new version, tombstones the old). |
-| `membot_delete` | Tombstone one or more entries. Use `membot_prune` to GC. |
+| `membot_remove` | Tombstone one or more entries. Use `membot_prune` to GC. |
 | `membot_refresh` | Re-fetch a URL-backed entry (if its source supports refresh). |
 | `membot_prune` | Permanently drop history older than a cutoff. |
 

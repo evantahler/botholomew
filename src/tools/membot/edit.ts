@@ -32,7 +32,7 @@ const outputSchema = z.object({
 export const membotEditTool = {
   name: "membot_edit",
   description:
-    "[[ bash equivalent command: patch ]] Apply line-range edits to a stored file: reads the current version, applies bottom-up patches, and writes the result back as a new version. Prefer this over membot_write when you only need to change part of a file — the diff is small and the change_note travels with the new version. To replace the whole body, use membot_write. To delete the file, use membot_delete.",
+    "[[ bash equivalent command: patch ]] Apply line-range edits to a stored file: reads the current version, applies bottom-up patches, and writes the result back as a new version. Prefer this over membot_write when you only need to change part of a file — the diff is small and the change_note travels with the new version. To replace the whole body, use membot_write. To delete the file, use membot_remove.",
   group: "membot",
   inputSchema,
   outputSchema,
