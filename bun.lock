@@ -6,7 +6,7 @@
       "name": "botholomew",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.95.2",
-        "@evantahler/mcpx": "0.21.7",
+        "@evantahler/mcpx": "0.21.8",
         "ansis": "^4.3.0",
         "commander": "^14.0.0",
         "gray-matter": "^4.0.3",
@@ -14,7 +14,7 @@
         "ink-spinner": "^5.0.0",
         "ink-text-input": "^6.0.0",
         "istextorbinary": "^9.5.0",
-        "membot": "^0.15.0",
+        "membot": "^0.15.4",
         "nanospinner": "^1.2.2",
         "react": "^19.2.6",
         "uuid": "^14.0.0",
@@ -175,7 +175,7 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.21.5", "", { "os": "win32", "cpu": "x64" }, "sha512-tQd/1efJuzPC6rCFwEvLtci/xNFcTZknmXs98FYDfGE4wP9ClFV98nyKrzJKVPMhdDnjzLhdUyMX4PsQAPjwIw=="],
 
-    "@evantahler/mcpx": ["@evantahler/mcpx@0.21.7", "", { "dependencies": { "@huggingface/transformers": "^4.2.0", "@modelcontextprotocol/sdk": "^1.29.0", "@types/picomatch": "^4.0.3", "ajv": "^8.20.0", "ansis": "^4.2.0", "commander": "^14.0.3", "nanospinner": "^1.2.2", "onnxruntime-web": "1.26.0-dev.20260416-b7804b056c", "picomatch": "^4.0.4" }, "peerDependencies": { "typescript": "^6" }, "bin": { "mcpx": "src/cli.ts" } }, "sha512-hkLZgT/kWAX4bq0agYKHX6JlyXvUDVHmM4uicTywoRQhkNRYjcHY7s5CNeV6r6BzynEsi8diF1PF4cGaIVHiIQ=="],
+    "@evantahler/mcpx": ["@evantahler/mcpx@0.21.8", "", { "dependencies": { "@huggingface/transformers": "^4.2.0", "@modelcontextprotocol/sdk": "^1.29.0", "@types/picomatch": "^4.0.3", "ajv": "^8.20.0", "ansis": "^4.2.0", "commander": "^14.0.3", "nanospinner": "^1.2.2", "onnxruntime-web": "1.26.0-dev.20260416-b7804b056c", "picomatch": "^4.0.4" }, "bin": { "mcpx": "src/cli.ts" } }, "sha512-G8tSalZlsvhTW0ZNGU7HmzL998zzU6FWv512fVICnwoytqZBC4isHN+dAWBlTCgC3E45JmurUXbsCjfXPjc9bg=="],
 
     "@hono/node-server": ["@hono/node-server@1.19.14", "", { "peerDependencies": { "hono": "^4" } }, "sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw=="],
 
@@ -777,7 +777,7 @@
 
     "lop": ["lop@0.4.2", "", { "dependencies": { "duck": "^0.1.12", "option": "~0.2.1", "underscore": "^1.13.1" } }, "sha512-RefILVDQ4DKoRZsJ4Pj22TxE3omDO47yFpkIBoDKzkqPRISs5U1cnAdg/5583YPkWPaLIYHOKRMQSvjFsO26cw=="],
 
-    "macos-ts": ["macos-ts@0.10.7", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.29.0", "protobufjs": "^8.0.1" }, "peerDependencies": { "typescript": "^5" }, "bin": { "macos-mcp": "src/mcp-server.ts" } }, "sha512-JIYZRVnuKdELtQFGrwM+2zgA5+aaG0DVkzOfWJ7bCg3MfMpvQiq+6fmpwJ7iRfuS1avbFtDooLqHyFi6x7/1hA=="],
+    "macos-ts": ["macos-ts@0.11.0", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.29.0", "protobufjs": "^8.0.1" }, "bin": { "macos-mcp": "src/mcp-server.ts" } }, "sha512-IJYAeZa/dTzCSys6cUE9RvpLRF7cKCTZEbAruZBBNzGt4+a5EHVEdZE9gpAJeIO3wEBRr3TNHxKwDLd4WPlL6w=="],
 
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 
@@ -811,7 +811,7 @@
 
     "media-typer": ["media-typer@1.1.0", "", {}, "sha512-aisnrDP4GNe06UcKFnV5bfMNPBUw4jsLGaWwWfnH3v02GnBuXX2MCVn5RbrWo0j3pczUilYblq7fQ7Nw2t5XKw=="],
 
-    "membot": ["membot@0.15.0", "", { "dependencies": { "@anthropic-ai/sdk": "^0.32.0", "@duckdb/node-api": "1.5.2-r.1", "@huggingface/transformers": "^4.2.0", "@modelcontextprotocol/sdk": "^1.29.0", "@types/picomatch": "^4.0.3", "@types/turndown": "^5.0.5", "ansis": "^4.2.0", "commander": "^14.0.3", "fast-xml-parser": "^5.7.3", "gray-matter": "^4.0.3", "jszip": "^3.10.1", "macos-ts": "^0.10.7", "mammoth": "^1.8.0", "mustache": "^4.2.0", "nanospinner": "^1.2.2", "onnxruntime-web": "1.26.0-dev.20260416-b7804b056c", "picomatch": "^4.0.4", "playwright": "^1.59.1", "turndown": "^7.2.0", "unpdf": "^0.12.0", "xlsx": "^0.18.5", "zod": "^4.0.0", "zod-to-json-schema": "^3.23.0" }, "peerDependencies": { "typescript": "^6" }, "bin": { "membot": "src/cli.ts" } }, "sha512-IG527U9bfcr4SXCyooob/kn2tg1cAe/niHjymRtBeEbNIHz5DOmBeUQsM74sJcg9muDFPKFygNISngrNX4GOCw=="],
+    "membot": ["membot@0.15.4", "", { "dependencies": { "@anthropic-ai/sdk": "^0.32.0", "@duckdb/node-api": "1.5.2-r.1", "@huggingface/transformers": "^4.2.0", "@modelcontextprotocol/sdk": "^1.29.0", "@types/picomatch": "^4.0.3", "@types/turndown": "^5.0.5", "ansis": "^4.2.0", "commander": "^14.0.3", "fast-xml-parser": "^5.7.3", "gray-matter": "^4.0.3", "jszip": "^3.10.1", "macos-ts": "^0.11.0", "mammoth": "^1.8.0", "mustache": "^4.2.0", "nanospinner": "^1.2.2", "onnxruntime-web": "1.26.0-dev.20260416-b7804b056c", "picomatch": "^4.0.4", "playwright": "^1.59.1", "turndown": "^7.2.0", "unpdf": "^0.12.0", "xlsx": "^0.18.5", "zod": "^4.0.0", "zod-to-json-schema": "^3.23.0" }, "bin": { "membot": "src/cli.ts" } }, "sha512-fiv5/IDlNY/it3n22qUaJR8+9F8hP5aGAzvxSJtB2nxp5ilJTTlfJ2BNEN9rnrdOr0RX9fi/F4TiallWAOnXDw=="],
 
     "merge-descriptors": ["merge-descriptors@2.0.0", "", {}, "sha512-Snk314V5ayFLhp3fkUREub6WtjBfPdCPY1Ln8/8munuLuiYhsABgBVWsozAG+MWMbVEvcdcpbi9R7ww22l9Q3g=="],
 

@@ -34,13 +34,14 @@ type MembotMethodName =
   | "move"
   | "remove"
   | "refresh"
-  | "prune";
+  | "prune"
+  | "sources";
 
 /**
- * Map an Operation's exposed name (`membot_add`, `membot_delete`, …) to the
- * `MembotClient` method that actually runs it. The two diverge in a couple
- * of spots — `membot_delete` calls `client.remove`, `membot_move` calls
- * `client.move` — so we keep the routing explicit rather than guessing.
+ * Map an Operation's exposed name (`membot_add`, `membot_remove`, …) to the
+ * `MembotClient` method that actually runs it. Mostly 1:1 with the op name
+ * minus the `membot_` prefix; kept explicit so a renamed/added op fails
+ * loudly at registration instead of silently misrouting.
  */
 const METHOD_BY_OP_NAME: Record<string, MembotMethodName> = {
   membot_add: "add",
@@ -54,9 +55,10 @@ const METHOD_BY_OP_NAME: Record<string, MembotMethodName> = {
   membot_diff: "diff",
   membot_write: "write",
   membot_move: "move",
-  membot_delete: "remove",
+  membot_remove: "remove",
   membot_refresh: "refresh",
   membot_prune: "prune",
+  membot_sources: "sources",
 };
 
 /**

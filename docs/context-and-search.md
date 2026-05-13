@@ -30,7 +30,7 @@ This page is intentionally short — the canonical docs live with membot.
   subcommand — it copies `~/.membot` into `<projectDir>` (useful when migrating
   global → project).
 - **Chat agent**: the agent calls `membot_add`, `membot_search`, `membot_read`,
-  `membot_write`, `membot_edit`, `membot_move`, `membot_delete`,
+  `membot_write`, `membot_edit`, `membot_move`, `membot_remove`,
   `membot_versions`, `membot_diff`, `membot_refresh`, etc. See
   [`docs/files.md`](./files.md) for the full tool surface and the
   Botholomew-side wrappers (`membot_edit`, `membot_copy`, `membot_exists`,
