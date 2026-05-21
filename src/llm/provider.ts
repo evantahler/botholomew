@@ -30,7 +30,13 @@ export function getLanguageModel(cfg: LlmBlock): LanguageModel {
     }
     case "ollama": {
       const baseURL = `${(cfg.base_url || DEFAULT_OLLAMA_BASE_URL).replace(/\/+$/, "")}/api`;
-      const ollama = createOllama({ baseURL });
+      // When `api_key` is set, send it as a bearer token. Local Ollama
+      // ignores auth headers; Ollama Cloud (https://ollama.com) requires
+      // them. Same code path covers both.
+      const headers = cfg.api_key
+        ? { Authorization: `Bearer ${cfg.api_key}` }
+        : undefined;
+      const ollama = createOllama({ baseURL, headers });
       return ollama(cfg.model);
     }
     case "openai-compatible": {
