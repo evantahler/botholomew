@@ -1,7 +1,11 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { getLanguageModel } from "../llm/index.ts";
+import {
+  buildProviderOptions,
+  getLanguageModel,
+  getMaxInputTokens,
+} from "../llm/index.ts";
 import type { Schedule } from "../schedules/schema.ts";
 import {
   listSchedules,
@@ -42,6 +46,7 @@ export async function evaluateSchedule(
   schedule: Schedule,
 ): Promise<ScheduleEvaluation> {
   const model = getLanguageModel(config.chunker_llm);
+  const numCtx = await getMaxInputTokens(config.chunker_llm);
 
   const systemPrompt = `You are a schedule evaluator. Given a recurring schedule, the current time, and when the schedule last ran, determine:
 1. Whether the schedule is currently due to run
@@ -64,6 +69,7 @@ Is this schedule due to run? If yes, what tasks should be created?`;
       system: systemPrompt,
       prompt: userMessage,
       maxOutputTokens: 1024,
+      providerOptions: buildProviderOptions(config.chunker_llm, numCtx),
     });
 
     return {

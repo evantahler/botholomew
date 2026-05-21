@@ -1,6 +1,10 @@
 import { generateText } from "ai";
 import type { BotholomewConfig } from "../config/schemas.ts";
-import { getLanguageModel } from "../llm/index.ts";
+import {
+  buildProviderOptions,
+  getLanguageModel,
+  getMaxInputTokens,
+} from "../llm/index.ts";
 import { updateThreadTitle } from "../threads/store.ts";
 import { logger } from "./logger.ts";
 
@@ -16,6 +20,7 @@ export async function generateThreadTitle(
 ): Promise<void> {
   try {
     const model = getLanguageModel(config.chunker_llm);
+    const numCtx = await getMaxInputTokens(config.chunker_llm);
 
     const { text } = await generateText({
       model,
@@ -23,6 +28,7 @@ export async function generateThreadTitle(
       system:
         "You are a title generator. The user will provide the first message from a conversation. Output a short descriptive title (5-8 words). Output ONLY the title, nothing else.",
       prompt: `Generate a title for this message:\n\n"${context}"`,
+      providerOptions: buildProviderOptions(config.chunker_llm, numCtx),
     });
 
     const title = text.trim();

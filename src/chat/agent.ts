@@ -5,6 +5,7 @@ import { streamText } from "ai";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import {
   type AbortHandle,
+  buildProviderOptions,
   createAbortHandle,
   extractCacheTokens,
   getLanguageModel,
@@ -83,6 +84,7 @@ const CHAT_TOOL_NAMES = new Set([
   "skill_search",
   "skill_delete",
   "sleep",
+  "read_large_result",
 ]);
 
 export function getChatTools() {
@@ -303,6 +305,7 @@ async function runChatTurnBody(input: {
       tools: wrapped.tools,
       maxOutputTokens: 4096,
       abortSignal: abortHandle.signal,
+      providerOptions: buildProviderOptions(config.llm, maxInputTokens),
     });
 
     let assistantText = "";

@@ -4,7 +4,11 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { getPromptsDir } from "../constants.ts";
-import { getLanguageModel } from "../llm/index.ts";
+import {
+  buildProviderOptions,
+  getLanguageModel,
+  getMaxInputTokens,
+} from "../llm/index.ts";
 import { getAllTools, type ToolDefinition } from "../tools/tool.ts";
 import {
   type ContextFileMeta,
@@ -241,12 +245,14 @@ async function summarizeViaLLM(
 
   try {
     const model = getLanguageModel(config.chunker_llm);
+    const numCtx = await getMaxInputTokens(config.chunker_llm);
     const { object } = await generateObject({
       model,
       schema: SummarySchema,
       system: SUMMARIZE_SYSTEM,
       prompt: userPrompt,
       maxOutputTokens: SUMMARIZE_MAX_TOKENS,
+      providerOptions: buildProviderOptions(config.chunker_llm, numCtx),
     });
     return object;
   } catch (err) {

@@ -3,6 +3,7 @@ import type { ModelMessage, ToolCallPart } from "ai";
 import { streamText } from "ai";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import {
+  buildProviderOptions,
   createAbortHandle,
   describeModel,
   extractCacheTokens,
@@ -130,6 +131,7 @@ export async function runAgentLoop(input: {
       tools: wrapped.tools,
       maxOutputTokens: 4096,
       abortSignal: abortHandle.signal,
+      providerOptions: buildProviderOptions(config.llm, maxInputTokens),
     });
 
     let streamedText = "";

@@ -25,7 +25,10 @@ const KNOWN_CONTEXT_WINDOWS: Record<string, number> = {
 
 const FALLBACK_BY_PROVIDER: Record<LlmBlock["provider"], number> = {
   anthropic: 200_000,
-  ollama: 8_000,
+  // Ollama allocates KV cache up front, so a generous default eats RAM on
+  // local machines. 16K covers Botholomew's system prompt + tool schemas +
+  // a reasonable conversation; raise via `llm.max_input_tokens` if needed.
+  ollama: 16_000,
   "openai-compatible": 32_000,
 };
 
@@ -67,16 +70,6 @@ async function ollamaShow(cfg: LlmBlock): Promise<OllamaShowResponse | null> {
     logger.debug(`Ollama /api/show failed: ${err}`);
     return null;
   }
-}
-
-function ollamaContextLengthFromShow(show: OllamaShowResponse): number | null {
-  const info = show.model_info ?? {};
-  for (const [key, value] of Object.entries(info)) {
-    if (key.endsWith(".context_length") && typeof value === "number") {
-      return value;
-    }
-  }
-  return null;
 }
 
 /**
@@ -141,15 +134,11 @@ export async function getMaxInputTokens(cfg: LlmBlock): Promise<number> {
 
   let resolved: number | null = null;
 
-  if (cfg.provider === "ollama") {
-    const show = await ollamaShow(cfg);
-    if (show) {
-      const fromShow = ollamaContextLengthFromShow(show);
-      if (fromShow && fromShow > 0) resolved = fromShow;
-    }
-  }
-
-  if (resolved == null) {
+  // For Ollama, skip /api/show — it reports the model's *maximum* (often
+  // 128K+), but Ollama allocates KV cache for the full num_ctx up front.
+  // Use the provider fallback so local Macs don't OOM. Users who want more
+  // can set `llm.max_input_tokens` explicitly.
+  if (cfg.provider !== "ollama") {
     const fromTable = KNOWN_CONTEXT_WINDOWS[cfg.model];
     if (fromTable && fromTable > 0) resolved = fromTable;
   }

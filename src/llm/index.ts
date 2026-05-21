@@ -7,6 +7,7 @@ export {
   type FakeTurn,
 } from "./fake.ts";
 export { describeModel, getLanguageModel } from "./provider.ts";
+export { buildProviderOptions } from "./provider-options.ts";
 export { toAiSdkTool, toAiSdkTools } from "./tools.ts";
 export {
   BotholomewLlmError,
