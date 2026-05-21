@@ -227,8 +227,8 @@ on the system prompt and the most recent assistant message; the response's
 Non-Anthropic providers report zero cache tokens — the TUI shows all
 input as fresh on Ollama / OpenAI-compatible runs.
 
-See [milestone 14](plans/milestone-14-pluggable-llm-providers.md) for the
-full design.
+See [milestone 14](https://github.com/evantahler/botholomew/blob/main/docs/plans/milestone-14-pluggable-llm-providers.md)
+for the full design.
 
 ---
 
