@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig, saveConfig } from "../../src/config/loader.ts";
@@ -115,6 +115,38 @@ describe("loadConfig", () => {
         delete process.env.ANTHROPIC_API_KEY;
       }
     }
+  });
+
+  test("follows a valid relative symlink", async () => {
+    await Bun.write(
+      join(projectDir, "config", "config.json.anthropic"),
+      JSON.stringify({ llm: { provider: "anthropic", api_key: "sk-linked" } }),
+    );
+    await symlink(
+      "config.json.anthropic",
+      join(projectDir, "config", "config.json"),
+    );
+
+    const originalEnv = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      const config = await loadConfig(projectDir);
+      expect(config.llm.api_key).toBe("sk-linked");
+    } finally {
+      if (originalEnv !== undefined)
+        process.env.ANTHROPIC_API_KEY = originalEnv;
+    }
+  });
+
+  test("throws a clear error when config.json is a dangling symlink", async () => {
+    await symlink(
+      "config.json.anthropic",
+      join(projectDir, "config", "config.json"),
+    );
+
+    await expect(loadConfig(projectDir)).rejects.toThrow(
+      /symlink to a missing target/,
+    );
   });
 
   test("OLLAMA_HOST env var fills in base_url for ollama provider when unset", async () => {

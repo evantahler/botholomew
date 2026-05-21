@@ -1,3 +1,4 @@
+import { lstat, readlink, stat } from "node:fs/promises";
 import { getConfigPath } from "../constants.ts";
 import { setLogLevel } from "../utils/logger.ts";
 import {
@@ -44,6 +45,9 @@ export async function loadConfig(
   projectDir: string,
 ): Promise<BotholomewConfig> {
   const configPath = getConfigPath(projectDir);
+
+  await assertNotDanglingSymlink(configPath);
+
   const file = Bun.file(configPath);
 
   let userConfig: DeepPartial<BotholomewConfig> = {};
@@ -63,6 +67,31 @@ export async function loadConfig(
   setLogLevel(config.log_level);
 
   return config;
+}
+
+async function assertNotDanglingSymlink(configPath: string): Promise<void> {
+  let lst: Awaited<ReturnType<typeof lstat>>;
+  try {
+    lst = await lstat(configPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw err;
+  }
+  if (!lst.isSymbolicLink()) return;
+  try {
+    await stat(configPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      const target = await readlink(configPath).catch(() => "<unreadable>");
+      throw new Error(
+        `Config file is a symlink to a missing target: ${configPath} -> ${target}. ` +
+          `Symlink targets are resolved relative to the symlink's own directory, ` +
+          `not the current working directory — use an absolute path or a target ` +
+          `relative to ${configPath.replace(/\/[^/]+$/, "")}.`,
+      );
+    }
+    throw err;
+  }
 }
 
 export async function saveConfig(
