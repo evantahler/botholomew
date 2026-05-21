@@ -218,8 +218,8 @@ at 2KB), so the agent can retry with different arguments.
 
 The `capabilities`-group tool `capabilities_refresh` exists so the
 agent can keep its own tool inventory fresh. It walks `getAllTools()`
-and `mcpxClient.listTools()`, then asks Claude (via
-`chunker_model`) to produce a **thematic summary** — one line per
+and `mcpxClient.listTools()`, then asks the configured `chunker_llm`
+to produce a **thematic summary** — one line per
 theme (e.g. "Gmail — read, send, draft, search, and reply to emails")
 rather than a line per tool. The result is written to
 `prompts/capabilities.md` (preserving frontmatter). Because that

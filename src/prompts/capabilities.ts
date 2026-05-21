@@ -1,8 +1,10 @@
 import { join } from "node:path";
-import Anthropic from "@anthropic-ai/sdk";
 import type { McpxClient } from "@evantahler/mcpx";
+import { generateObject } from "ai";
+import { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { getPromptsDir } from "../constants.ts";
+import { getLanguageModel } from "../llm/index.ts";
 import { getAllTools, type ToolDefinition } from "../tools/tool.ts";
 import {
   type ContextFileMeta,
@@ -14,7 +16,6 @@ import { logger } from "../utils/logger.ts";
 export const CAPABILITIES_FILENAME = "capabilities.md";
 
 // LLM config — summarization is one call per refresh, no streaming needed.
-const SUMMARIZE_TIMEOUT_MS = 30_000;
 const SUMMARIZE_MAX_TOKENS = 4096;
 
 // biome-ignore lint/suspicious/noExplicitAny: Zod-free tool schema for Anthropic SDK
@@ -142,71 +143,34 @@ interface SummarizedCapabilities {
   mcpx_servers: ServerThemes[];
 }
 
-const SUMMARIZE_TOOL_NAME = "return_capability_summary";
-const SUMMARIZE_TOOL = {
-  name: SUMMARIZE_TOOL_NAME,
-  description:
-    "Return thematic capability summaries for the agent's tool inventory.",
-  input_schema: {
-    type: "object" as const,
-    properties: {
-      internal_themes: {
-        type: "array",
-        description:
-          "Themes covering the agent's built-in tools (task queue, files & sandbox, search, threads, MCPX meta-tools, workers, self-reflection, etc.).",
-        items: {
-          type: "object",
-          properties: {
-            name: {
-              type: "string",
-              description: "Short theme name (2-4 words).",
-            },
-            summary: {
-              type: "string",
-              description:
-                "One sentence with concrete action verbs. No tool names. No preamble.",
-            },
-          },
-          required: ["name", "summary"],
-        },
-      },
-      mcpx_servers: {
-        type: "array",
-        description:
-          "MCPX tools grouped by their source server. Within each server, split into themes only when the server exposes distinct services (e.g. Gmail + Google Calendar on one server).",
-        items: {
-          type: "object",
-          properties: {
-            server: {
-              type: "string",
-              description: "Server name exactly as given in the inventory.",
-            },
-            themes: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  name: {
-                    type: "string",
-                    description: "Theme name (usually the service, e.g. Gmail)",
-                  },
-                  summary: {
-                    type: "string",
-                    description:
-                      "One sentence with concrete action verbs. No tool names.",
-                  },
-                },
-                required: ["name", "summary"],
-              },
-            },
-          },
-          required: ["server", "themes"],
-        },
-      },
-    },
-    required: ["internal_themes", "mcpx_servers"],
-  },
-};
+const ThemeSchema = z.object({
+  name: z.string().describe("Short theme name (2-4 words)."),
+  summary: z
+    .string()
+    .describe(
+      "One sentence with concrete action verbs. No tool names. No preamble.",
+    ),
+});
+
+const SummarySchema = z.object({
+  internal_themes: z
+    .array(ThemeSchema)
+    .describe(
+      "Themes covering the agent's built-in tools (task queue, files & sandbox, search, threads, MCPX meta-tools, workers, self-reflection, etc.).",
+    ),
+  mcpx_servers: z
+    .array(
+      z.object({
+        server: z
+          .string()
+          .describe("Server name exactly as given in the inventory."),
+        themes: z.array(ThemeSchema),
+      }),
+    )
+    .describe(
+      "MCPX tools grouped by their source server. Within each server, split into themes only when the server exposes distinct services.",
+    ),
+});
 
 function renderInventoryForPrompt(inv: RawInventory): string {
   const sections: string[] = [];
@@ -255,40 +219,36 @@ BAD examples (do not produce):
   "Provides access to Gmail operations via tools like Gmail_SendEmail..."
   "Tools for working with email"`;
 
+function hasUsableCreds(config: BotholomewConfig): boolean {
+  const cfg = config.chunker_llm;
+  if (cfg.provider === "anthropic") {
+    return !!cfg.api_key && cfg.api_key !== "your-api-key-here";
+  }
+  if (cfg.provider === "openai-compatible") {
+    return !!cfg.base_url;
+  }
+  // ollama: no credentials required, assume reachable.
+  return true;
+}
+
 async function summarizeViaLLM(
   inv: RawInventory,
-  config: Required<BotholomewConfig>,
+  config: BotholomewConfig,
 ): Promise<SummarizedCapabilities | null> {
-  if (
-    !config.anthropic_api_key ||
-    config.anthropic_api_key === "your-api-key-here"
-  ) {
-    return null;
-  }
+  if (!hasUsableCreds(config)) return null;
 
-  const client = new Anthropic({ apiKey: config.anthropic_api_key });
-  const userPrompt = `Summarize this tool inventory. Return via the \`${SUMMARIZE_TOOL_NAME}\` tool.\n\n${renderInventoryForPrompt(inv)}`;
+  const userPrompt = `Summarize this tool inventory.\n\n${renderInventoryForPrompt(inv)}`;
 
   try {
-    const response = await client.messages.create(
-      {
-        model: config.chunker_model,
-        max_tokens: SUMMARIZE_MAX_TOKENS,
-        system: SUMMARIZE_SYSTEM,
-        tools: [SUMMARIZE_TOOL],
-        tool_choice: { type: "tool", name: SUMMARIZE_TOOL_NAME },
-        messages: [{ role: "user", content: userPrompt }],
-      },
-      { timeout: SUMMARIZE_TIMEOUT_MS },
-    );
-
-    const toolBlock = response.content.find((b) => b.type === "tool_use");
-    if (!toolBlock || toolBlock.type !== "tool_use") return null;
-
-    const input = toolBlock.input as SummarizedCapabilities;
-    if (!Array.isArray(input.internal_themes)) return null;
-    if (!Array.isArray(input.mcpx_servers)) return null;
-    return input;
+    const model = getLanguageModel(config.chunker_llm);
+    const { object } = await generateObject({
+      model,
+      schema: SummarySchema,
+      system: SUMMARIZE_SYSTEM,
+      prompt: userPrompt,
+      maxOutputTokens: SUMMARIZE_MAX_TOKENS,
+    });
+    return object;
   } catch (err) {
     logger.debug(`Capability summarization failed: ${(err as Error).message}`);
     return null;
@@ -404,7 +364,7 @@ function renderFallback(inv: RawInventory, now: Date): string {
     );
   } else {
     parts.push(
-      "_(LLM summarization unavailable — set `anthropic_api_key` and rerun to generate themed summaries. Until then, use `mcp_list_tools` with each server to see what's exposed.)_",
+      "_(LLM summarization unavailable — set `llm.api_key` (or `llm.base_url` for local providers) and rerun to generate themed summaries. Until then, use `mcp_list_tools` with each server to see what's exposed.)_",
     );
     parts.push("");
     const servers = [...inv.mcpByServer.keys()].sort();
@@ -418,29 +378,24 @@ function renderFallback(inv: RawInventory, now: Date): string {
 }
 
 /**
- * Build the body of capabilities.md. When `config.anthropic_api_key` is set,
- * Claude is asked to produce thematic summaries. Otherwise (or on failure) a
- * static fallback listing is rendered.
+ * Build the body of capabilities.md. When the configured chunker LLM has
+ * usable credentials, the model is asked to produce thematic summaries.
+ * Otherwise (or on failure) a static fallback listing is rendered.
  */
 export async function generateCapabilitiesMarkdown(
   mcpxClient: McpxClient | null,
-  config: Required<BotholomewConfig>,
+  config: BotholomewConfig,
   now: Date = new Date(),
   onPhase?: ProgressCallback,
 ): Promise<GenerateResult> {
   const inv = await collectInventory(mcpxClient, onPhase);
 
-  // Don't call the LLM when the inventory is empty / broken — the fallback
-  // conveys the same information and avoids an unnecessary API round trip.
   const hasAnythingToSummarize =
     inv.mcpByServer.size > 0 || inv.internalTotal > 0;
 
   let summary: SummarizedCapabilities | null = null;
   if (hasAnythingToSummarize) {
-    const canSummarize =
-      config.anthropic_api_key &&
-      config.anthropic_api_key !== "your-api-key-here";
-    if (canSummarize) {
+    if (hasUsableCreds(config)) {
       onPhase?.(
         `Summarizing ${inv.internalTotal} internal + ${inv.mcpTotal} MCPX tools`,
       );
@@ -472,7 +427,7 @@ export interface WriteResult {
 export async function writeCapabilitiesFile(
   projectDir: string,
   mcpxClient: McpxClient | null,
-  config: Required<BotholomewConfig>,
+  config: BotholomewConfig,
   onPhase?: ProgressCallback,
 ): Promise<WriteResult> {
   const filePath = join(getPromptsDir(projectDir), CAPABILITIES_FILENAME);

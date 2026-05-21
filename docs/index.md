@@ -58,8 +58,12 @@ bun install -g botholomew
 # 2. Initialize a project
 botholomew init
 
-# 3. Set your Anthropic API key (embeddings run locally — no other key needed)
+# 3a. Set your Anthropic API key (Claude is the default; embeddings always run locally)
 export ANTHROPIC_API_KEY=sk-ant-...
+
+# 3b. ...or run fully locally with Ollama:
+#    ollama serve & ollama pull llama3.1:8b
+#    botholomew init --force --provider ollama   # no API key needed
 
 # 4. Queue some work and run a worker
 botholomew task add "Summarize every markdown file in ~/notes"

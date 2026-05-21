@@ -43,7 +43,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - **Runtime**: Bun + TypeScript
 - **Knowledge store**: [`membot`](https://github.com/evantahler/membot) — owns `<projectDir>/index.duckdb`, the ingestion pipeline (PDF/DOCX/HTML → markdown, local WASM embeddings, hybrid BM25 + semantic search), append-only versioning, and URL fetchers.
 - **On-disk state we own**: markdown w/ frontmatter for tasks/schedules/prompts/skills; CSV for threads; JSON for worker pidfiles.
-- **LLM**: Anthropic SDK (`@anthropic-ai/sdk`)
+- **LLM**: Vercel AI SDK (`ai`) with pluggable providers — Anthropic (`@ai-sdk/anthropic`), Ollama (`ollama-ai-provider-v2`), and OpenAI-compatible endpoints (`@ai-sdk/openai-compatible`). All access is wrapped by `src/llm/`.
 - **CLI**: Commander.js
 - **TUI**: Ink 7 + React 19
 - **External tools**: MCPX
@@ -62,6 +62,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - When designing or modifying agent tools, follow PATs (Patterns for Agentic Tools): https://arcade.dev/patterns/llm.txt — key principles: error-guided recovery, next-action hints, token-efficient outputs, error classification
 - **Tool descriptions mirror bash when applicable** — if an LLM tool behaves like a familiar CLI command (e.g., `cat`, `ls`, `mv`, `grep`), prefix its `description` with `[[ bash equivalent command: <cmd> ]] ` followed by the short description. This anchors the tool for the model and keeps the tag machine-parseable. Membot ops already follow this convention upstream; the Botholomew adapter passes their descriptions through verbatim.
 - **Unified line-patch edits.** Resource-edit tools (`task_edit`, `schedule_edit`, `prompt_edit`, `skill_edit`, `membot_edit`) all use the same git-hunk-style patch from `src/fs/patches.ts` — `LinePatchSchema` (`{start_line, end_line, content}`) plus `applyLinePatches`. Reuse this for any new edit tool; don't invent a parallel shape.
+- **LLM access goes through `src/llm/`.** Never import `@ai-sdk/*`, `ai`, or any provider plugin (`@ai-sdk/anthropic`, `ollama-ai-provider-v2`, `@ai-sdk/openai-compatible`) from outside `src/llm/`. Call sites use `getLanguageModel(cfg)`, `toAiSdkTools(defs)`, `assertToolCapable(cfg)`, `extractCacheTokens(...)`, `withAnthropicCacheBreakpoints(...)`, and the AI SDK's neutral types (`ModelMessage`, `ToolSet`, `LanguageModelUsage`).
 - **Prompts are a generic markdown bag.** Every `prompts/*.md` is treated identically by `src/worker/prompt.ts` — `init` only seeds `goals.md`, `beliefs.md`, `capabilities.md` as a starting point, but they are not special-cased. Frontmatter (`title`, `loading`, `agent-modification`) is strict-validated in `src/utils/frontmatter.ts` and failures **fast-fail** (abort the worker / chat turn) rather than quarantine, since prompts shape the agent's reasoning. Tasks/schedules keep the existing quarantine behavior. Full CRUD is exposed via `botholomew prompts *` and `prompt_*` agent tools.
 
 ## On-disk patterns

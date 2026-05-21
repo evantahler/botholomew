@@ -101,9 +101,14 @@ bun run dev -- --help
 # 1. Initialize a project in the current directory
 botholomew init
 
-# 2. Add your Anthropic key to config/config.json, or export it
+# 2a. Add your Anthropic key (Claude is the default) to config/config.json, or export it
 export ANTHROPIC_API_KEY=sk-ant-...
-# Embeddings run locally — no API key required.
+# Embeddings always run locally.
+#
+# 2b. ...or initialize for a local Ollama model — no API key required:
+#     ollama serve & ollama pull llama3.1:8b
+#     botholomew init --force --provider ollama
+# See docs/configuration.md for OpenAI-compatible endpoints (LM Studio, OpenRouter, etc.).
 
 # 3. Queue some work
 botholomew task add "Summarize every markdown file in ~/notes"

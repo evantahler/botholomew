@@ -31,7 +31,7 @@ beforeEach(async () => {
   ctx = {
     withMem: null as never,
     projectDir,
-    config: { ...DEFAULT_CONFIG, anthropic_api_key: "test-key" },
+    config: DEFAULT_CONFIG,
     mcpxClient: null,
   };
 });

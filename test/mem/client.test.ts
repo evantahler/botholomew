@@ -20,8 +20,10 @@ describe("resolveMembotDir", () => {
     ).toBe("/tmp/project-a");
   });
 
-  test("missing scope falls back to global (so existing projects opt into the new default)", () => {
-    expect(resolveMembotDir("/tmp/proj", {})).toBe(join(homedir(), ".membot"));
+  test("global scope resolves to ~/.membot", () => {
+    expect(resolveMembotDir("/tmp/proj", { membot_scope: "global" })).toBe(
+      join(homedir(), ".membot"),
+    );
   });
 });
 

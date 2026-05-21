@@ -15,6 +15,7 @@
 | 11 | [Disk-Backed Project Layout](disk-backed-project-layout.md) | Move context, tasks, and schedules out of DuckDB onto real disk; lockfile claim; sandbox helper |
 | 12 | [Generic Prompts CRUD](milestone-12-generic-prompts-crud.md) | Drop the four-file cast; strict Zod-validated frontmatter; full CRUD via CLI + agent tools |
 | 13 | [Replace Context with `membot`](milestone-13-replace-context-with-membot.md) | Delete `src/context/` + `src/db/`; consume membot as an SDK; agent learns `membot_*` tools; per-project DuckDB store |
+| 14 | [Pluggable LLM Providers](milestone-14-pluggable-llm-providers.md) | Drop direct Anthropic SDK; adopt Vercel AI SDK; ship Anthropic + Ollama + OpenAI-compatible; nested `llm`/`chunker_llm` config; fully-local execution possible |
 
 ## Stub/TODO Coverage
 

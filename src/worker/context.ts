@@ -1,12 +1,10 @@
-import Anthropic from "@anthropic-ai/sdk";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import type { ModelMessage } from "ai";
+import type { LlmBlock } from "../config/schemas.ts";
+import { getMaxInputTokens as llmGetMaxInputTokens } from "../llm/index.ts";
 import { logger } from "../utils/logger.ts";
 
 /** Rough estimate: ~4 characters per token for English text */
 const CHARS_PER_TOKEN = 4;
-
-/** Fallback if the models API call fails */
-const DEFAULT_MAX_INPUT_TOKENS = 200_000;
 
 /** Reserve this fraction of the context window for safety margin */
 const HEADROOM_FRACTION = 0.1;
@@ -14,100 +12,75 @@ const HEADROOM_FRACTION = 0.1;
 /** Maximum characters for a single tool result before truncation */
 const MAX_TOOL_RESULT_CHARS = 50_000;
 
-/** Cache model max_input_tokens to avoid repeated API calls */
-const modelTokenCache = new Map<string, number>();
-
-/**
- * Look up the model's max input tokens via the Anthropic Models API.
- * Results are cached per model ID for the lifetime of the process.
- */
-export async function getMaxInputTokens(
-  apiKey: string | undefined,
-  model: string,
-): Promise<number> {
-  const cached = modelTokenCache.get(model);
-  if (cached !== undefined) return cached;
-
-  try {
-    const client = new Anthropic({ apiKey: apiKey || undefined });
-    const info = await client.beta.models.retrieve(model);
-    const limit = info.max_input_tokens ?? DEFAULT_MAX_INPUT_TOKENS;
-    modelTokenCache.set(model, limit);
-    return limit;
-  } catch (err) {
-    logger.debug(`Failed to retrieve model info for ${model}: ${err}`);
-    modelTokenCache.set(model, DEFAULT_MAX_INPUT_TOKENS);
-    return DEFAULT_MAX_INPUT_TOKENS;
-  }
+/** Re-export so call sites have a single entry point. */
+export function getMaxInputTokens(cfg: LlmBlock): Promise<number> {
+  return llmGetMaxInputTokens(cfg);
 }
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN);
 }
 
-function messageChars(msg: MessageParam): number {
+function messageChars(msg: ModelMessage): number {
   if (typeof msg.content === "string") return msg.content.length;
-  if (Array.isArray(msg.content)) {
-    let total = 0;
-    for (const block of msg.content) {
-      if ("text" in block && typeof block.text === "string") {
-        total += block.text.length;
-      } else if ("content" in block && typeof block.content === "string") {
-        total += block.content.length;
-      } else {
-        // tool_use blocks with input, etc.
-        total += JSON.stringify(block).length;
-      }
+  if (!Array.isArray(msg.content)) return 0;
+  let total = 0;
+  for (const block of msg.content) {
+    const b = block as Record<string, unknown>;
+    if (typeof b.text === "string") {
+      total += b.text.length;
+    } else if (b.type === "tool-result" && typeof b.output === "object") {
+      const out = b.output as { value?: unknown };
+      total +=
+        typeof out.value === "string"
+          ? out.value.length
+          : JSON.stringify(out.value ?? "").length;
+    } else {
+      total += JSON.stringify(b).length;
     }
-    return total;
   }
-  return JSON.stringify(msg.content).length;
+  return total;
 }
 
 /**
- * Truncate individual tool results that are excessively large.
- * Mutates messages in-place.
+ * Truncate individual tool results that are excessively large. Mutates in-place.
  */
-function truncateToolResults(messages: MessageParam[]): void {
+function truncateToolResults(messages: ModelMessage[]): void {
   for (const msg of messages) {
+    if (msg.role !== "tool") continue;
     if (!Array.isArray(msg.content)) continue;
     for (const block of msg.content) {
-      if (
-        "type" in block &&
-        block.type === "tool_result" &&
-        "content" in block &&
-        typeof block.content === "string" &&
-        block.content.length > MAX_TOOL_RESULT_CHARS
-      ) {
-        const original = block.content.length;
-        (block as { content: string }).content =
-          block.content.slice(0, MAX_TOOL_RESULT_CHARS) +
-          `\n\n[truncated: ${original} chars → ${MAX_TOOL_RESULT_CHARS} chars]`;
-      }
+      const b = block as {
+        type?: string;
+        output?: { type?: string; value?: unknown };
+      };
+      if (b.type !== "tool-result" || !b.output) continue;
+      const out = b.output;
+      if (typeof out.value !== "string") continue;
+      if (out.value.length <= MAX_TOOL_RESULT_CHARS) continue;
+      const original = out.value.length;
+      out.value =
+        out.value.slice(0, MAX_TOOL_RESULT_CHARS) +
+        `\n\n[truncated: ${original} chars → ${MAX_TOOL_RESULT_CHARS} chars]`;
     }
   }
 }
 
 /**
  * Ensure the conversation fits within the context window.
- * Strategy:
- * 1. Truncate oversized tool results
- * 2. If still too large, drop oldest assistant/tool pairs from the middle
- *    (keeping the first user message and recent messages)
- *
- * Mutates messages in-place and returns the array.
+ * 1) Truncate oversized tool results in place.
+ * 2) If still too large, drop oldest messages from the middle (keeping the
+ *    first user message and recent messages).
  */
 export function fitToContextWindow(
-  messages: MessageParam[],
+  messages: ModelMessage[],
   systemPrompt: string,
   maxInputTokens: number,
-): MessageParam[] {
-  // Step 1: truncate oversized tool results
+): ModelMessage[] {
   truncateToolResults(messages);
 
-  // Step 2: estimate total tokens
   const systemTokens = estimateTokens(systemPrompt);
-  const responseBuffer = 4096; // max_tokens for the response
+  const responseBuffer = 4096;
   const headroom = Math.ceil(maxInputTokens * HEADROOM_FRACTION);
 
   const budget = maxInputTokens - systemTokens - responseBuffer - headroom;
@@ -121,16 +94,11 @@ export function fitToContextWindow(
   let totalChars = messages.reduce((sum, m) => sum + messageChars(m), 0);
   let totalTokens = Math.ceil(totalChars / CHARS_PER_TOKEN);
 
-  if (totalTokens <= budget) {
-    return messages;
-  }
+  if (totalTokens <= budget) return messages;
 
-  // Step 3: drop oldest message pairs from the middle until we fit.
-  // Keep messages[0] (initial user message) and remove from index 1 onward.
   let dropped = 0;
   while (totalTokens > budget && messages.length > 2) {
-    // Remove the oldest non-first message (index 1)
-    const removed = messages.splice(1, 1)[0] as MessageParam;
+    const removed = messages.splice(1, 1)[0] as ModelMessage;
     totalChars -= messageChars(removed);
     totalTokens = Math.ceil(totalChars / CHARS_PER_TOKEN);
     dropped++;

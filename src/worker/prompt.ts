@@ -115,7 +115,7 @@ User: ${process.env.USER || process.env.USERNAME || "unknown"}
 export async function buildSystemPrompt(
   projectDir: string,
   task?: Task,
-  _config?: Required<BotholomewConfig>,
+  _config?: BotholomewConfig,
   options?: { hasMcpTools?: boolean },
 ): Promise<string> {
   let prompt = buildMetaHeader(projectDir);
