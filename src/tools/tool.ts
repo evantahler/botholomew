@@ -1,6 +1,5 @@
-import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
 import type { McpxClient } from "@evantahler/mcpx";
-import { z } from "zod";
+import type { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { WithMem } from "../mem/client.ts";
 
@@ -14,7 +13,7 @@ export interface ToolContext {
    */
   withMem: WithMem;
   projectDir: string;
-  config: Required<BotholomewConfig>;
+  config: BotholomewConfig;
   mcpxClient: McpxClient | null;
   /**
    * Identifier of the agent process running this tool, used as the holder
@@ -83,23 +82,4 @@ export function getAllTools(): AnyToolDefinition[] {
 
 export function getToolsByGroup(group: string): AnyToolDefinition[] {
   return getAllTools().filter((t) => t.group === group);
-}
-
-// --- Anthropic adapter ---
-
-export function toAnthropicTool(tool: AnyToolDefinition): AnthropicTool {
-  const jsonSchema = z.toJSONSchema(tool.inputSchema);
-  return {
-    name: tool.name,
-    description: tool.description,
-    input_schema: {
-      type: "object" as const,
-      properties: jsonSchema.properties ?? {},
-      required: jsonSchema.required as string[] | undefined,
-    },
-  };
-}
-
-export function toAnthropicTools(): AnthropicTool[] {
-  return getAllTools().map(toAnthropicTool);
 }

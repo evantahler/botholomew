@@ -200,6 +200,38 @@ chat agent can dispatch workers without blocking.
 
 ---
 
+## LLM provider abstraction
+
+Every model call routes through `src/llm/`, which wraps the
+[Vercel AI SDK](https://github.com/vercel/ai). Three providers ship:
+**Anthropic** (Claude, the default), **Ollama** (local), and any
+**OpenAI-compatible** endpoint (LM Studio, llama.cpp, OpenRouter, vLLM,
+Groq, Together, etc.).
+
+The worker turn loop, the chat agent loop, the schedule evaluator
+(`generateObject`), the title generator (`generateText`), and the
+capability summarizer (`generateObject`) all call into `src/llm/`
+helpers — never the AI SDK or its provider plugins directly. The
+boundary rule lets us swap providers, add new ones, or change SDK
+versions without touching the rest of the codebase.
+
+Tool calling is a hard runtime invariant: `assertToolCapable(cfg)` runs
+at chat session start and worker startup, and throws a clear error
+listing known-good models per provider if the configured model can't
+call tools. There is no ReAct text-protocol fallback.
+
+Prompt caching is preserved on Anthropic via `providerOptions.anthropic.cacheControl`
+on the system prompt and the most recent assistant message; the response's
+`providerMetadata.anthropic.cacheReadInputTokens` and
+`cacheCreationInputTokens` flow back into the TUI's context-usage panel.
+Non-Anthropic providers report zero cache tokens — the TUI shows all
+input as fresh on Ollama / OpenAI-compatible runs.
+
+See [milestone 14](https://github.com/evantahler/botholomew/blob/main/docs/plans/milestone-14-pluggable-llm-providers.md)
+for the full design.
+
+---
+
 ## Automation without a resident daemon
 
 Earlier versions of Botholomew shipped an OS-level watchdog (launchd on

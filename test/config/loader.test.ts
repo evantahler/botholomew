@@ -9,7 +9,6 @@ let projectDir: string;
 
 beforeEach(async () => {
   projectDir = await mkdtemp(join(tmpdir(), "botholomew-test-"));
-  // Create the .botholomew directory
   const { mkdir } = await import("node:fs/promises");
   await mkdir(join(projectDir, "config"), { recursive: true });
 });
@@ -20,32 +19,38 @@ afterEach(async () => {
 
 describe("loadConfig", () => {
   test("returns defaults when no config file exists", async () => {
-    const config = await loadConfig(projectDir);
-    expect(config).toEqual(DEFAULT_CONFIG);
+    const originalEnv = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      const config = await loadConfig(projectDir);
+      expect(config).toEqual(DEFAULT_CONFIG);
+    } finally {
+      if (originalEnv !== undefined)
+        process.env.ANTHROPIC_API_KEY = originalEnv;
+    }
   });
 
-  test("merges partial user config with defaults", async () => {
+  test("merges partial user llm block with defaults", async () => {
     await Bun.write(
       join(projectDir, "config", "config.json"),
-      JSON.stringify({ model: "claude-sonnet-4-20250514" }),
+      JSON.stringify({ llm: { model: "claude-sonnet-4-20250514" } }),
     );
 
     const config = await loadConfig(projectDir);
-    expect(config.model).toBe("claude-sonnet-4-20250514");
-    // Other fields should be defaults
+    expect(config.llm.model).toBe("claude-sonnet-4-20250514");
+    expect(config.llm.provider).toBe("anthropic");
     expect(config.tick_interval_seconds).toBe(
       DEFAULT_CONFIG.tick_interval_seconds,
     );
-    expect(config.max_tick_duration_seconds).toBe(
-      DEFAULT_CONFIG.max_tick_duration_seconds,
-    );
-    expect(config.anthropic_api_key).toBe(DEFAULT_CONFIG.anthropic_api_key);
   });
 
   test("loads full user config", async () => {
     const userConfig = {
-      anthropic_api_key: "sk-test-key",
-      model: "claude-sonnet-4-20250514",
+      llm: {
+        provider: "anthropic",
+        model: "claude-sonnet-4-20250514",
+        api_key: "sk-test-key",
+      },
       tick_interval_seconds: 60,
       max_tick_duration_seconds: 30,
     };
@@ -54,17 +59,24 @@ describe("loadConfig", () => {
       JSON.stringify(userConfig),
     );
 
-    const config = await loadConfig(projectDir);
-    expect(config.anthropic_api_key).toBe("sk-test-key");
-    expect(config.model).toBe("claude-sonnet-4-20250514");
-    expect(config.tick_interval_seconds).toBe(60);
-    expect(config.max_tick_duration_seconds).toBe(30);
+    const originalEnv = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      const config = await loadConfig(projectDir);
+      expect(config.llm.api_key).toBe("sk-test-key");
+      expect(config.llm.model).toBe("claude-sonnet-4-20250514");
+      expect(config.tick_interval_seconds).toBe(60);
+      expect(config.max_tick_duration_seconds).toBe(30);
+    } finally {
+      if (originalEnv !== undefined)
+        process.env.ANTHROPIC_API_KEY = originalEnv;
+    }
   });
 
-  test("ANTHROPIC_API_KEY env var overrides config file", async () => {
+  test("ANTHROPIC_API_KEY env var overrides config file for anthropic provider", async () => {
     await Bun.write(
       join(projectDir, "config", "config.json"),
-      JSON.stringify({ anthropic_api_key: "from-file" }),
+      JSON.stringify({ llm: { provider: "anthropic", api_key: "from-file" } }),
     );
 
     const originalEnv = process.env.ANTHROPIC_API_KEY;
@@ -72,7 +84,7 @@ describe("loadConfig", () => {
 
     try {
       const config = await loadConfig(projectDir);
-      expect(config.anthropic_api_key).toBe("from-env");
+      expect(config.llm.api_key).toBe("from-env");
     } finally {
       if (originalEnv !== undefined) {
         process.env.ANTHROPIC_API_KEY = originalEnv;
@@ -82,50 +94,78 @@ describe("loadConfig", () => {
     }
   });
 
-  test("env var override takes precedence even with no config file", async () => {
+  test("ANTHROPIC_API_KEY does not apply to non-anthropic providers", async () => {
+    await Bun.write(
+      join(projectDir, "config", "config.json"),
+      JSON.stringify({
+        llm: { provider: "ollama", model: "llama3.1:8b" },
+      }),
+    );
+
     const originalEnv = process.env.ANTHROPIC_API_KEY;
-    process.env.ANTHROPIC_API_KEY = "env-only";
+    process.env.ANTHROPIC_API_KEY = "from-env";
 
     try {
       const config = await loadConfig(projectDir);
-      expect(config.anthropic_api_key).toBe("env-only");
+      expect(config.llm.api_key).toBe("");
     } finally {
       if (originalEnv !== undefined) {
         process.env.ANTHROPIC_API_KEY = originalEnv;
       } else {
         delete process.env.ANTHROPIC_API_KEY;
       }
+    }
+  });
+
+  test("OLLAMA_HOST env var fills in base_url for ollama provider when unset", async () => {
+    await Bun.write(
+      join(projectDir, "config", "config.json"),
+      JSON.stringify({ llm: { provider: "ollama", model: "llama3.1:8b" } }),
+    );
+
+    const original = process.env.OLLAMA_HOST;
+    process.env.OLLAMA_HOST = "http://example:11434";
+    try {
+      const config = await loadConfig(projectDir);
+      expect(config.llm.base_url).toBe("http://example:11434");
+    } finally {
+      if (original !== undefined) process.env.OLLAMA_HOST = original;
+      else delete process.env.OLLAMA_HOST;
     }
   });
 });
 
 describe("saveConfig", () => {
   test("saves config to file", async () => {
-    await saveConfig(projectDir, { model: "claude-sonnet-4-20250514" });
+    await saveConfig(projectDir, {
+      llm: { provider: "anthropic", model: "claude-sonnet-4-20250514" },
+    });
 
     const content = await Bun.file(
       join(projectDir, "config", "config.json"),
     ).text();
     const parsed = JSON.parse(content);
-    expect(parsed.model).toBe("claude-sonnet-4-20250514");
+    expect(parsed.llm.model).toBe("claude-sonnet-4-20250514");
   });
 
   test("save then load roundtrip preserves fields", async () => {
-    const config = {
-      anthropic_api_key: "sk-roundtrip",
-      model: "claude-sonnet-4-20250514",
+    const cfg = {
+      llm: {
+        provider: "anthropic" as const,
+        model: "claude-sonnet-4-20250514",
+        api_key: "sk-roundtrip",
+      },
       tick_interval_seconds: 120,
     };
-    await saveConfig(projectDir, config);
+    await saveConfig(projectDir, cfg);
 
-    // Clear env to avoid override
     const originalEnv = process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
 
     try {
       const loaded = await loadConfig(projectDir);
-      expect(loaded.anthropic_api_key).toBe("sk-roundtrip");
-      expect(loaded.model).toBe("claude-sonnet-4-20250514");
+      expect(loaded.llm.api_key).toBe("sk-roundtrip");
+      expect(loaded.llm.model).toBe("claude-sonnet-4-20250514");
       expect(loaded.tick_interval_seconds).toBe(120);
     } finally {
       if (originalEnv !== undefined) {
@@ -135,14 +175,12 @@ describe("saveConfig", () => {
   });
 
   test("formats JSON with indentation", async () => {
-    await saveConfig(projectDir, { model: "test" });
+    await saveConfig(projectDir, { llm: { model: "test" } });
 
     const content = await Bun.file(
       join(projectDir, "config", "config.json"),
     ).text();
-    // Should be indented (pretty-printed)
     expect(content).toContain("  ");
-    // Should end with a newline
     expect(content.endsWith("\n")).toBe(true);
   });
 });

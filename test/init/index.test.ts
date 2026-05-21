@@ -110,8 +110,9 @@ describe("initProject", () => {
     await initProject(projectDir);
     const path = join(projectDir, CONFIG_DIR, CONFIG_FILENAME);
     const cfg = JSON.parse(await fileText(path));
-    expect(cfg.anthropic_api_key).toBeDefined();
-    expect(cfg.model).toBeTruthy();
+    expect(cfg.llm).toBeDefined();
+    expect(cfg.llm.provider).toBe("anthropic");
+    expect(cfg.llm.model).toBeTruthy();
     expect(cfg.tick_interval_seconds).toBeGreaterThan(0);
   });
 

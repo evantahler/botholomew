@@ -1,13 +1,19 @@
-import type Anthropic from "@anthropic-ai/sdk";
-import { APIUserAbortError } from "@anthropic-ai/sdk";
-import type {
-  Message,
-  MessageParam,
-  ToolResultBlockParam,
-  ToolUseBlock,
-} from "@anthropic-ai/sdk/resources/messages";
+import { isAbortError } from "@ai-sdk/provider-utils";
 import type { McpxClient } from "@evantahler/mcpx";
+import type { LanguageModel, ModelMessage, ToolCallPart } from "ai";
+import { streamText } from "ai";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import {
+  type AbortHandle,
+  buildProviderOptions,
+  createAbortHandle,
+  drainStreamPromises,
+  extractCacheTokens,
+  formatLlmError,
+  getLanguageModel,
+  toAiSdkTools,
+  withAnthropicCacheBreakpoints,
+} from "../llm/index.ts";
 import {
   openMembot,
   resolveMembotDir,
@@ -16,15 +22,9 @@ import {
 } from "../mem/client.ts";
 import { logInteraction } from "../threads/store.ts";
 import { registerAllTools } from "../tools/registry.ts";
-import {
-  getAllTools,
-  getTool,
-  type ToolContext,
-  toAnthropicTool,
-} from "../tools/tool.ts";
+import { getAllTools, getTool, type ToolContext } from "../tools/tool.ts";
 import { fitToContextWindow, getMaxInputTokens } from "../worker/context.ts";
 import { maybeStoreResult } from "../worker/large-results.ts";
-import { createLlmClient } from "../worker/llm-client.ts";
 import {
   buildMetaHeader,
   extractKeywords,
@@ -86,19 +86,18 @@ const CHAT_TOOL_NAMES = new Set([
   "skill_search",
   "skill_delete",
   "sleep",
+  "read_large_result",
 ]);
 
 export function getChatTools() {
-  return getAllTools()
-    .filter((t) => CHAT_TOOL_NAMES.has(t.name))
-    .map(toAnthropicTool);
+  return toAiSdkTools(getAllTools().filter((t) => CHAT_TOOL_NAMES.has(t.name)));
 }
 
 export async function buildChatSystemPrompt(
   projectDir: string,
   options?: {
     keywordSource?: string;
-    config?: Required<BotholomewConfig>;
+    config?: BotholomewConfig;
     hasMcpTools?: boolean;
   },
 ): Promise<string> {
@@ -175,65 +174,51 @@ export interface ChatTurnCallbacks {
     isError: boolean,
     meta?: ToolEndMeta,
   ) => void;
-  /** Side-effect notification from inside a tool ("Created subtask: …"). The
-   *  TUI renders these inside the tool-call card so they stay anchored to the
-   *  tool that produced them. Workers don't supply this; tools fall back to
-   *  `logger.info`. */
   onToolNotify?: (toolUseId: string, message: string) => void;
-  /** Called between LLM turns. The TUI returns any queued user messages so
-   *  the agent can inject them into the running turn instead of waiting for
-   *  the entire tool loop to finish. Each returned message is logged + pushed
-   *  to `messages` before the next `messages.stream(...)` call. */
   takeInjections?: () => string[];
-  /** Fired after each finalized assistant turn with the prompt size the
-   *  server billed for (sum of fresh, cache-read, and cache-creation input
-   *  tokens), the model's max input tokens, and a local estimate of where
-   *  the bytes went. The TUI uses this to render the tab-bar indicator and
-   *  the breakdown shown on the Help tab. */
   onUsage?: (info: ContextUsage) => void;
 }
 
-/**
- * Walk messages backward to find the most recent human-authored user message.
- * After tool turns, `messages[messages.length - 1]` is a user entry whose
- * content is a `ToolResultBlockParam[]` — we want the string content from the
- * actual user, not tool output, as the keyword source.
- */
-function findLastUserText(messages: MessageParam[]): string {
+function findLastUserText(messages: ModelMessage[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
-    if (m?.role === "user" && typeof m.content === "string") return m.content;
+    if (!m) continue;
+    if (m.role !== "user") continue;
+    if (typeof m.content === "string") return m.content;
+    if (Array.isArray(m.content)) {
+      for (const part of m.content) {
+        const p = part as { type?: string; text?: unknown };
+        if (p.type === "text" && typeof p.text === "string") return p.text;
+      }
+    }
   }
   return "";
 }
 
+interface CollectedToolCall {
+  id: string;
+  name: string;
+  input: unknown;
+}
+
 /**
  * Run a single chat turn: stream the assistant response, execute any tool calls,
- * and loop until the model produces end_turn with no tool calls.
+ * and loop until the model produces no more tool calls.
  * Mutates `messages` in-place by appending assistant/tool messages.
  */
 export async function runChatTurn(input: {
-  messages: MessageParam[];
+  messages: ModelMessage[];
   projectDir: string;
-  config: Required<BotholomewConfig>;
+  config: BotholomewConfig;
   threadId: string;
   mcpxClient: McpxClient | null;
   callbacks: ChatTurnCallbacks;
-  /** When supplied, the loop honors `session.aborted` (set by Esc in the TUI)
-   *  and writes the live `MessageStream` to `session.activeStream` so it can
-   *  be aborted from outside. */
   session?: ChatSession;
-  /** Test seam: inject a pre-built client and skip the model-info fetch.
-   *  Production callers should leave both unset. */
-  _testClient?: Anthropic;
+  /** Test seam: inject a pre-built language model. */
+  _testModel?: LanguageModel;
   _testMaxInputTokens?: number;
-  /** Test seam: when set, the turn uses this `withMem` instead of opening its
-   *  own membot client. Production callers leave this unset. */
   _testWithMem?: WithMem;
 }): Promise<void> {
-  // Open membot for the duration of this turn so the DuckDB file lock is held
-  // only while the turn is actively executing — idle chat sessions leave the
-  // shared `~/.membot` store available to other Botholomew processes.
   if (input._testWithMem) {
     await runChatTurnBody({ ...input, withMem: input._testWithMem });
     return;
@@ -248,15 +233,15 @@ export async function runChatTurn(input: {
 }
 
 async function runChatTurnBody(input: {
-  messages: MessageParam[];
+  messages: ModelMessage[];
   projectDir: string;
-  config: Required<BotholomewConfig>;
+  config: BotholomewConfig;
   withMem: WithMem;
   threadId: string;
   mcpxClient: McpxClient | null;
   callbacks: ChatTurnCallbacks;
   session?: ChatSession;
-  _testClient?: Anthropic;
+  _testModel?: LanguageModel;
   _testMaxInputTokens?: number;
 }): Promise<void> {
   const {
@@ -270,20 +255,16 @@ async function runChatTurnBody(input: {
     session,
   } = input;
 
-  const client = input._testClient ?? createLlmClient(config);
+  const model = input._testModel ?? getLanguageModel(config.llm);
 
   const chatTools = getChatTools();
   const maxInputTokens =
-    input._testMaxInputTokens ??
-    (await getMaxInputTokens(config.anthropic_api_key, config.model));
+    input._testMaxInputTokens ?? (await getMaxInputTokens(config.llm));
   const maxTurns = config.max_turns;
 
   for (let turn = 0; !maxTurns || turn < maxTurns; turn++) {
     if (session?.aborted) return;
 
-    // Steering: drain any user messages the TUI queued during the previous
-    // iteration so they land in the next LLM call rather than waiting for
-    // the whole tool loop to finish.
     const injections = callbacks.takeInjections?.() ?? [];
     for (const text of injections) {
       await logInteraction(projectDir, threadId, {
@@ -296,98 +277,101 @@ async function runChatTurnBody(input: {
 
     const startTime = Date.now();
 
-    // Rebuild the system prompt every iteration so that:
-    //   (1) `loading: contextual` files get matched against the latest user
-    //       message, and
-    //   (2) any prompt_edit tool call in the previous
-    //       iteration is reflected in the next LLM call.
     const keywordSource = findLastUserText(messages);
     const systemPrompt = await buildChatSystemPrompt(projectDir, {
       keywordSource,
       config,
       hasMcpTools: mcpxClient != null,
     });
-    // Re-derive the persistent-context portion (prompts files) so the Help
-    // tab can show how much of the system prompt is user-authored prompts vs
-    // built-in instructions. Cheap — same FS read just hit by
-    // buildChatSystemPrompt is still hot.
     const persistentContext = await loadPersistentContext(
       projectDir,
       keywordSource ? extractKeywords(keywordSource) : null,
     );
 
     fitToContextWindow(messages, systemPrompt, maxInputTokens);
-    const stream = client.messages.stream({
-      model: config.model,
-      max_tokens: 4096,
+
+    const wrapped = withAnthropicCacheBreakpoints({
+      provider: config.llm.provider,
       system: systemPrompt,
       messages,
       tools: chatTools,
     });
-    if (session) session.activeStream = stream;
 
-    // Collect the full response
+    const abortHandle: AbortHandle = createAbortHandle();
+    if (session) session.activeAbort = abortHandle;
+
+    const result = streamText({
+      model,
+      system: wrapped.system,
+      messages: wrapped.messages,
+      tools: wrapped.tools,
+      maxOutputTokens: 4096,
+      abortSignal: abortHandle.signal,
+      providerOptions: buildProviderOptions(config.llm, maxInputTokens),
+    });
+
     let assistantText = "";
+    const collectedToolCalls: CollectedToolCall[] = [];
     const earlyReportedToolIds = new Set<string>();
 
-    stream.on("text", (text) => {
-      assistantText += text;
-      callbacks.onToken(text);
-    });
-
-    stream.on("streamEvent", (event) => {
-      if (
-        event.type === "content_block_start" &&
-        event.content_block.type === "tool_use"
-      ) {
-        callbacks.onToolPreparing?.(
-          event.content_block.id,
-          event.content_block.name,
-        );
-      }
-    });
-
-    stream.on("contentBlock", (block) => {
-      if (block.type === "tool_use") {
-        earlyReportedToolIds.add(block.id);
-        callbacks.onToolStart(
-          block.id,
-          block.name,
-          JSON.stringify(block.input),
-        );
-      }
-    });
-
-    let response: Message;
+    let streamError: unknown = null;
     try {
-      response = await stream.finalMessage();
-    } catch (err) {
-      if (!(err instanceof APIUserAbortError)) throw err;
-      // Esc was pressed mid-stream. Persist whatever text the user already saw
-      // (the `'text'` event has fired for everything reaching us, so
-      // `assistantText` is the right partial value). Deliberately drop any
-      // partial tool_use blocks — they would be unmatched on the next turn.
-      if (assistantText) {
-        await logInteraction(projectDir, threadId, {
-          role: "assistant",
-          kind: "message",
-          content: assistantText,
-          durationMs: Date.now() - startTime,
-          tokenCount: 0,
-        });
-        messages.push({ role: "assistant", content: assistantText });
+      for await (const part of result.fullStream) {
+        switch (part.type) {
+          case "text-delta":
+            assistantText += part.text;
+            callbacks.onToken(part.text);
+            break;
+          case "tool-input-start":
+            earlyReportedToolIds.add(part.id);
+            callbacks.onToolPreparing?.(part.id, part.toolName);
+            break;
+          case "tool-call":
+            collectedToolCalls.push({
+              id: part.toolCallId,
+              name: part.toolName,
+              input: part.input,
+            });
+            break;
+          case "error":
+            streamError = part.error;
+            break;
+        }
       }
-      return;
+    } catch (err) {
+      streamError = err;
     } finally {
-      if (session) session.activeStream = null;
+      if (session) session.activeAbort = null;
     }
+
+    if (streamError) {
+      // Swallow the eagerly-created usage/providerMetadata rejections so they
+      // don't escape as unhandled-promise crashes after we throw below.
+      drainStreamPromises(result);
+      if (abortHandle.signal.aborted || isAbortError(streamError)) {
+        if (assistantText) {
+          await logInteraction(projectDir, threadId, {
+            role: "assistant",
+            kind: "message",
+            content: assistantText,
+            durationMs: Date.now() - startTime,
+            tokenCount: 0,
+          });
+          messages.push({ role: "assistant", content: assistantText });
+        }
+        return;
+      }
+      throw new Error(formatLlmError(streamError, config.llm));
+    }
+
     const durationMs = Date.now() - startTime;
-    const tokenCount =
-      response.usage.input_tokens + response.usage.output_tokens;
+    const usage = await result.usage;
+    const providerMeta = await result.providerMetadata;
+    const cacheTokens = extractCacheTokens(usage, providerMeta);
+    const tokenCount = cacheTokens.input + cacheTokens.output;
     const promptTokens =
-      response.usage.input_tokens +
-      (response.usage.cache_read_input_tokens ?? 0) +
-      (response.usage.cache_creation_input_tokens ?? 0);
+      cacheTokens.input + cacheTokens.cacheRead + cacheTokens.cacheCreation;
+
     if (callbacks.onUsage) {
       const { textChars, toolIoChars } = partitionMessages(messages);
       const promptsChars = persistentContext.length;
@@ -406,7 +390,6 @@ async function runChatTurnBody(input: {
       });
     }
 
-    // Log assistant text
     if (assistantText) {
       await logInteraction(projectDir, threadId, {
         role: "assistant",
@@ -417,115 +400,126 @@ async function runChatTurnBody(input: {
       });
     }
 
-    // Check for tool calls
-    const toolUseBlocks = response.content.filter(
-      (block): block is ToolUseBlock => block.type === "tool_use",
-    );
-
-    if (toolUseBlocks.length === 0) {
-      // No tool calls — turn is complete
-      messages.push({ role: "assistant", content: response.content });
+    if (collectedToolCalls.length === 0) {
+      if (assistantText) {
+        messages.push({ role: "assistant", content: assistantText });
+      }
       return;
     }
 
-    // Add assistant response to conversation
-    messages.push({ role: "assistant", content: response.content });
+    // Build assistant turn (text + tool calls) for the conversation history.
+    const assistantContent: Array<
+      ToolCallPart | { type: "text"; text: string }
+    > = [];
+    if (assistantText) {
+      assistantContent.push({ type: "text", text: assistantText });
+    }
+    for (const tc of collectedToolCalls) {
+      assistantContent.push({
+        type: "tool-call",
+        toolCallId: tc.id,
+        toolName: tc.name,
+        input: tc.input,
+      });
+    }
+    messages.push({ role: "assistant", content: assistantContent });
 
-    // Log all tool_use entries and notify UI
-    for (const toolUse of toolUseBlocks) {
-      const toolInput = JSON.stringify(toolUse.input);
-      if (!earlyReportedToolIds.has(toolUse.id)) {
-        callbacks.onToolStart(toolUse.id, toolUse.name, toolInput);
+    for (const tc of collectedToolCalls) {
+      const toolInput = JSON.stringify(tc.input);
+      if (!earlyReportedToolIds.has(tc.id)) {
+        callbacks.onToolStart(tc.id, tc.name, toolInput);
+      } else {
+        // Promote: emit onToolStart now that we have the final input.
+        callbacks.onToolStart(tc.id, tc.name, toolInput);
       }
 
       await logInteraction(projectDir, threadId, {
         role: "assistant",
         kind: "tool_use",
-        content: `Calling ${toolUse.name}`,
-        toolName: toolUse.name,
+        content: `Calling ${tc.name}`,
+        toolName: tc.name,
         toolInput,
       });
     }
 
-    // Execute all tools in parallel. Each tool call opens its own short-lived
-    // connection; parallel calls share the process-local DuckDB instance and
-    // release the file lock as soon as the last one finishes.
     const execResults = await Promise.all(
-      toolUseBlocks.map(async (toolUse) => {
+      collectedToolCalls.map(async (tc) => {
         const start = Date.now();
-        const result = await executeChatToolCall(toolUse, {
+        const exec = await executeChatToolCall(tc, {
           withMem,
           projectDir,
           config,
           mcpxClient,
           shouldAbort: session ? () => session.aborted : undefined,
           notify: callbacks.onToolNotify
-            ? (msg) => callbacks.onToolNotify?.(toolUse.id, msg)
+            ? (msg) => callbacks.onToolNotify?.(tc.id, msg)
             : undefined,
         });
-        const durationMs = Date.now() - start;
-        const stored = maybeStoreResult(toolUse.name, result.output);
+        const d = Date.now() - start;
+        const stored = maybeStoreResult(tc.name, exec.output);
         const meta: ToolEndMeta | undefined = stored.stored
           ? { largeResult: stored.stored }
           : undefined;
-        callbacks.onToolEnd(
-          toolUse.id,
-          toolUse.name,
-          result.output,
-          result.isError,
-          meta,
-        );
-        return { toolUse, result, durationMs, stored };
+        callbacks.onToolEnd(tc.id, tc.name, exec.output, exec.isError, meta);
+        return { tc, exec, durationMs: d, stored };
       }),
     );
 
-    // Log results and collect tool_result messages
-    const toolResults: ToolResultBlockParam[] = [];
-    for (const { toolUse, result, durationMs, stored } of execResults) {
+    const toolResultContent: Array<{
+      type: "tool-result";
+      toolCallId: string;
+      toolName: string;
+      output:
+        | { type: "text"; value: string }
+        | { type: "error-text"; value: string };
+    }> = [];
+
+    for (const { tc, exec, durationMs, stored } of execResults) {
       await logInteraction(projectDir, threadId, {
         role: "tool",
         kind: "tool_result",
-        content: result.output,
-        toolName: toolUse.name,
+        content: exec.output,
+        toolName: tc.name,
         durationMs,
       });
 
-      toolResults.push({
-        type: "tool_result",
-        tool_use_id: toolUse.id,
-        content: stored.text,
-        is_error: result.isError || undefined,
+      toolResultContent.push({
+        type: "tool-result",
+        toolCallId: tc.id,
+        toolName: tc.name,
+        output: exec.isError
+          ? { type: "error-text", value: stored.text }
+          : { type: "text", value: stored.text },
       });
     }
 
-    messages.push({ role: "user", content: toolResults });
+    messages.push({ role: "tool", content: toolResultContent });
     if (session?.aborted) return;
-    // Loop to get the model's next response after tool results
   }
 }
 
 interface ChatToolCallCtx {
   withMem: WithMem;
   projectDir: string;
-  config: Required<BotholomewConfig>;
+  config: BotholomewConfig;
   mcpxClient: McpxClient | null;
   shouldAbort?: () => boolean;
   notify?: (message: string) => void;
 }
 
 async function executeChatToolCall(
-  toolUse: ToolUseBlock,
+  toolCall: CollectedToolCall,
   baseCtx: ChatToolCallCtx,
 ): Promise<{ output: string; isError: boolean }> {
-  const tool = getTool(toolUse.name);
-  if (!tool) return { output: `Unknown tool: ${toolUse.name}`, isError: true };
+  const tool = getTool(toolCall.name);
+  if (!tool) return { output: `Unknown tool: ${toolCall.name}`, isError: true };
   if (!CHAT_TOOL_NAMES.has(tool.name))
     return {
       output: `Tool not available in chat mode: ${tool.name}`,
       isError: true,
     };
 
-  const parsed = tool.inputSchema.safeParse(toolUse.input);
+  const parsed = tool.inputSchema.safeParse(toolCall.input);
   if (!parsed.success) {
     return {
       output: `Invalid input: ${JSON.stringify(parsed.error)}`,

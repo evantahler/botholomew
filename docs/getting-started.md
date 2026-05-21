@@ -81,7 +81,13 @@ versioning work via membot.
 > break the atomic-rename and `O_EXCL` guarantees that
 > tasks/schedules depend on). Pass `--force` to override.
 
-## Configure API keys
+## Configure your LLM
+
+Botholomew speaks to language models via the Vercel AI SDK and supports
+three providers out of the box: **Anthropic** (Claude, the default),
+**Ollama** (local), and any **OpenAI-compatible** endpoint.
+
+### Anthropic (default)
 
 Either export the environment variable:
 
@@ -89,8 +95,34 @@ Either export the environment variable:
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-…or set it in `config/config.json`. See
-[Configuration](./configuration.md) for every key and its default.
+…or set `llm.api_key` in `config/config.json`.
+
+### Run fully locally with Ollama
+
+```bash
+# 1. Start Ollama and pull a tool-capable model
+ollama serve &
+ollama pull llama3.1:8b
+
+# 2. Initialize a project pre-configured for Ollama
+botholomew init --provider ollama
+```
+
+That writes an `llm` / `chunker_llm` block pointing at `llama3.1:8b` and
+`qwen2.5:3b`. No API key needed. Tool-capable models include
+`llama3.1:8b`, `qwen2.5:7b`, `mistral-nemo`, and `command-r`. Models
+without the `tools` capability are refused at startup.
+
+### OpenAI-compatible endpoint
+
+```bash
+botholomew init --provider openai-compatible
+```
+
+then edit `config/config.json` to set `llm.base_url` and `llm.api_key`
+for your endpoint (OpenRouter, LM Studio, vLLM, Groq, Together, etc.).
+
+See [Configuration](./configuration.md) for the full LLM block schema.
 
 ## Queue work and run a worker
 

@@ -101,9 +101,14 @@ bun run dev -- --help
 # 1. Initialize a project in the current directory
 botholomew init
 
-# 2. Add your Anthropic key to config/config.json, or export it
+# 2a. Add your Anthropic key (Claude is the default) to config/config.json, or export it
 export ANTHROPIC_API_KEY=sk-ant-...
-# Embeddings run locally — no API key required.
+# Embeddings always run locally.
+#
+# 2b. ...or initialize for a local Ollama model — no API key required:
+#     ollama serve & ollama pull llama3.1:8b
+#     botholomew init --force --provider ollama
+# See docs/configuration.md for OpenAI-compatible endpoints (LM Studio, OpenRouter, etc.).
 
 # 3. Queue some work
 botholomew task add "Summarize every markdown file in ~/notes"
@@ -118,6 +123,55 @@ botholomew chat
 
 See [docs/automation.md](docs/automation.md) for cron-based setups if you
 want Botholomew to advance on its own.
+
+---
+
+## Example configs
+
+Two `config/config.json` shapes covering the common cases. Full schema in
+[docs/configuration.md](docs/configuration.md).
+
+### Anthropic (Claude — default)
+
+```jsonc
+{
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-opus-4-6",
+    "api_key": "sk-ant-..."
+  },
+  "chunker_llm": {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "api_key": "sk-ant-..."
+  }
+}
+```
+
+Or leave `api_key` blank and export `ANTHROPIC_API_KEY` in your shell.
+
+### Ollama (fully local)
+
+```jsonc
+{
+  "llm": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "base_url": "http://localhost:11434"
+  },
+  "chunker_llm": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "base_url": "http://localhost:11434"
+  }
+}
+```
+
+Start Ollama first: `ollama serve &` then `ollama pull qwen2.5:7b`. No
+API key required. Tool calling is a hard requirement — known-good local
+models include `qwen2.5:7b`, `llama3.1:8b`, `mistral-nemo`, and
+`command-r`. For OpenAI-compatible endpoints (LM Studio, OpenRouter,
+vLLM, …) see [docs/configuration.md](docs/configuration.md).
 
 ---
 

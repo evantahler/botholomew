@@ -103,7 +103,9 @@ describe("resolveMcpxDir", () => {
     );
   });
 
-  test("missing scope falls back to global", () => {
-    expect(resolveMcpxDir("/tmp/proj", {})).toBe(join(homedir(), ".mcpx"));
+  test("global scope resolves to ~/.mcpx", () => {
+    expect(resolveMcpxDir("/tmp/proj", { mcpx_scope: "global" })).toBe(
+      join(homedir(), ".mcpx"),
+    );
   });
 });

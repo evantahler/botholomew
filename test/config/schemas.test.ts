@@ -3,9 +3,8 @@ import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 
 describe("DEFAULT_CONFIG", () => {
   test("has all expected fields", () => {
-    expect(DEFAULT_CONFIG).toHaveProperty("anthropic_api_key");
-    expect(DEFAULT_CONFIG).toHaveProperty("model");
-    expect(DEFAULT_CONFIG).toHaveProperty("chunker_model");
+    expect(DEFAULT_CONFIG).toHaveProperty("llm");
+    expect(DEFAULT_CONFIG).toHaveProperty("chunker_llm");
     expect(DEFAULT_CONFIG).toHaveProperty("embedding_model");
     expect(DEFAULT_CONFIG).toHaveProperty("embedding_dimension");
     expect(DEFAULT_CONFIG).toHaveProperty("tick_interval_seconds");
@@ -28,13 +27,19 @@ describe("DEFAULT_CONFIG", () => {
   });
 
   test("model names are non-empty strings", () => {
-    expect(DEFAULT_CONFIG.model.length).toBeGreaterThan(0);
-    expect(DEFAULT_CONFIG.chunker_model.length).toBeGreaterThan(0);
+    expect(DEFAULT_CONFIG.llm.model.length).toBeGreaterThan(0);
+    expect(DEFAULT_CONFIG.chunker_llm.model.length).toBeGreaterThan(0);
     expect(DEFAULT_CONFIG.embedding_model.length).toBeGreaterThan(0);
   });
 
   test("API keys default to empty strings", () => {
-    expect(DEFAULT_CONFIG.anthropic_api_key).toBe("");
+    expect(DEFAULT_CONFIG.llm.api_key).toBe("");
+    expect(DEFAULT_CONFIG.chunker_llm.api_key).toBe("");
+  });
+
+  test("default llm provider is anthropic", () => {
+    expect(DEFAULT_CONFIG.llm.provider).toBe("anthropic");
+    expect(DEFAULT_CONFIG.chunker_llm.provider).toBe("anthropic");
   });
 
   test("system_prompt_override defaults to empty string", () => {

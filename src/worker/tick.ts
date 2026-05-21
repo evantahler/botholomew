@@ -24,7 +24,7 @@ import { processSchedules } from "./schedules.ts";
 
 export interface TickOptions {
   projectDir: string;
-  config: Required<BotholomewConfig>;
+  config: BotholomewConfig;
   workerId: string;
   mcpxClient?: McpxClient | null;
   callbacks?: WorkerStreamCallbacks;
@@ -109,7 +109,7 @@ export async function tick(opts: TickOptions): Promise<boolean> {
  */
 export async function runSpecificTask(opts: {
   projectDir: string;
-  config: Required<BotholomewConfig>;
+  config: BotholomewConfig;
   workerId: string;
   taskId: string;
   mcpxClient?: McpxClient | null;
@@ -147,7 +147,7 @@ export async function runSpecificTask(opts: {
 async function runClaimedTask(opts: {
   projectDir: string;
   withMem: WithMem;
-  config: Required<BotholomewConfig>;
+  config: BotholomewConfig;
   workerId: string;
   mcpxClient?: McpxClient | null;
   callbacks?: WorkerStreamCallbacks;

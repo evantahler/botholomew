@@ -5,9 +5,16 @@ project directory. The full schema lives in `src/config/schemas.ts`.
 
 ```json
 {
-  "anthropic_api_key": "",
-  "model": "claude-opus-4-6",
-  "chunker_model": "claude-haiku-4-5-20251001",
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-opus-4-6",
+    "api_key": ""
+  },
+  "chunker_llm": {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "api_key": ""
+  },
   "embedding_model": "Xenova/bge-small-en-v1.5",
   "embedding_dimension": 384,
   "tick_interval_seconds": 300,
@@ -29,13 +36,83 @@ project directory. The full schema lives in `src/config/schemas.ts`.
 
 ---
 
+## LLM providers
+
+Botholomew talks to language models through the
+[Vercel AI SDK](https://github.com/vercel/ai). Three providers ship today:
+**Anthropic** (Claude), **Ollama** (local), and **OpenAI-compatible** (LM
+Studio, llama.cpp's HTTP server, OpenRouter, vLLM, Groq, Together, etc.).
+
+Whatever provider you pick, the model **must** support tool/function
+calling — the agent's entire surface depends on structured tool calls.
+Botholomew probes for tool support at startup and refuses to run with a
+non-tool-capable model.
+
+### `llm` (main agent) and `chunker_llm` (auxiliary)
+
+Both blocks have the same shape:
+
+| Field              | Default                          | Purpose                                                                  |
+| ------------------ | -------------------------------- | ------------------------------------------------------------------------ |
+| `provider`         | `"anthropic"`                    | One of `anthropic`, `ollama`, `openai-compatible`.                       |
+| `model`            | `claude-opus-4-6` / `…-haiku-…`  | Model id. Provider-specific.                                             |
+| `base_url`         | `""`                             | Required for `openai-compatible`; optional for `ollama` (default `http://localhost:11434`); ignored for `anthropic`. |
+| `api_key`          | `""`                             | Required for `anthropic`. Optional for `openai-compatible` and `ollama`. |
+| `max_input_tokens` | `0`                              | Override the context window. `0` falls back to a lookup table and provider defaults. |
+| `supports_tools`   | `true`                           | Override the tool-capability probe (only relevant for `openai-compatible`). |
+
+`llm` governs chat and worker turns. `chunker_llm` governs auxiliary calls
+(schedule evaluation, thread titles, capability summarization) and can point
+at a smaller/cheaper model.
+
+### Anthropic example
+
+```jsonc
+{
+  "llm": { "provider": "anthropic", "model": "claude-opus-4-6", "api_key": "sk-ant-..." },
+  "chunker_llm": { "provider": "anthropic", "model": "claude-haiku-4-5-20251001", "api_key": "sk-ant-..." }
+}
+```
+
+### Ollama (local) example
+
+Run `ollama serve` and `ollama pull llama3.1:8b` first.
+
+```jsonc
+{
+  "llm": { "provider": "ollama", "model": "llama3.1:8b" },
+  "chunker_llm": { "provider": "ollama", "model": "qwen2.5:3b" }
+}
+```
+
+Known-good tool-capable Ollama models: `llama3.1:8b`, `llama3.1:70b`,
+`qwen2.5:7b`, `mistral-nemo`, `command-r`. Smaller models without the
+`tools` capability (e.g. `gemma:2b`) will be refused at startup.
+
+### OpenAI-compatible example
+
+```jsonc
+{
+  "llm": {
+    "provider": "openai-compatible",
+    "model": "gpt-4o",
+    "base_url": "https://openrouter.ai/api/v1",
+    "api_key": "sk-or-..."
+  }
+}
+```
+
+Any OpenAI-compatible chat-completions endpoint that supports tool calling
+works. Set `supports_tools: false` to opt out of the probe assumption.
+
+---
+
 ## Keys
 
 | Key | Default | Purpose |
 |---|---|---|
-| `anthropic_api_key` | `""` | Anthropic key. `ANTHROPIC_API_KEY` env var overrides. |
-| `model` | `claude-opus-4-6` | Claude model for the main agent loop (workers + chat). |
-| `chunker_model` | `claude-haiku-4-5-20251001` | Smaller/cheaper model used to propose chunk boundaries during ingestion and evaluate schedules. |
+| `llm` | see above | Provider + model for the main agent loop (workers + chat). See "LLM providers". |
+| `chunker_llm` | see above | Provider + model for auxiliary calls (schedule eval, thread titles, capability summarization). |
 | `embedding_model` | `Xenova/bge-small-en-v1.5` | A local [`@huggingface/transformers`](https://huggingface.co/docs/transformers.js) feature-extraction model. Weights are downloaded on first use and cached under the project's `models/` directory. Any feature-extraction model in the Xenova/* namespace works — e.g. `Xenova/multilingual-e5-small` (also 384-dim) for non-English content. |
 | `embedding_dimension` | `384` | Vector dimension. Must match the model. Changing model + dimension requires running `botholomew membot reembed` to recompute every stored vector — old and new vectors aren't comparable. |
 | `tick_interval_seconds` | `300` | Seconds a `--persist` worker sleeps between ticks **when there's no work**. It ticks back-to-back while a backlog exists. |
@@ -59,7 +136,9 @@ project directory. The full schema lives in `src/config/schemas.ts`.
 
 | Var | Effect |
 |---|---|
-| `ANTHROPIC_API_KEY` | Overrides `anthropic_api_key` in config. |
+| `ANTHROPIC_API_KEY` | Fills in `llm.api_key` / `chunker_llm.api_key` when the provider is `anthropic`. Always wins. |
+| `OPENAI_API_KEY` | Fills in `api_key` when the provider is `openai-compatible` and the field is empty. |
+| `OLLAMA_HOST` | Fills in `base_url` when the provider is `ollama` and the field is empty. |
 | `BOTHOLOMEW_LOG_LEVEL` | Overrides `log_level` in config. One of `silent`, `error`, `warn`, `info`, `debug`. |
 | `BOTHOLOMEW_NO_UPDATE_CHECK` | Disable the background "new version available" check. |
 
@@ -85,12 +164,15 @@ defaults (30s reap, 60s threshold) are conservative.
 
 **For model-cost sensitivity:**
 
-- Switch `model` to `claude-sonnet-4-*` or `claude-haiku-*`. Opus is the
+- Switch `llm.model` to `claude-sonnet-4-*` or `claude-haiku-*`. Opus is the
   default because quality on complex knowledge work matters more than
-  per-token cost for most users, but Sonnet handles the majority of
-  tasks well.
-- The `chunker_model` is already Haiku — leave it there.
+  per-token cost for most users, but Sonnet handles the majority of tasks
+  well.
+- The default `chunker_llm` already targets Haiku — leave it there.
 - Lower `max_turns` (e.g., 15) to hard-cap tool-use budgets.
+- For zero-API-cost runs, switch both blocks to a tool-capable Ollama model.
+  Note: cache-token reporting is Anthropic-only, so the TUI will show all
+  input tokens as fresh on local providers.
 
 **For prompt-sensitive workflows:** use `system_prompt_override` to add
 instructions without touching `prompts/goals.md`. This keeps the default

@@ -222,10 +222,11 @@ export function useMessageQueue({
         }
         finalizeSegment();
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
         const errorMsg: ChatMessage = {
           id: msgId(),
           role: "system",
-          content: `Error: ${err}`,
+          content: `Error: ${message}`,
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, errorMsg]);

@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { loadConfig } from "../config/loader.ts";
+import type { LlmProvider } from "../config/schemas.ts";
 import {
   CONFIG_DIR,
   CONFIG_FILENAME,
@@ -28,9 +29,9 @@ import { registerAllTools } from "../tools/registry.ts";
 import { logger } from "../utils/logger.ts";
 import {
   BELIEFS_MD,
+  buildDefaultConfig,
   CAPABILITIES_MD,
   CAPABILITIES_SKILL,
-  DEFAULT_CONFIG,
   DEFAULT_MCPX_SERVERS,
   GOALS_MD,
   STANDUP_SKILL,
@@ -43,6 +44,8 @@ export interface InitOptions {
   membotScope?: "global" | "project";
   /** Override the default `mcpx_scope` written into config/config.json. */
   mcpxScope?: "global" | "project";
+  /** LLM provider to preconfigure the new project against. Default `anthropic`. */
+  provider?: LlmProvider;
 }
 
 export async function initProject(
@@ -91,7 +94,7 @@ export async function initProject(
   // the seeded defaults so tests and `botholomew init --membot-scope=project`
   // can pick a per-project layout up front.
   const initialConfig = {
-    ...DEFAULT_CONFIG,
+    ...buildDefaultConfig(opts.provider ?? "anthropic"),
     ...(opts.membotScope ? { membot_scope: opts.membotScope } : {}),
     ...(opts.mcpxScope ? { mcpx_scope: opts.mcpxScope } : {}),
   };
@@ -151,10 +154,14 @@ export async function initProject(
   logger.dim(`  workers/         one JSON pidfile per worker (heartbeats)`);
   logger.dim(`  skills/, mcpx/, logs/`);
   logger.dim("");
+  const providerLine =
+    config.llm.provider === "anthropic"
+      ? `  1. Set ANTHROPIC_API_KEY or add \`llm.api_key\` to ${CONFIG_DIR}/${CONFIG_FILENAME}`
+      : config.llm.provider === "ollama"
+        ? `  1. Make sure \`ollama serve\` is running and you've pulled \`${config.llm.model}\``
+        : `  1. Set \`llm.base_url\` (and \`llm.api_key\` if needed) in ${CONFIG_DIR}/${CONFIG_FILENAME}`;
   logger.dim("Next steps:");
-  logger.dim(
-    `  1. Set ANTHROPIC_API_KEY or add it to ${CONFIG_DIR}/${CONFIG_FILENAME}`,
-  );
+  logger.dim(providerLine);
   logger.dim("  2. Run 'botholomew task add' to create your first task");
   logger.dim(
     "  3. Run 'botholomew worker start --persist' to start a background worker",

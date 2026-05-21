@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import type { ModelMessage } from "ai";
 import { estimateTokens, partitionMessages } from "../../src/chat/usage.ts";
 
 describe("estimateTokens", () => {
@@ -14,7 +14,7 @@ describe("estimateTokens", () => {
 
 describe("partitionMessages", () => {
   test("plain string content counts as text", () => {
-    const messages: MessageParam[] = [
+    const messages: ModelMessage[] = [
       { role: "user", content: "hello world" }, // 11 chars
       { role: "assistant", content: "ok" }, // 2 chars
     ];
@@ -24,47 +24,48 @@ describe("partitionMessages", () => {
     });
   });
 
-  test("text blocks count as text; tool_use and tool_result count as tool I/O", () => {
-    const toolUse = {
-      type: "tool_use" as const,
-      id: "tu_1",
-      name: "list_tasks",
+  test("text parts count as text; tool-call and tool-result count as tool I/O", () => {
+    const toolCall = {
+      type: "tool-call" as const,
+      toolCallId: "tu_1",
+      toolName: "list_tasks",
       input: { limit: 5 },
     };
-    const messages: MessageParam[] = [
+    const messages: ModelMessage[] = [
       {
         role: "assistant",
         content: [
           { type: "text", text: "calling tool" }, // 12 chars text
-          toolUse,
+          toolCall,
         ],
       },
       {
-        role: "user",
+        role: "tool",
         content: [
           {
-            type: "tool_result",
-            tool_use_id: "tu_1",
-            content: "[]",
+            type: "tool-result",
+            toolCallId: "tu_1",
+            toolName: "list_tasks",
+            output: { type: "text", value: "[]" },
           },
         ],
       },
     ];
     const { textChars, toolIoChars } = partitionMessages(messages);
     expect(textChars).toBe(12);
-    // tool_use serialized as JSON + tool_result string content (2 chars).
-    expect(toolIoChars).toBe(JSON.stringify(toolUse).length + 2);
+    expect(toolIoChars).toBe(JSON.stringify(toolCall).length + 2);
   });
 
-  test("non-string tool_result content is JSON-stringified", () => {
-    const messages: MessageParam[] = [
+  test("non-string tool-result value is JSON-stringified", () => {
+    const messages: ModelMessage[] = [
       {
-        role: "user",
+        role: "tool",
         content: [
           {
-            type: "tool_result",
-            tool_use_id: "tu_1",
-            content: [{ type: "text", text: "structured" }],
+            type: "tool-result",
+            toolCallId: "tu_1",
+            toolName: "x",
+            output: { type: "json", value: { foo: "bar" } },
           },
         ],
       },

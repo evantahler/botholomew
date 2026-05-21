@@ -1,5 +1,12 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { generateObject } from "ai";
+import { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
+import {
+  buildProviderOptions,
+  formatLlmError,
+  getLanguageModel,
+  getMaxInputTokens,
+} from "../llm/index.ts";
 import type { Schedule } from "../schedules/schema.ts";
 import {
   listSchedules,
@@ -22,33 +29,31 @@ export interface ScheduleEvaluation {
   tasksToCreate: ScheduleTaskDef[];
 }
 
+const ScheduleResponseSchema = z.object({
+  isDue: z.boolean(),
+  reasoning: z.string(),
+  tasks: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string(),
+      priority: z.enum(["low", "medium", "high"]),
+      depends_on: z.array(z.number()).optional(),
+    }),
+  ),
+});
+
 export async function evaluateSchedule(
-  config: Required<BotholomewConfig>,
+  config: BotholomewConfig,
   schedule: Schedule,
 ): Promise<ScheduleEvaluation> {
-  const client = new Anthropic({
-    apiKey: config.anthropic_api_key || undefined,
-  });
+  const model = getLanguageModel(config.chunker_llm);
+  const numCtx = await getMaxInputTokens(config.chunker_llm);
 
   const systemPrompt = `You are a schedule evaluator. Given a recurring schedule, the current time, and when the schedule last ran, determine:
 1. Whether the schedule is currently due to run
 2. If due, what task(s) should be created
 
-Respond with JSON only, no other text. Use this exact schema:
-{
-  "isDue": boolean,
-  "reasoning": "brief explanation of why it is or is not due",
-  "tasks": [
-    {
-      "name": "task name",
-      "description": "what to do",
-      "priority": "low" | "medium" | "high",
-      "depends_on": []
-    }
-  ]
-}
-
-The "depends_on" array contains indices of other tasks in the array that must complete first. For example, if task at index 1 depends on task at index 0, set depends_on to [0].`;
+For each task, "depends_on" is an array of indices of earlier tasks in your output that must complete before this one runs (e.g. if task index 1 depends on task index 0, set depends_on to [0]).`;
 
   const userMessage = `Schedule: "${schedule.name}"
 Description: ${schedule.description || "(none)"}
@@ -59,45 +64,31 @@ Current time: ${new Date().toISOString()}
 Is this schedule due to run? If yes, what tasks should be created?`;
 
   try {
-    const response = await client.messages.create({
-      model: config.chunker_model,
-      max_tokens: 1024,
+    const { object } = await generateObject({
+      model,
+      schema: ScheduleResponseSchema,
       system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
+      prompt: userMessage,
+      maxOutputTokens: 1024,
+      providerOptions: buildProviderOptions(config.chunker_llm, numCtx),
     });
 
-    let text = response.content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-
-    text = text
-      .replace(/^```(?:json)?\s*\n?/, "")
-      .replace(/\n?```\s*$/, "")
-      .trim();
-
-    const parsed = JSON.parse(text);
-
     return {
-      isDue: Boolean(parsed.isDue),
-      reasoning: String(parsed.reasoning ?? ""),
-      tasksToCreate: Array.isArray(parsed.tasks)
-        ? parsed.tasks.map((t: Record<string, unknown>) => ({
-            name: String(t.name ?? "Untitled"),
-            description: String(t.description ?? ""),
-            priority:
-              t.priority === "low" || t.priority === "high"
-                ? t.priority
-                : "medium",
-            depends_on: Array.isArray(t.depends_on) ? t.depends_on : [],
-          }))
-        : [],
+      isDue: object.isDue,
+      reasoning: object.reasoning,
+      tasksToCreate: object.tasks.map((t) => ({
+        name: t.name,
+        description: t.description,
+        priority: t.priority,
+        depends_on: t.depends_on ?? [],
+      })),
     };
   } catch (err) {
-    logger.warn(`Failed to evaluate schedule "${schedule.name}": ${err}`);
+    const message = formatLlmError(err, config.chunker_llm);
+    logger.warn(`Failed to evaluate schedule "${schedule.name}": ${message}`);
     return {
       isDue: false,
-      reasoning: `Evaluation failed: ${err}`,
+      reasoning: `Evaluation failed: ${message}`,
       tasksToCreate: [],
     };
   }
@@ -105,7 +96,7 @@ Is this schedule due to run? If yes, what tasks should be created?`;
 
 export async function processSchedules(
   projectDir: string,
-  config: Required<BotholomewConfig>,
+  config: BotholomewConfig,
   workerId: string,
 ): Promise<void> {
   const schedules = await listSchedules(projectDir, { enabled: true });
@@ -114,8 +105,6 @@ export async function processSchedules(
   logger.phase("evaluating-schedules", `${schedules.length} enabled`);
 
   for (const schedule of schedules) {
-    // Lockfile + min-interval guard prevent two workers (or two ticks) from
-    // evaluating the same schedule too closely.
     await withScheduleLock(
       projectDir,
       schedule.id,

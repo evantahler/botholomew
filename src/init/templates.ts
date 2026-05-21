@@ -1,4 +1,7 @@
-import { DEFAULT_CONFIG as SCHEMA_DEFAULT_CONFIG } from "../config/schemas.ts";
+import {
+  type LlmProvider,
+  DEFAULT_CONFIG as SCHEMA_DEFAULT_CONFIG,
+} from "../config/schemas.ts";
 
 export const GOALS_MD = `---
 title: Goals
@@ -80,10 +83,48 @@ and currently in progress) and format a brief standup-style update with:
 - Any blockers or waiting items
 `;
 
-export const DEFAULT_CONFIG = {
-  ...SCHEMA_DEFAULT_CONFIG,
-  anthropic_api_key: "your-api-key-here",
+const PROVIDER_PRESETS: Record<
+  LlmProvider,
+  { llm: { model: string }; chunker_llm: { model: string } }
+> = {
+  anthropic: {
+    llm: { model: "claude-opus-4-6" },
+    chunker_llm: { model: "claude-haiku-4-5-20251001" },
+  },
+  ollama: {
+    llm: { model: "llama3.1:8b" },
+    chunker_llm: { model: "qwen2.5:3b" },
+  },
+  "openai-compatible": {
+    llm: { model: "gpt-4o" },
+    chunker_llm: { model: "gpt-4o-mini" },
+  },
 };
+
+export function buildDefaultConfig(provider: LlmProvider = "anthropic") {
+  const preset = PROVIDER_PRESETS[provider];
+  const apiKeyPlaceholder = provider === "anthropic" ? "your-api-key-here" : "";
+  const baseUrl = provider === "ollama" ? "http://localhost:11434" : "";
+  return {
+    ...SCHEMA_DEFAULT_CONFIG,
+    llm: {
+      ...SCHEMA_DEFAULT_CONFIG.llm,
+      provider,
+      model: preset.llm.model,
+      base_url: baseUrl,
+      api_key: apiKeyPlaceholder,
+    },
+    chunker_llm: {
+      ...SCHEMA_DEFAULT_CONFIG.chunker_llm,
+      provider,
+      model: preset.chunker_llm.model,
+      base_url: baseUrl,
+      api_key: apiKeyPlaceholder,
+    },
+  };
+}
+
+export const DEFAULT_CONFIG = buildDefaultConfig("anthropic");
 
 export const DEFAULT_MCPX_SERVERS = {
   mcpServers: {},

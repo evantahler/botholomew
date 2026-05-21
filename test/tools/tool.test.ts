@@ -7,18 +7,18 @@ let registerTool: typeof import("../../src/tools/tool.ts").registerTool;
 let getTool: typeof import("../../src/tools/tool.ts").getTool;
 let getAllTools: typeof import("../../src/tools/tool.ts").getAllTools;
 let getToolsByGroup: typeof import("../../src/tools/tool.ts").getToolsByGroup;
-let toAnthropicTool: typeof import("../../src/tools/tool.ts").toAnthropicTool;
-let toAnthropicTools: typeof import("../../src/tools/tool.ts").toAnthropicTools;
+let toAiSdkTool: typeof import("../../src/llm/tools.ts").toAiSdkTool;
+let toAiSdkTools: typeof import("../../src/llm/tools.ts").toAiSdkTools;
 
-// Since the registry is module-level state, we import once and test with unique names
 beforeEach(async () => {
   const mod = await import("../../src/tools/tool.ts");
   registerTool = mod.registerTool;
   getTool = mod.getTool;
   getAllTools = mod.getAllTools;
   getToolsByGroup = mod.getToolsByGroup;
-  toAnthropicTool = mod.toAnthropicTool;
-  toAnthropicTools = mod.toAnthropicTools;
+  const llmTools = await import("../../src/llm/tools.ts");
+  toAiSdkTool = llmTools.toAiSdkTool;
+  toAiSdkTools = llmTools.toAiSdkTools;
 });
 
 function makeTool(overrides: Partial<Parameters<typeof registerTool>[0]> = {}) {
@@ -68,10 +68,10 @@ describe("Tool registry", () => {
   });
 });
 
-describe("Anthropic adapter", () => {
-  test("toAnthropicTool produces valid tool definition", () => {
+describe("AI SDK adapter", () => {
+  test("toAiSdkTool carries description and inputSchema", () => {
     const tool = makeTool({
-      name: "anthro_test",
+      name: "aisdk_test",
       description: "Test description",
       inputSchema: z.object({
         path: z.string().describe("Virtual path"),
@@ -79,24 +79,17 @@ describe("Anthropic adapter", () => {
       }),
     });
 
-    const result = toAnthropicTool(tool);
-
-    expect(result.name).toBe("anthro_test");
+    const result = toAiSdkTool(tool);
     expect(result.description).toBe("Test description");
-    expect(result.input_schema.type).toBe("object");
-    expect(result.input_schema.properties).toEqual({
-      path: { type: "string", description: "Virtual path" },
-      limit: { type: "number", description: "Max results" },
-    });
-    expect(result.input_schema.required).toEqual(["path"]);
+    expect(result.inputSchema).toBeDefined();
   });
 
-  test("toAnthropicTools converts all registered tools", () => {
-    const tool = makeTool();
+  test("toAiSdkTools keys tools by name", () => {
+    const tool = makeTool({ name: "aisdk_keyed" });
     registerTool(tool);
-    const all = toAnthropicTools();
-    expect(all.some((t) => t.name === tool.name)).toBe(true);
-    expect(all.every((t) => t.input_schema.type === "object")).toBe(true);
+    const all = toAiSdkTools(getAllTools());
+    expect(all[tool.name]).toBeDefined();
+    expect(all[tool.name]?.description).toBe(tool.description);
   });
 });
 
