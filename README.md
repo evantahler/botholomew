@@ -126,6 +126,55 @@ want Botholomew to advance on its own.
 
 ---
 
+## Example configs
+
+Two `config/config.json` shapes covering the common cases. Full schema in
+[docs/configuration.md](docs/configuration.md).
+
+### Anthropic (Claude — default)
+
+```jsonc
+{
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-opus-4-6",
+    "api_key": "sk-ant-..."
+  },
+  "chunker_llm": {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "api_key": "sk-ant-..."
+  }
+}
+```
+
+Or leave `api_key` blank and export `ANTHROPIC_API_KEY` in your shell.
+
+### Ollama (fully local)
+
+```jsonc
+{
+  "llm": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "base_url": "http://localhost:11434"
+  },
+  "chunker_llm": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "base_url": "http://localhost:11434"
+  }
+}
+```
+
+Start Ollama first: `ollama serve &` then `ollama pull qwen2.5:7b`. No
+API key required. Tool calling is a hard requirement — known-good local
+models include `qwen2.5:7b`, `llama3.1:8b`, `mistral-nemo`, and
+`command-r`. For OpenAI-compatible endpoints (LM Studio, OpenRouter,
+vLLM, …) see [docs/configuration.md](docs/configuration.md).
+
+---
+
 ## What a project looks like
 
 A project is the directory you ran `botholomew init` in. Every entity
