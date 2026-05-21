@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import {
   buildProviderOptions,
+  formatLlmError,
   getLanguageModel,
   getMaxInputTokens,
 } from "../llm/index.ts";
@@ -83,10 +84,11 @@ Is this schedule due to run? If yes, what tasks should be created?`;
       })),
     };
   } catch (err) {
-    logger.warn(`Failed to evaluate schedule "${schedule.name}": ${err}`);
+    const message = formatLlmError(err, config.chunker_llm);
+    logger.warn(`Failed to evaluate schedule "${schedule.name}": ${message}`);
     return {
       isDue: false,
-      reasoning: `Evaluation failed: ${err}`,
+      reasoning: `Evaluation failed: ${message}`,
       tasksToCreate: [],
     };
   }

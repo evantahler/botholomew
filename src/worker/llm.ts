@@ -6,7 +6,9 @@ import {
   buildProviderOptions,
   createAbortHandle,
   describeModel,
+  drainStreamPromises,
   extractCacheTokens,
+  formatLlmError,
   getLanguageModel,
   toAiSdkTools,
   withAnthropicCacheBreakpoints,
@@ -156,8 +158,10 @@ export async function runAgentLoop(input: {
         }
       }
     } catch (err) {
-      logger.error(`Worker LLM stream failed: ${err}`);
-      return { status: "failed", reason: `LLM error: ${err}` };
+      drainStreamPromises(result);
+      const message = formatLlmError(err, config.llm);
+      logger.error(`Worker LLM stream failed: ${message}`);
+      return { status: "failed", reason: `LLM error: ${message}` };
     }
 
     if (streamedText && callbacks) {

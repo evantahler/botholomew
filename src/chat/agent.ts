@@ -7,7 +7,9 @@ import {
   type AbortHandle,
   buildProviderOptions,
   createAbortHandle,
+  drainStreamPromises,
   extractCacheTokens,
+  formatLlmError,
   getLanguageModel,
   toAiSdkTools,
   withAnthropicCacheBreakpoints,
@@ -343,6 +345,9 @@ async function runChatTurnBody(input: {
     }
 
     if (streamError) {
+      // Swallow the eagerly-created usage/providerMetadata rejections so they
+      // don't escape as unhandled-promise crashes after we throw below.
+      drainStreamPromises(result);
       if (abortHandle.signal.aborted || isAbortError(streamError)) {
         if (assistantText) {
           await logInteraction(projectDir, threadId, {
@@ -356,7 +361,7 @@ async function runChatTurnBody(input: {
         }
         return;
       }
-      throw streamError;
+      throw new Error(formatLlmError(streamError, config.llm));
     }
 
     const durationMs = Date.now() - startTime;

@@ -1,6 +1,7 @@
 export { type AbortHandle, createAbortHandle } from "./abort.ts";
 export { withAnthropicCacheBreakpoints } from "./cache-control.ts";
 export { assertToolCapable, getMaxInputTokens } from "./capabilities.ts";
+export { drainStreamPromises, formatLlmError } from "./error-format.ts";
 export {
   createFakeLanguageModel,
   type FakeFixture,

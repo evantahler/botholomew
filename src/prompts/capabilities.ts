@@ -6,6 +6,7 @@ import type { BotholomewConfig } from "../config/schemas.ts";
 import { getPromptsDir } from "../constants.ts";
 import {
   buildProviderOptions,
+  formatLlmError,
   getLanguageModel,
   getMaxInputTokens,
 } from "../llm/index.ts";
@@ -256,7 +257,9 @@ async function summarizeViaLLM(
     });
     return object;
   } catch (err) {
-    logger.debug(`Capability summarization failed: ${(err as Error).message}`);
+    logger.debug(
+      `Capability summarization failed: ${formatLlmError(err, config.chunker_llm)}`,
+    );
     return null;
   }
 }

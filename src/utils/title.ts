@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import {
   buildProviderOptions,
+  formatLlmError,
   getLanguageModel,
   getMaxInputTokens,
 } from "../llm/index.ts";
@@ -36,6 +37,8 @@ export async function generateThreadTitle(
       await updateThreadTitle(projectDir, threadId, title);
     }
   } catch (err) {
-    logger.warn(`Failed to generate thread title: ${err}`);
+    logger.warn(
+      `Failed to generate thread title: ${formatLlmError(err, config.chunker_llm)}`,
+    );
   }
 }
