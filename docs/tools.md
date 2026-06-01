@@ -238,7 +238,8 @@ returning it inline — that's how you chain `pipe → query → query`.
 It is a **declarative transform, not code execution**: a JSONata expression can
 only read and reshape the document it's given, with no filesystem, network, or
 host access. (Arbitrary code execution is a separate, deferred design — see
-[Milestone 15](plans/milestone-15-json-transforms.md) for the reasoning.)
+[Milestone 15](https://github.com/evantahler/botholomew/blob/main/docs/plans/milestone-15-json-transforms.md)
+for the reasoning.)
 Disclosure is token-light: the tool description carries only a handful of
 examples, and the full syntax reference comes back on a malformed expression or
 when you pass `expression: "?"`. The source must be a `logical_path` (a complete
