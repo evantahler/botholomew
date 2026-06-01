@@ -6,13 +6,14 @@ import { membotCountLinesTool } from "./count_lines.ts";
 import { membotEditTool } from "./edit.ts";
 import { membotExistsTool } from "./exists.ts";
 import { membotPipeTool } from "./pipe.ts";
+import { membotQueryTool } from "./query.ts";
 
 /**
  * Register every membot operation as a Botholomew tool. The 14 verbs that
  * have a direct membot Operation (add, list, tree, read, search, info,
  * stats, versions, diff, write, move, delete, refresh, prune) are wired via
- * `adaptOperation`; the five Botholomew-side wrappers (edit, copy, exists,
- * count_lines, pipe) bolt on the file-shaped UX our agents already know.
+ * `adaptOperation`; the six Botholomew-side wrappers (edit, copy, exists,
+ * count_lines, pipe, query) bolt on the file-shaped UX our agents already know.
  */
 export function registerMembotTools(): void {
   for (const op of OPERATIONS) {
@@ -23,4 +24,5 @@ export function registerMembotTools(): void {
   registerTool(membotExistsTool);
   registerTool(membotCountLinesTool);
   registerTool(membotPipeTool);
+  registerTool(membotQueryTool);
 }
