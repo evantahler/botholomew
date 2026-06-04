@@ -16,6 +16,7 @@
 | 12 | [Generic Prompts CRUD](milestone-12-generic-prompts-crud.md) | Drop the four-file cast; strict Zod-validated frontmatter; full CRUD via CLI + agent tools |
 | 13 | [Replace Context with `membot`](milestone-13-replace-context-with-membot.md) | Delete `src/context/` + `src/db/`; consume membot as an SDK; agent learns `membot_*` tools; per-project DuckDB store |
 | 14 | [Pluggable LLM Providers](milestone-14-pluggable-llm-providers.md) | Drop direct Anthropic SDK; adopt Vercel AI SDK; ship Anthropic + Ollama + OpenAI-compatible; nested `llm`/`chunker_llm` config; fully-local execution possible |
+| 15 | [JSON Transforms](milestone-15-json-transforms.md) | Declarative JSONata queries (`membot_query`) over JSON stored in membot; reduce large MCP blobs without context bloat |
 
 ## Stub/TODO Coverage
 

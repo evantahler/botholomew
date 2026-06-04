@@ -47,7 +47,7 @@ exactly so reading membot's docs gives you the same vocabulary the agent uses.
 | `membot_refresh` | Re-fetch a URL-backed entry (if its source supports refresh). |
 | `membot_prune` | Permanently drop history older than a cutoff. |
 
-Botholomew adds five wrappers on top so the agent can use the file-shaped
+Botholomew adds six wrappers on top so the agent can use the file-shaped
 idioms it already knows:
 
 | Wrapper | Behavior |
@@ -57,6 +57,37 @@ idioms it already knows:
 | `membot_exists` | `info` + catch `not_found`. Returns `{ exists: true \| false }` — never throws. |
 | `membot_count_lines` | `wc -l` over the markdown surrogate. Useful before a paginated read. |
 | `membot_pipe` | Run another tool and write its output as a new membot entry without ever flowing the body through the conversation. |
+| `membot_query` | Run a [JSONata](https://jsonata.org) transform over a JSON entry — group, filter, pluck, dedup, sort, aggregate — without loading the blob into context. |
+
+### Reducing large JSON blobs with `membot_query`
+
+External MCP tools often return big JSON arrays (an inbox, a list of issues, a
+table dump). Pulling the whole thing into the conversation to "count by day" or
+"pull these three fields" burns the context window. The pattern instead:
+
+1. **Land it.** `membot_pipe` the MCP call into a `logical_path` — the bytes go
+   straight to the store, never through the conversation.
+2. **Reduce it.** `membot_query` that `logical_path` with a
+   [JSONata](https://docs.jsonata.org) expression. Only the (usually small)
+   result returns to the agent.
+
+JSONata expressions run against the parsed JSON root (`$`). A few examples:
+
+```
+count by day:    ${ $substring(ts,0,10): $count($) }
+filter:          $[amount > 100]
+pluck fields:    $.{ 'id': id, 'subject': subject }
+dedup a field:   $distinct(email)
+top-10 newest:   $^(>created)[[0..9]]
+sum a field:     $sum(amount)
+```
+
+Set `output_logical_path` to write the result back into the store as a new
+entry instead of returning it inline — handy for chaining `pipe → query →
+query`. Pass `expression: "?"` to get the full syntax reference back from the
+tool. This is a declarative transform, not code execution: a JSONata expression
+can only read and reshape the document it's given — it has no filesystem,
+network, or host access.
 
 ## The patch format
 

@@ -1,6 +1,6 @@
 {
   "name": "botholomew",
-  "version": "0.20.0",
+  "version": "0.20.2",
   "description": "An autonomous AI agent for knowledge work — works your task queue while you sleep.",
   "type": "module",
   "bin": {
@@ -39,6 +39,7 @@
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
     "istextorbinary": "^9.5.0",
+    "jsonata": "^2.0.6",
     "membot": "^0.17.0",
     "nanospinner": "^1.2.2",
     "ollama-ai-provider-v2": "^3.5.1",

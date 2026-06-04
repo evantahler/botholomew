@@ -93,8 +93,13 @@ See `src/worker/tick.ts`.
 ### Log format
 
 Worker logs prefix every line with a local `HH:MM:SS` timestamp. Lifecycle
-phases render as `[[phase-name]]` in bold magenta so they're easy to scan
-and grep (`grep '\[\[' logs/*/<id>.log`). Phases emitted each tick:
+phases render as `[[phase-name]]` so they're easy to scan and grep
+(`grep '\[\[' logs/*/<id>.log`). Background worker **log files** are written
+colorless — the worker is spawned with `NO_COLOR` set (see `colorlessEnv` in
+`src/worker/spawn.ts`), so the file is plain text with no ANSI escape codes,
+even when launched from a terminal that forces color. The coloring (e.g. bold
+magenta phase tags) only applies to foreground terminal output. Phases emitted
+each tick:
 
 - `[[tick-start]] #N`
 - `[[evaluating-schedules]]` (only when any are enabled)

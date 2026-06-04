@@ -14,6 +14,24 @@ export interface SpawnWorkerOptions {
 }
 
 /**
+ * Env for a detached worker whose stdout/stderr is a log file: force no ANSI
+ * color. `ansis` (and other color libs) read these vars at import time, and
+ * `FORCE_COLOR` overrides `NO_COLOR`, so we must remove the forcing vars in
+ * addition to setting `NO_COLOR`. Without this, an interactive shell's inherited
+ * `FORCE_COLOR`/`COLORTERM` would make ansis emit escape codes into the log file
+ * even though the child's stdout is a file, not a TTY.
+ */
+export function colorlessEnv(
+  base: Record<string, string | undefined> = process.env,
+): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = { ...base };
+  env.NO_COLOR = "1";
+  delete env.FORCE_COLOR;
+  delete env.CLICOLOR_FORCE;
+  return env;
+}
+
+/**
  * Spawn a worker as a detached background process. Unlike the old daemon
  * model, multiple workers per project are allowed and expected — this just
  * launches a new one.
@@ -52,7 +70,7 @@ export async function spawnWorker(
 
   const proc = Bun.spawn(args, {
     stdio: ["ignore", logFile, logFile],
-    env: { ...process.env },
+    env: colorlessEnv(),
   });
   proc.unref();
 
