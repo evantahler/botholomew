@@ -1,6 +1,6 @@
 {
   "name": "botholomew",
-  "version": "0.19.4",
+  "version": "0.20.0",
   "description": "An autonomous AI agent for knowledge work — works your task queue while you sleep.",
   "type": "module",
   "bin": {
@@ -21,6 +21,7 @@
     "dev:demo": "bun run src/cli.ts chat -p 'learn everything you can about me from the connected MCP services and then save what you'\\''ve learned about me to context'",
     "test": "bun test",
     "lint": "tsc --noEmit && biome check .",
+    "build": "bun run scripts/build.ts",
     "capture": "bun run scripts/capture.ts",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",

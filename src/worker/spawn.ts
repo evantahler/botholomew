@@ -1,10 +1,12 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { getConfigPath, getWorkerLogPath } from "../constants.ts";
+import { IS_COMPILED_BINARY } from "../runtime.ts";
 import { logger } from "../utils/logger.ts";
 import { uuidv7 } from "../utils/uuid.ts";
 import { dateForId } from "../utils/v7-date.ts";
 import type { WorkerMode } from "./index.ts";
+import { WORKER_RUN_SENTINEL } from "./sentinel.ts";
 
 export interface SpawnWorkerOptions {
   mode?: WorkerMode;
@@ -38,15 +40,13 @@ export async function spawnWorker(
   await mkdir(dirname(logPath), { recursive: true });
   const logFile = Bun.file(logPath);
 
-  const workerScript = new URL("./run.ts", import.meta.url).pathname;
-  const args = [
-    "bun",
-    "run",
-    workerScript,
-    projectDir,
-    `--worker-id=${workerId}`,
-    `--log-path=${logPath}`,
-  ];
+  // In a compiled binary there is no `run.ts` on disk to `bun run`, so re-exec
+  // this binary with the sentinel arg that cli.ts intercepts. Under Bun (dev /
+  // global install) spawn the worker entry directly.
+  const args = IS_COMPILED_BINARY
+    ? [process.execPath, WORKER_RUN_SENTINEL, projectDir]
+    : ["bun", "run", new URL("./run.ts", import.meta.url).pathname, projectDir];
+  args.push(`--worker-id=${workerId}`, `--log-path=${logPath}`);
   if (options.mode === "persist") args.push("--persist");
   if (options.taskId) args.push(`--task-id=${options.taskId}`);
 

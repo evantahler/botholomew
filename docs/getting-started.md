@@ -35,6 +35,21 @@ bun install
 bun run dev -- --help
 ```
 
+### Build a standalone binary
+
+From a checkout you can compile a single self-contained executable — no Bun
+or `node_modules` required to run it:
+
+```bash
+bun run build      # → dist/bothy (one file; runs anywhere)
+```
+
+It bundles everything, including DuckDB's native library and the local
+embedding runtime, into the one file. Cross-compile for another platform with
+`bun run scripts/build.ts --target=bun-linux-x64` (and the matching arch).
+Per-platform prebuilt downloads are planned; until then, `bun install -g botholomew`
+(above) is the simplest install.
+
 ## Initialize a project
 
 In any directory you want Botholomew to operate inside:

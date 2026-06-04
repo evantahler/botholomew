@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { dim, green, red, yellow } from "ansis";
 import { $ } from "bun";
 import type { Command } from "commander";
+import { pkg } from "../pkg.ts";
 import {
   clearUpdateCache,
   loadUpdateCache,
@@ -15,10 +16,6 @@ import {
   type InstallMethod,
   needsCheck,
 } from "../update/checker.ts";
-
-const pkg = await Bun.file(
-  new URL("../../package.json", import.meta.url),
-).json();
 
 const GITHUB_REPO = (pkg.repository.url as string)
   .replace(/^https:\/\/github\.com\//, "")

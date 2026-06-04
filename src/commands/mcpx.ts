@@ -8,21 +8,43 @@ import { createSpinner } from "nanospinner";
 import { loadConfig } from "../config/loader.ts";
 import { getMcpxDir } from "../constants.ts";
 import { createMcpxClient, resolveMcpxDir } from "../mcpx/client.ts";
+import { pkg as ourPkg } from "../pkg.ts";
 import { writeCapabilitiesFile } from "../prompts/capabilities.ts";
+import { IS_COMPILED_BINARY, MCPX_CLI_SENTINEL } from "../runtime.ts";
 import { registerAllTools } from "../tools/registry.ts";
 import { logger } from "../utils/logger.ts";
 
-const require = createRequire(import.meta.url);
-const ourPkg = require("../../package.json");
-const mcpxPkg = require("@evantahler/mcpx/package.json");
-
-if (mcpxPkg.version !== ourPkg.dependencies["@evantahler/mcpx"]) {
-  throw new Error(
-    `@evantahler/mcpx version mismatch: installed ${mcpxPkg.version}, expected ${ourPkg.dependencies["@evantahler/mcpx"]}`,
-  );
+// Resolve the upstream mcpx CLI lazily — see commands/membot.ts for why this
+// can't run at module load (no node_modules in a `bun build --compile` binary).
+let mcpxCli: string | null | undefined;
+function resolveMcpxCli(): string {
+  if (mcpxCli === undefined) {
+    mcpxCli = null;
+    try {
+      const cli = fileURLToPath(import.meta.resolve("@evantahler/mcpx/cli"));
+      if (existsSync(cli)) mcpxCli = cli;
+    } catch {
+      // unresolvable (e.g. standalone binary) — handled below
+    }
+    if (mcpxCli) {
+      // Strict version pin — only checkable when mcpx is actually reachable.
+      const require = createRequire(import.meta.url);
+      const mcpxPkg = require("@evantahler/mcpx/package.json");
+      if (mcpxPkg.version !== ourPkg.dependencies["@evantahler/mcpx"]) {
+        throw new Error(
+          `@evantahler/mcpx version mismatch: installed ${mcpxPkg.version}, expected ${ourPkg.dependencies["@evantahler/mcpx"]}`,
+        );
+      }
+    }
+  }
+  if (!mcpxCli) {
+    logger.error(
+      "The `botholomew mcpx` passthrough requires a reachable @evantahler/mcpx install, which the standalone binary doesn't bundle. Install botholomew via npm/Bun, or run `mcpx` directly.",
+    );
+    process.exit(1);
+  }
+  return mcpxCli;
 }
-
-const MCPX_CLI = fileURLToPath(import.meta.resolve("@evantahler/mcpx/cli"));
 
 export async function runMcpx(
   projectDir: string,
@@ -35,7 +57,12 @@ export async function runMcpx(
   const config = await loadConfig(projectDir);
   const mcpxDir = resolveMcpxDir(projectDir, config);
   const filteredArgs = args.filter((a): a is string => a !== undefined);
-  const proc = Bun.spawn(["bun", MCPX_CLI, ...filteredArgs, "-c", mcpxDir], {
+  // In the compiled binary, re-exec ourselves with the sentinel so the bundled
+  // mcpx CLI runs; under Bun, spawn the resolved on-disk mcpx CLI.
+  const cmd = IS_COMPILED_BINARY
+    ? [process.execPath, MCPX_CLI_SENTINEL, ...filteredArgs, "-c", mcpxDir]
+    : ["bun", resolveMcpxCli(), ...filteredArgs, "-c", mcpxDir];
+  const proc = Bun.spawn(cmd, {
     stdout: opts?.inherit ? "inherit" : "pipe",
     stderr: opts?.inherit ? "inherit" : "pipe",
     stdin: opts?.inherit ? "inherit" : undefined,

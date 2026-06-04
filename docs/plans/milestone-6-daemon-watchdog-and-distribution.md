@@ -58,9 +58,9 @@ The watchdog needs to handle multiple Botholomew projects on one machine:
 - Each project gets its own launchd/systemd unit, keyed by a hash of the project directory path
 - `botholomew daemon list` — new subcommand, lists all registered Botholomew projects on this machine (scan LaunchAgents/systemd user units for botholomew entries)
 
-### 5. ~~Binary Compilation~~ (Dropped)
+### 5. Binary Compilation ✅ (Done)
 
-Binary compilation is not feasible — native dependencies like DuckDB and the embedding libraries cannot be bundled by `bun build --compile`.
+`bun run build` (`scripts/build.ts`) produces a single self-contained `dist/bothy` via `bun build --compile`. The native deps once thought un-bundleable — DuckDB's `libduckdb` shared library (dlopened via `@loader_path`) and onnxruntime-web's WASM — are **embedded** and staged into `os.tmpdir()` at startup; only the 5 non-host DuckDB binding packages are externalized (so Bun embeds the host `duckdb.node`). The `botholomew membot`/`mcpx` passthroughs run the bundled upstream CLIs via a re-exec sentinel. See the "Standalone binary" section in `CLAUDE.md` for the full mechanism. Remaining follow-up: a per-platform CI release matrix (macOS arm64/x64, Linux x64/arm64, Windows x64) attaching artifacts to releases.
 
 ### 6. Agent Self-Modification
 
@@ -82,7 +82,7 @@ Add daemon tools:
 | `src/daemon/healthcheck.ts` | **New** — standalone health check script |
 | `src/commands/daemon.ts` | Implement install/uninstall, add list subcommand |
 | `src/daemon/llm.ts` | Add update_beliefs, update_goals tools |
-| ~~`package.json`~~ | ~~Build script~~ (dropped — native deps can't compile) |
+| `package.json`, `scripts/build.ts`, `src/cli-standalone.ts`, `src/runtime.ts` | `build` script + single-file `--compile` (native deps embedded & staged) |
 
 ## Tests
 

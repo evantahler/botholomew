@@ -17,9 +17,27 @@ import { registerTaskCommand } from "./commands/task.ts";
 import { registerThreadCommand } from "./commands/thread.ts";
 import { registerUpgradeCommand } from "./commands/upgrade.ts";
 import { registerWorkerCommand } from "./commands/worker.ts";
+import { pkg } from "./pkg.ts";
+import { IS_COMPILED_BINARY } from "./runtime.ts";
 import { maybeCheckForUpdate } from "./update/background.ts";
+import { runWorkerFromArgv } from "./worker/run.ts";
+import { WORKER_RUN_SENTINEL } from "./worker/sentinel.ts";
 
-const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
+// In a compiled binary there is no source tree to `bun run`, so a backgrounded
+// worker re-execs this binary with a sentinel arg (see worker/spawn.ts). Handle
+// it before commander sees it. Also force the embedder to stay in-process —
+// membot's subprocess pool would re-exec the binary with its own sentinel,
+// which our CLI doesn't understand.
+if (IS_COMPILED_BINARY) {
+  process.env.MEMBOT_EMBEDDING_WORKERS ??= "1";
+  // Find the sentinel by value rather than position — Bun's compiled-binary
+  // argv layout differs from `bun run`, so we slice everything after it.
+  const sentinelIdx = process.argv.indexOf(WORKER_RUN_SENTINEL);
+  if (sentinelIdx !== -1) {
+    await runWorkerFromArgv(process.argv.slice(sentinelIdx + 1));
+    process.exit(0);
+  }
+}
 
 program
   .name("botholomew")
