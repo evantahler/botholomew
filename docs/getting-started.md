@@ -6,8 +6,9 @@ processing tasks. For deeper background, see
 
 ## Prerequisites
 
-- **[Bun](https://bun.sh) 1.1+** — Botholomew is a Bun-native CLI.
 - **An Anthropic API key** — Claude is the reasoning model.
+- **[Bun](https://bun.sh) 1.1+** — only for the npm/source installs below; the
+  prebuilt binary bundles its own runtime and needs neither Bun nor Node.
 - Embeddings run locally via `@huggingface/transformers` (default
   `Xenova/bge-small-en-v1.5`, 384-dim). The first call downloads ~33 MB
   of weights into the project's `models/` directory; no API key is
@@ -18,15 +19,31 @@ processing tasks. For deeper background, see
 
 ## Install
 
+### Prebuilt binary (no Bun required)
+
+Downloads the single self-contained executable for your platform from the
+[latest release](https://github.com/evantahler/botholomew/releases/latest) and
+installs it as `botholomew` (with a `bothy` alias):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/evantahler/botholomew/main/install.sh | sh
+```
+
+macOS (arm64) and Linux (x64) are supported. On Windows, download
+`botholomew-windows-x64.exe` from the releases page. Update in place anytime
+with `botholomew upgrade`.
+
+### With Bun (npm registry)
+
 ```bash
 bun install -g botholomew
 ```
 
-The CLI installs as both `botholomew` and `bothy` — the same binary, two
-names. Examples in these docs use `botholomew`; substitute `bothy` if
-you prefer the shorter form.
+Either way the CLI installs as both `botholomew` and `bothy` — the same binary,
+two names. Examples in these docs use `botholomew`; substitute `bothy` if you
+prefer the shorter form.
 
-Or run from a checkout:
+### From a checkout
 
 ```bash
 git clone https://github.com/evantahler/botholomew
@@ -34,6 +51,17 @@ cd botholomew
 bun install
 bun run dev -- --help
 ```
+
+From a checkout you can also compile the standalone binary yourself:
+
+```bash
+bun run build      # → dist/bothy (one self-contained file; runs anywhere)
+```
+
+It bundles everything — including DuckDB's native library and the local
+embedding runtime — into one file. Cross-compile for another platform with
+`bun run scripts/build.ts --target=bun-linux-x64` (and the matching arch); CI
+builds this matrix and attaches the binaries to each release.
 
 ## Initialize a project
 

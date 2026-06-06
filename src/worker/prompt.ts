@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { SERVER_INSTRUCTIONS as MEMBOT_INSTRUCTIONS } from "membot";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { getPromptsDir } from "../constants.ts";
+import { pkg } from "../pkg.ts";
 import type { Task } from "../tasks/schema.ts";
 import { parsePromptFile } from "../utils/frontmatter.ts";
 
@@ -16,10 +17,6 @@ export const MEMBOT_PROMPT_SECTION = `## Knowledge store (membot)
 
 ${MEMBOT_INSTRUCTIONS}
 `;
-
-const pkg = await Bun.file(
-  new URL("../../package.json", import.meta.url),
-).json();
 
 export const STYLE_RULES = `## Style
 - Open with the result, action, or next step. Skip preambles like "Great question", "You're absolutely right", "Let me…", "I'll go ahead and…".

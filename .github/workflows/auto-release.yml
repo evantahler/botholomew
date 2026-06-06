@@ -64,6 +64,42 @@ jobs:
       - run: bun run lint
       - run: bun test --timeout 30000
 
+  build-binaries:
+    # Build the standalone binary on each native runner and attach it to the
+    # release. Independent of publish-npm and not required by anything, so a
+    # single platform's failure (fail-fast: false) blocks neither the npm
+    # publish nor the other binaries. Smoke-tested before upload.
+    needs: [check-version, create-release]
+    if: needs.check-version.outputs.should_release == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, target: darwin-arm64, ext: "" }
+          - { os: ubuntu-latest, target: linux-x64, ext: "" }
+          - { os: windows-latest, target: windows-x64, ext: ".exe" }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Smoke-test the binary
+        run: |
+          "$PWD/dist/bothy${{ matrix.ext }}" --version
+      - name: Upload binary to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          asset="botholomew-${{ matrix.target }}${{ matrix.ext }}"
+          cp "dist/bothy${{ matrix.ext }}" "$asset"
+          gh release upload "${{ needs.check-version.outputs.tag }}" "$asset" --clobber
+
   publish-npm:
     needs: [check-version, ci]
     if: needs.check-version.outputs.should_release == 'true'

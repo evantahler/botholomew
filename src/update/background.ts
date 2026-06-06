@@ -1,11 +1,8 @@
 import { cyan, dim, yellow } from "ansis";
 import { DEFAULTS, ENV } from "../constants.ts";
+import { pkg } from "../pkg.ts";
 import { loadUpdateCache, saveUpdateCache } from "./cache.ts";
 import { checkForUpdate, needsCheck, type UpdateCache } from "./checker.ts";
-
-const pkg = await Bun.file(
-  new URL("../../package.json", import.meta.url),
-).json();
 
 /** Format an update notice for stderr output. */
 function formatNotice(

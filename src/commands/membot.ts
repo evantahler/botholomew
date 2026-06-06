@@ -7,22 +7,51 @@ import type { Command } from "commander";
 import { defaultCliName, OPERATIONS } from "membot";
 import { loadConfig } from "../config/loader.ts";
 import { resolveMembotDir } from "../mem/client.ts";
+import { pkg as ourPkg } from "../pkg.ts";
+import { IS_COMPILED_BINARY, MEMBOT_CLI_SENTINEL } from "../runtime.ts";
 import { logger } from "../utils/logger.ts";
 
-const require = createRequire(import.meta.url);
-const ourPkg = require("../../package.json");
-const membotPkg = require("membot/package.json");
-
-// Soft warning rather than a hard error — membot's SDK API is stable within a
-// minor version, and dev workspaces sometimes pin a newer copy.
-const requested = (ourPkg.dependencies.membot as string).replace(/^[\^~]/, "");
-if (!membotPkg.version.startsWith(requested.split(".")[0])) {
-  logger.warn(
-    `membot version drift: installed ${membotPkg.version}, expected ${ourPkg.dependencies.membot}`,
-  );
+// Resolve the upstream membot CLI lazily. `import.meta.resolve` walks
+// node_modules on disk, which a `bun build --compile` binary doesn't have, so
+// resolving at module load would crash *every* command. On first use we resolve
+// it, soft-check version drift, and fail this passthrough alone with a clear
+// message when membot isn't reachable (e.g. inside the standalone binary).
+let membotCli: string | null | undefined;
+function resolveMembotCli(): string {
+  if (membotCli === undefined) {
+    membotCli = null;
+    try {
+      const cli = fileURLToPath(import.meta.resolve("membot/cli"));
+      if (existsSync(cli)) {
+        membotCli = cli;
+        try {
+          const require = createRequire(import.meta.url);
+          const membotPkg = require("membot/package.json");
+          const requested = (ourPkg.dependencies.membot as string).replace(
+            /^[\^~]/,
+            "",
+          );
+          if (!membotPkg.version.startsWith(requested.split(".")[0])) {
+            logger.warn(
+              `membot version drift: installed ${membotPkg.version}, expected ${ourPkg.dependencies.membot}`,
+            );
+          }
+        } catch {
+          // best-effort version check — ignore if package.json isn't readable
+        }
+      }
+    } catch {
+      // unresolvable (e.g. standalone binary) — handled below
+    }
+  }
+  if (!membotCli) {
+    logger.error(
+      "The `botholomew membot` passthrough requires a reachable membot install, which the standalone binary doesn't bundle. Install botholomew via npm/Bun, or run `membot` directly.",
+    );
+    process.exit(1);
+  }
+  return membotCli;
 }
-
-const MEMBOT_CLI = fileURLToPath(import.meta.resolve("membot/cli"));
 
 function getDir(program: Command): string {
   return program.opts().dir;
@@ -45,7 +74,12 @@ async function runMembot(projectDir: string, args: string[]): Promise<number> {
   // `membot` directly.
   const config = await loadConfig(projectDir);
   const membotDir = resolveMembotDir(projectDir, config);
-  const proc = Bun.spawn(["bun", MEMBOT_CLI, "--config", membotDir, ...args], {
+  // In the compiled binary, re-exec ourselves with the sentinel so the bundled
+  // membot CLI runs; under Bun, spawn the resolved on-disk membot CLI.
+  const cmd = IS_COMPILED_BINARY
+    ? [process.execPath, MEMBOT_CLI_SENTINEL, "--config", membotDir, ...args]
+    : ["bun", resolveMembotCli(), "--config", membotDir, ...args];
+  const proc = Bun.spawn(cmd, {
     stdout: "inherit",
     stderr: "inherit",
     stdin: "inherit",

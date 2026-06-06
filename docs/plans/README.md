@@ -43,4 +43,4 @@ Every stub and "Coming soon" from M1 is assigned to a milestone:
 | Agent self-modification (beliefs/goals) | M5, M6 |
 | `daemon install` command | M6 |
 | OS-level watchdog (launchd/systemd) | M6 |
-| Binary compilation (`bun build`) | M6 |
+| Binary compilation (`bun run build`) ✅ | M6 |
