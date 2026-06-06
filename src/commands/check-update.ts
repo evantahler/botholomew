@@ -1,12 +1,9 @@
 import { cyan, dim, green, yellow } from "ansis";
 import type { Command } from "commander";
+import { pkg } from "../pkg.ts";
 import { saveUpdateCache } from "../update/cache.ts";
 import type { UpdateCache } from "../update/checker.ts";
 import { checkForUpdate } from "../update/checker.ts";
-
-const pkg = await Bun.file(
-  new URL("../../package.json", import.meta.url),
-).json();
 
 export function registerCheckUpdateCommand(program: Command) {
   program

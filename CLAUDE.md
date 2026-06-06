@@ -36,7 +36,17 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 
 - `bun test` — Run all tests
 - `bun run dev` — Run the CLI in development
-- `bun run build` — Compile to standalone binary
+- `bun run build` — Compile a single standalone binary at `dist/bothy` (see `scripts/build.ts`)
+
+## Standalone binary
+
+`bun run build` compiles `src/cli-standalone.ts` into one self-contained file (`dist/bothy`) via `bun build --compile` — no sidecar, no `node_modules` at runtime. The hard part is native deps, which Bun can't resolve from disk in a compiled binary (it resolves against the virtual `$bunfs` root):
+
+- **DuckDB**: `@duckdb/node-bindings` switches over per-OS native addons, and the host addon dlopens a ~112 MB `libduckdb.dylib` via an `@loader_path` rpath. The build externalizes only the **5 non-host** binding packages (so Bun *embeds* the host `duckdb.node`), embeds the shared library, and `cli-standalone.ts` stages it into `os.tmpdir()` at startup so the dlopen resolves.
+- **Embeddings**: `@huggingface/transformers` is patched (membot's patch, applied automatically and idempotently from `node_modules/membot/patches/`) to use the onnxruntime-web WASM backend. The build embeds the WASM and rewrites membot's `import.meta.resolve(...)` calls to read the staged paths (`BOTHOLOMEW_ORT_WASM_*`).
+- **Passthroughs**: `botholomew membot`/`mcpx` re-exec the binary with a sentinel (`src/runtime.ts`) that runs the **bundled** upstream CLI — the binary embeds both, so no external CLI is needed.
+- `src/runtime.ts::IS_COMPILED_BINARY` gates binary-only behavior (worker re-exec via `WORKER_RUN_SENTINEL`, single-process embedder, passthrough sentinels). Cross-compile with `--target=bun-<os>-<arch>`.
+- **Distribution**: `.github/workflows/auto-release.yml` builds the binary on a native-runner matrix (macOS arm64, Linux x64, Windows x64 — the `*-latest` images) and uploads each as `botholomew-<os>-<arch>[.exe]` to the GitHub release; CI (`ci.yml`) build-smokes the same matrix on every PR. `install.sh` (`curl … | sh`) downloads the right asset from the latest release, and `botholomew upgrade` (binary path in `src/commands/upgrade.ts`) swaps the running binary in place.
 
 ## Tech Stack
 

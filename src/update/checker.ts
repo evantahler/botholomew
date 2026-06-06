@@ -1,8 +1,5 @@
 import { DEFAULTS } from "../constants.ts";
-
-const pkg = await Bun.file(
-  new URL("../../package.json", import.meta.url),
-).json();
+import { pkg } from "../pkg.ts";
 
 const NPM_REGISTRY_URL = `https://registry.npmjs.org/${pkg.name}/latest`;
 const GITHUB_REPO = (pkg.repository.url as string)

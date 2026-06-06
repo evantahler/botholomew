@@ -76,13 +76,23 @@ the message queue, tool-call visualization, and the live workers panel:
 
 ## Install
 
-Requires [Bun](https://bun.sh) 1.1+.
+**Prebuilt binary** (no Bun required — one self-contained file per platform):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/evantahler/botholomew/main/install.sh | sh
+```
+
+macOS (arm64) and Linux (x64); on Windows grab `botholomew-windows-x64.exe`
+from the [releases](https://github.com/evantahler/botholomew/releases/latest). Then
+`botholomew upgrade` updates it in place.
+
+**With Bun** (requires [Bun](https://bun.sh) 1.1+):
 
 ```bash
 bun install -g botholomew
 ```
 
-The CLI installs as both `botholomew` and `bothy` — the same binary, two names.
+Either way the CLI installs as both `botholomew` and `bothy` — the same binary, two names.
 
 Or run the dev build from a checkout:
 

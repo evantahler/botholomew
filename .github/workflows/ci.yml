@@ -30,10 +30,38 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run docs:build
 
+  build-binary:
+    # Compile the standalone binary and smoke-test it on every target platform,
+    # from a dir with no node_modules (proves it's self-contained). Mirrors the
+    # release matrix, so a broken platform is caught here before it ships.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, target: darwin-arm64, ext: "" }
+          - { os: ubuntu-latest, target: linux-x64, ext: "" }
+          - { os: windows-latest, target: windows-x64, ext: ".exe" }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Smoke-test the binary
+        run: |
+          BIN="$PWD/dist/bothy${{ matrix.ext }}"
+          cd "$RUNNER_TEMP"
+          "$BIN" --version
+          "$BIN" --help
+          "$BIN" -d "$RUNNER_TEMP/proj" init </dev/null
+
   complete:
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, test, docs-build]
+    needs: [lint, test, docs-build, build-binary]
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
