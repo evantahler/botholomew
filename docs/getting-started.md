@@ -29,7 +29,7 @@ installs it as `botholomew` (with a `bothy` alias):
 curl -fsSL https://raw.githubusercontent.com/evantahler/botholomew/main/install.sh | sh
 ```
 
-macOS (arm64/x64) and Linux (x64/arm64) are supported. On Windows, download
+macOS (arm64) and Linux (x64) are supported. On Windows, download
 `botholomew-windows-x64.exe` from the releases page. Update in place anytime
 with `botholomew upgrade`.
 

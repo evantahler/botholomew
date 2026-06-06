@@ -82,7 +82,7 @@ the message queue, tool-call visualization, and the live workers panel:
 curl -fsSL https://raw.githubusercontent.com/evantahler/botholomew/main/install.sh | sh
 ```
 
-macOS (arm64/x64) and Linux (x64/arm64); on Windows grab `botholomew-windows-x64.exe`
+macOS (arm64) and Linux (x64); on Windows grab `botholomew-windows-x64.exe`
 from the [releases](https://github.com/evantahler/botholomew/releases/latest). Then
 `botholomew upgrade` updates it in place.
 
