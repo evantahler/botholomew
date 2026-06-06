@@ -45,7 +45,8 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - **DuckDB**: `@duckdb/node-bindings` switches over per-OS native addons, and the host addon dlopens a ~112 MB `libduckdb.dylib` via an `@loader_path` rpath. The build externalizes only the **5 non-host** binding packages (so Bun *embeds* the host `duckdb.node`), embeds the shared library, and `cli-standalone.ts` stages it into `os.tmpdir()` at startup so the dlopen resolves.
 - **Embeddings**: `@huggingface/transformers` is patched (membot's patch, applied automatically and idempotently from `node_modules/membot/patches/`) to use the onnxruntime-web WASM backend. The build embeds the WASM and rewrites membot's `import.meta.resolve(...)` calls to read the staged paths (`BOTHOLOMEW_ORT_WASM_*`).
 - **Passthroughs**: `botholomew membot`/`mcpx` re-exec the binary with a sentinel (`src/runtime.ts`) that runs the **bundled** upstream CLI — the binary embeds both, so no external CLI is needed.
-- `src/runtime.ts::IS_COMPILED_BINARY` gates binary-only behavior (worker re-exec via `WORKER_RUN_SENTINEL`, single-process embedder, passthrough sentinels). Cross-compile with `--target=bun-<os>-<arch>`; a per-platform CI release matrix is planned (see `docs/plans/`).
+- `src/runtime.ts::IS_COMPILED_BINARY` gates binary-only behavior (worker re-exec via `WORKER_RUN_SENTINEL`, single-process embedder, passthrough sentinels). Cross-compile with `--target=bun-<os>-<arch>`.
+- **Distribution**: `.github/workflows/auto-release.yml` builds the binary on a native-runner matrix (macOS arm64/x64, Linux x64/arm64, Windows x64) and uploads each as `botholomew-<os>-<arch>[.exe]` to the GitHub release; CI (`ci.yml`) build-smokes the same matrix on every PR. `install.sh` (`curl … | sh`) downloads the right asset from the latest release, and `botholomew upgrade` (binary path in `src/commands/upgrade.ts`) swaps the running binary in place.
 
 ## Tech Stack
 

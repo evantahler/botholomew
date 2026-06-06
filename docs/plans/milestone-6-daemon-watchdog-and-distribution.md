@@ -60,7 +60,7 @@ The watchdog needs to handle multiple Botholomew projects on one machine:
 
 ### 5. Binary Compilation ✅ (Done)
 
-`bun run build` (`scripts/build.ts`) produces a single self-contained `dist/bothy` via `bun build --compile`. The native deps once thought un-bundleable — DuckDB's `libduckdb` shared library (dlopened via `@loader_path`) and onnxruntime-web's WASM — are **embedded** and staged into `os.tmpdir()` at startup; only the 5 non-host DuckDB binding packages are externalized (so Bun embeds the host `duckdb.node`). The `botholomew membot`/`mcpx` passthroughs run the bundled upstream CLIs via a re-exec sentinel. See the "Standalone binary" section in `CLAUDE.md` for the full mechanism. Remaining follow-up: a per-platform CI release matrix (macOS arm64/x64, Linux x64/arm64, Windows x64) attaching artifacts to releases.
+`bun run build` (`scripts/build.ts`) produces a single self-contained `dist/bothy` via `bun build --compile`. The native deps once thought un-bundleable — DuckDB's `libduckdb` shared library (dlopened via `@loader_path`) and onnxruntime-web's WASM — are **embedded** and staged into `os.tmpdir()` at startup; only the 5 non-host DuckDB binding packages are externalized (so Bun embeds the host `duckdb.node`). The `botholomew membot`/`mcpx` passthroughs run the bundled upstream CLIs via a re-exec sentinel. See the "Standalone binary" section in `CLAUDE.md` for the full mechanism. Distribution is wired end-to-end: `auto-release.yml` builds a native-runner matrix (macOS arm64/x64, Linux x64/arm64, Windows x64) and uploads `botholomew-<os>-<arch>[.exe]` to each release; `install.sh` downloads them and `botholomew upgrade` swaps the binary in place.
 
 ### 6. Agent Self-Modification
 

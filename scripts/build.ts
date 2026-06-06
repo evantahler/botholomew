@@ -126,7 +126,7 @@ for (const f of [ortMjsAbs, ortWasmAbs]) {
   if (!existsSync(f)) die(`onnxruntime-web asset not found: ${f}`);
 }
 
-const outfile = join(repoRoot, "dist", "bothy");
+const outfile = join(repoRoot, "dist", osArch.startsWith("win32") ? "bothy.exe" : "bothy");
 info(`compiling ${target ? `for ${target}` : "for host"} (${osArch}) → ${outfile}`);
 
 // Embed the native assets cli-standalone.ts stages at startup, and rewrite
