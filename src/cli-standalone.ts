@@ -46,14 +46,11 @@ function stage(embedded: string, name: string): string {
   return dest;
 }
 
-// DuckDB shared library — must land where Bun extracts the addon (os.tmpdir()).
-const libName =
-  process.platform === "win32"
-    ? "duckdb.dll"
-    : process.platform === "darwin"
-      ? "libduckdb.dylib"
-      : "libduckdb.so";
-stage(dylibPath, libName);
+// DuckDB shared library — must land where Bun extracts the addon (os.tmpdir())
+// under exactly the name the addon's rpath expects. scripts/build.ts globs that
+// name from the binding package and injects it here via --define.
+declare const BOTHOLOMEW_DUCKDB_LIB: string;
+stage(dylibPath, BOTHOLOMEW_DUCKDB_LIB);
 
 // onnxruntime-web WASM runtime — staged side by side; membot's embedder reads
 // these env vars (the build rewrites its import.meta.resolve calls).

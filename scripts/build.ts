@@ -22,7 +22,7 @@
 
 import { cyan, green, red } from "ansis";
 import { $ } from "bun";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,14 +39,16 @@ function ok(msg: string): void {
   process.stdout.write(`${green("✓")} ${msg}\n`);
 }
 
-// Per-platform DuckDB binding package + shared-library filename.
-const DUCKDB: Record<string, { pkg: string; lib: string }> = {
-  "darwin-arm64": { pkg: "@duckdb/node-bindings-darwin-arm64", lib: "libduckdb.dylib" },
-  "darwin-x64": { pkg: "@duckdb/node-bindings-darwin-x64", lib: "libduckdb.dylib" },
-  "linux-x64": { pkg: "@duckdb/node-bindings-linux-x64", lib: "libduckdb.so" },
-  "linux-arm64": { pkg: "@duckdb/node-bindings-linux-arm64", lib: "libduckdb.so" },
-  "win32-x64": { pkg: "@duckdb/node-bindings-win32-x64", lib: "duckdb.dll" },
-  "win32-arm64": { pkg: "@duckdb/node-bindings-win32-arm64", lib: "duckdb.dll" },
+// Per-platform DuckDB binding package. The shared-library filename inside it
+// (libduckdb.dylib / libduckdb.so / duckdb.dll) is discovered by globbing, so
+// we stage it under exactly the name the addon's rpath expects.
+const DUCKDB_PKG: Record<string, string> = {
+  "darwin-arm64": "@duckdb/node-bindings-darwin-arm64",
+  "darwin-x64": "@duckdb/node-bindings-darwin-x64",
+  "linux-x64": "@duckdb/node-bindings-linux-x64",
+  "linux-arm64": "@duckdb/node-bindings-linux-arm64",
+  "win32-x64": "@duckdb/node-bindings-win32-x64",
+  "win32-arm64": "@duckdb/node-bindings-win32-arm64",
 };
 
 // `--target=bun-<os>-<arch>` cross-compiles; omit to build for the host.
@@ -56,8 +58,8 @@ const target = targetFlag?.slice("--target=".length);
 const osArch = target
   ? target.replace(/^bun-/, "").replace(/-(baseline|modern|musl).*$/, "")
   : `${process.platform}-${process.arch}`;
-const duck = DUCKDB[osArch];
-if (!duck) die(`unsupported platform '${osArch}'`);
+const duckPkg = DUCKDB_PKG[osArch];
+if (!duckPkg) die(`unsupported platform '${osArch}'`);
 
 // ── 1. Patch @huggingface/transformers for the WASM (onnxruntime-web) backend ──
 // membot ships the patch; it strips the static `onnxruntime-node` import so the
@@ -104,10 +106,18 @@ if (existsSync(marker)) {
 }
 
 // ── 2. Compile to a single binary ──
-const dylibAbs = join(repoRoot, "node_modules", duck.pkg, duck.lib);
-if (!existsSync(dylibAbs)) {
-  die(`DuckDB library not found: ${dylibAbs}\n  Install ${duck.pkg} (it ships with the target's bindings).`);
+// Discover the DuckDB shared library by globbing the binding package — its
+// basename is the leaf the addon dlopens via its rpath, so we stage it under
+// the same name at runtime (BOTHOLOMEW_DUCKDB_LIB) regardless of platform.
+const bindingDir = join(repoRoot, "node_modules", duckPkg);
+if (!existsSync(bindingDir)) {
+  die(`${duckPkg} not found — install it (it ships with the target's bindings).`);
 }
+const duckLib = readdirSync(bindingDir).find(
+  (f) => /\.(dylib|dll)$/.test(f) || /\.so(\.\d+)*$/.test(f),
+);
+if (!duckLib) die(`no DuckDB shared library (.dylib/.so/.dll) in ${bindingDir}`);
+const dylibAbs = join(bindingDir, duckLib);
 
 const ortDistRel = "node_modules/onnxruntime-web/dist";
 const ortMjsAbs = join(repoRoot, ortDistRel, "ort-wasm-simd-threaded.asyncify.mjs");
@@ -196,9 +206,9 @@ const result = await Bun.build({
   entrypoints: [join(repoRoot, "src/cli-standalone.ts")],
   // Externalize the non-target DuckDB bindings only — their `require()` branches
   // never execute on this platform, so they don't need to resolve at runtime.
-  external: Object.values(DUCKDB)
-    .map((d) => d.pkg)
-    .filter((p) => p !== duck.pkg),
+  external: Object.values(DUCKDB_PKG).filter((p) => p !== duckPkg),
+  // Tell cli-standalone.ts the exact filename to stage the DuckDB library as.
+  define: { BOTHOLOMEW_DUCKDB_LIB: JSON.stringify(duckLib) },
   minify: true,
   sourcemap: "linked",
   plugins: [embedNativeAssets, stubMcpxOnnxWasm, stubReactDevtools],
