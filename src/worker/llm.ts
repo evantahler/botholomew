@@ -114,6 +114,7 @@ export async function runAgentLoop(input: {
   const maxInputTokens = await getMaxInputTokens(config.llm);
 
   const maxTurns = config.max_turns;
+  let nudgeCount = 0;
   for (let turn = 0; !maxTurns || turn < maxTurns; turn++) {
     const startTime = Date.now();
     fitToContextWindow(messages, systemPrompt, maxInputTokens);
@@ -188,9 +189,29 @@ export async function runAgentLoop(input: {
     }
 
     if (collectedToolCalls.length === 0) {
+      // An implicit tick-end (the model stopped emitting tool calls) is
+      // ambiguous evidence — it usually means the agent hit a dead end,
+      // exhausted its output budget mid-thought, or forgot to declare a
+      // terminal status. Don't treat it as success. Nudge once to give the
+      // agent a chance to recover (e.g. emit the final tool call it was about
+      // to make, or fail_task on a capability gap); fail if it still doesn't.
+      if (nudgeCount === 0) {
+        nudgeCount++;
+        const nudge =
+          "You ended your turn without calling a terminal status tool. Every tick must end with exactly one of: complete_task (only if the required deliverable truly exists — verify it), fail_task (if you are blocked or a required tool/capability is unavailable — state the gap), or wait_task (if you must wait on something external). Call the appropriate one now.";
+        messages.push({ role: "user", content: nudge });
+        await logInteraction(projectDir, threadId, {
+          role: "system",
+          kind: "status_change",
+          content:
+            "Agent ended its turn without a terminal status tool; nudging to call complete_task/fail_task/wait_task.",
+        });
+        continue;
+      }
       return {
-        status: "complete",
-        reason: "Agent completed without explicit status tool call",
+        status: "failed",
+        reason:
+          "Agent ended its tick without calling a terminal status tool (complete_task/fail_task/wait_task)",
       };
     }
 
