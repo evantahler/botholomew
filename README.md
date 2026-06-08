@@ -232,6 +232,7 @@ semantic search, append-only versioning, and URL refresh all live there.
 | Command | Purpose |
 |---|---|
 | `botholomew init` | Initialize the current directory as a project (refuses on iCloud/Dropbox/NFS without `--force`) |
+| `botholomew status` | One-command dashboard: workers, task counts/claims, schedules (with a live "due?" check), quarantined files, store info. `--json` for scripting, `--no-evaluate` to skip the LLM schedule check |
 | `botholomew worker run\|start` | Run a worker (foreground or background); `--persist` for long-running, `--task-id <id>` to target one task |
 | `botholomew worker list\|status\|stop\|kill\|reap` | Inspect and manage running workers |
 | `botholomew chat` | Interactive Ink/React TUI |
