@@ -124,6 +124,13 @@ describe("initProject", () => {
     }
   });
 
+  test("does NOT seed a dream skill — /dream is a built-in command", async () => {
+    await initProject(projectDir);
+    expect(
+      await Bun.file(join(getSkillsDir(projectDir), "dream.md")).exists(),
+    ).toBe(false);
+  });
+
   test("the capabilities skill invokes the capabilities_refresh tool", async () => {
     await initProject(projectDir);
     const text = await fileText(

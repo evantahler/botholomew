@@ -6,9 +6,12 @@ import {
   getInteractionsAfter,
   getThread,
   type Interaction,
+  type InteractionRole,
   isThreadEnded,
   listThreads,
+  searchThreads,
   type Thread,
+  type ThreadType,
 } from "../threads/store.ts";
 import { logger } from "../utils/logger.ts";
 
@@ -38,6 +41,67 @@ export function registerThreadCommand(program: Command) {
         printThread(t);
       }
     });
+
+  thread
+    .command("search <query>")
+    .description("Search past conversations for a regex (or plain substring)")
+    .option("--ignore-case", "case-insensitive match (default true)", true)
+    .option("--no-ignore-case", "case-sensitive match")
+    .option(
+      "-r, --role <role>",
+      "filter by role (user, assistant, system, tool)",
+    )
+    .option("-t, --type <type>", "filter by type (worker_tick, chat_session)")
+    .option("--since <iso>", "only threads started on or after this ISO date")
+    .option("--until <iso>", "only threads started on or before this ISO date")
+    .option("-l, --limit <n>", "max hits to return", Number.parseInt)
+    .action(
+      async (
+        query: string,
+        opts: {
+          ignoreCase?: boolean;
+          role?: string;
+          type?: string;
+          since?: string;
+          until?: string;
+          limit?: number;
+        },
+      ) => {
+        const dir = program.opts().dir;
+        let regex: RegExp;
+        try {
+          regex = new RegExp(query, opts.ignoreCase === false ? "" : "i");
+        } catch (err) {
+          logger.error(
+            `Invalid regex: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          process.exit(1);
+        }
+        const { hits, threadsScanned } = await searchThreads(dir, {
+          regex,
+          role: opts.role as InteractionRole | undefined,
+          type: opts.type as ThreadType | undefined,
+          since: opts.since ? new Date(opts.since) : undefined,
+          until: opts.until ? new Date(opts.until) : undefined,
+          maxResults: opts.limit,
+        });
+
+        if (hits.length === 0) {
+          logger.dim(`No hits in ${threadsScanned} thread(s).`);
+          return;
+        }
+
+        for (const h of hits) {
+          const id = ansis.dim(h.thread_id);
+          const seq = ansis.dim(`#${h.sequence}`);
+          const snippet = h.content_snippet.replace(/\n/g, " ");
+          console.log(`  ${id}  ${seq}  ${roleColor(h.role)}  ${snippet}`);
+        }
+        logger.dim(
+          `\n${hits.length} hit(s) in ${threadsScanned} thread(s). View context: botholomew thread view <id>`,
+        );
+      },
+    );
 
   thread
     .command("view <id>")

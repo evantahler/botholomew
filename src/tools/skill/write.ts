@@ -30,7 +30,7 @@ const inputSchema = z.object({
   name: z
     .string()
     .describe(
-      "Skill name (slash-command identifier). Will be normalized to lowercase + [a-z0-9-]. Reserved: help, skills, clear, exit.",
+      "Skill name (slash-command identifier). Will be normalized to lowercase + [a-z0-9-]. Reserved: help, skills, dream, clear, exit.",
     ),
   description: z
     .string()
@@ -67,7 +67,7 @@ const outputSchema = z.object({
 export const skillWriteTool = {
   name: "skill_write",
   description:
-    "[[ bash equivalent command: tee ]] Create or overwrite a skill file (user-defined slash command) at skills/<name>.md. Fails with path_conflict when the file exists unless on_conflict='overwrite'. Reserved names (help, skills, clear, exit) are rejected. The generated file is parsed to validate before being written.",
+    "[[ bash equivalent command: tee ]] Create or overwrite a skill file (user-defined slash command) at skills/<name>.md. Fails with path_conflict when the file exists unless on_conflict='overwrite'. Reserved names (help, skills, dream, clear, exit) are rejected. The generated file is parsed to validate before being written.",
   group: "skill",
   inputSchema,
   outputSchema,
@@ -78,7 +78,7 @@ export const skillWriteTool = {
         nameCheck.reason === "reserved" ? "reserved_name" : "invalid_name";
       const message =
         nameCheck.reason === "reserved"
-          ? `'${input.name}' is reserved by a built-in slash command (help, skills, clear, exit).`
+          ? `'${input.name}' is reserved by a built-in slash command (help, skills, dream, clear, exit).`
           : nameCheck.reason === "too_long"
             ? `Skill name too long (max 64 chars after normalization).`
             : `'${input.name}' is not a valid skill name. After normalization (lowercase, [a-z0-9-], trimmed hyphens) it is empty.`;

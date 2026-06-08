@@ -1,11 +1,8 @@
 import { z } from "zod";
 import {
-  getThread,
-  type Interaction,
   type InteractionKind,
   type InteractionRole,
-  listThreads,
-  type Thread,
+  searchThreads,
 } from "../../threads/store.ts";
 import type { ToolDefinition } from "../tool.ts";
 
@@ -18,8 +15,6 @@ const KINDS = [
   "context_update",
   "status_change",
 ] as const;
-
-const SNIPPET_MAX = 240;
 
 const inputSchema = z.object({
   pattern: z
@@ -112,17 +107,16 @@ export const searchThreadsTool = {
       };
     }
 
-    const sinceMs = input.since
-      ? Date.parse(input.since)
-      : Number.NEGATIVE_INFINITY;
-    const untilMs = input.until
-      ? Date.parse(input.until)
-      : Number.POSITIVE_INFINITY;
-
-    let threads: Thread[];
+    let scanResult: Awaited<ReturnType<typeof searchThreads>>;
     try {
-      threads = await listThreads(ctx.projectDir, {
+      scanResult = await searchThreads(ctx.projectDir, {
+        regex,
+        role: input.role,
+        kind: input.kind,
         type: input.thread_type,
+        since: input.since ? new Date(input.since) : undefined,
+        until: input.until ? new Date(input.until) : undefined,
+        maxResults: input.max_results,
       });
     } catch (err) {
       return {
@@ -134,74 +128,28 @@ export const searchThreadsTool = {
       };
     }
 
-    type Hit = z.infer<typeof HitSchema>;
-    const matches: Hit[] = [];
-    let scanned = 0;
-
-    for (const t of threads) {
-      const startedMs = t.started_at.getTime();
-      if (startedMs < sinceMs || startedMs > untilMs) continue;
-      const data = await getThread(ctx.projectDir, t.id);
-      if (!data) continue;
-      scanned++;
-      for (const ix of data.interactions) {
-        if (input.role && ix.role !== input.role) continue;
-        if (input.kind && ix.kind !== input.kind) continue;
-        if (!matchInteraction(ix, regex)) continue;
-        matches.push({
-          thread_id: t.id,
-          thread_title: t.title || "(untitled)",
-          thread_type: t.type,
-          sequence: ix.sequence,
-          role: ix.role,
-          kind: ix.kind,
-          content_snippet: snippetForMatch(ix.content, regex),
-          created_at: ix.created_at.toISOString(),
-        });
-        if (matches.length >= input.max_results) break;
-      }
-      if (matches.length >= input.max_results) break;
-    }
+    const matches = scanResult.hits.map((h) => ({
+      thread_id: h.thread_id,
+      thread_title: h.thread_title,
+      thread_type: h.thread_type,
+      sequence: h.sequence,
+      role: h.role,
+      kind: h.kind,
+      content_snippet: h.content_snippet,
+      created_at: h.created_at.toISOString(),
+    }));
 
     return {
       matches,
-      threads_scanned: scanned,
+      threads_scanned: scanResult.threadsScanned,
       is_error: false,
       next_action_hint:
         matches.length === 0
-          ? `No hits in ${scanned} thread(s). Try a broader pattern or remove role/kind filters.`
+          ? `No hits in ${scanResult.threadsScanned} thread(s). Try a broader pattern or remove role/kind filters.`
           : `Pass any (thread_id, sequence) into view_thread({ id: thread_id, offset: sequence - 1, limit: 5 }) to read surrounding context.`,
     };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;
-
-function matchInteraction(ix: Interaction, regex: RegExp): boolean {
-  // We treat the user-visible content as the primary haystack, but a
-  // tool_use interaction's content is just "Calling <name>" — fall through
-  // to the tool name + JSON args so a search for an exact tool argument
-  // still finds the call.
-  if (regex.test(ix.content)) return true;
-  if (ix.tool_name && regex.test(ix.tool_name)) return true;
-  if (ix.tool_input && regex.test(ix.tool_input)) return true;
-  return false;
-}
-
-/**
- * Pick a short window around the first regex match so the agent gets enough
- * context to know whether the hit is relevant without paging the whole
- * interaction. Falls back to the head when the match index isn't available.
- */
-function snippetForMatch(content: string, regex: RegExp): string {
-  const m = regex.exec(content);
-  if (!m) return content.slice(0, SNIPPET_MAX);
-  const idx = m.index;
-  const start = Math.max(0, idx - 60);
-  const end = Math.min(content.length, idx + SNIPPET_MAX - 60);
-  let snippet = content.slice(start, end);
-  if (start > 0) snippet = `…${snippet}`;
-  if (end < content.length) snippet = `${snippet}…`;
-  return snippet;
-}
 
 // Keep the role/kind unions exported for tests that want to type-pin filters.
 export type SearchThreadsRole = InteractionRole;

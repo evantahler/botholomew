@@ -302,7 +302,7 @@ export async function resetStaleTasks(
   const reset: string[] = [];
   for (const id of ids) {
     const t = await getTask(projectDir, id);
-    if (!t || t.status !== "in_progress") continue;
+    if (t?.status !== "in_progress") continue;
     const claimedAt = t.claimed_at ? Date.parse(t.claimed_at) : Date.now();
     if (claimedAt >= cutoff) continue;
     const fm: TaskFrontmatter = {
@@ -365,7 +365,7 @@ export async function claimSpecificTask(
   workerId: string,
 ): Promise<Task | null> {
   const t = await getTask(projectDir, id);
-  if (!t || t.status !== "pending") return null;
+  if (t?.status !== "pending") return null;
   return tryClaim(projectDir, id, workerId);
 }
 
@@ -383,7 +383,7 @@ async function tryClaim(
   }
   try {
     const t = await getTask(projectDir, id);
-    if (!t || t.status !== "pending") {
+    if (t?.status !== "pending") {
       await releaseLock(lockPath);
       return null;
     }
@@ -427,7 +427,7 @@ async function isUnblocked(projectDir: string, t: Task): Promise<boolean> {
   if (t.blocked_by.length === 0) return true;
   for (const blockerId of t.blocked_by) {
     const blocker = await getTask(projectDir, blockerId);
-    if (!blocker || blocker.status !== "complete") return false;
+    if (blocker?.status !== "complete") return false;
   }
   return true;
 }

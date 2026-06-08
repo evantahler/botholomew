@@ -66,6 +66,20 @@ Each worker still exits after one task; they just overlap freely. A
 crashed worker is reaped within ~60s and its task goes back into the
 queue.
 
+### Nightly reflection (dream)
+
+`botholomew dream` reviews recent threads and consolidates what the agent
+learned into the knowledge store and its prompts. It's a one-shot command, so
+cron it like any other run. Match the cadence to `dream_lookback_hours` (the
+24h default pairs with a daily dream):
+
+```cron
+0 3 * * * cd ~/projects/inbox-bot && botholomew dream >> logs/dream.log 2>&1
+```
+
+See [reflection.md](reflection.md) for what a dream does and the `--since` /
+`--dry-run` flags.
+
 ---
 
 ## Pattern: a single long-running worker
