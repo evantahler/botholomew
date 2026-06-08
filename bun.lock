@@ -17,7 +17,7 @@
         "ink-text-input": "^6.0.0",
         "istextorbinary": "^9.5.0",
         "jsonata": "^2.2.1",
-        "membot": "^0.17.2",
+        "membot": "^0.18.0",
         "nanospinner": "^1.2.2",
         "ollama-ai-provider-v2": "^3.5.1",
         "react": "^19.2.7",
@@ -829,7 +829,7 @@
 
     "media-typer": ["media-typer@1.1.0", "", {}, "sha512-aisnrDP4GNe06UcKFnV5bfMNPBUw4jsLGaWwWfnH3v02GnBuXX2MCVn5RbrWo0j3pczUilYblq7fQ7Nw2t5XKw=="],
 
-    "membot": ["membot@0.17.2", "", { "dependencies": { "@anthropic-ai/sdk": "^0.32.0", "@duckdb/node-api": "1.5.2-r.1", "@huggingface/transformers": "^4.2.0", "@modelcontextprotocol/sdk": "^1.29.0", "@types/picomatch": "^4.0.3", "@types/turndown": "^5.0.5", "ansis": "^4.2.0", "commander": "^14.0.3", "fast-xml-parser": "^5.7.3", "gray-matter": "^4.0.3", "jszip": "^3.10.1", "macos-ts": "^0.11.0", "mammoth": "^1.8.0", "nanospinner": "^1.2.2", "onnxruntime-web": "1.26.0-dev.20260416-b7804b056c", "picomatch": "^4.0.4", "turndown": "^7.2.0", "unpdf": "^0.12.0", "xlsx": "^0.18.5", "zod": "^4.0.0", "zod-to-json-schema": "^3.23.0" }, "bin": { "membot": "src/cli.ts" } }, "sha512-dbEKc3TUNLiX6TFNaEvBV/pyue4zu0Ui+48y1wgVv94kJUcOj1uh2bd6f40zoRbV4iNB1fUPxPHiRWHzYKsxsQ=="],
+    "membot": ["membot@0.18.0", "", { "dependencies": { "@anthropic-ai/sdk": "^0.32.0", "@duckdb/node-api": "1.5.2-r.1", "@huggingface/transformers": "^4.2.0", "@modelcontextprotocol/sdk": "^1.29.0", "@types/picomatch": "^4.0.3", "@types/turndown": "^5.0.5", "ansis": "^4.2.0", "commander": "^14.0.3", "fast-xml-parser": "^5.7.3", "gray-matter": "^4.0.3", "jszip": "^3.10.1", "macos-ts": "^0.11.0", "mammoth": "^1.8.0", "nanospinner": "^1.2.2", "onnxruntime-web": "1.26.0-dev.20260416-b7804b056c", "picomatch": "^4.0.4", "turndown": "^7.2.0", "unpdf": "^0.12.0", "xlsx": "^0.18.5", "zod": "^4.0.0", "zod-to-json-schema": "^3.23.0" }, "bin": { "membot": "src/cli.ts" } }, "sha512-93gx1rh8MSj4q3g+rn4SRaCRzcC+BrTsOyD5HkNcqY26bZrxvNjvKtJfgFJFnP7Q7WNnuV1h5tdmjCN5nwqi+A=="],
 
     "merge-descriptors": ["merge-descriptors@2.0.0", "", {}, "sha512-Snk314V5ayFLhp3fkUREub6WtjBfPdCPY1Ln8/8munuLuiYhsABgBVWsozAG+MWMbVEvcdcpbi9R7ww22l9Q3g=="],
 
