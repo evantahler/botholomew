@@ -77,7 +77,7 @@ export const ApprovalPanel = memo(function ApprovalPanel({
   const decide = useCallback(
     (decision: "approved" | "denied") => {
       const a = selectedRef.current;
-      if (!a || a.status !== "pending") return;
+      if (a?.status !== "pending") return;
       void decideAndRequeue(projectDir, a.id, decision, "tui").then(() => {
         setNotice(
           `${decision === "approved" ? "Approved" : "Denied"} ${a.server}/${a.tool}`,

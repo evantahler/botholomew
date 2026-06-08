@@ -20,7 +20,7 @@ export async function decideAndRequeue(
   decidedBy: string,
 ): Promise<Approval | null> {
   const existing = await getApproval(projectDir, id);
-  if (!existing || existing.status !== "pending") return null;
+  if (existing?.status !== "pending") return null;
   const decided = await decideApproval(projectDir, id, decision, decidedBy);
   if (decided.task_id) {
     const task = await getTask(projectDir, decided.task_id);
