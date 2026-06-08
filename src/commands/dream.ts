@@ -13,7 +13,19 @@ import {
   ensureThreadsDir,
   logInteraction,
 } from "../threads/store.ts";
+import { logger } from "../utils/logger.ts";
 import { utcDateString } from "../utils/v7-date.ts";
+
+/** Gray `HH:MM:SS` stamp, matching the logger's line prefix. */
+function ts(): string {
+  return ansis.gray(new Date().toTimeString().slice(0, 8));
+}
+
+/** Collapse a tool-input blob to a single readable line. */
+function previewInput(input: string, max = 100): string {
+  const oneLine = input.replace(/\s+/g, " ").trim();
+  return oneLine.length > max ? `${oneLine.slice(0, max)}…` : oneLine;
+}
 
 export interface DreamOptions {
   /** ISO date or relative duration (`24h`, `7d`). Defaults to `dream_lookback_hours`. */
@@ -91,16 +103,46 @@ export async function runDream(
     content: userMessage,
   });
 
+  logger.info(
+    `${ansis.magenta.bold("Dreaming")} — reviewing threads since ${ansis.cyan(
+      since.toISOString(),
+    )}${opts.dryRun ? ` ${ansis.yellow("(dry run)")}` : ""}`,
+  );
+
   const mcpxClient = await createMcpxClient(resolveMcpxDir(projectDir, config));
 
+  // Chat callbacks don't carry tool durations, so time each call by id.
+  const toolStartedAt = new Map<string, number>();
+  let midStream = false;
+
   const callbacks: ChatTurnCallbacks = {
-    onToken: (text) => process.stdout.write(text),
-    onToolStart: (_id, name) => {
-      process.stdout.write(`\n${ansis.magenta(`→ ${name}`)}\n`);
+    onToken: (text) => {
+      process.stdout.write(text);
+      midStream = true;
     },
-    onToolEnd: (_id, name, _output, isError) => {
-      const status = isError ? ansis.red("error") : ansis.green("ok");
-      process.stdout.write(`${ansis.dim(`  ${name}: ${status}`)}\n`);
+    onToolStart: (id, name, input) => {
+      if (midStream) {
+        process.stdout.write("\n");
+        midStream = false;
+      }
+      toolStartedAt.set(id, Date.now());
+      process.stdout.write(
+        `${ts()} ${ansis.yellow("▶")} ${ansis.bold(name)} ${ansis.dim(
+          previewInput(input),
+        )}\n`,
+      );
+    },
+    onToolEnd: (id, name, _output, isError) => {
+      const startedAt = toolStartedAt.get(id);
+      const elapsed = startedAt
+        ? ` ${ansis.dim(`(${((Date.now() - startedAt) / 1000).toFixed(1)}s)`)}`
+        : "";
+      toolStartedAt.delete(id);
+      const mark = isError ? ansis.red("✗") : ansis.green("✓");
+      const status = isError ? ` ${ansis.red("error")}` : "";
+      process.stdout.write(
+        `${ts()} ${mark} ${ansis.bold(name)}${status}${elapsed}\n`,
+      );
     },
   };
 
@@ -145,10 +187,8 @@ export function registerDreamCommand(program: Command) {
         since: opts.since,
         dryRun: opts.dryRun,
       });
-      process.stdout.write(
-        `${ansis.dim(`Audit thread: ${threadId} — inspect with `)}${ansis.cyan(
-          `botholomew thread view ${threadId}`,
-        )}\n`,
+      logger.success(
+        `Dream complete — audit with ${ansis.cyan(`botholomew thread view ${threadId}`)}`,
       );
     });
 }
