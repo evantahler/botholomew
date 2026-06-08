@@ -166,6 +166,29 @@ Persist workers also run a reaper interval
 
 ---
 
+## Project status
+
+`botholomew status` is a read-only dashboard that renders the whole
+project in one ASCII view — workers (alive/dead counts + last heartbeat),
+tasks (counts by state plus currently-claimed tasks and their owners),
+schedules, files quarantined for invalid frontmatter, and the resolved
+membot/mcpx scope + directories. It mutates nothing: data-gathering lives
+in `src/status/collect.ts` (`collectStatus` → a serializable
+`StatusReport`), and `src/commands/status.ts` renders it.
+
+The collector parses task/schedule files directly (`parseTaskFile` /
+`parseScheduleFile`) rather than going through `getTask`/`listTasks`, so
+malformed files land in a `quarantined` bucket without spraying warnings
+over the output. Because schedules have no deterministic next-fire (they
+use a natural-language `frequency` evaluated by an LLM — see
+[tasks & schedules](./tasks-and-schedules.md)), `status` runs that same
+`evaluateSchedule` per enabled schedule to show a live "due now?" verdict.
+That evaluation is the only slow part, so `--no-evaluate` skips it for
+fast/offline runs, and `--json` emits the `StatusReport` verbatim for
+scripting.
+
+---
+
 ## The chat TUI
 
 `botholomew chat` is a separate agent with its own system prompt and tool

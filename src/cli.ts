@@ -13,6 +13,7 @@ import { registerPrepareCommand } from "./commands/prepare.ts";
 import { registerPromptsCommand } from "./commands/prompts.ts";
 import { registerScheduleCommand } from "./commands/schedule.ts";
 import { registerSkillCommand } from "./commands/skill.ts";
+import { registerStatusCommand } from "./commands/status.ts";
 import { registerTaskCommand } from "./commands/task.ts";
 import { registerThreadCommand } from "./commands/thread.ts";
 import { registerUpgradeCommand } from "./commands/upgrade.ts";
@@ -57,6 +58,7 @@ program
   });
 
 registerInitCommand(program);
+registerStatusCommand(program);
 registerWorkerCommand(program);
 registerTaskCommand(program);
 registerThreadCommand(program);

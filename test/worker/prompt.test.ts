@@ -230,6 +230,18 @@ describe("buildSystemPrompt", () => {
     expect(prompt).not.toContain("## External Tools (MCP)");
   });
 
+  test("teaches the pipe -> query pattern regardless of MCP tooling", async () => {
+    const withMcp = await buildSystemPrompt(projectDir, undefined, undefined, {
+      hasMcpTools: true,
+    });
+    const withoutMcp = await buildSystemPrompt(projectDir);
+    for (const prompt of [withMcp, withoutMcp]) {
+      expect(prompt).toContain("## Large JSON results");
+      expect(prompt).toContain("membot_pipe");
+      expect(prompt).toContain("membot_query");
+    }
+  });
+
   test("Style block lands after the MCP block when both are present", async () => {
     const prompt = await buildSystemPrompt(projectDir, undefined, undefined, {
       hasMcpTools: true,
