@@ -236,6 +236,7 @@ semantic search, append-only versioning, and URL refresh all live there.
 | `botholomew worker run\|start` | Run a worker (foreground or background); `--persist` for long-running, `--task-id <id>` to target one task, `--unsafe` to bypass the tool-approval gate |
 | `botholomew worker list\|status\|stop\|kill\|reap` | Inspect and manage running workers |
 | `botholomew chat` | Interactive Ink/React TUI (`--unsafe` to bypass the tool-approval gate) |
+| `botholomew dream` | Reflect on recent threads — consolidate learnings into the knowledge store and update beliefs/goals (`--since`, `--dry-run`); also `/dream` in chat |
 | `botholomew task list\|add\|view\|update\|reset\|delete` | Manage the task queue (markdown files in `tasks/`) |
 | `botholomew schedule list\|add\|view\|enable\|disable\|trigger\|delete` | Recurring work (markdown files in `schedules/`) |
 | `botholomew approval list\|view\|approve\|deny` | Review and decide pending outbound-tool approvals (markdown files in `approvals/`) |
@@ -245,7 +246,7 @@ semantic search, append-only versioning, and URL refresh all live there.
 | `botholomew prompts list\|show\|create\|edit\|delete\|validate` | CRUD over the markdown files in `prompts/` (with strict frontmatter validation) |
 | `botholomew mcpx servers\|list\|add\|remove\|info\|search\|exec\|ping\|auth\|deauth\|import-global\|…` | Configure external MCP servers (passthrough to `mcpx`) |
 | `botholomew skill list\|show\|create\|validate` | Manage slash-command skills |
-| `botholomew thread list\|view` | Browse the agent's conversation history (CSVs in `threads/`) |
+| `botholomew thread list\|view\|search\|delete\|follow` | Browse and search the agent's conversation history (CSVs in `threads/`) |
 | `botholomew nuke knowledge\|tasks\|schedules\|threads\|all` | Bulk-erase project state |
 | `botholomew upgrade` | Self-update |
 
@@ -314,6 +315,9 @@ Topics worth understanding in detail:
   (Anthropic tool-use, Commander CLI, tests).
 - **[Prompts](docs/prompts.md)** — generic markdown files in `prompts/`,
   strict frontmatter validation, and full CRUD via CLI + agent tools.
+- **[Reflection (dream)](docs/reflection.md)** — `botholomew dream` / `/dream`:
+  consolidating recent threads into durable memory and self-edited prompts,
+  plus episodic `thread search`.
 - **[Skills (slash commands)](docs/skills.md)** — reusable prompt templates
   with positional arguments and tab completion; the chat agent can also
   create, edit, and search them at runtime.

@@ -21,6 +21,7 @@
     "dev:demo": "bun run src/cli.ts chat -p 'learn everything you can about me from the connected MCP services and then save what you'\\''ve learned about me to context'",
     "test": "bun test",
     "lint": "tsc --noEmit && biome check .",
+    "format": "biome check --write .",
     "build": "bun run scripts/build.ts",
     "capture": "bun run scripts/capture.ts",
     "docs:dev": "vitepress dev docs",

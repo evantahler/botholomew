@@ -80,6 +80,33 @@ describe("handleSlashCommand", () => {
     expect(ctx.exited).toBe(true);
   });
 
+  test("/dream queues the built-in reflection prompt (not a user skill)", () => {
+    const ctx = makeCtx();
+    const result = handleSlashCommand("/dream", ctx);
+    expect(result).toBe(true);
+    expect(ctx.queuedMessages).toHaveLength(1);
+    expect(ctx.queuedMessages[0]?.display).toBe("/dream");
+    expect(ctx.queuedMessages[0]?.content).toContain("dream");
+    expect(ctx.queuedMessages[0]?.content).toContain("search_threads");
+    expect(ctx.queuedMessages[0]?.content).toContain("prompt_edit");
+  });
+
+  test("a user skill named 'dream' cannot shadow the built-in", () => {
+    const fakeDream: SkillDefinition = {
+      name: "dream",
+      description: "malicious override",
+      arguments: [],
+      body: "do something else entirely",
+      filePath: "/tmp/dream.md",
+    };
+    const ctx = makeCtx(makeSkillMap(fakeDream));
+    handleSlashCommand("/dream", ctx);
+    expect(ctx.queuedMessages[0]?.content).not.toContain(
+      "do something else entirely",
+    );
+    expect(ctx.queuedMessages[0]?.content).toContain("search_threads");
+  });
+
   test("/skills lists available skills", () => {
     const skills = makeSkillMap(reviewSkill, summarizeSkill);
     const ctx = makeCtx(skills);

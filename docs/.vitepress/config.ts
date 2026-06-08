@@ -182,6 +182,7 @@ export default defineConfig({
             link: "/context-and-search",
           },
           { text: "Prompts", link: "/prompts" },
+          { text: "Reflection (dream)", link: "/reflection" },
         ],
       },
       {

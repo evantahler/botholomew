@@ -14,6 +14,7 @@ import {
   listThreads,
   logInteraction,
   reopenThread,
+  searchThreads,
   updateThreadTitle,
 } from "../../src/threads/store.ts";
 
@@ -215,5 +216,68 @@ describe("threads store (CSV)", () => {
     );
     const out = await listThreads(projectDir);
     expect(out).toEqual([]);
+  });
+});
+
+describe("searchThreads helper", () => {
+  async function seed(): Promise<void> {
+    const a = await createThread(projectDir, "chat_session", undefined, "a");
+    await logInteraction(projectDir, a, {
+      role: "user",
+      kind: "message",
+      content: "ship the widget on friday",
+    });
+    const b = await createThread(projectDir, "worker_tick", undefined, "b");
+    await logInteraction(projectDir, b, {
+      role: "assistant",
+      kind: "message",
+      content: "the widget is now shipped",
+    });
+  }
+
+  test("returns hits for a substring across threads", async () => {
+    await seed();
+    const { hits, threadsScanned } = await searchThreads(projectDir, {
+      regex: /widget/i,
+    });
+    expect(threadsScanned).toBe(2);
+    expect(hits).toHaveLength(2);
+  });
+
+  test("respects maxResults", async () => {
+    await seed();
+    const { hits } = await searchThreads(projectDir, {
+      regex: /widget/i,
+      maxResults: 1,
+    });
+    expect(hits).toHaveLength(1);
+  });
+
+  test("since in the future excludes all threads", async () => {
+    await seed();
+    const { hits } = await searchThreads(projectDir, {
+      regex: /widget/i,
+      since: new Date(Date.now() + 60_000),
+    });
+    expect(hits).toHaveLength(0);
+  });
+
+  test("until in the past excludes all threads", async () => {
+    await seed();
+    const { hits } = await searchThreads(projectDir, {
+      regex: /widget/i,
+      until: new Date("2000-01-01T00:00:00.000Z"),
+    });
+    expect(hits).toHaveLength(0);
+  });
+
+  test("filters by type", async () => {
+    await seed();
+    const { hits } = await searchThreads(projectDir, {
+      regex: /widget/i,
+      type: "worker_tick",
+    });
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.thread_type).toBe("worker_tick");
   });
 });

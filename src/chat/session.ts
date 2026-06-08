@@ -53,7 +53,7 @@ export function abortActiveStream(session: ChatSession): boolean {
   return false;
 }
 
-function requireProviderCreds(config: BotholomewConfig): void {
+export function requireProviderCreds(config: BotholomewConfig): void {
   const { llm } = config;
   if (llm.provider === "anthropic" && !llm.api_key) {
     throw new BotholomewLlmError(

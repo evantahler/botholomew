@@ -51,6 +51,8 @@ export interface BotholomewConfig {
   schedule_min_interval_seconds: number;
   schedule_claim_stale_seconds: number;
   tui_idle_timeout_seconds: number;
+  /** Default window (in hours) of recent threads the `dream` reflection reviews when `--since` is omitted. */
+  dream_lookback_hours: number;
   log_level: string;
   membot_scope: Scope;
   mcpx_scope: Scope;
@@ -93,6 +95,7 @@ export const DEFAULT_CONFIG: BotholomewConfig = {
   schedule_min_interval_seconds: 60,
   schedule_claim_stale_seconds: 300,
   tui_idle_timeout_seconds: 180,
+  dream_lookback_hours: 24,
   log_level: "",
   membot_scope: "global",
   mcpx_scope: "global",

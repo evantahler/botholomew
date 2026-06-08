@@ -28,6 +28,7 @@ project directory. The full schema lives in `src/config/schemas.ts`.
   "schedule_min_interval_seconds": 60,
   "schedule_claim_stale_seconds": 300,
   "tui_idle_timeout_seconds": 180,
+  "dream_lookback_hours": 24,
   "log_level": "",
   "membot_scope": "global",
   "mcpx_scope": "global",
@@ -131,6 +132,7 @@ works. Set `supports_tools: false` to opt out of the probe assumption.
 | `schedule_min_interval_seconds` | `60` | Minimum gap between successive evaluations of the same schedule. A schedule that ran less than this many seconds ago is skipped. |
 | `schedule_claim_stale_seconds` | `300` | If a worker claimed a schedule but never released it (crash), another worker may steal the claim after this many seconds. |
 | `tui_idle_timeout_seconds` | `180` | Seconds of inactivity (no keystrokes, no streamed agent tokens, no tool events) before the chat TUI freezes its visible animations and pauses the status-bar count refresh. Animations resume on the next activity. Set to `0` to disable (always animate — useful for demo recordings). |
+| `dream_lookback_hours` | `24` | Default recall window for `botholomew dream` / `/dream` when no `--since` is given — the agent reviews threads from the last this-many hours. See [reflection.md](reflection.md). |
 | `log_level` | `""` | Verbosity for `botholomew` CLI logs. One of `silent`, `error`, `warn`, `info`, `debug`. Empty string falls back to the runtime default (`info` normally, `error` under `NODE_ENV=test`). `BOTHOLOMEW_LOG_LEVEL` env var overrides this. |
 | `membot_scope` | `"global"` | Where this project's knowledge store lives. `"global"` → `~/.membot/index.duckdb` (shared across every Botholomew project on the machine). `"project"` → `<projectDir>/index.duckdb` (isolated). Affects both the agent and the `botholomew membot …` CLI passthrough. |
 | `mcpx_scope` | `"global"` | Where this project's MCP server config lives. `"global"` → `~/.mcpx/` (shared). `"project"` → `<projectDir>/mcpx/` (isolated). Affects both the agent and the `botholomew mcpx …` CLI passthrough. |
