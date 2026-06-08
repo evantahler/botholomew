@@ -11,6 +11,8 @@ import { WORKER_RUN_SENTINEL } from "./sentinel.ts";
 export interface SpawnWorkerOptions {
   mode?: WorkerMode;
   taskId?: string;
+  /** Propagate `--unsafe` to the detached worker (bypass the approval gate). */
+  unsafe?: boolean;
 }
 
 /**
@@ -67,6 +69,7 @@ export async function spawnWorker(
   args.push(`--worker-id=${workerId}`, `--log-path=${logPath}`);
   if (options.mode === "persist") args.push("--persist");
   if (options.taskId) args.push(`--task-id=${options.taskId}`);
+  if (options.unsafe) args.push("--unsafe");
 
   const proc = Bun.spawn(args, {
     stdio: ["ignore", logFile, logFile],

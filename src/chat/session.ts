@@ -3,7 +3,11 @@ import { loadConfig } from "../config/loader.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { AbortHandle } from "../llm/abort.ts";
 import { BotholomewLlmError } from "../llm/types.ts";
-import { createMcpxClient, resolveMcpxDir } from "../mcpx/client.ts";
+import {
+  buildApprovalPolicy,
+  createMcpxClient,
+  resolveMcpxDir,
+} from "../mcpx/client.ts";
 import { loadSkills } from "../skills/loader.ts";
 import type { SkillDefinition } from "../skills/parser.ts";
 import {
@@ -16,6 +20,7 @@ import {
 } from "../threads/store.ts";
 import { generateThreadTitle } from "../utils/title.ts";
 import { type ChatTurnCallbacks, runChatTurn } from "./agent.ts";
+import { type ChatApprovalBridge, createApprovalBridge } from "./approval.ts";
 
 export interface ChatSession {
   threadId: string;
@@ -25,6 +30,8 @@ export interface ChatSession {
   skills: Map<string, SkillDefinition>;
   // biome-ignore lint/suspicious/noExplicitAny: mcpx client
   mcpxClient: any;
+  /** Drives the inline tool-approval prompt in the TUI. */
+  approvalBridge: ChatApprovalBridge;
   cleanup: () => Promise<void>;
   /** Set by `runChatTurn` while a `streamText(...)` is in flight. */
   activeAbort: AbortHandle | null;
@@ -65,6 +72,7 @@ export function requireProviderCreds(config: BotholomewConfig): void {
 export async function startChatSession(
   projectDir: string,
   existingThreadId?: string,
+  opts: { unsafe?: boolean } = {},
 ): Promise<ChatSession> {
   const config = await loadConfig(projectDir);
 
@@ -106,7 +114,27 @@ export async function startChatSession(
     );
   }
 
-  const mcpxClient = await createMcpxClient(resolveMcpxDir(projectDir, config));
+  // The approval gate. The bridge must exist before the mcpx client so the
+  // client's callback can reference it. When the gate is off (`--unsafe` or
+  // `approvals.enabled: false`) the policy is undefined and the callback is
+  // never invoked.
+  const approvalBridge = createApprovalBridge();
+  const approvalPolicy = buildApprovalPolicy(config, { unsafe: opts.unsafe });
+  const mcpxClient = await createMcpxClient(
+    resolveMcpxDir(projectDir, config),
+    {
+      approvalPolicy,
+      onApprovalRequired: approvalPolicy
+        ? (req) =>
+            approvalBridge.request({
+              server: req.server,
+              tool: req.tool,
+              args: req.args,
+              reason: req.reason,
+            })
+        : undefined,
+    },
+  );
   const skills = await loadSkills(projectDir);
 
   const cleanup = async () => {
@@ -120,6 +148,7 @@ export async function startChatSession(
     messages,
     skills,
     mcpxClient,
+    approvalBridge,
     cleanup,
     activeAbort: null,
     aborted: false,

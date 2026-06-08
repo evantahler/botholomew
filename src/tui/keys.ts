@@ -18,6 +18,7 @@ export const TAB_BY_CTRL_KEY: Record<string, TabId> = {
   e: 5, // thr[e]ads
   s: 6, // [s]chedules
   w: 7, // [w]orkers
+  p: 9, // a[p]provals
   g: 8, // help (also catches Ctrl+/ on terminals that map it to BEL)
   "/": 8, // help (Kitty keyboard protocol)
   _: 8, // help (terminals that send Ctrl+/ as 0x1F)

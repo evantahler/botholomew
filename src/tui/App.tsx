@@ -4,6 +4,7 @@ import {
   BUILTIN_SLASH_COMMANDS,
   type SlashCommand,
 } from "../skills/commands.ts";
+import { ApprovalPrompt } from "./components/ApprovalPrompt.tsx";
 import { InputBar } from "./components/InputBar.tsx";
 import { AnimatedLogo } from "./components/Logo.tsx";
 import {
@@ -17,6 +18,8 @@ import { TabBar, type TabId } from "./components/TabBar.tsx";
 import { TabPanels } from "./components/TabPanels.tsx";
 import { useChatSubmit } from "./handleSubmit.ts";
 import { useAppKeybindings } from "./hooks/useAppKeybindings.ts";
+import { useApprovalCount } from "./hooks/useApprovalCount.ts";
+import { useApprovalPrompt } from "./hooks/useApprovalPrompt.ts";
 import { useCaptureTabCycle } from "./hooks/useCaptureTabCycle.ts";
 import { useChatSession } from "./hooks/useChatSession.ts";
 import { useChatTitlePolling } from "./hooks/useChatTitlePolling.ts";
@@ -31,6 +34,7 @@ interface AppProps {
   threadId?: string;
   initialPrompt?: string;
   idleTimeoutMs: number;
+  unsafe?: boolean;
 }
 
 export function App({
@@ -38,6 +42,7 @@ export function App({
   threadId: resumeThreadId,
   initialPrompt,
   idleTimeoutMs,
+  unsafe,
 }: AppProps) {
   return (
     <IdleProvider timeoutMs={idleTimeoutMs}>
@@ -45,6 +50,7 @@ export function App({
         projectDir={projectDir}
         threadId={resumeThreadId}
         initialPrompt={initialPrompt}
+        unsafe={unsafe}
       />
     </IdleProvider>
   );
@@ -54,12 +60,14 @@ interface AppInnerProps {
   projectDir: string;
   threadId?: string;
   initialPrompt?: string;
+  unsafe?: boolean;
 }
 
 function AppInner({
   projectDir,
   threadId: resumeThreadId,
   initialPrompt,
+  unsafe,
 }: AppInnerProps) {
   const { markActivity } = useIdle();
   const rows = useTerminalRows();
@@ -85,6 +93,7 @@ function AppInner({
     projectDir,
     resumeThreadId,
     initialPrompt,
+    unsafe,
     setMessages,
     setError,
   });
@@ -113,6 +122,12 @@ function AppInner({
   } = queue;
 
   const { chatTitle, setChatTitle } = useChatTitlePolling(ready, sessionRef);
+
+  const { pending: approvalPending, decide: decideApproval } =
+    useApprovalPrompt(sessionRef);
+  const approvalActiveRef = useRef(false);
+  approvalActiveRef.current = approvalPending != null;
+  const pendingApprovals = useApprovalCount(projectDir, ready);
 
   useCaptureTabCycle(setActiveTab);
 
@@ -166,6 +181,7 @@ function AppInner({
     slashCommandsRef,
     inputValueRef,
     markActivityRef,
+    approvalActiveRef,
   });
 
   const handleSubmit = useChatSubmit({
@@ -293,17 +309,24 @@ function AppInner({
         />
       )}
 
+      {/* Inline approval prompt (gates input while a gated tool call waits) */}
+      <ApprovalPrompt request={approvalPending} onDecide={decideApproval} />
+
       {/* Bottom bar: StatusBar + InputBar (input only on Chat tab) + TabBar */}
       <InputBar
         value={inputValue}
         onChange={setInputValue}
         onSubmit={handleSubmit}
-        disabled={activeTab !== 1 || clearing}
+        disabled={activeTab !== 1 || clearing || approvalPending != null}
         history={inputHistory}
         header={inputBarHeader}
         slashCommands={slashCommands}
       />
-      <TabBar activeTab={activeTab} usage={usage} />
+      <TabBar
+        activeTab={activeTab}
+        usage={usage}
+        pendingApprovals={pendingApprovals}
+      />
     </Box>
   );
 }

@@ -64,11 +64,17 @@ export function registerWorkerCommand(program: Command) {
       "run exactly this task (implies one-shot; incompatible with --persist)",
     )
     .option("--no-eval-schedules", "skip schedule evaluation this run")
+    .option(
+      "--unsafe",
+      "bypass the mcpx approval gate (allow every tool without approval)",
+      false,
+    )
     .action(
       async (opts: {
         persist?: boolean;
         taskId?: string;
         evalSchedules?: boolean;
+        unsafe?: boolean;
       }) => {
         if (opts.persist && opts.taskId) {
           logger.error("--persist and --task-id are mutually exclusive.");
@@ -81,6 +87,7 @@ export function registerWorkerCommand(program: Command) {
           mode: opts.persist ? "persist" : "once",
           taskId: opts.taskId,
           evalSchedules: opts.evalSchedules,
+          unsafe: opts.unsafe,
         });
       },
     );
@@ -90,18 +97,30 @@ export function registerWorkerCommand(program: Command) {
     .description("Spawn a worker as a detached background process")
     .option("--persist", "keep running, looping over the tick cycle", false)
     .option("--task-id <id>", "run exactly this task (implies one-shot)")
-    .action(async (opts: { persist?: boolean; taskId?: string }) => {
-      if (opts.persist && opts.taskId) {
-        logger.error("--persist and --task-id are mutually exclusive.");
-        process.exit(1);
-      }
-      const dir = program.opts().dir;
-      const { spawnWorker } = await import("../worker/spawn.ts");
-      await spawnWorker(dir, {
-        mode: opts.persist ? "persist" : "once",
-        taskId: opts.taskId,
-      });
-    });
+    .option(
+      "--unsafe",
+      "bypass the mcpx approval gate (allow every tool without approval)",
+      false,
+    )
+    .action(
+      async (opts: {
+        persist?: boolean;
+        taskId?: string;
+        unsafe?: boolean;
+      }) => {
+        if (opts.persist && opts.taskId) {
+          logger.error("--persist and --task-id are mutually exclusive.");
+          process.exit(1);
+        }
+        const dir = program.opts().dir;
+        const { spawnWorker } = await import("../worker/spawn.ts");
+        await spawnWorker(dir, {
+          mode: opts.persist ? "persist" : "once",
+          taskId: opts.taskId,
+          unsafe: opts.unsafe,
+        });
+      },
+    );
 
   worker
     .command("list")

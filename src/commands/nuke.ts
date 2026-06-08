@@ -2,8 +2,14 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import ansis from "ansis";
 import type { Command } from "commander";
+import { deleteAllApprovals } from "../approvals/store.ts";
 import { loadConfig } from "../config/loader.ts";
-import { SCHEDULES_DIR, TASKS_DIR, THREADS_DIR } from "../constants.ts";
+import {
+  APPROVALS_DIR,
+  SCHEDULES_DIR,
+  TASKS_DIR,
+  THREADS_DIR,
+} from "../constants.ts";
 import { openMembot, resolveMembotDir } from "../mem/client.ts";
 import { deleteAllSchedules } from "../schedules/store.ts";
 import { deleteAllTasks } from "../tasks/store.ts";
@@ -86,6 +92,10 @@ async function runNuke(projectDir: string, scope: NukeScope): Promise<void> {
       `Deleted ${threads} threads (${interactions} interactions) from ${THREADS_DIR}/`,
     );
   }
+  if (scope === "all") {
+    const n = await deleteAllApprovals(projectDir);
+    logger.success(`Deleted ${n} approval file(s) from ${APPROVALS_DIR}/`);
+  }
 }
 
 function registerScope(
@@ -151,6 +161,6 @@ export function registerNukeCommand(program: Command) {
     program,
     nuke,
     "all",
-    "Erase all agent-writable data: membot store, tasks/, schedules/, threads/",
+    "Erase all agent-writable data: membot store, tasks/, schedules/, threads/, approvals/",
   );
 }

@@ -65,6 +65,9 @@ export const HelpPanel = memo(function HelpPanel({
           {"  "}Ctrl+w{"         "}Workers
         </Text>
         <Text>
+          {"  "}Ctrl+p{"         "}Approvals
+        </Text>
+        <Text>
           {"  "}Ctrl+g{"        "}Help (Ctrl+/ also works in most terminals)
         </Text>
         <Text>

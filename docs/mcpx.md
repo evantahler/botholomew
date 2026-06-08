@@ -163,6 +163,18 @@ See `src/tools/mcp/*.ts`.
 
 ---
 
+## Approval gate
+
+Because mcpx tools reach the outside world (email, Slack, PRs), `mcp_exec`
+is gated by a human-in-the-loop approval check **by default** — every call
+requires approval unless you allowlist the tool or run `--unsafe`. In chat you
+approve inline; a background worker writes an `approvals/<id>.md` record and
+parks the task until you decide. The gate is built on mcpx's `approvalPolicy` /
+`onApprovalRequired` SDK hooks. See [Approvals](/approvals) for the full
+workflow and config.
+
+---
+
 ## Logging
 
 Every MCP call is logged to the current thread as a `tool_use` /

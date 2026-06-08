@@ -115,6 +115,11 @@ export async function runAgentLoop(input: {
 
   const maxTurns = config.max_turns;
   let nudgeCount = 0;
+  // Set by mcp_exec (via ToolContext.onApprovalPending) when a gated call has
+  // no decision yet. We park the task as `waiting` after the turn so it can be
+  // re-queued once a human approves — robust even if the agent ignores the
+  // wait_task hint in the structured tool result.
+  let pendingApprovalId: string | null = null;
   for (let turn = 0; !maxTurns || turn < maxTurns; turn++) {
     const startTime = Date.now();
     fitToContextWindow(messages, systemPrompt, maxInputTokens);
@@ -256,6 +261,9 @@ export async function runAgentLoop(input: {
           config,
           mcpxClient: input.mcpxClient ?? null,
           workerId,
+          onApprovalPending: (id) => {
+            pendingApprovalId = id;
+          },
         });
         const elapsed = Date.now() - start;
         callbacks?.onToolEnd(tc.name, result.output, result.isError, elapsed);
@@ -306,6 +314,15 @@ export async function runAgentLoop(input: {
 
     messages.push({ role: "tool", content: toolResultContent });
 
+    // A gated mcpx call with no decision yet — park the task. It'll be
+    // re-queued to `pending` when a human approves/denies the request.
+    if (pendingApprovalId) {
+      return {
+        status: "waiting",
+        reason: `Awaiting human approval (${pendingApprovalId})`,
+      };
+    }
+
     // Touch describeModel so the import isn't flagged unused on a clean build.
     void describeModel;
   }
@@ -326,6 +343,7 @@ interface ToolCallCtx {
   config: BotholomewConfig;
   mcpxClient: McpxClient | null;
   workerId?: string;
+  onApprovalPending?: (approvalId: string) => void;
 }
 
 async function executeToolCall(

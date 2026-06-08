@@ -24,6 +24,7 @@ interface UseChatSessionParams {
   projectDir: string;
   resumeThreadId: string | undefined;
   initialPrompt: string | undefined;
+  unsafe: boolean | undefined;
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   setError: Dispatch<SetStateAction<string | null>>;
 }
@@ -39,6 +40,7 @@ export function useChatSession({
   projectDir,
   resumeThreadId,
   initialPrompt,
+  unsafe,
   setMessages,
   setError,
 }: UseChatSessionParams): UseChatSessionResult {
@@ -53,7 +55,7 @@ export function useChatSession({
   useEffect(() => {
     let cancelled = false;
 
-    startChatSession(projectDir, resumeThreadId)
+    startChatSession(projectDir, resumeThreadId, { unsafe })
       .then(async (session) => {
         if (cancelled) {
           endChatSession(session);
@@ -82,7 +84,7 @@ export function useChatSession({
             id: msgId(),
             role: "system" as const,
             content:
-              "Switch panels with Ctrl+<letter> (^a chat · ^o tools · ^n context · ^t tasks · ^r threads · ^s schedules · ^w workers) — `?` for help. Type /help for commands.",
+              "Switch panels with Ctrl+<letter> (^a chat · ^o tools · ^n context · ^t tasks · ^r threads · ^s schedules · ^w workers · ^p approvals) — `?` for help. Type /help for commands.",
             timestamp: new Date(),
           },
         ]);
@@ -109,7 +111,7 @@ export function useChatSession({
         );
       }
     };
-  }, [projectDir, resumeThreadId, setMessages, setError]);
+  }, [projectDir, resumeThreadId, unsafe, setMessages, setError]);
 
   const performShutdown = useCallback(async () => {
     if (shuttingDownRef.current) {

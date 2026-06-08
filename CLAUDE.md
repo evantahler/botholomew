@@ -14,6 +14,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `prompts/` — Capabilities scanner that regenerates `prompts/capabilities.md`
   - `tasks/` — Task frontmatter schema, file CRUD, lockfile-based claim
   - `schedules/` — Same shape as tasks, on `schedules/<id>.md`
+  - `approvals/` — Human-in-the-loop approval records for gated mcpx calls (`approvals/<id>.md`); store, `decideAndRequeue`, `callKey`, `ApprovalPendingError`
   - `threads/` — CSV-backed conversation log (`threads/<YYYY-MM-DD>/<id>.csv`)
   - `workers/` — Pidfile + heartbeat store under `workers/<id>.json`
   - `worker/` — Worker tick loop, LLM integration, prompt building, heartbeat
@@ -83,7 +84,8 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - **`O_EXCL` lockfiles** for tasks and schedules. Body holds the worker id and `claimed_at`. Release = `unlink`. Reaper walks the lock dirs and unlinks orphans whose owner is dead in `workers/`.
 - **Filesystem compatibility**: `init` and worker startup detect iCloud / Dropbox / OneDrive / NFS via path heuristics and refuse to run unless `--force` (sync overlays break `O_EXCL` and atomic rename — the only place we still rely on those guarantees is task/schedule claim).
 - **IDs**: UUIDv7 via `uuidv7()` from `src/utils/uuid.ts`. The 48-bit timestamp prefix is what `src/utils/v7-date.ts::dateForId` uses to derive the date subdir for threads and worker logs (pure function of the id).
-- **Frontmatter** for tasks/schedules is strict-Zod-validated (`src/{tasks,schedules}/schema.ts`). Validation failures quarantine the file: log a structured warning and skip — never crash the worker. Prompts use the same frontmatter pattern but **fast-fail** (see Conventions below).
+- **Frontmatter** for tasks/schedules is strict-Zod-validated (`src/{tasks,schedules}/schema.ts`). Validation failures quarantine the file: log a structured warning and skip — never crash the worker. Prompts use the same frontmatter pattern but **fast-fail** (see Conventions below). Approvals (`src/approvals/schema.ts`) follow the same strict-Zod + quarantine pattern, but use **no lockfile** (created by one worker, decided by one human).
+- **Approval gate for outbound mcpx calls.** `mcp_exec` is gated by default (config `approvals`, built into an mcpx `approvalPolicy` by `src/mcpx/client.ts::buildApprovalPolicy`; `--unsafe` / `approvals.enabled:false` disables it). Chat resolves a gate hit via an inline prompt (`src/chat/approval.ts` bridge → `src/tui/components/ApprovalPrompt.tsx`); a worker writes `approvals/<id>.md` and parks the task as `waiting` (`src/worker/approval.ts` throws `ApprovalPendingError` → `mcp_exec` calls `ctx.onApprovalPending` → the loop returns `waiting`). Decisions (`botholomew approval` CLI or the chat Approvals tab) go through `src/approvals/decide.ts::decideAndRequeue`, which re-queues the task; the recorded decision is matched on the next run by `callKey(server, tool, args)`.
 - **Thread CSVs** are RFC-4180. The first row carries a `system / thread_meta` interaction whose `content` is a JSON blob with the thread's own metadata. `src/threads/store.ts` is the only writer; it handles escaping commas, quotes, and embedded newlines in agent output.
 
 ## Knowledge store (membot)
@@ -111,6 +113,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `docs/files.md` — the membot knowledge store (logical_path, versioning, append-only history, `membot_*` tools, patch format)
   - `docs/context-and-search.md` — pointer to membot for ingestion / chunking / embeddings / hybrid search
   - `docs/tasks-and-schedules.md` — task/schedule files (markdown + frontmatter), lockfile claim, DAG validation, predecessor outputs, LLM schedule evaluation
+  - `docs/approvals.md` — human-in-the-loop gate for outbound mcpx calls: default-deny, allowlist, `--unsafe`, worker approval queue, CLI + TUI
   - `docs/tools.md` — the `ToolDefinition` pattern (Zod → Anthropic + CLI)
   - `docs/prompts.md` — generic `prompts/*.md` (init seeds `goals.md`, `beliefs.md`, `capabilities.md`), strict frontmatter validation, CRUD via CLI + agent tools
   - `docs/reflection.md` — the `dream` reflection loop (built-in `/dream` + `botholomew dream`): consolidating recent threads into membot + self-edited prompts; episodic `thread search`

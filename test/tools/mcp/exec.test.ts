@@ -1,5 +1,10 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { McpxClient } from "@evantahler/mcpx";
+import {
+  type McpxClient,
+  ToolApprovalDeniedError,
+  ToolApprovalRequiredError,
+} from "@evantahler/mcpx";
+import { ApprovalPendingError } from "../../../src/approvals/errors.ts";
 import { mcpExecTool } from "../../../src/tools/mcp/exec.ts";
 import { registerAllTools } from "../../../src/tools/registry.ts";
 import { setupToolContext } from "../../helpers.ts";
@@ -148,6 +153,64 @@ describe("mcp_exec", () => {
     expect(result.error_kind).toBe("input_error");
     expect(result.result).toContain("top-level Botholomew tool");
     expect(result.hint).toContain('name="read_large_result"');
+  });
+
+  test("maps ApprovalPendingError and signals the worker to park", async () => {
+    const { ctx } = await setupToolContext();
+    let parkedId: string | undefined;
+    ctx.onApprovalPending = (id) => {
+      parkedId = id;
+    };
+    ctx.mcpxClient = {
+      exec: mock(async () => {
+        throw new ApprovalPendingError("appr-1", "gmail", "send_email");
+      }),
+    } as unknown as McpxClient;
+
+    const result = await mcpExecTool.execute(
+      { server: "gmail", tool: "send_email" },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_kind).toBe("permanent");
+    expect(result.result).toContain("appr-1");
+    expect(result.hint).toContain("wait_task");
+    expect(parkedId).toBe("appr-1");
+  });
+
+  test("maps ToolApprovalDeniedError to a non-retryable denial", async () => {
+    const { ctx } = await setupToolContext();
+    ctx.mcpxClient = {
+      exec: mock(async () => {
+        throw new ToolApprovalDeniedError("gmail", "send_email");
+      }),
+    } as unknown as McpxClient;
+
+    const result = await mcpExecTool.execute(
+      { server: "gmail", tool: "send_email" },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_kind).toBe("permanent");
+    expect(result.result).toContain("denied");
+    expect(result.hint).toContain("Do not retry");
+  });
+
+  test("maps ToolApprovalRequiredError (no approver wired)", async () => {
+    const { ctx } = await setupToolContext();
+    ctx.mcpxClient = {
+      exec: mock(async () => {
+        throw new ToolApprovalRequiredError("gmail", "send_email");
+      }),
+    } as unknown as McpxClient;
+
+    const result = await mcpExecTool.execute(
+      { server: "gmail", tool: "send_email" },
+      ctx,
+    );
+    expect(result.is_error).toBe(true);
+    expect(result.error_kind).toBe("permanent");
+    expect(result.hint).toContain("--unsafe");
   });
 
   test("passes args through to exec", async () => {

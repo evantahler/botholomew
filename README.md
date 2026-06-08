@@ -233,12 +233,13 @@ semantic search, append-only versioning, and URL refresh all live there.
 |---|---|
 | `botholomew init` | Initialize the current directory as a project (refuses on iCloud/Dropbox/NFS without `--force`) |
 | `botholomew status` | One-command dashboard: workers, task counts/claims, schedules (with a live "due?" check), quarantined files, store info. `--json` for scripting, `--no-evaluate` to skip the LLM schedule check |
-| `botholomew worker run\|start` | Run a worker (foreground or background); `--persist` for long-running, `--task-id <id>` to target one task |
+| `botholomew worker run\|start` | Run a worker (foreground or background); `--persist` for long-running, `--task-id <id>` to target one task, `--unsafe` to bypass the tool-approval gate |
 | `botholomew worker list\|status\|stop\|kill\|reap` | Inspect and manage running workers |
-| `botholomew chat` | Interactive Ink/React TUI |
+| `botholomew chat` | Interactive Ink/React TUI (`--unsafe` to bypass the tool-approval gate) |
 | `botholomew dream` | Reflect on recent threads — consolidate learnings into the knowledge store and update beliefs/goals (`--since`, `--dry-run`); also `/dream` in chat |
 | `botholomew task list\|add\|view\|update\|reset\|delete` | Manage the task queue (markdown files in `tasks/`) |
 | `botholomew schedule list\|add\|view\|enable\|disable\|trigger\|delete` | Recurring work (markdown files in `schedules/`) |
+| `botholomew approval list\|view\|approve\|deny` | Review and decide pending outbound-tool approvals (markdown files in `approvals/`) |
 | `botholomew membot add\|ls\|tree\|read\|write\|search\|info\|versions\|diff\|refresh\|…` | Knowledge-store passthrough to [`membot`](https://github.com/evantahler/membot) — `--config` is resolved from `membot_scope` (default `~/.membot`) |
 | `botholomew membot import-global` | Seed the project from `~/.membot` (copies `index.duckdb` + `config.json` in) |
 | `botholomew capabilities` | Rescan built-in + MCPX tools and rewrite `prompts/capabilities.md` |
@@ -322,6 +323,9 @@ Topics worth understanding in detail:
   create, edit, and search them at runtime.
 - **[MCPX integration](docs/mcpx.md)** — configuring external servers and
   how MCP tools are merged into the agent's toolset.
+- **[Approvals](docs/approvals.md)** — the human-in-the-loop gate on outbound
+  mcpx tool calls: default deny, the allowlist, the worker approval queue,
+  and `--unsafe`.
 - **[Configuration](docs/configuration.md)** — every key in `config.json`
   and its default.
 - **[Doc captures](docs/captures.md)** — how the screenshots and GIFs in

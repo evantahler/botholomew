@@ -17,7 +17,7 @@ export function useCaptureTabCycle(
     const [dwellRaw, delayRaw] = spec.split(":");
     const dwellMs = Number.parseInt(dwellRaw ?? "", 10) || 2500;
     const startDelayMs = Number.parseInt(delayRaw ?? "", 10) || 0;
-    const sequence: TabId[] = [2, 3, 4, 5, 6, 7, 8, 1];
+    const sequence: TabId[] = [2, 3, 4, 5, 6, 7, 9, 8, 1];
     const timers = sequence.map((tab, i) =>
       setTimeout(() => setActiveTab(tab), startDelayMs + dwellMs * (i + 1)),
     );

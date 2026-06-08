@@ -1,4 +1,9 @@
+import {
+  ToolApprovalDeniedError,
+  ToolApprovalRequiredError,
+} from "@evantahler/mcpx";
 import { z } from "zod";
+import { ApprovalPendingError } from "../../approvals/errors.ts";
 import { formatCallToolResult } from "../../mcpx/client.ts";
 import { fakeMcpExec, isCaptureMode } from "../../worker/fake-mcp.ts";
 import { getTool, type ToolDefinition } from "../tool.ts";
@@ -131,6 +136,33 @@ export const mcpExecTool = {
           : undefined,
       };
     } catch (err) {
+      // Human-in-the-loop approval gate outcomes (see src/mcpx/client.ts).
+      if (err instanceof ApprovalPendingError) {
+        // Worker context: signal the loop to park this task as `waiting`.
+        ctx.onApprovalPending?.(err.approvalId);
+        return {
+          result: `This action is queued for human approval (id ${err.approvalId}).`,
+          is_error: true,
+          error_kind: "permanent" as const,
+          hint: `Awaiting approval. Call wait_task with a reason referencing approval ${err.approvalId}; the task will be re-queued automatically once a human approves or denies it.`,
+        };
+      }
+      if (err instanceof ToolApprovalDeniedError) {
+        return {
+          result: `This action was denied by a human reviewer (${input.server}/${input.tool}).`,
+          is_error: true,
+          error_kind: "permanent" as const,
+          hint: "Do not retry the same call — the human said no. Try a different approach, or call fail_task explaining that the required action was denied.",
+        };
+      }
+      if (err instanceof ToolApprovalRequiredError) {
+        return {
+          result: `This action requires approval, but no approver is wired up.`,
+          is_error: true,
+          error_kind: "permanent" as const,
+          hint: "The approval gate is active but no approver is available. Call fail_task; a human must re-run with --unsafe or allowlist this tool in config.",
+        };
+      }
       const { error_kind, hint } = classifyError(err);
       return {
         result: `MCP tool error: ${err}`,

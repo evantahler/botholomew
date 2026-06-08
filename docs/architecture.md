@@ -99,6 +99,20 @@ work, never silent success.
 
 See `src/worker/tick.ts`.
 
+### Outbound approvals (parking on `waiting`)
+
+Outbound mcpx tool calls (`mcp_exec`) are gated by default (see
+[Approvals](/approvals)). A worker can't prompt a human, so when the agent hits
+a non-allowlisted tool the gate writes an `approvals/<id>.md` record and the
+loop terminates the tick with `waiting` status (reason references the approval
+id) — independent of the agent's own terminal-tool call. The task sits parked
+until a human runs `botholomew approval approve|deny <id>` (or decides from the
+chat Approvals tab), which flips the task back to `pending`. On the re-run the
+recorded decision short-circuits the same call (matched by a stable
+server+tool+args `call_key`): approved → it runs and the record is consumed;
+denied → the agent receives a structured error and recovers. See
+`src/worker/approval.ts`.
+
 ### Log format
 
 Worker logs prefix every line with a local `HH:MM:SS` timestamp. Lifecycle

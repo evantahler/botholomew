@@ -9,7 +9,7 @@
 import { startWorker } from "./index.ts";
 
 const USAGE =
-  "Usage: bun run src/worker/run.ts <projectDir> [--worker-id=<uuid>] [--log-path=<path>] [--persist] [--task-id=<uuid>] [--no-eval-schedules]";
+  "Usage: bun run src/worker/run.ts <projectDir> [--worker-id=<uuid>] [--log-path=<path>] [--persist] [--task-id=<uuid>] [--no-eval-schedules] [--unsafe]";
 
 /**
  * Parse worker args (`<projectDir> [flags]`) and start the worker. Shared by
@@ -25,6 +25,7 @@ export async function runWorkerFromArgv(args: string[]): Promise<void> {
   const flags = args.slice(1);
   const persist = flags.includes("--persist");
   const noEvalSchedules = flags.includes("--no-eval-schedules");
+  const unsafe = flags.includes("--unsafe");
   const taskIdArg = flags.find((a) => a.startsWith("--task-id="));
   const taskId = taskIdArg ? taskIdArg.slice("--task-id=".length) : undefined;
   const workerIdArg = flags.find((a) => a.startsWith("--worker-id="));
@@ -42,6 +43,7 @@ export async function runWorkerFromArgv(args: string[]): Promise<void> {
     workerId,
     logPath,
     evalSchedules: noEvalSchedules ? false : undefined,
+    unsafe,
   });
 }
 

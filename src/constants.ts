@@ -15,6 +15,7 @@ import { join } from "node:path";
  *     tasks/.locks/<id>.lock            O_EXCL claim files
  *     schedules/<id>.md
  *     schedules/.locks/<id>.lock
+ *     approvals/<id>.md                 pending/decided mcpx approval requests
  *     threads/<YYYY-MM-DD>/<id>.csv     conversation history
  *     workers/<id>.json                 pidfile + heartbeat
  *     logs/                             worker logs
@@ -42,6 +43,7 @@ export const SKILLS_DIR = "skills";
 export const MCPX_DIR = "mcpx";
 export const TASKS_DIR = "tasks";
 export const SCHEDULES_DIR = "schedules";
+export const APPROVALS_DIR = "approvals";
 export const LOCKS_SUBDIR = ".locks";
 export const LOGS_DIR = "logs";
 export const WORKERS_DIR = "workers";
@@ -104,6 +106,10 @@ export function getTasksLockDir(projectDir: string): string {
 
 export function getSchedulesDir(projectDir: string): string {
   return join(projectDir, SCHEDULES_DIR);
+}
+
+export function getApprovalsDir(projectDir: string): string {
+  return join(projectDir, APPROVALS_DIR);
 }
 
 export function getSchedulesLockDir(projectDir: string): string {

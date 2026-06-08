@@ -31,7 +31,12 @@ project directory. The full schema lives in `src/config/schemas.ts`.
   "dream_lookback_hours": 24,
   "log_level": "",
   "membot_scope": "global",
-  "mcpx_scope": "global"
+  "mcpx_scope": "global",
+  "approvals": {
+    "enabled": true,
+    "allowed_tools": [],
+    "auto_allow_read_only": false
+  }
 }
 ```
 
@@ -131,6 +136,18 @@ works. Set `supports_tools: false` to opt out of the probe assumption.
 | `log_level` | `""` | Verbosity for `botholomew` CLI logs. One of `silent`, `error`, `warn`, `info`, `debug`. Empty string falls back to the runtime default (`info` normally, `error` under `NODE_ENV=test`). `BOTHOLOMEW_LOG_LEVEL` env var overrides this. |
 | `membot_scope` | `"global"` | Where this project's knowledge store lives. `"global"` → `~/.membot/index.duckdb` (shared across every Botholomew project on the machine). `"project"` → `<projectDir>/index.duckdb` (isolated). Affects both the agent and the `botholomew membot …` CLI passthrough. |
 | `mcpx_scope` | `"global"` | Where this project's MCP server config lives. `"global"` → `~/.mcpx/` (shared). `"project"` → `<projectDir>/mcpx/` (isolated). Affects both the agent and the `botholomew mcpx …` CLI passthrough. |
+| `approvals` | see below | Human-in-the-loop gate for outbound mcpx tool calls. See [Approvals](/approvals). |
+
+### `approvals`
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `true` | Master switch. When `true`, every mcpx tool call requires approval unless allowlisted. `false` disables the gate (same as running `--unsafe`). |
+| `allowed_tools` | `[]` | Patterns for mcpx tools that run **without** approval. Match `<server>/<tool>`: exact (`gmail/send`), wildcard (`gmail/*`, `*/search`), bare token (`search`), or `/regex/` on the tool name. Empty ⇒ gate everything. |
+| `auto_allow_read_only` | `false` | Also skip the gate for tools the server annotates `readOnlyHint: true`. Annotations are untrusted hints, so off by default. |
+
+A run started with `--unsafe` (on `chat`, `worker run`, `worker start`) bypasses
+the gate regardless of `enabled`.
 
 ---
 
