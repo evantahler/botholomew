@@ -35,7 +35,9 @@ describe("resolveSince", () => {
   });
 
   test("throws on an unparseable value", () => {
-    expect(() => resolveSince("not-a-date", 24, now)).toThrow(/Could not parse/);
+    expect(() => resolveSince("not-a-date", 24, now)).toThrow(
+      /Could not parse/,
+    );
   });
 });
 
@@ -69,7 +71,12 @@ describe("runDream", () => {
   }
 
   test("creates a Dream thread, reviews threads via tools, and ends it", async () => {
-    const prior = await createThread(projectDir, "chat_session", undefined, "x");
+    const prior = await createThread(
+      projectDir,
+      "chat_session",
+      undefined,
+      "x",
+    );
     await logInteraction(projectDir, prior, {
       role: "user",
       kind: "message",
