@@ -40,6 +40,39 @@ This page is intentionally short — the canonical docs live with membot.
   the chat session, and the TUI Context panel all share that handle through
   `ToolContext.mem`.
 
+## Search quality & reranking
+
+membot 0.18.0 reworked the embedding and search pipeline. Two things are worth
+knowing from Botholomew's side:
+
+- **Optional cross-encoder reranker.** `membot_search` (and `botholomew membot
+  search`) now accepts `rerank=true` to rescore the top hybrid candidates with a
+  local cross-encoder (ms-marco-MiniLM by default) for higher precision at the
+  cost of latency — the first reranked query downloads the model. Hits then carry
+  a `rerank_score` and the result reports `reranked: true`. Leave it off for the
+  fast hybrid path. The default is configurable in membot's own `config.json`
+  (`search.rerank`, `search.rerank_model`), and `search.max_per_file` caps how
+  many chunks a single `logical_path` contributes to a result set.
+- **Heading-aware chunking** (`chunker.markdown_aware`, on by default) splits
+  markdown at heading boundaries and embeds a breadcrumb per chunk, so snippets
+  carry their section context.
+
+### Re-embed after upgrading
+
+The 0.18.0 embedding fixes (CLS pooling for BGE models, smaller chunks that fit
+the 512-token window) change the embedding revision. **Existing stores built
+under an older membot keep their old vectors and silently degrade semantic
+search until they are re-embedded** — membot prints a stale-revision warning on
+search when this is the case. Re-embed once per store with:
+
+```sh
+botholomew membot reindex --embeddings
+```
+
+(Run it for each scope you use — the global `~/.membot` store and any
+`membot_scope: "project"` stores.) Fresh stores created on 0.18.0+ need no
+action.
+
 ## Storage scope
 
 `membot_scope` in `config/config.json` controls where the knowledge store
