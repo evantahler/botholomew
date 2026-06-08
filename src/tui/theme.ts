@@ -50,6 +50,7 @@ export const theme = {
   userBg: isDark ? "#2a5a8c" : "#d0e0f0",
   selectionBg: isDark ? "#333" : "#ddd",
   headerBg: isDark ? "#3a4655" : "#f5f7fa",
+  queue: isDark ? "#a78bfa" : "#7c3aed",
   success: "green",
   error: "red",
   info: "cyan",

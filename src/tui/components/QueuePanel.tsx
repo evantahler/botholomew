@@ -25,11 +25,11 @@ export function QueuePanel({ messages, selectedIndex }: QueuePanelProps) {
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor={theme.accent}
+      borderColor={theme.queue}
       paddingX={1}
     >
       <Box justifyContent="space-between">
-        <Text color={theme.accent} bold>
+        <Text color={theme.queue} bold>
           {label}
         </Text>
         <Text dimColor>{hints}</Text>
@@ -42,7 +42,7 @@ export function QueuePanel({ messages, selectedIndex }: QueuePanelProps) {
           // biome-ignore lint/suspicious/noArrayIndexKey: queue items can be duplicates, index is the stable identity
           <Box key={i}>
             <Text
-              color={isSelected ? theme.accent : undefined}
+              color={isSelected ? theme.queue : undefined}
               backgroundColor={isSelected ? theme.selectionBg : undefined}
               bold={isSelected}
             >
