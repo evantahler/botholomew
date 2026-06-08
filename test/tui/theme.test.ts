@@ -91,6 +91,7 @@ describe("theme", () => {
     process.env.COLORFGBG = "15;0"; // force dark
     const { theme } = loadTheme();
     expect(theme.accent).toBe("yellow");
+    expect(theme.queue).toBe("#a78bfa");
     expect(theme.userBg).toBe("#2a5a8c");
     expect(theme.selectionBg).toBe("#333");
   });
@@ -99,6 +100,7 @@ describe("theme", () => {
     process.env.COLORFGBG = "0;15"; // force light
     const { theme } = loadTheme();
     expect(theme.accent).toBe("#B8860B");
+    expect(theme.queue).toBe("#7c3aed");
     expect(theme.userBg).toBe("#d0e0f0");
     expect(theme.selectionBg).toBe("#ddd");
   });
