@@ -88,6 +88,15 @@ If no task is claimable and no schedule is due, `tick()` returns
 `false`. A `--persist` worker then sleeps `tick_interval_seconds` before
 trying again; a `--once` worker exits immediately.
 
+The agent loop ends the tick by calling exactly one terminal status tool —
+`complete_task`, `fail_task`, or `wait_task` — which maps to the task's
+final status (the `complete_task` summary becomes the task's `output`; a
+`fail_task`/`wait_task` reason becomes its `waiting_reason`). If the model
+stops emitting tool calls **without** declaring a terminal status, the loop
+nudges it once to call one; if it still doesn't, the task is recorded as
+`failed` (not `complete`) — an implicit tick-end is treated as unfinished
+work, never silent success.
+
 See `src/worker/tick.ts`.
 
 ### Log format
@@ -154,6 +163,29 @@ Persist workers also run a reaper interval
    `worker_stopped_retention_seconds` (default 3600s). Dead pidfiles
    are kept as forensic evidence; only the clean exits get auto-pruned
    so `workers/` doesn't grow unbounded.
+
+---
+
+## Project status
+
+`botholomew status` is a read-only dashboard that renders the whole
+project in one ASCII view — workers (alive/dead counts + last heartbeat),
+tasks (counts by state plus currently-claimed tasks and their owners),
+schedules, files quarantined for invalid frontmatter, and the resolved
+membot/mcpx scope + directories. It mutates nothing: data-gathering lives
+in `src/status/collect.ts` (`collectStatus` → a serializable
+`StatusReport`), and `src/commands/status.ts` renders it.
+
+The collector parses task/schedule files directly (`parseTaskFile` /
+`parseScheduleFile`) rather than going through `getTask`/`listTasks`, so
+malformed files land in a `quarantined` bucket without spraying warnings
+over the output. Because schedules have no deterministic next-fire (they
+use a natural-language `frequency` evaluated by an LLM — see
+[tasks & schedules](./tasks-and-schedules.md)), `status` runs that same
+`evaluateSchedule` per enabled schedule to show a live "due now?" verdict.
+That evaluation is the only slow part, so `--no-evaluate` skips it for
+fast/offline runs, and `--json` emits the `StatusReport` verbatim for
+scripting.
 
 ---
 

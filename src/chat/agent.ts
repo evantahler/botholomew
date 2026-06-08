@@ -28,6 +28,7 @@ import { maybeStoreResult } from "../worker/large-results.ts";
 import {
   buildMetaHeader,
   extractKeywords,
+  LARGE_JSON_SECTION,
   loadPersistentContext,
   MEMBOT_PROMPT_SECTION,
   STYLE_RULES,
@@ -64,6 +65,7 @@ const CHAT_TOOL_NAMES = new Set([
   "membot_count_lines",
   "membot_copy",
   "membot_pipe",
+  "membot_query",
   "list_threads",
   "view_thread",
   "search_threads",
@@ -120,6 +122,7 @@ Format your responses using Markdown. Use headings, bold, italic, lists, and cod
 `;
 
   prompt += `\n${MEMBOT_PROMPT_SECTION}`;
+  prompt += `\n${LARGE_JSON_SECTION}`;
 
   if (options?.hasMcpTools) {
     prompt += `
