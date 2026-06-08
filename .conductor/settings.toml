@@ -1,5 +1,10 @@
 "$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
 
+# Each workspace can run its own docs preview concurrently — VitePress binds to
+# the workspace's assigned CONDUCTOR_PORT, so there's no shared-port conflict.
+runScriptMode = "concurrent"
+
 [scripts]
-archive = "bash .conductor/archive.sh"
 setup = "bash .conductor/setup.sh"
+run = "bun run docs:dev --port $CONDUCTOR_PORT"
+archive = "bash .conductor/archive.sh"

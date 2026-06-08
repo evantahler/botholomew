@@ -190,7 +190,7 @@ describe("skill_write", () => {
   });
 
   test("rejects reserved names", async () => {
-    for (const reserved of ["help", "skills", "clear", "exit"]) {
+    for (const reserved of ["help", "skills", "dream", "clear", "exit"]) {
       const result = await skillWriteTool.execute(
         {
           name: reserved,

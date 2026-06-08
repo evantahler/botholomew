@@ -113,6 +113,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `docs/tasks-and-schedules.md` — task/schedule files (markdown + frontmatter), lockfile claim, DAG validation, predecessor outputs, LLM schedule evaluation
   - `docs/tools.md` — the `ToolDefinition` pattern (Zod → Anthropic + CLI)
   - `docs/prompts.md` — generic `prompts/*.md` (init seeds `goals.md`, `beliefs.md`, `capabilities.md`), strict frontmatter validation, CRUD via CLI + agent tools
+  - `docs/reflection.md` — the `dream` reflection loop (built-in `/dream` + `botholomew dream`): consolidating recent threads into membot + self-edited prompts; episodic `thread search`
   - `docs/skills.md` — slash-command skills, `$1` / `$ARGUMENTS` substitution, tab completion
   - `docs/mcpx.md` — `servers.json`, local servers vs. MCP gateways (Arcade), `mcp_*` meta-tools
   - `docs/configuration.md` — every key in `config.json`

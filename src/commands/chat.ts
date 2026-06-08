@@ -21,6 +21,7 @@ export function registerChatCommand(program: Command) {
         "  Slash commands:\n" +
         "    /help           Show chat-command reference (Help tab has the full keymap)\n" +
         "    /skills         List available skills\n" +
+        "    /dream          Reflect on recent threads — consolidate learnings, update beliefs/goals\n" +
         "    /clear          End current thread and start a new one\n" +
         "    /exit           End the chat session",
     )

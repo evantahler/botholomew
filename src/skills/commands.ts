@@ -1,3 +1,4 @@
+import { DREAM_PROMPT_BODY } from "../chat/dream-prompt.ts";
 import type { SkillDefinition } from "./parser.ts";
 import { renderSkill, tokenizeForSkill, validateSkillArgs } from "./parser.ts";
 
@@ -10,6 +11,11 @@ export interface SlashCommand {
 export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
   { name: "help", description: "Show command reference and shortcuts" },
   { name: "skills", description: "List available skills" },
+  {
+    name: "dream",
+    description:
+      "Reflect on recent threads: consolidate learnings and update beliefs/goals",
+  },
   { name: "clear", description: "End current thread and start a new one" },
   { name: "exit", description: "End the chat session" },
 ];
@@ -117,6 +123,14 @@ export function handleSlashCommand(
     } else {
       ctx.addSystemMessage("/clear is only available in the chat TUI.");
     }
+    return true;
+  }
+
+  if (name === "dream") {
+    // Built-in (not a user-editable skill) so reflection behaves consistently.
+    // Queue the reflection prompt as a normal user message — the chat agent
+    // already has every tool it needs (thread search, membot, prompt_edit).
+    ctx.queueUserMessage(DREAM_PROMPT_BODY, { display: input });
     return true;
   }
 

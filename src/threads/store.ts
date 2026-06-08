@@ -456,6 +456,108 @@ export async function listThreads(
   return out.slice(offset, offset + limit);
 }
 
+export interface ThreadSearchHit {
+  thread_id: string;
+  thread_title: string;
+  thread_type: ThreadType;
+  /** 1-based sequence of the matching interaction. Plug into `view_thread({ id, offset: sequence-1 })`. */
+  sequence: number;
+  role: InteractionRole;
+  kind: InteractionKind;
+  content_snippet: string;
+  created_at: Date;
+}
+
+export interface ThreadSearchOptions {
+  /** Compiled regex matched against content, tool_name, and tool_input. */
+  regex: RegExp;
+  role?: InteractionRole;
+  kind?: InteractionKind;
+  type?: ThreadType;
+  /** Only consider threads started on or after this date. */
+  since?: Date;
+  /** Only consider threads started on or before this date. */
+  until?: Date;
+  /** Maximum number of hits to return across all threads. */
+  maxResults?: number;
+}
+
+/**
+ * Scan past conversations for a regex match. Shared by the `search_threads`
+ * agent tool and the `botholomew thread search` CLI so both stay in lockstep.
+ * Returns hits with `(thread_id, sequence)` pairs and the count of threads
+ * actually opened.
+ */
+export async function searchThreads(
+  projectDir: string,
+  opts: ThreadSearchOptions,
+): Promise<{ hits: ThreadSearchHit[]; threadsScanned: number }> {
+  const sinceMs = opts.since ? opts.since.getTime() : Number.NEGATIVE_INFINITY;
+  const untilMs = opts.until ? opts.until.getTime() : Number.POSITIVE_INFINITY;
+  const maxResults = opts.maxResults ?? 20;
+
+  const threads = await listThreads(projectDir, { type: opts.type });
+  const hits: ThreadSearchHit[] = [];
+  let scanned = 0;
+
+  for (const t of threads) {
+    const startedMs = t.started_at.getTime();
+    if (startedMs < sinceMs || startedMs > untilMs) continue;
+    const data = await getThread(projectDir, t.id);
+    if (!data) continue;
+    scanned++;
+    for (const ix of data.interactions) {
+      if (opts.role && ix.role !== opts.role) continue;
+      if (opts.kind && ix.kind !== opts.kind) continue;
+      if (!matchInteraction(ix, opts.regex)) continue;
+      hits.push({
+        thread_id: t.id,
+        thread_title: t.title || "(untitled)",
+        thread_type: t.type,
+        sequence: ix.sequence,
+        role: ix.role,
+        kind: ix.kind,
+        content_snippet: snippetForMatch(ix.content, opts.regex),
+        created_at: ix.created_at,
+      });
+      if (hits.length >= maxResults) break;
+    }
+    if (hits.length >= maxResults) break;
+  }
+
+  return { hits, threadsScanned: scanned };
+}
+
+const SNIPPET_MAX = 240;
+
+function matchInteraction(ix: Interaction, regex: RegExp): boolean {
+  // We treat the user-visible content as the primary haystack, but a
+  // tool_use interaction's content is just "Calling <name>" — fall through
+  // to the tool name + JSON args so a search for an exact tool argument
+  // still finds the call.
+  if (regex.test(ix.content)) return true;
+  if (ix.tool_name && regex.test(ix.tool_name)) return true;
+  if (ix.tool_input && regex.test(ix.tool_input)) return true;
+  return false;
+}
+
+/**
+ * Pick a short window around the first regex match so callers get enough
+ * context to know whether the hit is relevant without paging the whole
+ * interaction. Falls back to the head when the match index isn't available.
+ */
+function snippetForMatch(content: string, regex: RegExp): string {
+  const m = regex.exec(content);
+  if (!m) return content.slice(0, SNIPPET_MAX);
+  const idx = m.index;
+  const start = Math.max(0, idx - 60);
+  const end = Math.min(content.length, idx + SNIPPET_MAX - 60);
+  let snippet = content.slice(start, end);
+  if (start > 0) snippet = `…${snippet}`;
+  if (end < content.length) snippet = `${snippet}…`;
+  return snippet;
+}
+
 // ---------------------------------------------------------------------------
 // internals
 // ---------------------------------------------------------------------------

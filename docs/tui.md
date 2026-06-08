@@ -233,10 +233,13 @@ Typing `/` with nothing before it opens the autocomplete popup.
 | `Tab` | Insert the highlighted completion as `/<name> ` without submitting (lets you edit before sending) |
 | `Esc` | Close the popup (keeps what you typed) |
 
-Built-in commands are `/help`, `/skills`, `/clear`, and `/exit`.
+Built-in commands are `/help`, `/skills`, `/dream`, `/clear`, and `/exit`.
 `/clear` ends the current chat thread (persisted, still resumable via
 `botholomew chat --thread-id <id>`) and starts a fresh one on the same
 session, so you can reset context without losing the conversation.
+`/dream` runs a reflection pass — consolidating recent threads into the
+knowledge store and updating beliefs/goals (see [reflection.md](reflection.md)).
+It's built in, not a user skill, so it always behaves consistently.
 Every file in `skills/` is also surfaced in the popup with
 its description. See [skills.md](skills.md) for the file format and how
 skills are invoked with positional arguments.
