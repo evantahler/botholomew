@@ -74,9 +74,30 @@ registerPrepareCommand(program);
 registerCheckUpdateCommand(program);
 registerUpgradeCommand(program);
 
-program.action(() => {
-  program.help();
-});
+// Bare `botholomew` (only the global -d/--dir, or nothing) prints help on
+// stdout and exits 0. We do this explicitly instead of via a root .action()
+// handler, because that handler made Commander treat a mistyped command as an
+// excess positional argument ("too many arguments. Expected 0 arguments but
+// got 1: foo.") instead of reporting an unknown command. With no root action, a
+// real typo now reaches Commander's unknownCommand() → "error: unknown command
+// 'foo'" (plus a did-you-mean suggestion).
+function isBareInvocation(argv: string[]): boolean {
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === undefined) continue;
+    if (a === "-d" || a === "--dir") {
+      i++; // skip the option's value
+      continue;
+    }
+    if (a.startsWith("--dir=")) continue;
+    return false; // any operand OR other flag (--help, --version, foo, …)
+  }
+  return true;
+}
+
+if (isBareInvocation(process.argv.slice(2))) {
+  program.help(); // outputs to stdout and exits 0
+}
 
 // Start background update check before parsing (non-blocking)
 const updateNotice = maybeCheckForUpdate();
