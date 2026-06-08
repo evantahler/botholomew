@@ -1,6 +1,6 @@
 import { Box, Text } from "ink";
 
-export type TabId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+export type TabId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 // Help uses Ctrl+G rather than Ctrl+H because most terminals deliver Ctrl+H
 // as backspace. Ctrl+G also catches the Ctrl+/ keystroke on terminals that
@@ -13,19 +13,22 @@ const TABS: { id: TabId; label: string; key: string }[] = [
   { id: 5, label: "Threads", key: "^e" },
   { id: 6, label: "Schedules", key: "^s" },
   { id: 7, label: "Workers", key: "^w" },
+  { id: 9, label: "Approvals", key: "^p" },
   { id: 8, label: "Help", key: "^g" },
 ];
 
 interface TabBarProps {
   activeTab: TabId;
   usage?: { used: number; max: number } | null;
+  /** Pending-approval count rendered as a badge on the Approvals tab. */
+  pendingApprovals?: number;
 }
 
 function formatK(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
 }
 
-export function TabBar({ activeTab, usage }: TabBarProps) {
+export function TabBar({ activeTab, usage, pendingApprovals }: TabBarProps) {
   const pct =
     usage && usage.max > 0 ? Math.round((usage.used / usage.max) * 100) : null;
   const usageColor =
@@ -41,15 +44,19 @@ export function TabBar({ activeTab, usage }: TabBarProps) {
     <Box paddingX={1} gap={1}>
       {TABS.map(({ id, label, key: shortcut }) => {
         const active = id === activeTab;
+        const badge =
+          id === 9 && pendingApprovals && pendingApprovals > 0
+            ? `(${pendingApprovals})`
+            : "";
         return (
           <Box key={id}>
             <Text
-              bold={active}
-              color={active ? "cyan" : undefined}
-              dimColor={!active}
+              bold={active || badge !== ""}
+              color={active ? "cyan" : badge !== "" ? "yellow" : undefined}
+              dimColor={!active && badge === ""}
               backgroundColor={active ? "#1a3a5c" : undefined}
             >
-              {` ${shortcut} ${label} `}
+              {` ${shortcut} ${label}${badge ? ` ${badge}` : ""} `}
             </Text>
           </Box>
         );

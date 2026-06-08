@@ -7,10 +7,10 @@ agent, inspecting its work, and managing the local database. It's built
 on [Ink 6](https://github.com/vadimdemedes/ink) + React 19 — a real
 React tree, just rendered to ANSI characters instead of DOM nodes.
 
-The TUI is not a thin wrapper around the CLI. It's an 8-tab dashboard
+The TUI is not a thin wrapper around the CLI. It's a 9-tab dashboard
 that runs against the same DuckDB workers use, so you can watch tasks
-claim and complete, browse the agent's memory, edit schedules, and
-monitor workers in real time.
+claim and complete, browse the agent's memory, edit schedules, monitor
+workers, and clear pending tool-approval requests in real time.
 
 ---
 
@@ -46,23 +46,24 @@ going.
 
 ---
 
-## The eight tabs
+## The nine tabs
 
-The TUI is organized as eight sibling panels. Only one is visible at a
+The TUI is organized as nine sibling panels. Only one is visible at a
 time. All panels stay mounted — switching tabs hides them with CSS
 (`display="none"`) rather than unmounting, so scroll position and
 filter state survive a round trip.
 
-| # | Tab | What it's for |
-|---|---|---|
-| 1 | **Chat** | Talk to the agent. Streamed responses, tool-call boxes, slash commands, message queue. |
-| 2 | **Tools** | Scrollable log of every tool call in the current session, with full input/output. |
-| 3 | **Context** | Browse the agent's `context/` tree on disk. Preview, search, delete. |
-| 4 | **Tasks** | Task queue with status + priority filters. View details, payloads, and predecessor outputs. |
-| 5 | **Threads** | Browse chat and worker threads, including live ones. Press `w` to tail an in-progress thread. |
-| 6 | **Schedules** | Recurring work. Toggle enabled/disabled, delete, inspect last run. |
-| 7 | **Workers** | Live view of registered workers (running / stopped / dead), pid, mode, heartbeat age. `f` cycles the status filter. |
-| 8 | **Help** | System info, worker status, keyboard reference. |
+| # | Tab | Shortcut | What it's for |
+|---|---|---|---|
+| 1 | **Chat** | `Ctrl+a` | Talk to the agent. Streamed responses, tool-call boxes, slash commands, message queue. |
+| 2 | **Tools** | `Ctrl+o` | Scrollable log of every tool call in the current session, with full input/output. |
+| 3 | **Context** | `Ctrl+n` | Browse the agent's `context/` tree on disk. Preview, search, delete. |
+| 4 | **Tasks** | `Ctrl+t` | Task queue with status + priority filters. View details, payloads, and predecessor outputs. |
+| 5 | **Threads** | `Ctrl+e` | Browse chat and worker threads, including live ones. Press `w` to tail an in-progress thread. |
+| 6 | **Schedules** | `Ctrl+s` | Recurring work. Toggle enabled/disabled, delete, inspect last run. |
+| 7 | **Workers** | `Ctrl+w` | Live view of registered workers (running / stopped / dead), pid, mode, heartbeat age. `f` cycles the status filter. |
+| 9 | **Approvals** | `Ctrl+p` | Pending tool-approval requests from workers. `a` approve, `d` deny. A badge shows the pending count. |
+| 8 | **Help** | `Ctrl+g` | System info, worker status, keyboard reference. |
 
 ### 1. Chat
 
@@ -198,10 +199,38 @@ The panel polls the DB every ~3s. Workers heartbeat every
 peer's reaper. Start new workers from the CLI (`botholomew worker
 start --persist`) or have the chat agent call `spawn_worker`.
 
+### 9. Approvals
+
+Pending and decided tool-approval requests (`approvals/<id>.md`). When a
+background worker hits a gated mcpx tool it parks the task and writes a request
+here; the tab's label carries a yellow badge with the pending count. Select a
+request and press `a` to approve or `d` to deny — either decision re-queues the
+originating task so a worker re-runs it. The panel polls every ~5s. See
+[Approvals](/approvals) for the full workflow.
+
 ### 8. Help
 
 Project directory, active thread ID, worker status summary, and the
 full keyboard reference.
+
+---
+
+## Inline tool approval
+
+When you (in chat) ask the agent to do something that calls a gated mcpx tool,
+an approval prompt appears above the input bar before the call runs:
+
+```
+⚠ Approve tool call?
+gmail/send_email (not-allowlisted)
+{"to":"alex@example.com"}
+y approve · a always allow this tool · n/Esc deny
+```
+
+`y` runs it once, `a` runs it and adds the tool to `approvals.allowed_tools`
+(so it never prompts again), `n`/`Esc` denies (the agent gets a structured error
+and recovers). While the prompt is up it owns the keyboard. Run
+`botholomew chat --unsafe` to disable the gate. See [Approvals](/approvals).
 
 ---
 
@@ -347,8 +376,9 @@ on the agent side) and disappears when the wait elapses or you press
 | `Ctrl+e` | Threads |
 | `Ctrl+s` | Schedules |
 | `Ctrl+w` | Workers |
+| `Ctrl+p` | Approvals |
 | `Ctrl+g` | Help (`Ctrl+/` also works in most terminals — it's typically delivered as the same byte) |
-| `Ctrl+R` | Refresh the active list (Context · Tasks · Threads · Schedules · Workers) |
+| `Ctrl+R` | Refresh the active list (Context · Tasks · Threads · Schedules · Workers · Approvals) |
 | `Esc` | Return to Chat from any other tab |
 | `Ctrl+C` | Exit the TUI |
 

@@ -1,5 +1,6 @@
 import { Box } from "ink";
 import type { ContextUsage } from "../../chat/usage.ts";
+import { ApprovalPanel } from "./ApprovalPanel.tsx";
 import { ContextPanel } from "./ContextPanel.tsx";
 import { HelpPanel } from "./HelpPanel.tsx";
 import { SchedulePanel } from "./SchedulePanel.tsx";
@@ -89,6 +90,14 @@ export function TabPanels({
         overflow="hidden"
       >
         <WorkerPanel projectDir={projectDir} isActive={activeTab === 7} />
+      </Box>
+      <Box
+        display={activeTab === 9 ? "flex" : "none"}
+        flexDirection="column"
+        flexGrow={1}
+        overflow="hidden"
+      >
+        <ApprovalPanel projectDir={projectDir} isActive={activeTab === 9} />
       </Box>
       <Box
         display={activeTab === 8 ? "flex" : "none"}

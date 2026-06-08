@@ -17,6 +17,7 @@ import {
 import { createThread, endThread, logInteraction } from "../threads/store.ts";
 import { logger } from "../utils/logger.ts";
 import { generateThreadTitle } from "../utils/title.ts";
+import type { WorkerApprovalCtx } from "./approval.ts";
 import type { WorkerStreamCallbacks } from "./llm.ts";
 import { runAgentLoop } from "./llm.ts";
 import { buildSystemPrompt } from "./prompt.ts";
@@ -30,6 +31,8 @@ export interface TickOptions {
   callbacks?: WorkerStreamCallbacks;
   tickNum?: number;
   evalSchedules?: boolean;
+  /** Holder the mcpx approval callback reads; set per-task before the loop. */
+  approvalCtx?: WorkerApprovalCtx;
 }
 
 /**
@@ -50,6 +53,7 @@ export async function tick(opts: TickOptions): Promise<boolean> {
     callbacks,
     tickNum = 1,
     evalSchedules = true,
+    approvalCtx,
   } = opts;
 
   const tickStart = Date.now();
@@ -93,6 +97,7 @@ export async function tick(opts: TickOptions): Promise<boolean> {
       mcpxClient,
       callbacks,
       task,
+      approvalCtx,
     });
   } finally {
     await mem.close();
@@ -114,6 +119,7 @@ export async function runSpecificTask(opts: {
   taskId: string;
   mcpxClient?: McpxClient | null;
   callbacks?: WorkerStreamCallbacks;
+  approvalCtx?: WorkerApprovalCtx;
 }): Promise<boolean> {
   const task = await claimSpecificTask(
     opts.projectDir,
@@ -137,6 +143,7 @@ export async function runSpecificTask(opts: {
       mcpxClient: opts.mcpxClient,
       callbacks: opts.callbacks,
       task,
+      approvalCtx: opts.approvalCtx,
     });
   } finally {
     await mem.close();
@@ -152,9 +159,18 @@ async function runClaimedTask(opts: {
   mcpxClient?: McpxClient | null;
   callbacks?: WorkerStreamCallbacks;
   task: Task;
+  approvalCtx?: WorkerApprovalCtx;
 }): Promise<void> {
-  const { projectDir, withMem, config, workerId, mcpxClient, callbacks, task } =
-    opts;
+  const {
+    projectDir,
+    withMem,
+    config,
+    workerId,
+    mcpxClient,
+    callbacks,
+    task,
+    approvalCtx,
+  } = opts;
 
   logger.info(`Claimed task: ${task.name} (${task.id})`);
   if (!callbacks && task.description) {
@@ -168,6 +184,13 @@ async function runClaimedTask(opts: {
     task.id,
     `Working: ${task.name}`,
   );
+
+  // Point the (shared) mcpx approval callback at this task/thread so any
+  // approval record it writes is attributable and the task can be re-queued.
+  if (approvalCtx) {
+    approvalCtx.taskId = task.id;
+    approvalCtx.threadId = threadId;
+  }
 
   let systemPrompt: string;
   try {

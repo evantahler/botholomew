@@ -31,6 +31,7 @@ For example: \`/architecture.md\`, \`/configuration.md\`
 - Context & hybrid search: /context-and-search.md
 - Persistent context: /prompts.md
 - Tasks & schedules: /tasks-and-schedules.md
+- Approvals: /approvals.md
 - Automation: /automation.md
 - Skills: /skills.md
 - Tools: /tools.md
@@ -187,6 +188,7 @@ export default defineConfig({
         text: "Execution",
         items: [
           { text: "Tasks & schedules", link: "/tasks-and-schedules" },
+          { text: "Approvals", link: "/approvals" },
           { text: "Automation", link: "/automation" },
         ],
       },

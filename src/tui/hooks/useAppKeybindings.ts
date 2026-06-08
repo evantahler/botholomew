@@ -28,6 +28,8 @@ interface UseAppKeybindingsParams {
   slashCommandsRef: MutableRefObject<SlashCommand[]>;
   inputValueRef: MutableRefObject<string>;
   markActivityRef: MutableRefObject<() => void>;
+  /** True while the approval prompt owns input; gates all bindings but Ctrl+C. */
+  approvalActiveRef: MutableRefObject<boolean>;
 }
 
 export function useAppKeybindings({
@@ -45,6 +47,7 @@ export function useAppKeybindings({
   slashCommandsRef,
   inputValueRef,
   markActivityRef,
+  approvalActiveRef,
 }: UseAppKeybindingsParams): void {
   // Stable refs for the input handler — same pattern as InputBar to prevent
   // Ink's useInput from re-registering stdin listeners on every render.
@@ -68,6 +71,11 @@ export function useAppKeybindings({
         void performShutdown();
         return;
       }
+
+      // While the approval prompt is up it owns the keyboard (y/a/n/Esc handled
+      // by its own useInput). Swallow everything else so a tab-jump or Esc-abort
+      // doesn't fire mid-prompt.
+      if (approvalActiveRef.current) return;
 
       // Ctrl+<letter> jumps directly to a tab from any tab. On Chat, only
       // suppress these if the slash-autocomplete popup needs the keystroke
@@ -159,6 +167,7 @@ export function useAppKeybindings({
       slashCommandsRef,
       inputValueRef,
       markActivityRef,
+      approvalActiveRef,
     ],
   );
 

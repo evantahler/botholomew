@@ -14,9 +14,30 @@ export interface LlmBlock {
   supports_tools: boolean;
 }
 
+/**
+ * Human-in-the-loop approval gate for outbound mcpx tool calls. The gate is
+ * ON by default (`enabled: true`) and gates **every** mcpx tool — users opt
+ * specific tools out via `allowed_tools`. A run launched with `--unsafe`
+ * bypasses the gate entirely (see `buildApprovalPolicy` in `src/mcpx/client.ts`).
+ */
+export interface ApprovalConfig {
+  /** Master switch. When false the gate is off (equivalent to running `--unsafe`). Default true. */
+  enabled: boolean;
+  /**
+   * Opt-in allowlist of tools that run WITHOUT approval. Patterns match against
+   * "server/tool": exact ("gmail/send_email"), wildcards on either side
+   * ("gmail/" + star, or star + "/search"), or a "/regex/" tested against the
+   * tool name. Empty (default) ⇒ gate everything.
+   */
+  allowed_tools: string[];
+  /** Convenience: also skip the gate for tools the server annotates `readOnlyHint: true`. Default false. */
+  auto_allow_read_only: boolean;
+}
+
 export interface BotholomewConfig {
   llm: LlmBlock;
   chunker_llm: LlmBlock;
+  approvals: ApprovalConfig;
   embedding_model: string;
   embedding_dimension: number;
   tick_interval_seconds: number;
@@ -49,9 +70,16 @@ export const DEFAULT_CHUNKER_LLM: LlmBlock = {
   model: "claude-haiku-4-5-20251001",
 };
 
+export const DEFAULT_APPROVALS: ApprovalConfig = {
+  enabled: true,
+  allowed_tools: [],
+  auto_allow_read_only: false,
+};
+
 export const DEFAULT_CONFIG: BotholomewConfig = {
   llm: DEFAULT_LLM,
   chunker_llm: DEFAULT_CHUNKER_LLM,
+  approvals: DEFAULT_APPROVALS,
   embedding_model: "Xenova/bge-small-en-v1.5",
   embedding_dimension: 384,
   tick_interval_seconds: 300,

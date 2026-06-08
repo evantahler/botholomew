@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, saveConfig } from "../../src/config/loader.ts";
+import {
+  addAllowedTool,
+  loadConfig,
+  saveConfig,
+} from "../../src/config/loader.ts";
 import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
 
 let projectDir: string;
@@ -30,6 +34,27 @@ describe("loadConfig", () => {
     }
   });
 
+  test("defaults the approvals block for a config predating the gate (gate stays ON)", async () => {
+    await Bun.write(
+      join(projectDir, "config", "config.json"),
+      JSON.stringify({ llm: { model: "x" } }),
+    );
+    const config = await loadConfig(projectDir);
+    expect(config.approvals.enabled).toBe(true);
+    expect(config.approvals.allowed_tools).toEqual([]);
+    expect(config.approvals.auto_allow_read_only).toBe(false);
+  });
+
+  test("deep-merges a partial approvals block", async () => {
+    await Bun.write(
+      join(projectDir, "config", "config.json"),
+      JSON.stringify({ approvals: { allowed_tools: ["gmail/read"] } }),
+    );
+    const config = await loadConfig(projectDir);
+    expect(config.approvals.enabled).toBe(true);
+    expect(config.approvals.allowed_tools).toEqual(["gmail/read"]);
+  });
+
   test("merges partial user llm block with defaults", async () => {
     await Bun.write(
       join(projectDir, "config", "config.json"),
@@ -42,6 +67,23 @@ describe("loadConfig", () => {
     expect(config.tick_interval_seconds).toBe(
       DEFAULT_CONFIG.tick_interval_seconds,
     );
+  });
+
+  test("addAllowedTool appends to the allowlist, preserving other keys", async () => {
+    await Bun.write(
+      join(projectDir, "config", "config.json"),
+      JSON.stringify({ llm: { model: "keep-me" } }),
+    );
+    await addAllowedTool(projectDir, "gmail/send");
+    await addAllowedTool(projectDir, "gmail/send"); // idempotent
+    await addAllowedTool(projectDir, "slack/post");
+
+    const config = await loadConfig(projectDir);
+    expect(config.llm.model).toBe("keep-me");
+    expect(config.approvals.allowed_tools).toEqual([
+      "gmail/send",
+      "slack/post",
+    ]);
   });
 
   test("loads full user config", async () => {

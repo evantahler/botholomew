@@ -2,6 +2,7 @@
 
 import ansis from "ansis";
 import { program } from "commander";
+import { registerApprovalCommand } from "./commands/approval.ts";
 import { registerCapabilitiesCommand } from "./commands/capabilities.ts";
 import { registerChatCommand } from "./commands/chat.ts";
 import { registerCheckUpdateCommand } from "./commands/check-update.ts";
@@ -63,6 +64,7 @@ registerWorkerCommand(program);
 registerTaskCommand(program);
 registerThreadCommand(program);
 registerScheduleCommand(program);
+registerApprovalCommand(program);
 registerChatCommand(program);
 registerMembotCommand(program);
 registerCapabilitiesCommand(program);

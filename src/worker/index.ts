@@ -1,10 +1,18 @@
 import { hostname } from "node:os";
 import ansis from "ansis";
 import { loadConfig } from "../config/loader.ts";
-import { createMcpxClient, resolveMcpxDir } from "../mcpx/client.ts";
+import {
+  buildApprovalPolicy,
+  createMcpxClient,
+  resolveMcpxDir,
+} from "../mcpx/client.ts";
 import { logger } from "../utils/logger.ts";
 import { uuidv7 } from "../utils/uuid.ts";
 import { markWorkerStopped, registerWorker } from "../workers/store.ts";
+import {
+  makeWorkerApprovalCallback,
+  type WorkerApprovalCtx,
+} from "./approval.ts";
 import { startHeartbeat, startReaper } from "./heartbeat.ts";
 import type { WorkerStreamCallbacks } from "./llm.ts";
 import { runSpecificTask, tick } from "./tick.ts";
@@ -41,6 +49,11 @@ export interface StartWorkerOptions {
    * out into unrelated schedule processing).
    */
   evalSchedules?: boolean;
+  /**
+   * Bypass the mcpx approval gate for this run (allow every tool, like
+   * Claude Code's --dangerously-skip-permissions). Overrides `approvals.enabled`.
+   */
+  unsafe?: boolean;
 }
 
 function buildForegroundCallbacks(): WorkerStreamCallbacks {
@@ -87,12 +100,29 @@ export async function startWorker(
 
   const config = await loadConfig(projectDir);
 
-  const mcpxClient = await createMcpxClient(resolveMcpxDir(projectDir, config));
+  const workerId = options.workerId ?? uuidv7();
+
+  // Approval gate wiring. The callback reads the current task/thread from a
+  // mutable holder that `runClaimedTask` updates before each agent loop.
+  const approvalCtx: WorkerApprovalCtx = { taskId: null, threadId: null };
+  const approvalPolicy = buildApprovalPolicy(config, {
+    unsafe: options.unsafe,
+  });
+  const mcpxClient = await createMcpxClient(
+    resolveMcpxDir(projectDir, config),
+    {
+      approvalPolicy,
+      onApprovalRequired: approvalPolicy
+        ? makeWorkerApprovalCallback(projectDir, workerId, approvalCtx)
+        : undefined,
+    },
+  );
   if (mcpxClient) {
-    logger.info("MCPX client initialized with external tools");
+    logger.info(
+      `MCPX client initialized with external tools${approvalPolicy ? " (approval gate active)" : ""}`,
+    );
   }
 
-  const workerId = options.workerId ?? uuidv7();
   await registerWorker(projectDir, {
     id: workerId,
     pid: process.pid,
@@ -149,6 +179,7 @@ export async function startWorker(
           taskId,
           mcpxClient,
           callbacks,
+          approvalCtx,
         });
       } else {
         await tick({
@@ -159,6 +190,7 @@ export async function startWorker(
           callbacks,
           tickNum: 1,
           evalSchedules,
+          approvalCtx,
         });
       }
       return;
@@ -179,6 +211,7 @@ export async function startWorker(
           callbacks,
           tickNum,
           evalSchedules: true,
+          approvalCtx,
         });
       } catch (err) {
         logger.error(`Tick failed: ${err}`);

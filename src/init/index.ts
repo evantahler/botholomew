@@ -5,6 +5,7 @@ import type { LlmProvider } from "../config/schemas.ts";
 import {
   CONFIG_DIR,
   CONFIG_FILENAME,
+  getApprovalsDir,
   getConfigPath,
   getMcpxDir,
   getPromptsDir,
@@ -74,6 +75,7 @@ export async function initProject(
   await mkdir(getTasksLockDir(projectDir), { recursive: true });
   await mkdir(getSchedulesDir(projectDir), { recursive: true });
   await mkdir(getSchedulesLockDir(projectDir), { recursive: true });
+  await mkdir(getApprovalsDir(projectDir), { recursive: true });
   await mkdir(getWorkersDir(projectDir), { recursive: true });
   await mkdir(getThreadsDir(projectDir), { recursive: true });
   await mkdir(join(projectDir, LOGS_DIR), { recursive: true });
@@ -150,6 +152,9 @@ export async function initProject(
   logger.dim(`  ${TASKS_DIR}/          one markdown file per task`);
   logger.dim(`    ${LOCKS_SUBDIR}/        worker claim lockfiles`);
   logger.dim(`  ${SCHEDULES_DIR}/      one markdown file per schedule`);
+  logger.dim(
+    `  approvals/       one markdown file per gated tool-call request`,
+  );
   logger.dim(`  threads/         one CSV per conversation, by UTC date`);
   logger.dim(`  workers/         one JSON pidfile per worker (heartbeats)`);
   logger.dim(`  skills/, mcpx/, logs/`);

@@ -36,6 +36,13 @@ export interface ToolContext {
    * back to `logger.info` so worker logs are unchanged.
    */
   notify?: (message: string) => void;
+  /**
+   * Worker-mode only. Called by `mcp_exec` when a gated mcpx call has no
+   * decision yet and a pending `approvals/<id>.md` was written. The worker
+   * loop records the id and parks the task as `waiting` after the turn.
+   * Chat leaves this `undefined` (chat resolves approvals inline).
+   */
+  onApprovalPending?: (approvalId: string) => void;
 }
 
 type ToolOutputBase = { is_error: z.ZodBoolean };

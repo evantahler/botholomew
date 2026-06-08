@@ -3,6 +3,7 @@ import { getConfigPath } from "../constants.ts";
 import { setLogLevel } from "../utils/logger.ts";
 import {
   type BotholomewConfig,
+  DEFAULT_APPROVALS,
   DEFAULT_CHUNKER_LLM,
   DEFAULT_CONFIG,
   DEFAULT_LLM,
@@ -60,6 +61,9 @@ export async function loadConfig(
     ...userConfig,
     llm: mergeLlmBlock(DEFAULT_LLM, userConfig.llm),
     chunker_llm: mergeLlmBlock(DEFAULT_CHUNKER_LLM, userConfig.chunker_llm),
+    // Deep-merge so a config predating the approval gate (or only overriding
+    // one key) still gets the safe defaults — and back-compat keeps the gate ON.
+    approvals: { ...DEFAULT_APPROVALS, ...(userConfig.approvals ?? {}) },
   };
 
   const config = applyEnvOverrides(merged);
@@ -100,4 +104,27 @@ export async function saveConfig(
 ): Promise<void> {
   const configPath = getConfigPath(projectDir);
   await Bun.write(configPath, `${JSON.stringify(config, null, 2)}\n`);
+}
+
+/**
+ * Append an mcpx tool pattern to `approvals.allowed_tools` on disk, preserving
+ * every other key in the file (a surgical merge, not a full rewrite of merged
+ * defaults). Used by the chat TUI's "always allow" decision. No-op if the
+ * pattern is already present.
+ */
+export async function addAllowedTool(
+  projectDir: string,
+  pattern: string,
+): Promise<void> {
+  const configPath = getConfigPath(projectDir);
+  const file = Bun.file(configPath);
+  const raw: Record<string, unknown> = (await file.exists())
+    ? JSON.parse(await file.text())
+    : {};
+  if (!raw.approvals || typeof raw.approvals !== "object") raw.approvals = {};
+  const approvals = raw.approvals as Record<string, unknown>;
+  if (!Array.isArray(approvals.allowed_tools)) approvals.allowed_tools = [];
+  const allowed = approvals.allowed_tools as string[];
+  if (!allowed.includes(pattern)) allowed.push(pattern);
+  await Bun.write(configPath, `${JSON.stringify(raw, null, 2)}\n`);
 }
