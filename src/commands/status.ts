@@ -22,10 +22,6 @@ function formatAge(fromIso: string | null, to = new Date()): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function padColored(colored: string, raw: string, width: number): string {
-  return colored + " ".repeat(Math.max(0, width - raw.length));
-}
-
 function workerStatusColor(status: WorkerStatus): string {
   switch (status) {
     case "running":

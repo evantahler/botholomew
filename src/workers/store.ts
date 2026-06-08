@@ -87,7 +87,7 @@ export async function registerWorker(
  */
 export async function heartbeat(projectDir: string, id: string): Promise<void> {
   const worker = await readWorker(projectDir, id);
-  if (!worker || worker.status !== "running") return;
+  if (worker?.status !== "running") return;
   worker.last_heartbeat_at = new Date().toISOString();
   await writeWorker(projectDir, worker);
 }
@@ -97,7 +97,7 @@ export async function markWorkerStopped(
   id: string,
 ): Promise<void> {
   const worker = await readWorker(projectDir, id);
-  if (!worker || worker.status !== "running") return;
+  if (worker?.status !== "running") return;
   worker.status = "stopped";
   worker.stopped_at = new Date().toISOString();
   await writeWorker(projectDir, worker);
@@ -130,7 +130,7 @@ export async function reapDeadWorkers(
   const reaped: string[] = [];
   for (const id of ids) {
     const w = await readWorker(projectDir, id);
-    if (!w || w.status !== "running") continue;
+    if (w?.status !== "running") continue;
     const heartbeatMs = Date.parse(w.last_heartbeat_at);
     if (Number.isFinite(heartbeatMs) && heartbeatMs >= cutoff) continue;
     w.status = "dead";
@@ -162,7 +162,7 @@ export async function pruneStoppedWorkers(
   const pruned: string[] = [];
   for (const id of ids) {
     const w = await readWorker(projectDir, id);
-    if (!w || w.status !== "stopped" || !w.stopped_at) continue;
+    if (w?.status !== "stopped" || !w.stopped_at) continue;
     const stoppedMs = Date.parse(w.stopped_at);
     if (Number.isFinite(stoppedMs) && stoppedMs >= cutoff) continue;
     try {
