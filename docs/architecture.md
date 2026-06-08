@@ -88,6 +88,15 @@ If no task is claimable and no schedule is due, `tick()` returns
 `false`. A `--persist` worker then sleeps `tick_interval_seconds` before
 trying again; a `--once` worker exits immediately.
 
+The agent loop ends the tick by calling exactly one terminal status tool —
+`complete_task`, `fail_task`, or `wait_task` — which maps to the task's
+final status (the `complete_task` summary becomes the task's `output`; a
+`fail_task`/`wait_task` reason becomes its `waiting_reason`). If the model
+stops emitting tool calls **without** declaring a terminal status, the loop
+nudges it once to call one; if it still doesn't, the task is recorded as
+`failed` (not `complete`) — an implicit tick-end is treated as unfinished
+work, never silent success.
+
 See `src/worker/tick.ts`.
 
 ### Log format
