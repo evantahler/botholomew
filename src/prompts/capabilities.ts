@@ -339,7 +339,7 @@ function renderFallback(inv: RawInventory, now: Date): string {
     schedule:
       "create and list recurring schedules that automatically generate tasks",
     membot:
-      "add, read, write, edit, move, copy, delete, and search content in the agent's knowledge store; track every version and refresh from URL sources",
+      "add, read, write, edit, move, copy, delete, and search content in the agent's knowledge store; track every version and refresh from URL sources; capture large tool outputs into the store and reduce/reshape stored JSON without loading it into context",
     prompt:
       "list, read, create, edit, and delete the project's prompt files (goals, beliefs, capabilities, plus any agent-authored ones)",
     skill: "list, read, write, edit, delete, and search slash-command skills",

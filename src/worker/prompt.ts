@@ -18,6 +18,20 @@ export const MEMBOT_PROMPT_SECTION = `## Knowledge store (membot)
 ${MEMBOT_INSTRUCTIONS}
 `;
 
+/**
+ * Teaches the `membot_pipe` → `membot_query` pattern for large JSON. Shared
+ * verbatim by the worker and chat prompts (chat imports it). These are core
+ * knowledge-store tools — not MCP-only — so the section renders unconditionally;
+ * without it the model only learns about `membot_query` from its tool schema,
+ * exactly when it's most context-pressured (holding a big blob).
+ */
+export const LARGE_JSON_SECTION = `## Large JSON results
+When a tool would return a large JSON payload (mcp_exec dumps, search results, web fetches) that you don't need to read verbatim, don't pull it into context:
+1. \`membot_pipe\` the call into a \`logical_path\` — the bytes land in the store, you get back only an ack.
+2. \`membot_query\` that \`logical_path\` with a JSONata expression to filter / pluck / group / dedup / sort / aggregate down to the small slice you actually need (pass \`expression="?"\` for the syntax reference). Chain with \`output_logical_path\` to refine in steps.
+This keeps big blobs out of the conversation. Reach for it whenever you expect a result bigger than what you need.
+`;
+
 export const STYLE_RULES = `## Style
 - Open with the result, action, or next step. Skip preambles like "Great question", "You're absolutely right", "Let me…", "I'll go ahead and…".
 - Don't flatter the user or their ideas. If a request is wrong, ambiguous, or risky, say so plainly with the reason.
@@ -136,6 +150,7 @@ When calling complete_task, write a summary that captures your key findings, dec
 `;
 
   prompt += `\n${MEMBOT_PROMPT_SECTION}`;
+  prompt += `\n${LARGE_JSON_SECTION}`;
 
   if (options?.hasMcpTools) {
     prompt += `
