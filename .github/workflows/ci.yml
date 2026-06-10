@@ -19,8 +19,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+      # Cache the embedding model weights so the suite doesn't re-download them
+      # from HuggingFace every run. Without this, repeated CI traffic from
+      # GitHub's runner IP range trips HF's 429 rate limit and every
+      # embedder-touching test fails. Keyed on package.json so a membot bump
+      # (which owns the model name) busts the cache. MEMBOT_MODEL_CACHE_DIR
+      # redirects the tests' cache dir (see test/setup.ts) to this one shared,
+      # cached location.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.membot/models
+          key: membot-models-${{ hashFiles('package.json') }}
       - run: bun install --frozen-lockfile
-      - run: bun test --timeout 30000
+      - name: bun test
+        run: |
+          export MEMBOT_MODEL_CACHE_DIR="$HOME/.membot/models"
+          mkdir -p "$MEMBOT_MODEL_CACHE_DIR"
+          bun test --timeout 30000
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   docs-build:
     runs-on: ubuntu-latest
