@@ -47,6 +47,12 @@ program
   .description(ansis.bold(pkg.description))
   .version(pkg.version)
   .option("-d, --dir <path>", "project directory", process.cwd())
+  // Stop the root command from consuming options that appear *after* a
+  // subcommand (notably `--version`). Combined with `passThroughOptions()` on
+  // the `membot`/`mcpx` passthroughs, this lets those wrappers forward flags
+  // like `--version <timestamp>` to the upstream CLI verbatim instead of having
+  // the root version handler swallow them.
+  .enablePositionalOptions()
   .configureHelp({
     styleTitle: (str) => ansis.bold(str),
     styleUsage: (str) => ansis.cyan(str),

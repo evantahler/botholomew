@@ -4,7 +4,6 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Command } from "commander";
-import { defaultCliName, OPERATIONS } from "membot";
 import { loadConfig } from "../config/loader.ts";
 import { resolveMembotDir } from "../mem/client.ts";
 import { pkg as ourPkg } from "../pkg.ts";
@@ -156,36 +155,30 @@ function registerImportGlobal(parent: Command, program: Command): void {
 }
 
 export function registerMembotCommand(program: Command) {
+  // The `membot` group is a thin passthrough: every token after `membot`
+  // (subcommand, flags, and positional args) is forwarded verbatim to the
+  // upstream membot CLI, which owns the canonical schema. We do NOT enumerate
+  // membot's subcommands here — doing so (a) silently dropped membot's
+  // management commands that aren't agent Operations (`config`, `reindex`,
+  // `router`, `login`, `logs`, `check-update`, …) and (b) gave a misleading
+  // "too many arguments" error for them. `passThroughOptions()` (paired with
+  // `enablePositionalOptions()` on the root) keeps Commander from swallowing
+  // flags meant for membot — notably `--version <timestamp>`, which the root
+  // `--version` would otherwise intercept.
   const membot = program
     .command("membot")
     .description(
-      "Manage the project's knowledge store (passthrough to membot: add, search, ls, read, …)",
-    );
+      "Manage the project's knowledge store (passthrough to membot: add, search, ls, read, …). Run `botholomew membot <command> --help` for upstream command help.",
+    )
+    .allowUnknownOption(true)
+    .passThroughOptions()
+    .argument("[args...]", "arguments forwarded to membot")
+    .action(async () => {
+      const exitCode = await runMembot(getDir(program), getRawMembotArgs());
+      if (exitCode !== 0) process.exit(exitCode);
+    });
 
-  // Botholomew-specific helpers first so they show up before the membot
-  // passthrough subcommands in --help.
+  // Botholomew-specific helper. Registered as a real subcommand so it's matched
+  // before the passthrough action and shows up in `botholomew membot --help`.
   registerImportGlobal(membot, program);
-
-  // One Commander subcommand per membot Operation. We don't redeclare any
-  // flags — Commander hands the raw argv slice to membot, which owns the
-  // canonical schema.
-  for (const op of OPERATIONS) {
-    const name = defaultCliName(op);
-    membot
-      .command(name)
-      .description(op.description.split("\n")[0] ?? op.description)
-      .allowUnknownOption(true)
-      .helpOption(false)
-      .argument("[args...]", "arguments forwarded to membot")
-      .action(async () => {
-        const exitCode = await runMembot(getDir(program), getRawMembotArgs());
-        if (exitCode !== 0) process.exit(exitCode);
-      });
-  }
-
-  // `botholomew membot` (no subcommand) → membot's default action.
-  membot.action(async () => {
-    const exitCode = await runMembot(getDir(program), getRawMembotArgs());
-    if (exitCode !== 0) process.exit(exitCode);
-  });
 }
