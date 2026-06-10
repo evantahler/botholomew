@@ -366,9 +366,9 @@ export const ContextPanel = memo(function ContextPanel({
       const path = row.full_path;
       (async () => {
         try {
-          await withMem((mem) =>
-            mem.remove({ paths: [path], recursive: true }),
-          );
+          // Recursive removal is expressed as a `dir/**` glob (membot >=0.19).
+          const prefix = path.endsWith("/") ? path.slice(0, -1) : path;
+          await withMem((mem) => mem.remove({ paths: [`${prefix}/**`] }));
         } catch {
           // ignore — refresh will reflect any partial state
         }
