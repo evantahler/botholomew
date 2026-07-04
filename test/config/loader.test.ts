@@ -55,6 +55,48 @@ describe("loadConfig", () => {
     expect(config.approvals.allowed_tools).toEqual(["gmail/read"]);
   });
 
+  test("defaults the notify block for a config predating it", async () => {
+    await Bun.write(
+      join(projectDir, "config", "config.json"),
+      JSON.stringify({ llm: { model: "x" } }),
+    );
+    const config = await loadConfig(projectDir);
+    expect(config.notify.enabled).toBe(true);
+    expect(config.notify.channels).toEqual([{ type: "desktop" }]);
+    expect(config.notify.events).toEqual({
+      task_failed: true,
+      task_quarantined: true,
+      schedule_errored: true,
+    });
+  });
+
+  test("deep-merges a partial notify.events block, keeping untouched toggles on", async () => {
+    await Bun.write(
+      join(projectDir, "config", "config.json"),
+      JSON.stringify({ notify: { events: { task_failed: false } } }),
+    );
+    const config = await loadConfig(projectDir);
+    expect(config.notify.events.task_failed).toBe(false);
+    expect(config.notify.events.schedule_errored).toBe(true);
+    // channels fall back to the default when not overridden
+    expect(config.notify.channels).toEqual([{ type: "desktop" }]);
+  });
+
+  test("replaces notify.channels wholesale when provided", async () => {
+    await Bun.write(
+      join(projectDir, "config", "config.json"),
+      JSON.stringify({
+        notify: {
+          channels: [{ type: "mcpx", server: "slack", tool: "send", args: {} }],
+        },
+      }),
+    );
+    const config = await loadConfig(projectDir);
+    expect(config.notify.channels).toEqual([
+      { type: "mcpx", server: "slack", tool: "send", args: {} },
+    ]);
+  });
+
   test("merges partial user llm block with defaults", async () => {
     await Bun.write(
       join(projectDir, "config", "config.json"),

@@ -7,6 +7,7 @@ import {
   getLanguageModel,
   getMaxInputTokens,
 } from "../llm/index.ts";
+import { maybeNotifyEvent } from "../notify/dispatch.ts";
 import type { Schedule } from "../schedules/schema.ts";
 import {
   listSchedules,
@@ -142,6 +143,12 @@ export async function processSchedules(
           );
         } catch (err) {
           logger.error(`Error processing schedule "${claimed.name}": ${err}`);
+          void maybeNotifyEvent(projectDir, config, "schedule_errored", {
+            title: `Schedule errored: ${claimed.name}`,
+            message: `Failed while processing: ${err}`,
+            severity: "error",
+            source: `schedule:${claimed.id}`,
+          });
         }
       },
     );

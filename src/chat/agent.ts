@@ -89,6 +89,7 @@ const CHAT_TOOL_NAMES = new Set([
   "skill_delete",
   "sleep",
   "read_large_result",
+  "notify",
 ]);
 
 export function getChatTools() {

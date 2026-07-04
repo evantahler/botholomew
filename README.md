@@ -273,6 +273,7 @@ semantic search, append-only versioning, and URL refresh all live there.
 | `botholomew task list\|add\|view\|update\|reset\|delete` | Manage the task queue (markdown files in `tasks/`) |
 | `botholomew schedule list\|add\|view\|enable\|disable\|trigger\|delete` | Recurring work (markdown files in `schedules/`) |
 | `botholomew approval list\|view\|approve\|deny` | Review and decide pending outbound-tool approvals (markdown files in `approvals/`) |
+| `botholomew notify <message>` | Send a notification through the configured channels (desktop / Slack / email); `--title`, `--severity`, `--channel` |
 | `botholomew membot add\|ls\|tree\|read\|write\|search\|info\|versions\|diff\|refresh\|…` | Knowledge-store passthrough to [`membot`](https://github.com/evantahler/membot) — `--config` is resolved from `membot_scope` (default `~/.membot`) |
 | `botholomew membot import-global` | Seed the project from `~/.membot` (copies `index.duckdb` + `config.json` in) |
 | `botholomew capabilities` | Rescan built-in + MCPX tools and rewrite `prompts/capabilities.md` |
@@ -359,6 +360,9 @@ Topics worth understanding in detail:
 - **[Approvals](docs/approvals.md)** — the human-in-the-loop gate on outbound
   mcpx tool calls: default deny, the allowlist, the worker approval queue,
   and `--unsafe`.
+- **[Notifications](docs/notifications.md)** — how workers reach you: desktop
+  popups, Slack/email via mcpx, worker auto-hooks on task failure, and the
+  `notify` agent tool.
 - **[Configuration](docs/configuration.md)** — every key in `config.json`
   and its default.
 - **[Doc captures](docs/captures.md)** — how the screenshots and GIFs in

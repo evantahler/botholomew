@@ -36,6 +36,15 @@ project directory. The full schema lives in `src/config/schemas.ts`.
     "enabled": true,
     "allowed_tools": [],
     "auto_allow_read_only": false
+  },
+  "notify": {
+    "enabled": true,
+    "channels": [{ "type": "desktop" }],
+    "events": {
+      "task_failed": true,
+      "task_quarantined": true,
+      "schedule_errored": true
+    }
   }
 }
 ```
@@ -137,6 +146,7 @@ works. Set `supports_tools: false` to opt out of the probe assumption.
 | `membot_scope` | `"global"` | Where this project's knowledge store lives. `"global"` → `~/.membot/index.duckdb` (shared across every Botholomew project on the machine). `"project"` → `<projectDir>/index.duckdb` (isolated). Affects both the agent and the `botholomew membot …` CLI passthrough. |
 | `mcpx_scope` | `"global"` | Where this project's MCP server config lives. `"global"` → `~/.mcpx/` (shared). `"project"` → `<projectDir>/mcpx/` (isolated). Affects both the agent and the `botholomew mcpx …` CLI passthrough. |
 | `approvals` | see below | Human-in-the-loop gate for outbound mcpx tool calls. See [Approvals](/approvals). |
+| `notify` | see below | Outbound notifications — push messages to you via desktop popups / Slack / email. See [Notifications](/notifications). |
 
 ### `approvals`
 
@@ -148,6 +158,20 @@ works. Set `supports_tools: false` to opt out of the probe assumption.
 
 A run started with `--unsafe` (on `chat`, `worker run`, `worker start`) bypasses
 the gate regardless of `enabled`.
+
+### `notify`
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `true` | Master switch. When `false`, `notify` is a no-op. |
+| `channels` | `[{ "type": "desktop" }]` | Ordered list of destinations. Every notification goes to all of them. A `desktop` channel takes no other keys; an `mcpx` channel takes `server`, `tool`, and `args` (string values may use `{{title}}` / `{{message}}` / `{{severity}}`). Providing `channels` **replaces** the default wholesale. |
+| `events` | see below | Which worker events auto-notify without the LLM asking. |
+
+`events` toggles (all default `true`): `task_failed`, `schedule_errored`, and
+`task_quarantined` (reserved — the key exists but worker wiring lands in a
+follow-up). mcpx notify channels **bypass the [approval gate](/approvals)** — a
+configured target is pre-approved. See [Notifications](/notifications) for the
+full guide.
 
 ---
 
