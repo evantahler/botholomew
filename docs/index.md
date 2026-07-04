@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Botholomew
   text: An AI agent for knowledge work.
-  tagline: An autonomous agent that works your task queue — reading email, summarizing documents, researching topics, organizing notes, and maintaining context over time — while you sleep, work, or chat with it.
+  tagline: Point it at your docs, projects, and inboxes and it reads them, remembers them, and works a durable task queue — summarizing, researching, organizing — while you sleep, work, or chat with it. Local, including local LLMs, and built around a large memory store rather than a single chat window.
   actions:
     - theme: brand
       text: Get started
@@ -14,14 +14,16 @@ hero:
       link: https://github.com/evantahler/botholomew
 
 features:
+  - title: Memory-first
+    details: Built to reason over a large corpus, not a single chat. Ingest hundreds of files and URLs (PDF/DOCX/HTML → markdown) into a local [membot](https://github.com/evantahler/membot) store with hybrid BM25 + semantic search, append-only versioning, and history you can `diff`. Big tool responses pipe into the same store, so the agent works through megabytes of JSON without burning tokens.
   - title: Autonomous
     details: Background workers claim tasks, work them with Claude, and log every interaction. Spawn one-shot workers, a long-running --persist worker, or point cron at `botholomew worker run`.
   - title: Portable
     details: A project is a directory of files — markdown for prompts, tasks, and schedules; CSVs for conversation history. Copy it, share it, `git diff` it, check it in, or `.gitignore` it.
   - title: Your data, your disk
     details: Tasks, schedules, threads, prompts, and skills are all real files you can `vim`, `grep`, and `git`. The knowledge store is a single local DuckDB file managed by [membot](https://github.com/evantahler/membot) — append-only, versioned, queryable.
-  - title: Extensible
-    details: External tools come from MCP servers via MCPX — run them locally (Gmail, Slack, GitHub) or connect through a gateway like Arcade.dev to reach hundreds of authenticated services.
+  - title: Tool use through a gateway
+    details: External tools come from MCP servers via MCPX. Run them locally (Gmail, Slack, GitHub) — but the setup Botholomew is tuned for points a single [Arcade](https://www.arcade.dev/) gateway at hundreds of authenticated services, so you handle auth once instead of babysitting a server per tool.
   - title: Safe by default
     details: The agent has no shell and no direct filesystem access. The knowledge store is addressed by `logical_path` (a DB key, not a filesystem path); the remaining file-system paths the agent touches (tasks, schedules, prompts, skills) all route through one sandbox helper (NFC normalization + lstat-walk to reject symlinks).
   - title: Concurrent
@@ -35,6 +37,32 @@ features:
 ![Botholomew chat TUI tour](/full-tour.gif)
 
 </div>
+
+## Why I built this
+
+I built the agent I wanted for my own manager-style work — the reading,
+summarizing, chasing-down, and _remembering_ that fills a week. Nothing
+on the shelf fit, so Botholomew is opinionated on purpose:
+
+- **Memory is the point, not a feature.** I load it up with every Linear
+  project and hundreds of Google Docs and expect it to search across all
+  of them. The knowledge store isn't bolted on — the whole agent is built
+  around it.
+- **Local, including local LLMs.** It runs on my machine and talks to
+  Ollama just as happily as it talks to Anthropic.
+- **Real tasks, not a swarm.** Durable, schedulable, monitorable tasks
+  with DAGs — not fire-and-forget subagents. (My distributed-systems
+  background wouldn't let me ship anything less.)
+- **Hyper-focused on tool use.** Its reach into the outside world runs
+  through an [Arcade](https://www.arcade.dev/) gateway — one authenticated
+  door to hundreds of services, which is where most of the interesting
+  work actually happens.
+
+It's also nerdy by design: every prompt, task, thread, and belief is a
+plain file I can open, `grep`, and `git diff`. — Evan
+
+For the honest version — including what I got wrong — see the
+[field notes](/field-notes).
 
 ## Why Botholomew?
 

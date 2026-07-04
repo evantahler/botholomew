@@ -8,10 +8,12 @@
 
 ![Botholomew chat TUI](docs/assets/chat-happy-path.gif)
 
-**An AI agent for knowledge work.** Botholomew is an autonomous agent
-that works its way through a task queue — reading email, summarizing
-documents, researching topics, organizing notes, and maintaining context
-over time — while you sleep, work, or chat with it.
+**An AI agent for knowledge work.** Point Botholomew at your docs,
+projects, and inboxes and it reads them, remembers them, and works a
+durable task queue — summarizing, researching, organizing, chasing
+things down — while you sleep, work, or chat with it. It runs locally
+(local LLMs included), and it's built around a large memory store rather
+than a single chat window.
 
 Botholomew has **no shell and no access to your real filesystem**. The
 agent's world is a per-project knowledge store managed by
@@ -26,8 +28,39 @@ through MCP servers wired up via
 
 ---
 
+## Why I built this
+
+I built the agent I wanted for my own manager-style work — the reading,
+summarizing, chasing-down, and _remembering_ that fills a week. Nothing
+on the shelf fit, so Botholomew is opinionated on purpose:
+
+- **Memory is the point, not a feature.** I load it up with every Linear
+  project and hundreds of Google Docs and expect it to search across all
+  of them. The knowledge store isn't bolted on — the whole agent is built
+  around it.
+- **Local, including local LLMs.** It runs on my machine and talks to
+  Ollama just as happily as it talks to Anthropic.
+- **Real tasks, not a swarm.** Durable, schedulable, monitorable tasks
+  with DAGs — not fire-and-forget subagents. (My distributed-systems
+  background wouldn't let me ship anything less.)
+- **Hyper-focused on tool use.** Its reach into the outside world runs
+  through an [Arcade](https://www.arcade.dev/) gateway — one
+  authenticated door to hundreds of services, which is where most of the
+  interesting work actually happens.
+
+It's also nerdy by design: every prompt, task, thread, and belief is a
+plain file I can open, `grep`, and `git diff`. — Evan
+
+---
+
 ## Why Botholomew?
 
+- **Memory-first.** The agent is built to reason over a large corpus, not
+  a single chat. Ingest hundreds of files and URLs (PDF/DOCX/HTML →
+  markdown) into a local [`membot`](https://github.com/evantahler/membot)
+  store with hybrid BM25 + semantic search, append-only versioning, and
+  history you can `diff`. Big tool responses get piped into the same store
+  so the agent can work through megabytes of JSON without burning tokens.
 - **Autonomous.** Background **workers** claim tasks, work them with Claude,
   and log every interaction. You can spawn one-shot workers on demand, a
   long-running `--persist` worker, or point cron at `botholomew worker run`.
@@ -41,13 +74,13 @@ through MCP servers wired up via
   versioned, queryable with the DuckDB CLI if you ever want to. Model
   calls go direct to Anthropic; any further reach is scoped to the MCP
   servers you add.
-- **Extensible.** External tools come from MCP servers via
-  [MCPX](https://github.com/evantahler/mcpx) — run them locally (Gmail,
-  Slack, GitHub) or connect through an MCP gateway like
-  [Arcade.dev](https://www.arcade.dev/) to reach hundreds of
-  authenticated services without managing each server yourself.
-  Reusable workflows are defined as markdown "skills" (slash commands)
-  that the chat agent can also create, edit, and search at runtime.
+- **Tool use, done through a gateway.** External tools come from MCP
+  servers via [MCPX](https://github.com/evantahler/mcpx). Run them locally
+  (Gmail, Slack, GitHub) — but the setup Botholomew is tuned for points a
+  single [Arcade](https://www.arcade.dev/) gateway at hundreds of
+  authenticated services, so you handle auth once instead of babysitting a
+  server per tool. Reusable workflows are markdown "skills" (slash
+  commands) the chat agent can also create, edit, and search at runtime.
 - **Safe by default.** The agent has no shell and no direct filesystem
   access. The knowledge store is keyed by `logical_path` (an opaque DB
   string, not a filesystem path); every external capability is an MCP
@@ -330,6 +363,9 @@ Topics worth understanding in detail:
   and its default.
 - **[Doc captures](docs/captures.md)** — how the screenshots and GIFs in
   these docs are regenerated programmatically via VHS and a fake-LLM mode.
+- **[Field notes](docs/field-notes.md)** — what I learned building this:
+  why tools are named after bash, why big tool responses go into memory,
+  and the one agent trend I think is overrated.
 
 ---
 
