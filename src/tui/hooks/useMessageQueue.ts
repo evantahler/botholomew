@@ -136,6 +136,11 @@ export function useMessageQueue({
               setStreamingText(currentText);
               lastStreamFlush = now;
               markActivityRef.current();
+              // Yield a macrotask so Ink's timer-throttled render can paint
+              // this frame. Without it, a burst of deltas drains as microtasks
+              // and the terminal only repaints once the whole burst ends —
+              // the reply looks frozen, then dumps in all at once.
+              return new Promise<void>((resolve) => setTimeout(resolve, 0));
             }
           },
           onToolPreparing: (id, name) => {

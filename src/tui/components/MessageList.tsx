@@ -1,7 +1,7 @@
 import { Box, Text, useStdout } from "ink";
 import Spinner from "ink-spinner";
 import { memo, useMemo } from "react";
-import { renderMarkdown } from "../markdown.ts";
+import { renderMarkdown, tailLines } from "../markdown.ts";
 import { theme } from "../theme.ts";
 import { ToolCall, type ToolCallData } from "./ToolCall.tsx";
 
@@ -21,6 +21,9 @@ interface MessageListProps {
   /** Timestamp the current streaming bubble started. Stable across token flushes
    * so the displayed time doesn't flicker on every re-render. */
   streamStartedAt: Date | null;
+  /** Visible height of the chat area (lines). The streaming preview only
+   * renders this many trailing lines, since the box clips the rest. */
+  maxLines: number;
 }
 
 function formatTime(date: Date): string {
@@ -149,10 +152,18 @@ const ActiveToolsBox = memo(function ActiveToolsBox({
 
 const StreamingMarkdown = memo(function StreamingMarkdown({
   text,
+  maxLines,
 }: {
   text: string;
+  maxLines: number;
 }) {
-  const rendered = useMemo(() => renderMarkdown(text), [text]);
+  // Only the last ~viewport lines are visible (the chat box clips the top),
+  // so render just the tail — this keeps per-frame cost flat instead of
+  // growing with the reply length. The finalized bubble renders full markdown.
+  const rendered = useMemo(
+    () => renderMarkdown(tailLines(text, maxLines)),
+    [text, maxLines],
+  );
   return (
     <Box marginLeft={1}>
       <Text>{rendered}</Text>
@@ -166,6 +177,7 @@ export function MessageList({
   activeToolCalls,
   preparingTool,
   streamStartedAt,
+  maxLines,
 }: MessageListProps) {
   return (
     <>
@@ -179,7 +191,9 @@ export function MessageList({
             <Text dimColor> {formatTime(streamStartedAt ?? new Date())}</Text>
           </Box>
           <ActiveToolsBox toolCalls={activeToolCalls} />
-          {streamingText && <StreamingMarkdown text={streamingText} />}
+          {streamingText && (
+            <StreamingMarkdown text={streamingText} maxLines={maxLines} />
+          )}
         </Box>
       )}
 

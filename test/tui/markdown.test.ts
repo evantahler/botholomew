@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { isMarkdownPath, renderMarkdown } from "../../src/tui/markdown.ts";
+import {
+  isMarkdownPath,
+  renderMarkdown,
+  tailLines,
+} from "../../src/tui/markdown.ts";
 
 describe("isMarkdownPath", () => {
   test("matches .md path", () => {
@@ -51,5 +55,32 @@ describe("renderMarkdown", () => {
     // natural width with no ellipsis.
     expect(out).not.toContain("…");
     expect(out).toContain("│");
+  });
+});
+
+describe("tailLines", () => {
+  test("returns the last N lines when text exceeds the limit", () => {
+    const text = "a\nb\nc\nd\ne";
+    expect(tailLines(text, 2)).toBe("d\ne");
+  });
+
+  test("returns the full text unchanged when line count <= limit", () => {
+    const text = "a\nb\nc";
+    expect(tailLines(text, 3)).toBe(text);
+    expect(tailLines(text, 10)).toBe(text);
+  });
+
+  test("handles empty string", () => {
+    expect(tailLines("", 5)).toBe("");
+  });
+
+  test("returns the text unchanged for non-positive limits", () => {
+    const text = "a\nb\nc";
+    expect(tailLines(text, 0)).toBe(text);
+    expect(tailLines(text, -3)).toBe(text);
+  });
+
+  test("keeps a single-line string intact", () => {
+    expect(tailLines("just one line", 2)).toBe("just one line");
   });
 });

@@ -167,7 +167,10 @@ export interface ToolEndMeta {
 }
 
 export interface ChatTurnCallbacks {
-  onToken: (text: string) => void;
+  // May return a promise; the stream loop awaits it. Consumers that render
+  // (the TUI) use this to yield a macrotask on flush frames so Ink's
+  // timer-throttled paint can run mid-stream instead of only after the burst.
+  onToken: (text: string) => void | Promise<void>;
   onToolPreparing?: (id: string, name: string) => void;
   onToolStart: (id: string, name: string, input: string) => void;
   onToolEnd: (
@@ -323,7 +326,7 @@ async function runChatTurnBody(input: {
         switch (part.type) {
           case "text-delta":
             assistantText += part.text;
-            callbacks.onToken(part.text);
+            await callbacks.onToken(part.text);
             break;
           case "tool-input-start":
             earlyReportedToolIds.add(part.id);
