@@ -9,6 +9,7 @@ import {
   endThread,
   logInteraction,
 } from "../../src/threads/store.ts";
+import { listThreadsTool } from "../../src/tools/thread/list.ts";
 import { searchThreadsTool } from "../../src/tools/thread/search.ts";
 import { viewThreadTool } from "../../src/tools/thread/view.ts";
 import type { ToolContext } from "../../src/tools/tool.ts";
@@ -95,6 +96,50 @@ describe("view_thread pagination", () => {
     expect(result.is_error).toBe(false);
     expect(result.thread).toBeNull();
     expect(result.interactions).toEqual([]);
+  });
+});
+
+describe("list_threads pagination", () => {
+  test("offset + limit page through threads disjointly and newest-first", async () => {
+    for (let i = 0; i < 3; i++) {
+      await createThread(projectDir, "chat_session", undefined, `thread-${i}`);
+    }
+    // Reference ordering (newest-first) with a wide limit.
+    const all = await listThreadsTool.execute({ limit: 50, offset: 0 }, ctx());
+    expect(all.is_error).toBe(false);
+    expect(all.count).toBe(3);
+    const orderedIds = all.threads.map((t) => t.id);
+
+    const page1 = await listThreadsTool.execute({ limit: 2, offset: 0 }, ctx());
+    const page2 = await listThreadsTool.execute({ limit: 2, offset: 2 }, ctx());
+
+    expect(page1.threads.map((t) => t.id)).toEqual(orderedIds.slice(0, 2));
+    expect(page2.threads.map((t) => t.id)).toEqual(orderedIds.slice(2, 3));
+    expect(page2.count).toBe(1);
+    expect(page2.offset).toBe(2);
+
+    // Pages are disjoint and cover everything.
+    const seen = new Set([
+      ...page1.threads.map((t) => t.id),
+      ...page2.threads.map((t) => t.id),
+    ]);
+    expect(seen.size).toBe(3);
+  });
+
+  test("full page emits a paging hint; a partial page does not", async () => {
+    for (let i = 0; i < 3; i++) {
+      await createThread(projectDir, "chat_session", undefined, `t-${i}`);
+    }
+    const full = await listThreadsTool.execute({ limit: 2, offset: 0 }, ctx());
+    expect(full.threads).toHaveLength(2);
+    expect(full.next_action_hint).toContain("offset=2");
+
+    const partial = await listThreadsTool.execute(
+      { limit: 2, offset: 2 },
+      ctx(),
+    );
+    expect(partial.threads).toHaveLength(1);
+    expect(partial.next_action_hint).toBeUndefined();
   });
 });
 
