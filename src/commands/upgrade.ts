@@ -4,18 +4,45 @@ import { dim, green, red, yellow } from "ansis";
 import { $ } from "bun";
 import type { Command } from "commander";
 import { pkg } from "../pkg.ts";
-import {
-  clearUpdateCache,
-  loadUpdateCache,
-  saveUpdateCache,
-} from "../update/cache.ts";
-import type { UpdateCache } from "../update/checker.ts";
+import { clearUpdateCache, saveUpdateCache } from "../update/cache.ts";
 import {
   checkForUpdate,
   detectInstallMethod,
   type InstallMethod,
-  needsCheck,
 } from "../update/checker.ts";
+
+export interface UpgradeTarget {
+  latestVersion: string;
+  hasUpdate: boolean;
+  changelog?: string;
+}
+
+/**
+ * Resolve the upgrade target by always performing a fresh update check.
+ *
+ * An explicit `upgrade` must never trust a possibly-stale cache: the startup
+ * background check may have run <24h ago and seen no update, while a new
+ * release shipped since. We always re-check here, then refresh the cache so
+ * the background notice benefits. `check` and `save` are injectable for tests.
+ */
+export async function resolveUpgradeTarget(
+  currentVersion: string,
+  check: typeof checkForUpdate = checkForUpdate,
+  save: typeof saveUpdateCache = saveUpdateCache,
+): Promise<UpgradeTarget> {
+  const info = await check(currentVersion);
+  await save({
+    lastCheckAt: new Date().toISOString(),
+    latestVersion: info.latestVersion,
+    hasUpdate: info.hasUpdate,
+    changelog: info.changelog,
+  });
+  return {
+    latestVersion: info.latestVersion,
+    hasUpdate: info.hasUpdate,
+    changelog: info.changelog,
+  };
+}
 
 const GITHUB_REPO = (pkg.repository.url as string)
   .replace(/^https:\/\/github\.com\//, "")
@@ -96,27 +123,10 @@ export function registerUpgradeCommand(program: Command) {
     .description("Upgrade botholomew to the latest version")
     .action(async () => {
       try {
-        // Check for update (use cache if fresh)
-        const cache = await loadUpdateCache();
-        let latestVersion: string;
-        let hasUpdate: boolean;
-
-        if (!needsCheck(cache) && cache) {
-          latestVersion = cache.latestVersion;
-          hasUpdate = cache.hasUpdate;
-        } else {
-          const info = await checkForUpdate(pkg.version);
-          latestVersion = info.latestVersion;
-          hasUpdate = info.hasUpdate;
-
-          const newCache: UpdateCache = {
-            lastCheckAt: new Date().toISOString(),
-            latestVersion,
-            hasUpdate,
-            changelog: info.changelog,
-          };
-          await saveUpdateCache(newCache);
-        }
+        // Always perform a fresh check — never trust a possibly-stale cache.
+        const { latestVersion, hasUpdate } = await resolveUpgradeTarget(
+          pkg.version,
+        );
 
         if (!hasUpdate) {
           console.log(
