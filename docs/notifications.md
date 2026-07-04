@@ -22,14 +22,25 @@ Configure one or more channels in the `notify` block of
 Zero-config native popups. No `config.json` changes needed — this is the default
 channel.
 
-| Platform | Mechanism |
-| --- | --- |
-| macOS | [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) if installed, else `osascript` (built in) |
-| Linux | `notify-send` (from `libnotify`) |
-| Windows | not yet supported (no-op) |
+| Platform | Mechanism | Owl icon? |
+| --- | --- | --- |
+| macOS | [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) if installed, else `osascript` (built in) | Only via `terminal-notifier` |
+| Linux | `notify-send` (from `libnotify`) | Yes |
+| Windows | not yet supported (no-op) | — |
 
 If the notifier binary isn't on `PATH`, the channel logs a debug line and skips —
 it never fails the task that triggered it.
+
+**The owl icon.** Botholomew ships its owl mascot as the notification icon
+(passed to `terminal-notifier -appIcon`/`-contentImage` and `notify-send -i`).
+On macOS this needs `terminal-notifier` — plain `osascript` can only show the
+sending app's generic icon, never a custom one:
+
+```bash
+brew install terminal-notifier
+```
+
+Once it's on your `PATH`, notifications show the owl automatically.
 
 ### mcpx (Slack, email, …)
 
