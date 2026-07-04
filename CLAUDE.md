@@ -24,7 +24,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `skills/` — Slash-command skill loader, parser, and writer
   - `init/` — Project initialization
   - `tui/` — Ink (React) TUI components
-  - `update/` — Self-update checker and background cache
+  - `update/` — Thin `updater.ts` wrapper around the `upgradr` package (self-update + version-check); the `upgrade`/`check-update` commands and the startup notice all route through the configured `updater` singleton
   - `types/` — Shared TypeScript ambient declarations
   - `utils/` — Logger, frontmatter, uuid, v7-date helpers
 - `test/` — Tests (mirrors src/ structure)
