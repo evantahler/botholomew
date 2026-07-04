@@ -31,11 +31,6 @@ export const ENV = {
   NO_UPDATE_CHECK: "BOTHOLOMEW_NO_UPDATE_CHECK",
 } as const;
 
-export const DEFAULTS = {
-  UPDATE_CHECK_INTERVAL_MS: 24 * 60 * 60 * 1000, // 24 hours
-  UPDATE_CHECK_TIMEOUT_MS: 5_000,
-} as const;
-
 export const CONFIG_DIR = "config";
 export const CONFIG_FILENAME = "config.json";
 export const PROMPTS_DIR = "prompts";
