@@ -3,7 +3,6 @@ import { join } from "node:path";
 import {
   CONFIG_DIR,
   CONFIG_FILENAME,
-  DEFAULTS,
   ENV,
   getConfigPath,
   getMcpxDir,
@@ -40,11 +39,6 @@ describe("constants", () => {
 
   test("environment variable keys are defined", () => {
     expect(ENV.NO_UPDATE_CHECK).toBe("BOTHOLOMEW_NO_UPDATE_CHECK");
-  });
-
-  test("default values are sensible", () => {
-    expect(DEFAULTS.UPDATE_CHECK_INTERVAL_MS).toBe(24 * 60 * 60 * 1000);
-    expect(DEFAULTS.UPDATE_CHECK_TIMEOUT_MS).toBe(5000);
   });
 });
 

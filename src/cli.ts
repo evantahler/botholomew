@@ -23,7 +23,7 @@ import { registerUpgradeCommand } from "./commands/upgrade.ts";
 import { registerWorkerCommand } from "./commands/worker.ts";
 import { pkg } from "./pkg.ts";
 import { IS_COMPILED_BINARY } from "./runtime.ts";
-import { maybeCheckForUpdate } from "./update/background.ts";
+import { updater } from "./update/updater.ts";
 import { runWorkerFromArgv } from "./worker/run.ts";
 import { WORKER_RUN_SENTINEL } from "./worker/sentinel.ts";
 
@@ -112,7 +112,7 @@ if (isBareInvocation(process.argv.slice(2))) {
 }
 
 // Start background update check before parsing (non-blocking)
-const updateNotice = maybeCheckForUpdate();
+const updateNotice = updater.maybeBackgroundNotice();
 
 program.parse();
 

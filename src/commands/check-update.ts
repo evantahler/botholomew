@@ -1,9 +1,6 @@
 import { cyan, dim, green, yellow } from "ansis";
 import type { Command } from "commander";
-import { pkg } from "../pkg.ts";
-import { saveUpdateCache } from "../update/cache.ts";
-import type { UpdateCache } from "../update/checker.ts";
-import { checkForUpdate } from "../update/checker.ts";
+import { updater } from "../update/updater.ts";
 
 export function registerCheckUpdateCommand(program: Command) {
   program
@@ -11,16 +8,15 @@ export function registerCheckUpdateCommand(program: Command) {
     .description("Check for a newer version of botholomew")
     .action(async () => {
       try {
-        const info = await checkForUpdate(pkg.version);
+        const info = await updater.checkForUpdate();
 
-        // Save to cache
-        const cache: UpdateCache = {
+        // Refresh the cache so the background startup notice benefits.
+        await updater.saveCache({
           lastCheckAt: new Date().toISOString(),
           latestVersion: info.latestVersion,
           hasUpdate: info.hasUpdate,
           changelog: info.changelog,
-        };
-        await saveUpdateCache(cache);
+        });
 
         if (!info.hasUpdate) {
           if (info.aheadOfLatest) {
