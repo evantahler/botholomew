@@ -36,6 +36,7 @@ For example: \`/architecture.md\`, \`/configuration.md\`
 - Skills: /skills.md
 - Tools: /tools.md
 - MCPX integration: /mcpx.md
+- Field notes: /field-notes.md
 - Doc captures: /captures.md
 - Owl character sheet: /owl-character-sheet.md
 - Changelog: /changelog.md
@@ -204,6 +205,7 @@ export default defineConfig({
       {
         text: "Reference",
         items: [
+          { text: "Field notes", link: "/field-notes" },
           { text: "Doc captures", link: "/captures" },
           { text: "Owl character sheet", link: "/owl-character-sheet" },
           { text: "Changelog", link: "/changelog" },
