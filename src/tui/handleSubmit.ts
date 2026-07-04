@@ -14,6 +14,7 @@ import { handleSlashCommand } from "../skills/commands.ts";
 import type { ChatMessage } from "./components/MessageList.tsx";
 import type { QueueEntry } from "./hooks/useMessageQueue.ts";
 import { msgId } from "./messages.ts";
+import { clearTerminal } from "./terminal.ts";
 
 interface UseChatSubmitParams {
   sessionRef: MutableRefObject<ChatSession | null>;
@@ -147,7 +148,7 @@ export function useChatSubmit({
                 // can't un-write them, so setMessages alone leaves the old
                 // lines visible. Clear the terminal (including scrollback)
                 // and bump the epoch key on <Static> to force a fresh mount.
-                process.stdout.write("\x1b[2J\x1b[3J\x1b[H");
+                clearTerminal();
                 setMessages([
                   {
                     id: msgId(),

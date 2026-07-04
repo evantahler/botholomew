@@ -24,10 +24,12 @@ import { useCaptureTabCycle } from "./hooks/useCaptureTabCycle.ts";
 import { useChatSession } from "./hooks/useChatSession.ts";
 import { useChatTitlePolling } from "./hooks/useChatTitlePolling.ts";
 import { useMessageQueue } from "./hooks/useMessageQueue.ts";
+import { useResizeRedraw } from "./hooks/useResizeRedraw.ts";
 import { useTerminalRows } from "./hooks/useTerminalRows.ts";
 import { IdleProvider, useIdle } from "./idle.tsx";
 import { FOOTER_RESERVE } from "./messages.ts";
 import { buildSlashCommands } from "./slashCompletion.ts";
+import { clearTerminal } from "./terminal.ts";
 
 interface AppProps {
   projectDir: string;
@@ -88,6 +90,14 @@ function AppInner({
 
   const markActivityRef = useRef(markActivity);
   markActivityRef.current = markActivity;
+
+  // Redraw everything on terminal resize. Ink's incremental renderer leaves
+  // stale/duplicate frames after a resize and can't reflow <Static> scrollback,
+  // so wipe the terminal and bump the epoch to re-flush history at the new size.
+  useResizeRedraw(() => {
+    clearTerminal();
+    setMessagesEpoch((n) => n + 1);
+  });
 
   const { sessionRef, ready, splashDone, performShutdown } = useChatSession({
     projectDir,

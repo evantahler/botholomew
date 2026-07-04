@@ -475,6 +475,11 @@ A few choices worth knowing if you're reading or modifying the TUI:
   terminal scrollback once and never re-rendered — essential for
   performance in long sessions, and it means the chat history survives
   in your terminal buffer after you exit.
+- **Resize triggers a full redraw.** Ink's incremental renderer can leave
+  stale, overlapping frames after the window is resized, and it can't
+  reflow `<Static>` scrollback to the new width. On resize (debounced so a
+  click-drag doesn't thrash), `useResizeRedraw` clears the terminal and
+  remounts `<Static>` so the whole history re-flushes at the new size.
 - **Input handlers are ref-stable.** `InputBar` and `App` both install
   a single `useInput` handler wrapped in `useCallback` with
   `useRef`-backed state reads. A prior bug caused 100 % CPU under fast
@@ -502,9 +507,9 @@ A few choices worth knowing if you're reading or modifying the TUI:
   `botholomew worker list --status running`. If nothing is alive, start
   one with `botholomew worker start --persist` or have the chat agent
   call `spawn_worker`.
-- **Weird layout in tmux / split panes.** Ink needs a stable terminal
-  width; if the pane resizes mid-render, large tool-call boxes can
-  wrap oddly. A fresh `Ctrl+L` usually sorts it.
+- **Weird layout in tmux / split panes.** The TUI redraws itself when the
+  terminal resizes, but if a pane resizes *mid-render* large tool-call boxes
+  can still wrap oddly for a frame. A fresh `Ctrl+L` usually sorts it.
 - **`⌥+Enter` inserts the literal character `¬` or similar.** Your
   terminal is sending Option as Meta. Enable "Use Option as Meta key"
   in your terminal profile (Terminal.app, iTerm2, Ghostty all support
