@@ -191,6 +191,7 @@ export default defineConfig({
         items: [
           { text: "Tasks & schedules", link: "/tasks-and-schedules" },
           { text: "Approvals", link: "/approvals" },
+          { text: "Notifications", link: "/notifications" },
           { text: "Automation", link: "/automation" },
         ],
       },

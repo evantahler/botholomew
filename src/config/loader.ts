@@ -7,6 +7,7 @@ import {
   DEFAULT_CHUNKER_LLM,
   DEFAULT_CONFIG,
   DEFAULT_LLM,
+  DEFAULT_NOTIFY,
   type LlmBlock,
 } from "./schemas.ts";
 
@@ -64,6 +65,18 @@ export async function loadConfig(
     // Deep-merge so a config predating the approval gate (or only overriding
     // one key) still gets the safe defaults — and back-compat keeps the gate ON.
     approvals: { ...DEFAULT_APPROVALS, ...(userConfig.approvals ?? {}) },
+    // Same deep-merge: an older config (or one that only flips `enabled`) still
+    // gets the default channels/events. `channels` replaces wholesale (like
+    // `allowed_tools`); `events` is merged key-by-key so a partial override
+    // keeps the untouched toggles on.
+    notify: {
+      ...DEFAULT_NOTIFY,
+      ...(userConfig.notify ?? {}),
+      events: {
+        ...DEFAULT_NOTIFY.events,
+        ...(userConfig.notify?.events ?? {}),
+      },
+    },
   };
 
   const config = applyEnvOverrides(merged);

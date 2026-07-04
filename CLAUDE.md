@@ -19,8 +19,9 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `workers/` — Pidfile + heartbeat store under `workers/<id>.json`
   - `worker/` — Worker tick loop, LLM integration, prompt building, heartbeat
   - `chat/` — Interactive chat session + agent loop powering `botholomew chat`
-  - `tools/` — Tool registry and `ToolDefinition`s (`membot_*` adapters, task/schedule/thread/mcp/prompt/skill/worker/capabilities tools)
+  - `tools/` — Tool registry and `ToolDefinition`s (`membot_*` adapters, task/schedule/thread/mcp/prompt/skill/worker/capabilities/notify tools)
   - `mcpx/` — MCPX client for invoking external MCP servers
+  - `notify/` — Outbound-notification dispatcher: fan-out to channels (desktop popup, mcpx Slack/email), `{{title}}`/`{{message}}` templating, worker auto-hooks (`maybeNotifyEvent`)
   - `skills/` — Slash-command skill loader, parser, and writer
   - `init/` — Project initialization
   - `tui/` — Ink (React) TUI components
@@ -86,6 +87,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - **IDs**: UUIDv7 via `uuidv7()` from `src/utils/uuid.ts`. The 48-bit timestamp prefix is what `src/utils/v7-date.ts::dateForId` uses to derive the date subdir for threads and worker logs (pure function of the id).
 - **Frontmatter** for tasks/schedules is strict-Zod-validated (`src/{tasks,schedules}/schema.ts`). Validation failures quarantine the file: log a structured warning and skip — never crash the worker. Prompts use the same frontmatter pattern but **fast-fail** (see Conventions below). Approvals (`src/approvals/schema.ts`) follow the same strict-Zod + quarantine pattern, but use **no lockfile** (created by one worker, decided by one human).
 - **Approval gate for outbound mcpx calls.** `mcp_exec` is gated by default (config `approvals`, built into an mcpx `approvalPolicy` by `src/mcpx/client.ts::buildApprovalPolicy`; `--unsafe` / `approvals.enabled:false` disables it). Chat resolves a gate hit via an inline prompt (`src/chat/approval.ts` bridge → `src/tui/components/ApprovalPrompt.tsx`); a worker writes `approvals/<id>.md` and parks the task as `waiting` (`src/worker/approval.ts` throws `ApprovalPendingError` → `mcp_exec` calls `ctx.onApprovalPending` → the loop returns `waiting`). Decisions (`botholomew approval` CLI or the chat Approvals tab) go through `src/approvals/decide.ts::decideAndRequeue`, which re-queues the task; the recorded decision is matched on the next run by `callKey(server, tool, args)`.
+- **Outbound notifications (`src/notify/`).** `dispatchNotification` fans a `{title, message, severity}` out to `config.notify.channels` — a `desktop` channel (shells out to `terminal-notifier`/`osascript`/`notify-send`; suppressed under `NODE_ENV=test`) and/or `mcpx` channels (Slack/email). The owl mascot icon (`src/notify/assets/owl.png`, rendered from `owl.svg`) is embedded via a `with { type: "file" }` import and staged to `os.tmpdir()` at first use (so the compiled binary's `$bunfs` asset is readable by the notifier), then passed as `terminal-notifier -appIcon`/`-contentImage` and `notify-send -i`; plain macOS `osascript` can't show a custom icon, so the branded owl needs `terminal-notifier`. Channel failures are swallowed and logged, never rethrown — a broken channel must not fail the task that triggered it. The **mcpx channel bypasses the approval gate**: it uses its own un-gated `createMcpxClient(dir)` (no `approvalPolicy`), so a `config.json`-listed notify target is pre-approved and never parks a worker. Worker auto-hooks call `maybeNotifyEvent(projectDir, config, event, n)` (respects `config.notify.events.*`) at the `task_failed`/`schedule_errored` sites in `src/worker/tick.ts` + `src/worker/schedules.ts`; `task_quarantined` is a reserved event key (defaults on, wiring is a follow-up). The agent has a `notify` tool; `botholomew notify <message>` is the CLI. Exposed in both worker and chat (in `CHAT_TOOL_NAMES`).
 - **Thread CSVs** are RFC-4180. The first row carries a `system / thread_meta` interaction whose `content` is a JSON blob with the thread's own metadata. `src/threads/store.ts` is the only writer; it handles escaping commas, quotes, and embedded newlines in agent output.
 
 ## Knowledge store (membot)
@@ -114,6 +116,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - `docs/context-and-search.md` — pointer to membot for ingestion / chunking / embeddings / hybrid search
   - `docs/tasks-and-schedules.md` — task/schedule files (markdown + frontmatter), lockfile claim, DAG validation, predecessor outputs, LLM schedule evaluation
   - `docs/approvals.md` — human-in-the-loop gate for outbound mcpx calls: default-deny, allowlist, `--unsafe`, worker approval queue, CLI + TUI
+  - `docs/notifications.md` — outbound notifications: the `notify` dispatcher, channels (desktop / mcpx Slack-email), worker auto-hooks, the agent tool + CLI, mcpx gate-bypass
   - `docs/tools.md` — the `ToolDefinition` pattern (Zod → Anthropic + CLI)
   - `docs/prompts.md` — generic `prompts/*.md` (init seeds `goals.md`, `beliefs.md`, `capabilities.md`), strict frontmatter validation, CRUD via CLI + agent tools
   - `docs/reflection.md` — the `dream` reflection loop (built-in `/dream` + `botholomew dream`): consolidating recent threads into membot + self-edited prompts; episodic `thread search`
@@ -132,6 +135,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
   - Changing config defaults in `src/config/schemas.ts` → update `docs/configuration.md`.
   - Changing the tick loop, schedule evaluation, or agent loop (`src/worker/*`) → update `docs/architecture.md` and/or `docs/tasks-and-schedules.md`.
   - Changing worker registration, heartbeat, or reaping (`src/worker/heartbeat.ts`, `src/workers/store.ts`) or task/schedule claim logic (`src/tasks/store.ts`, `src/schedules/store.ts`) → update `docs/architecture.md`.
+  - Changing notification channels, dispatch, or worker notify-hooks (`src/notify/*`) → update `docs/notifications.md` and the `notify` block in `docs/configuration.md`.
   - Adding or renaming a skill template in `src/init/templates.ts` → update `docs/skills.md` and `src/init/index.ts`.
   - Changing prompts loading or frontmatter schema (`src/worker/prompt.ts`, prompt validation in `src/utils/frontmatter.ts`) → update `docs/prompts.md`.
   - Changing anything in `src/tui/` (new tab, new shortcut, input behavior) → update `docs/tui.md`.

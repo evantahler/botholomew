@@ -6,6 +6,7 @@ import {
   sharedWithMem,
   type WithMem,
 } from "../mem/client.ts";
+import { maybeNotifyEvent } from "../notify/dispatch.ts";
 import type { Task } from "../tasks/schema.ts";
 import {
   claimNextTask,
@@ -206,6 +207,12 @@ async function runClaimedTask(opts: {
       content: `Task ${task.id} failed during prompt load: ${reason}`,
     });
     logger.error(`Task ${task.id} failed during prompt load: ${reason}`);
+    void maybeNotifyEvent(projectDir, config, "task_failed", {
+      title: `Task failed: ${task.name}`,
+      message: `Prompt load failed: ${reason}`,
+      severity: "error",
+      source: `task:${task.id}`,
+    });
     return;
   }
 
@@ -239,6 +246,15 @@ async function runClaimedTask(opts: {
 
     logger.info(`Task ${task.id} -> ${result.status}`);
 
+    if (result.status === "failed") {
+      void maybeNotifyEvent(projectDir, config, "task_failed", {
+        title: `Task failed: ${task.name}`,
+        message: result.reason ?? "The task ended in a failed state.",
+        severity: "error",
+        source: `task:${task.id}`,
+      });
+    }
+
     void generateThreadTitle(
       config,
       projectDir,
@@ -255,6 +271,12 @@ async function runClaimedTask(opts: {
     });
 
     logger.error(`Task ${task.id} failed: ${err}`);
+    void maybeNotifyEvent(projectDir, config, "task_failed", {
+      title: `Task failed: ${task.name}`,
+      message: `The agent loop threw: ${err}`,
+      severity: "error",
+      source: `task:${task.id}`,
+    });
   } finally {
     await releaseTaskLock(projectDir, task.id);
     await endThread(projectDir, threadId);

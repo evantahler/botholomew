@@ -7,6 +7,8 @@ import { mcpListToolsTool } from "./mcp/list-tools.ts";
 import { mcpSearchTool } from "./mcp/search.ts";
 // Membot tools (knowledge store)
 import { registerMembotTools } from "./membot/index.ts";
+// Notify tool
+import { notifyTool } from "./notify/send.ts";
 // Prompt tools
 import { promptCreateTool } from "./prompt/create.ts";
 import { promptDeleteTool } from "./prompt/delete.ts";
@@ -93,6 +95,9 @@ export function registerAllTools(): void {
   registerTool(mcpSearchTool);
   registerTool(mcpInfoTool);
   registerTool(mcpExecTool);
+
+  // Notify
+  registerTool(notifyTool);
 
   // Util
   registerTool(sleepTool);
