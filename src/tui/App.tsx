@@ -299,6 +299,7 @@ function AppInner({
           activeToolCalls={activeToolCalls}
           preparingTool={preparingTool}
           streamStartedAt={streamStartedAt}
+          maxLines={panelHeight}
         />
       </Box>
 

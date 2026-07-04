@@ -49,3 +49,19 @@ export function renderMarkdown(text: string, width?: number): string {
 export function isMarkdownPath(path: string): boolean {
   return path.toLowerCase().endsWith(".md");
 }
+
+/**
+ * Return the last `maxLines` source lines of `text` (rejoined with `\n`).
+ * Used to bound the cost of rendering the in-flight streaming reply: the chat
+ * view only shows the last ~viewport lines, so re-parsing the entire growing
+ * buffer every frame is wasted work whose cost grows with the reply length.
+ * A block (code fence, table) that opens above the window may be briefly
+ * mis-styled in the live preview, but the finalized message re-renders the
+ * full, correct markdown. Non-positive `maxLines` returns the text unchanged.
+ */
+export function tailLines(text: string, maxLines: number): string {
+  if (maxLines <= 0) return text;
+  const lines = text.split("\n");
+  if (lines.length <= maxLines) return text;
+  return lines.slice(lines.length - maxLines).join("\n");
+}
