@@ -25,6 +25,7 @@ interface UseChatSessionParams {
   resumeThreadId: string | undefined;
   initialPrompt: string | undefined;
   unsafe: boolean | undefined;
+  modelName: string | undefined;
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   setError: Dispatch<SetStateAction<string | null>>;
 }
@@ -41,6 +42,7 @@ export function useChatSession({
   resumeThreadId,
   initialPrompt,
   unsafe,
+  modelName,
   setMessages,
   setError,
 }: UseChatSessionParams): UseChatSessionResult {
@@ -55,7 +57,7 @@ export function useChatSession({
   useEffect(() => {
     let cancelled = false;
 
-    startChatSession(projectDir, resumeThreadId, { unsafe })
+    startChatSession(projectDir, resumeThreadId, { unsafe, modelName })
       .then(async (session) => {
         if (cancelled) {
           endChatSession(session);
@@ -111,7 +113,7 @@ export function useChatSession({
         );
       }
     };
-  }, [projectDir, resumeThreadId, unsafe, setMessages, setError]);
+  }, [projectDir, resumeThreadId, unsafe, modelName, setMessages, setError]);
 
   const performShutdown = useCallback(async () => {
     if (shuttingDownRef.current) {

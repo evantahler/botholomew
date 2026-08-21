@@ -90,6 +90,7 @@ export const scheduleEditTool = {
       description: parsed.schedule.description,
       frequency: parsed.schedule.frequency,
       enabled: parsed.schedule.enabled,
+      model: parsed.schedule.model,
       last_run_at: parsed.schedule.last_run_at,
       created_at: parsed.schedule.created_at,
       updated_at: new Date().toISOString(),

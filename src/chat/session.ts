@@ -1,7 +1,9 @@
 import type { ModelMessage } from "ai";
 import { loadConfig } from "../config/loader.ts";
-import type { BotholomewConfig } from "../config/schemas.ts";
+import { resolveModel } from "../config/models.ts";
+import type { BotholomewConfig, LlmBlock } from "../config/schemas.ts";
 import type { AbortHandle } from "../llm/abort.ts";
+import { assertToolCapable } from "../llm/index.ts";
 import { BotholomewLlmError } from "../llm/types.ts";
 import {
   buildApprovalPolicy,
@@ -26,6 +28,10 @@ export interface ChatSession {
   threadId: string;
   projectDir: string;
   config: BotholomewConfig;
+  /** The model this session runs on, resolved once at start from `--model` / `default_model`. */
+  llm: LlmBlock;
+  /** Registry name of `llm`, for the status bar and error messages. */
+  modelName: string;
   messages: ModelMessage[];
   skills: Map<string, SkillDefinition>;
   // biome-ignore lint/suspicious/noExplicitAny: mcpx client
@@ -53,18 +59,22 @@ export function abortActiveStream(session: ChatSession): boolean {
   return false;
 }
 
-export function requireProviderCreds(config: BotholomewConfig): void {
-  const { llm } = config;
+/**
+ * Validate credentials for the one model about to be used — not every entry in
+ * `config.models`. A broken `local` entry must not block an Anthropic chat.
+ */
+export function requireProviderCreds(llm: LlmBlock, modelName: string): void {
+  const where = `models.${modelName}`;
   if (llm.provider === "anthropic" && !llm.api_key) {
     throw new BotholomewLlmError(
       "no_credentials",
-      "Anthropic provider requires `llm.api_key` (or set ANTHROPIC_API_KEY). Update config/config.json.",
+      `Anthropic provider requires \`${where}.api_key\` (or set ANTHROPIC_API_KEY). Update config/config.json.`,
     );
   }
   if (llm.provider === "openai-compatible" && !llm.base_url) {
     throw new BotholomewLlmError(
       "no_credentials",
-      "OpenAI-compatible provider requires `llm.base_url`. Update config/config.json.",
+      `OpenAI-compatible provider requires \`${where}.base_url\`. Update config/config.json.`,
     );
   }
 }
@@ -72,11 +82,15 @@ export function requireProviderCreds(config: BotholomewConfig): void {
 export async function startChatSession(
   projectDir: string,
   existingThreadId?: string,
-  opts: { unsafe?: boolean } = {},
+  opts: { unsafe?: boolean; modelName?: string } = {},
 ): Promise<ChatSession> {
   const config = await loadConfig(projectDir);
 
-  requireProviderCreds(config);
+  // Resolve and vet the model before anything is created on disk, so a bad
+  // `--model` exits cleanly instead of leaving an empty thread behind.
+  const { name: modelName, llm } = resolveModel(config, opts.modelName);
+  requireProviderCreds(llm, modelName);
+  await assertToolCapable(llm);
 
   await ensureThreadsDir(projectDir);
 
@@ -145,6 +159,8 @@ export async function startChatSession(
     threadId,
     projectDir,
     config,
+    llm,
+    modelName,
     messages,
     skills,
     mcpxClient,
@@ -185,6 +201,7 @@ export async function sendMessage(
     messages: session.messages,
     projectDir: session.projectDir,
     config: session.config,
+    llm: session.llm,
     threadId: session.threadId,
     mcpxClient: session.mcpxClient,
     callbacks,

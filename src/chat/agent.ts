@@ -2,7 +2,7 @@ import { isAbortError } from "@ai-sdk/provider-utils";
 import type { McpxClient } from "@evantahler/mcpx";
 import type { LanguageModel, ModelMessage, ToolCallPart } from "ai";
 import { streamText } from "ai";
-import type { BotholomewConfig } from "../config/schemas.ts";
+import type { BotholomewConfig, LlmBlock } from "../config/schemas.ts";
 import {
   type AbortHandle,
   buildProviderOptions,
@@ -216,6 +216,12 @@ export async function runChatTurn(input: {
   messages: ModelMessage[];
   projectDir: string;
   config: BotholomewConfig;
+  /**
+   * The model this turn runs on, already resolved from `config.models` by the
+   * caller (`startChatSession` / `runDream`). Passed in rather than resolved
+   * here so an unknown `--model` fails before a thread or lock exists.
+   */
+  llm: LlmBlock;
   threadId: string;
   mcpxClient: McpxClient | null;
   callbacks: ChatTurnCallbacks;
@@ -242,6 +248,7 @@ async function runChatTurnBody(input: {
   messages: ModelMessage[];
   projectDir: string;
   config: BotholomewConfig;
+  llm: LlmBlock;
   withMem: WithMem;
   threadId: string;
   mcpxClient: McpxClient | null;
@@ -254,6 +261,7 @@ async function runChatTurnBody(input: {
     messages,
     projectDir,
     config,
+    llm,
     withMem,
     threadId,
     mcpxClient,
@@ -261,11 +269,11 @@ async function runChatTurnBody(input: {
     session,
   } = input;
 
-  const model = input._testModel ?? getLanguageModel(config.llm);
+  const model = input._testModel ?? getLanguageModel(llm);
 
   const chatTools = getChatTools();
   const maxInputTokens =
-    input._testMaxInputTokens ?? (await getMaxInputTokens(config.llm));
+    input._testMaxInputTokens ?? (await getMaxInputTokens(llm));
   const maxTurns = config.max_turns;
 
   for (let turn = 0; !maxTurns || turn < maxTurns; turn++) {
@@ -297,7 +305,7 @@ async function runChatTurnBody(input: {
     fitToContextWindow(messages, systemPrompt, maxInputTokens);
 
     const wrapped = withAnthropicCacheBreakpoints({
-      provider: config.llm.provider,
+      provider: llm.provider,
       system: systemPrompt,
       messages,
       tools: chatTools,
@@ -313,7 +321,7 @@ async function runChatTurnBody(input: {
       tools: wrapped.tools,
       maxOutputTokens: 4096,
       abortSignal: abortHandle.signal,
-      providerOptions: buildProviderOptions(config.llm, maxInputTokens),
+      providerOptions: buildProviderOptions(llm, maxInputTokens),
     });
 
     let assistantText = "";
@@ -367,7 +375,7 @@ async function runChatTurnBody(input: {
         }
         return;
       }
-      throw new Error(formatLlmError(streamError, config.llm));
+      throw new Error(formatLlmError(streamError, llm));
     }
 
     const durationMs = Date.now() - startTime;

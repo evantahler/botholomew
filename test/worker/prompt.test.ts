@@ -43,6 +43,7 @@ function fakeTask(name: string, description: string): Task {
     name,
     description,
     priority: "medium",
+    model: null,
     status: "in_progress",
     blocked_by: [],
     context_paths: [],

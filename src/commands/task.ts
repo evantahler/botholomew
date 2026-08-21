@@ -10,6 +10,7 @@ import {
   updateTaskStatus,
 } from "../tasks/store.ts";
 import { logger } from "../utils/logger.ts";
+import { assertModelFlag } from "./model-flag.ts";
 
 export function registerTaskCommand(program: Command) {
   const task = program.command("task").description("Manage tasks");
@@ -51,12 +52,18 @@ export function registerTaskCommand(program: Command) {
     .description("Create a new task")
     .option("--description <text>", "task description", "")
     .option("-p, --priority <priority>", "low, medium, or high", "medium")
+    .option(
+      "--model <name>",
+      "named model from the `models` block in config to run this task on",
+    )
     .action(async (name, opts) => {
       const dir = program.opts().dir;
+      await assertModelFlag(dir, opts.model);
       const t = await createTask(dir, {
         name,
         description: opts.description,
         priority: opts.priority,
+        model: opts.model ?? null,
       });
       logger.success(`Created task: ${t.name} (${t.id})`);
     });
@@ -81,13 +88,21 @@ export function registerTaskCommand(program: Command) {
     .option("--description <text>", "new description")
     .option("-p, --priority <priority>", "low, medium, or high")
     .option("-s, --status <status>", "new status")
+    .option(
+      "--model <name>",
+      "named model from the `models` block in config to run this task on (empty string clears it)",
+    )
     .action(async (id, opts) => {
       const dir = program.opts().dir;
+      await assertModelFlag(dir, opts.model);
       const updates: Parameters<typeof updateTask>[2] = {};
       if (opts.name) updates.name = opts.name;
       if (opts.description) updates.description = opts.description;
       if (opts.priority) updates.priority = opts.priority;
       if (opts.status) updates.status = opts.status;
+      // `--model ""` is the explicit "unpin" gesture, so test for undefined
+      // rather than truthiness here.
+      if (opts.model !== undefined) updates.model = opts.model || null;
 
       try {
         const t = await updateTask(dir, id, updates);
@@ -181,6 +196,7 @@ function printTaskDetail(t: Task) {
   console.log(`  ID:          ${t.id}`);
   console.log(`  Status:      ${statusColor(t.status)}`);
   console.log(`  Priority:    ${priorityColor(t.priority)}`);
+  if (t.model) console.log(`  Model:       ${t.model}`);
   if (t.description) console.log(`  Description: ${t.description}`);
   if (t.waiting_reason) console.log(`  Waiting:     ${t.waiting_reason}`);
   if (t.output) console.log(`  Output:      ${t.output}`);

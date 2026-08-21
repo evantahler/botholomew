@@ -24,6 +24,7 @@ import {
   MCPX_SERVERS_FILENAME,
 } from "../../src/constants.ts";
 import { initProject } from "../../src/init/index.ts";
+import { buildDefaultConfig } from "../../src/init/templates.ts";
 
 let projectDir: string;
 
@@ -110,10 +111,45 @@ describe("initProject", () => {
     await initProject(projectDir);
     const path = join(projectDir, CONFIG_DIR, CONFIG_FILENAME);
     const cfg = JSON.parse(await fileText(path));
-    expect(cfg.llm).toBeDefined();
-    expect(cfg.llm.provider).toBe("anthropic");
-    expect(cfg.llm.model).toBeTruthy();
+    expect(cfg.models).toBeDefined();
+    expect(cfg.default_model).toBe("default");
+    expect(cfg.fast_model).toBe("fast");
+    expect(cfg.models[cfg.default_model].provider).toBe("anthropic");
+    expect(cfg.models[cfg.default_model].model).toBeTruthy();
+    expect(cfg.models[cfg.fast_model].model).toBeTruthy();
     expect(cfg.tick_interval_seconds).toBeGreaterThan(0);
+    // The old two-block shape is gone, not aliased.
+    expect(cfg.llm).toBeUndefined();
+    expect(cfg.chunker_llm).toBeUndefined();
+  });
+
+  // Asserted against `buildDefaultConfig` rather than a full `initProject`:
+  // seeding an ollama config makes init's capability scan attempt a live call
+  // to localhost:11434, which hangs on a machine with no ollama running.
+  test("--provider ollama seeds every model entry on the ollama preset", () => {
+    const cfg = buildDefaultConfig("ollama");
+    const entries = Object.values(cfg.models);
+    expect(entries.length).toBeGreaterThan(1);
+    for (const entry of entries) {
+      expect(entry.provider).toBe("ollama");
+      expect(entry.base_url).toBe("http://localhost:11434");
+    }
+    // Role pointers must name entries that actually exist.
+    expect(cfg.models[cfg.default_model]).toBeDefined();
+    expect(cfg.models[cfg.fast_model]).toBeDefined();
+  });
+
+  test("each provider preset gives the fast entry a cheaper model", () => {
+    for (const provider of [
+      "anthropic",
+      "ollama",
+      "openai-compatible",
+    ] as const) {
+      const cfg = buildDefaultConfig(provider);
+      expect(cfg.models[cfg.default_model]?.model).not.toBe(
+        cfg.models[cfg.fast_model]?.model,
+      );
+    }
   });
 
   test("seeds skills/ with the default skill files", async () => {

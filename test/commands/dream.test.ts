@@ -52,7 +52,7 @@ describe("runDream", () => {
     await writeFile(
       join(projectDir, "config", "config.json"),
       JSON.stringify({
-        llm: { provider: "anthropic", api_key: "test-key" },
+        models: { default: { provider: "anthropic", api_key: "test-key" } },
         membot_scope: "project",
         mcpx_scope: "project",
       }),

@@ -8,6 +8,8 @@ import { LogoChar } from "./Logo.tsx";
 interface StatusBarProps {
   projectDir: string;
   chatTitle?: string;
+  /** `<name> · <provider>:<model>` for the session's model, from `--model` / `default_model`. */
+  modelLabel?: string;
   onWorkerStatusChange?: (running: boolean) => void;
 }
 
@@ -20,6 +22,7 @@ interface Status {
 export function StatusBar({
   projectDir,
   chatTitle,
+  modelLabel,
   onWorkerStatusChange,
 }: StatusBarProps) {
   const [status, setStatus] = useState<Status>({
@@ -77,6 +80,12 @@ export function StatusBar({
           <Text color={isIdle ? "gray" : "cyan"} bold italic>
             {chatTitle.length > 30 ? `${chatTitle.slice(0, 29)}…` : chatTitle}
           </Text>
+        </>
+      )}
+      {modelLabel && (
+        <>
+          <Text dimColor> | </Text>
+          <Text color={isIdle ? "gray" : "magenta"}>{modelLabel}</Text>
         </>
       )}
       <Text dimColor> | </Text>

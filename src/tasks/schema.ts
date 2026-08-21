@@ -22,6 +22,8 @@ export const TaskFrontmatterSchema = z.object({
   name: z.string(),
   description: z.string().default(""),
   priority: z.enum(TASK_PRIORITIES).default("medium"),
+  /** Named entry in `config.models` to run this task on. `null` = use `default_model`. A worker's `--model` flag overrides this. */
+  model: z.string().nullable().default(null),
   status: z.enum(TASK_STATUSES).default("pending"),
   blocked_by: z.array(z.string()).default([]),
   context_paths: z.array(z.string()).default([]),

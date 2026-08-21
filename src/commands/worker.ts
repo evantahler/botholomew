@@ -12,6 +12,7 @@ import {
   WORKER_STATUSES,
   type Worker,
 } from "../workers/store.ts";
+import { assertModelFlag } from "./model-flag.ts";
 
 function formatAge(fromIso: string, to = new Date()): string {
   const from = new Date(fromIso);
@@ -69,18 +70,24 @@ export function registerWorkerCommand(program: Command) {
       "bypass the mcpx approval gate (allow every tool without approval)",
       false,
     )
+    .option(
+      "--model <name>",
+      "named model from the `models` block in config; overrides each task's own `model:` (default: `default_model`)",
+    )
     .action(
       async (opts: {
         persist?: boolean;
         taskId?: string;
         evalSchedules?: boolean;
         unsafe?: boolean;
+        model?: string;
       }) => {
         if (opts.persist && opts.taskId) {
           logger.error("--persist and --task-id are mutually exclusive.");
           process.exit(1);
         }
         const dir = program.opts().dir;
+        await assertModelFlag(dir, opts.model);
         const { startWorker } = await import("../worker/index.ts");
         await startWorker(dir, {
           foreground: true,
@@ -88,6 +95,7 @@ export function registerWorkerCommand(program: Command) {
           taskId: opts.taskId,
           evalSchedules: opts.evalSchedules,
           unsafe: opts.unsafe,
+          modelName: opts.model,
         });
       },
     );
@@ -102,22 +110,29 @@ export function registerWorkerCommand(program: Command) {
       "bypass the mcpx approval gate (allow every tool without approval)",
       false,
     )
+    .option(
+      "--model <name>",
+      "named model from the `models` block in config; overrides each task's own `model:` (default: `default_model`)",
+    )
     .action(
       async (opts: {
         persist?: boolean;
         taskId?: string;
         unsafe?: boolean;
+        model?: string;
       }) => {
         if (opts.persist && opts.taskId) {
           logger.error("--persist and --task-id are mutually exclusive.");
           process.exit(1);
         }
         const dir = program.opts().dir;
+        await assertModelFlag(dir, opts.model);
         const { spawnWorker } = await import("../worker/spawn.ts");
         await spawnWorker(dir, {
           mode: opts.persist ? "persist" : "once",
           taskId: opts.taskId,
           unsafe: opts.unsafe,
+          modelName: opts.model,
         });
       },
     );

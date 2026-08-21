@@ -22,7 +22,7 @@ export function getLanguageModel(cfg: LlmBlock): LanguageModel {
       if (!cfg.api_key) {
         throw new BotholomewLlmError(
           "no_credentials",
-          "Anthropic provider requires `llm.api_key` (or ANTHROPIC_API_KEY env var).",
+          "Anthropic provider requires an `api_key` on the model's entry in `models` (or the ANTHROPIC_API_KEY env var).",
         );
       }
       const anthropic = createAnthropic({ apiKey: cfg.api_key });
@@ -43,7 +43,7 @@ export function getLanguageModel(cfg: LlmBlock): LanguageModel {
       if (!cfg.base_url) {
         throw new BotholomewLlmError(
           "no_credentials",
-          "OpenAI-compatible provider requires `llm.base_url`.",
+          "OpenAI-compatible provider requires a `base_url` on the model's entry in `models`.",
         );
       }
       const provider = createOpenAICompatible({

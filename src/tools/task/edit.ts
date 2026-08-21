@@ -172,6 +172,7 @@ export const taskEditTool = {
       name: parsed.task.name,
       description: parsed.task.description,
       priority: parsed.task.priority,
+      model: parsed.task.model,
       status: parsed.task.status,
       blocked_by: parsed.task.blocked_by,
       context_paths: parsed.task.context_paths,

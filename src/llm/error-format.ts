@@ -32,17 +32,17 @@ function formatApiCallError(err: APICallError, cfg?: LlmBlock): string {
 
   if (status === 401 || status === 403) {
     if (provider === "anthropic") {
-      return "Unauthorized — check `llm.api_key` (or `ANTHROPIC_API_KEY` env var).";
+      return "Unauthorized — check the `api_key` on this model's entry in `models` (or the `ANTHROPIC_API_KEY` env var).";
     }
     if (provider === "ollama") {
       const where = cfg?.base_url ?? "";
       if (where.includes("ollama.com")) {
-        return "Unauthorized — Ollama Cloud requires a bearer token. Get one from https://ollama.com (account → API keys) and put it in `llm.api_key`.";
+        return "Unauthorized — Ollama Cloud requires a bearer token. Get one from https://ollama.com (account → API keys) and put it in the `api_key` on this model's entry in `models`.";
       }
       return "Unauthorized — your Ollama endpoint rejected the request.";
     }
     if (provider === "openai-compatible") {
-      return "Unauthorized — check `llm.api_key` for your OpenAI-compatible endpoint.";
+      return "Unauthorized — check the `api_key` on this model's entry in `models` for your OpenAI-compatible endpoint.";
     }
     return "Unauthorized — check your API credentials.";
   }

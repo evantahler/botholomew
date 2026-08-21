@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resolveModel } from "../../config/models.ts";
 import { TASK_PRIORITIES } from "../../tasks/schema.ts";
 import {
   CircularDependencyError,
@@ -17,6 +18,12 @@ const inputSchema = z.object({
     .array(z.string())
     .optional()
     .describe("Replacement list of task IDs that must complete first"),
+  model: z
+    .string()
+    .optional()
+    .describe(
+      "Named model from the `models` block in config to run this task on. Pass an empty string to clear the pin and fall back to the default.",
+    ),
 });
 
 const outputSchema = z.object({
@@ -61,6 +68,21 @@ export const updateTaskTool = {
       };
     }
 
+    if (input.model) {
+      try {
+        resolveModel(ctx.config, input.model);
+      } catch (err) {
+        return {
+          task: null,
+          message: err instanceof Error ? err.message : String(err),
+          is_error: true,
+          error_type: "unknown_model",
+          next_action_hint:
+            "Retry with one of the listed model names, or pass an empty string to clear the pin.",
+        };
+      }
+    }
+
     let updated: Awaited<ReturnType<typeof updateTask>>;
     try {
       updated = await updateTask(ctx.projectDir, input.id, {
@@ -68,6 +90,7 @@ export const updateTaskTool = {
         description: input.description,
         priority: input.priority,
         blocked_by: input.blocked_by,
+        ...(input.model !== undefined ? { model: input.model || null } : {}),
       });
     } catch (err) {
       if (err instanceof CircularDependencyError) {

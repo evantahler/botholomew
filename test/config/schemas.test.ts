@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_CONFIG } from "../../src/config/schemas.ts";
+import {
+  DEFAULT_CONFIG,
+  DEFAULT_MODEL_NAME,
+  FAST_MODEL_NAME,
+} from "../../src/config/schemas.ts";
 
 describe("DEFAULT_CONFIG", () => {
   test("has all expected fields", () => {
-    expect(DEFAULT_CONFIG).toHaveProperty("llm");
-    expect(DEFAULT_CONFIG).toHaveProperty("chunker_llm");
+    expect(DEFAULT_CONFIG).toHaveProperty("models");
+    expect(DEFAULT_CONFIG).toHaveProperty("default_model");
+    expect(DEFAULT_CONFIG).toHaveProperty("fast_model");
     expect(DEFAULT_CONFIG).toHaveProperty("embedding_model");
     expect(DEFAULT_CONFIG).toHaveProperty("embedding_dimension");
     expect(DEFAULT_CONFIG).toHaveProperty("tick_interval_seconds");
@@ -27,19 +32,35 @@ describe("DEFAULT_CONFIG", () => {
   });
 
   test("model names are non-empty strings", () => {
-    expect(DEFAULT_CONFIG.llm.model.length).toBeGreaterThan(0);
-    expect(DEFAULT_CONFIG.chunker_llm.model.length).toBeGreaterThan(0);
+    for (const entry of Object.values(DEFAULT_CONFIG.models)) {
+      expect(entry.model.length).toBeGreaterThan(0);
+    }
     expect(DEFAULT_CONFIG.embedding_model.length).toBeGreaterThan(0);
   });
 
   test("API keys default to empty strings", () => {
-    expect(DEFAULT_CONFIG.llm.api_key).toBe("");
-    expect(DEFAULT_CONFIG.chunker_llm.api_key).toBe("");
+    for (const entry of Object.values(DEFAULT_CONFIG.models)) {
+      expect(entry.api_key).toBe("");
+    }
   });
 
-  test("default llm provider is anthropic", () => {
-    expect(DEFAULT_CONFIG.llm.provider).toBe("anthropic");
-    expect(DEFAULT_CONFIG.chunker_llm.provider).toBe("anthropic");
+  test("every seeded model entry uses the anthropic provider", () => {
+    for (const entry of Object.values(DEFAULT_CONFIG.models)) {
+      expect(entry.provider).toBe("anthropic");
+    }
+  });
+
+  test("default_model and fast_model name real entries", () => {
+    expect(DEFAULT_CONFIG.models[DEFAULT_CONFIG.default_model]).toBeDefined();
+    expect(DEFAULT_CONFIG.models[DEFAULT_CONFIG.fast_model]).toBeDefined();
+    expect(DEFAULT_CONFIG.default_model).toBe(DEFAULT_MODEL_NAME);
+    expect(DEFAULT_CONFIG.fast_model).toBe(FAST_MODEL_NAME);
+  });
+
+  test("the fast entry is a different, cheaper model than the default", () => {
+    const fast = DEFAULT_CONFIG.models[FAST_MODEL_NAME];
+    const main = DEFAULT_CONFIG.models[DEFAULT_MODEL_NAME];
+    expect(fast?.model).not.toBe(main?.model);
   });
 
   test("system_prompt_override defaults to empty string", () => {

@@ -2,6 +2,7 @@ import { join } from "node:path";
 import type { McpxClient } from "@evantahler/mcpx";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { resolveFastModel } from "../config/models.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { getPromptsDir } from "../constants.ts";
 import {
@@ -225,7 +226,7 @@ BAD examples (do not produce):
   "Tools for working with email"`;
 
 function hasUsableCreds(config: BotholomewConfig): boolean {
-  const cfg = config.chunker_llm;
+  const { llm: cfg } = resolveFastModel(config);
   if (cfg.provider === "anthropic") {
     return !!cfg.api_key && cfg.api_key !== "your-api-key-here";
   }
@@ -245,20 +246,21 @@ async function summarizeViaLLM(
   const userPrompt = `Summarize this tool inventory.\n\n${renderInventoryForPrompt(inv)}`;
 
   try {
-    const model = getLanguageModel(config.chunker_llm);
-    const numCtx = await getMaxInputTokens(config.chunker_llm);
+    const { llm } = resolveFastModel(config);
+    const model = getLanguageModel(llm);
+    const numCtx = await getMaxInputTokens(llm);
     const { object } = await generateObject({
       model,
       schema: SummarySchema,
       system: SUMMARIZE_SYSTEM,
       prompt: userPrompt,
       maxOutputTokens: SUMMARIZE_MAX_TOKENS,
-      providerOptions: buildProviderOptions(config.chunker_llm, numCtx),
+      providerOptions: buildProviderOptions(llm, numCtx),
     });
     return object;
   } catch (err) {
     logger.debug(
-      `Capability summarization failed: ${formatLlmError(err, config.chunker_llm)}`,
+      `Capability summarization failed: ${formatLlmError(err, resolveFastModel(config).llm)}`,
     );
     return null;
   }
@@ -373,7 +375,7 @@ function renderFallback(inv: RawInventory, now: Date): string {
     );
   } else {
     parts.push(
-      "_(LLM summarization unavailable — set `llm.api_key` (or `llm.base_url` for local providers) and rerun to generate themed summaries. Until then, use `mcp_list_tools` with each server to see what's exposed.)_",
+      "_(LLM summarization unavailable — set an `api_key` (or `base_url` for local providers) on the `fast_model` entry in the `models` block and rerun to generate themed summaries. Until then, use `mcp_list_tools` with each server to see what's exposed.)_",
     );
     parts.push("");
     const servers = [...inv.mcpByServer.keys()].sort();

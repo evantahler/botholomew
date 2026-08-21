@@ -178,18 +178,27 @@ Two `config/config.json` shapes covering the common cases. Full schema in
 
 ```jsonc
 {
-  "llm": {
-    "provider": "anthropic",
-    "model": "claude-opus-4-6",
-    "api_key": "sk-ant-..."
+  "models": {
+    "default": {
+      "provider": "anthropic",
+      "model": "claude-opus-4-6",
+      "api_key": "sk-ant-..."
+    },
+    "fast": {
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "api_key": "sk-ant-..."
+    }
   },
-  "chunker_llm": {
-    "provider": "anthropic",
-    "model": "claude-haiku-4-5-20251001",
-    "api_key": "sk-ant-..."
-  }
+  "default_model": "default",
+  "fast_model": "fast"
 }
 ```
+
+`models` is a named registry: declare as many as you like, point
+`default_model` / `fast_model` at two of them, then pick one per run with
+`--model <name>` on `chat` / `worker` / `dream`, or `model:` in a task's
+frontmatter.
 
 Or leave `api_key` blank and export `ANTHROPIC_API_KEY` in your shell.
 
@@ -197,18 +206,18 @@ Or leave `api_key` blank and export `ANTHROPIC_API_KEY` in your shell.
 
 ```jsonc
 {
-  "llm": {
-    "provider": "ollama",
-    "model": "qwen2.5:7b",
-    "base_url": "http://localhost:11434"
-  },
-  "chunker_llm": {
-    "provider": "ollama",
-    "model": "qwen2.5:7b",
-    "base_url": "http://localhost:11434"
+  "models": {
+    "default": {
+      "provider": "ollama",
+      "model": "qwen2.5:7b",
+      "base_url": "http://localhost:11434"
+    }
   }
 }
 ```
+
+Declare a single entry and it becomes both the default and the fast model —
+no need to name the pointers.
 
 Start Ollama first: `ollama serve &` then `ollama pull qwen2.5:7b`. No
 API key required. Tool calling is a hard requirement — known-good local
@@ -264,14 +273,14 @@ semantic search, append-only versioning, and URL refresh all live there.
 
 | Command | Purpose |
 |---|---|
-| `botholomew init` | Initialize the current directory as a project (refuses on iCloud/Dropbox/NFS without `--force`) |
+| `botholomew init` | Initialize the current directory as a project (`--provider anthropic\|ollama\|openai-compatible` to preconfigure the model registry; refuses on iCloud/Dropbox/NFS without `--force`) |
 | `botholomew status` | One-command dashboard: workers, task counts/claims, schedules (with a live "due?" check), quarantined files, store info. `--json` for scripting, `--no-evaluate` to skip the LLM schedule check |
-| `botholomew worker run\|start` | Run a worker (foreground or background); `--persist` for long-running, `--task-id <id>` to target one task, `--unsafe` to bypass the tool-approval gate |
+| `botholomew worker run\|start` | Run a worker (foreground or background); `--persist` for long-running, `--task-id <id>` to target one task, `--model <name>` to pin every task to one configured model, `--unsafe` to bypass the tool-approval gate |
 | `botholomew worker list\|status\|stop\|kill\|reap` | Inspect and manage running workers |
-| `botholomew chat` | Interactive Ink/React TUI (`--unsafe` to bypass the tool-approval gate) |
-| `botholomew dream` | Reflect on recent threads — consolidate learnings into the knowledge store and update beliefs/goals (`--since`, `--dry-run`); also `/dream` in chat |
-| `botholomew task list\|add\|view\|update\|reset\|delete` | Manage the task queue (markdown files in `tasks/`) |
-| `botholomew schedule list\|add\|view\|enable\|disable\|trigger\|delete` | Recurring work (markdown files in `schedules/`) |
+| `botholomew chat` | Interactive Ink/React TUI (`--model <name>` to pick a configured model, `--unsafe` to bypass the tool-approval gate) |
+| `botholomew dream` | Reflect on recent threads — consolidate learnings into the knowledge store and update beliefs/goals (`--since`, `--dry-run`, `--model <name>`); also `/dream` in chat |
+| `botholomew task list\|add\|view\|update\|reset\|delete` | Manage the task queue (markdown files in `tasks/`); `--model <name>` pins a task to a configured model |
+| `botholomew schedule list\|add\|view\|enable\|disable\|trigger\|delete` | Recurring work (markdown files in `schedules/`); `--model <name>` is inherited by the tasks the schedule spawns |
 | `botholomew approval list\|view\|approve\|deny` | Review and decide pending outbound-tool approvals (markdown files in `approvals/`) |
 | `botholomew membot add\|ls\|tree\|read\|write\|search\|info\|versions\|diff\|refresh\|…` | Knowledge-store passthrough to [`membot`](https://github.com/evantahler/membot) — `--config` is resolved from `membot_scope` (default `~/.membot`) |
 | `botholomew membot import-global` | Seed the project from `~/.membot` (copies `index.duckdb` + `config.json` in) |

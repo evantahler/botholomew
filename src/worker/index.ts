@@ -1,6 +1,7 @@
 import { hostname } from "node:os";
 import ansis from "ansis";
 import { loadConfig } from "../config/loader.ts";
+import { resolveModel } from "../config/models.ts";
 import {
   buildApprovalPolicy,
   createMcpxClient,
@@ -54,6 +55,12 @@ export interface StartWorkerOptions {
    * Claude Code's --dangerously-skip-permissions). Overrides `approvals.enabled`.
    */
   unsafe?: boolean;
+  /**
+   * Named `config.models` entry every task this worker runs should use,
+   * overriding each task's own `model:`. Undefined = honor the task's pin,
+   * else `default_model`.
+   */
+  modelName?: string;
 }
 
 function buildForegroundCallbacks(): WorkerStreamCallbacks {
@@ -99,6 +106,11 @@ export async function startWorker(
   const evalSchedules = options.evalSchedules ?? !taskId;
 
   const config = await loadConfig(projectDir);
+
+  // Validate the override up front. Resolution proper happens per task (a
+  // task's own `model:` participates), but a typo'd flag should stop the
+  // worker here rather than fail every task it claims.
+  if (options.modelName) resolveModel(config, options.modelName);
 
   const workerId = options.workerId ?? uuidv7();
 
@@ -179,6 +191,7 @@ export async function startWorker(
           taskId,
           mcpxClient,
           callbacks,
+          modelName: options.modelName,
           approvalCtx,
         });
       } else {
@@ -190,6 +203,7 @@ export async function startWorker(
           callbacks,
           tickNum: 1,
           evalSchedules,
+          modelName: options.modelName,
           approvalCtx,
         });
       }
@@ -211,6 +225,7 @@ export async function startWorker(
           callbacks,
           tickNum,
           evalSchedules: true,
+          modelName: options.modelName,
           approvalCtx,
         });
       } catch (err) {

@@ -34,9 +34,23 @@ export interface ApprovalConfig {
   auto_allow_read_only: boolean;
 }
 
+/** Name of the `models` entry that `init` seeds as the primary model. */
+export const DEFAULT_MODEL_NAME = "default";
+/** Name of the `models` entry that `init` seeds for cheap auxiliary calls. */
+export const FAST_MODEL_NAME = "fast";
+
 export interface BotholomewConfig {
-  llm: LlmBlock;
-  chunker_llm: LlmBlock;
+  /**
+   * Named model registry. Every entry is a self-contained `LlmBlock` — there is
+   * no inheritance between entries, though keys omitted *within* an entry
+   * backfill from `DEFAULT_LLM` at load time. Resolve entries through
+   * `src/config/models.ts`, never by indexing this map directly.
+   */
+  models: Record<string, LlmBlock>;
+  /** Entry in `models` used by chat and the worker agent loop when no `--model` / task `model:` overrides it. */
+  default_model: string;
+  /** Entry in `models` used for cheap auxiliary calls: thread titles, capability summaries, schedule evaluation. */
+  fast_model: string;
   approvals: ApprovalConfig;
   embedding_model: string;
   embedding_dimension: number;
@@ -67,9 +81,14 @@ export const DEFAULT_LLM: LlmBlock = {
   supports_tools: true,
 };
 
-export const DEFAULT_CHUNKER_LLM: LlmBlock = {
-  ...DEFAULT_LLM,
-  model: "claude-haiku-4-5-20251001",
+/**
+ * The registry `init` seeds and `loadConfig` falls back to when a config file
+ * omits `models` entirely. Keys here are just names — users rename them, add
+ * their own, and point `default_model` / `fast_model` wherever they like.
+ */
+export const DEFAULT_MODELS: Record<string, LlmBlock> = {
+  [DEFAULT_MODEL_NAME]: DEFAULT_LLM,
+  [FAST_MODEL_NAME]: { ...DEFAULT_LLM, model: "claude-haiku-4-5-20251001" },
 };
 
 export const DEFAULT_APPROVALS: ApprovalConfig = {
@@ -79,8 +98,9 @@ export const DEFAULT_APPROVALS: ApprovalConfig = {
 };
 
 export const DEFAULT_CONFIG: BotholomewConfig = {
-  llm: DEFAULT_LLM,
-  chunker_llm: DEFAULT_CHUNKER_LLM,
+  models: DEFAULT_MODELS,
+  default_model: DEFAULT_MODEL_NAME,
+  fast_model: FAST_MODEL_NAME,
   approvals: DEFAULT_APPROVALS,
   embedding_model: "Xenova/bge-small-en-v1.5",
   embedding_dimension: 384,

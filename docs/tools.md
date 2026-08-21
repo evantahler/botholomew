@@ -252,7 +252,7 @@ JSON document) — `membot_query` deliberately won't read from a paged
 
 The `capabilities`-group tool `capabilities_refresh` exists so the
 agent can keep its own tool inventory fresh. It walks `getAllTools()`
-and `mcpxClient.listTools()`, then asks the configured `chunker_llm`
+and `mcpxClient.listTools()`, then asks the configured `fast_model`
 to produce a **thematic summary** — one line per
 theme (e.g. "Gmail — read, send, draft, search, and reply to emails")
 rather than a line per tool. The result is written to

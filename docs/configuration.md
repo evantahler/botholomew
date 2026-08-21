@@ -5,16 +5,20 @@ project directory. The full schema lives in `src/config/schemas.ts`.
 
 ```json
 {
-  "llm": {
-    "provider": "anthropic",
-    "model": "claude-opus-4-6",
-    "api_key": ""
+  "models": {
+    "default": {
+      "provider": "anthropic",
+      "model": "claude-opus-4-6",
+      "api_key": ""
+    },
+    "fast": {
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "api_key": ""
+    }
   },
-  "chunker_llm": {
-    "provider": "anthropic",
-    "model": "claude-haiku-4-5-20251001",
-    "api_key": ""
-  },
+  "default_model": "default",
+  "fast_model": "fast",
   "embedding_model": "Xenova/bge-small-en-v1.5",
   "embedding_dimension": 384,
   "tick_interval_seconds": 300,
@@ -51,12 +55,35 @@ Studio, llama.cpp's HTTP server, OpenRouter, vLLM, Groq, Together, etc.).
 
 Whatever provider you pick, the model **must** support tool/function
 calling — the agent's entire surface depends on structured tool calls.
-Botholomew probes for tool support at startup and refuses to run with a
-non-tool-capable model.
+Botholomew probes the model you selected when a chat session or worker task
+starts, and refuses to run with a non-tool-capable model.
 
-### `llm` (main agent) and `chunker_llm` (auxiliary)
+### `models`, `default_model`, `fast_model`
 
-Both blocks have the same shape:
+Models are a **named registry**. You declare as many as you like under
+`models`, then point the two roles at them:
+
+- `default_model` — chat and the worker agent loop
+- `fast_model` — cheap auxiliary calls: schedule evaluation, thread titles,
+  capability summarization
+
+Every entry is **self-contained**: entries never inherit from each other, so a
+local Ollama model and a hosted Anthropic model can sit side by side. Keys you
+omit *within* an entry fall back to the schema defaults below.
+
+```jsonc
+{
+  "models": {
+    "big":   { "provider": "anthropic", "model": "claude-opus-4-6", "api_key": "sk-ant-..." },
+    "cheap": { "provider": "anthropic", "model": "claude-haiku-4-5-20251001", "api_key": "sk-ant-..." },
+    "local": { "provider": "ollama", "model": "llama3.1:8b" }
+  },
+  "default_model": "big",
+  "fast_model": "cheap"
+}
+```
+
+Each entry has the same shape:
 
 | Field              | Default                          | Purpose                                                                  |
 | ------------------ | -------------------------------- | ------------------------------------------------------------------------ |
@@ -67,16 +94,55 @@ Both blocks have the same shape:
 | `max_input_tokens` | `0`                              | Override the context window. `0` falls back to a lookup table and provider defaults. |
 | `supports_tools`   | `true`                           | Override the tool-capability probe (only relevant for `openai-compatible`). |
 
-`llm` governs chat and worker turns. `chunker_llm` governs auxiliary calls
-(schedule evaluation, thread titles, capability summarization) and can point
-at a smaller/cheaper model.
+Both pointers are optional when they're unambiguous:
+
+- Declare exactly one model and it becomes both the default and the fast model.
+- Name an entry `default` / `fast` and the matching pointer finds it.
+- Omit `fast_model` with several models declared and it falls back to
+  `default_model` — a fast model is an optimization, not a requirement.
+- Declare several models with no `default` entry and no `default_model`, and
+  loading **fails**: there's no sensible guess to make.
+
+A pointer naming an entry that doesn't exist fails at load, not mid-stream.
+
+::: warning Breaking change
+The old `llm` and `chunker_llm` blocks were **removed**, not aliased. A config
+still using them fails at load with the new shape printed inline. Move each old
+block into an entry under `models` and delete the old key.
+:::
+
+### Selecting a model per run
+
+The registry is only half of it — you also pick which entry a given run uses:
+
+| Where | How |
+|---|---|
+| Chat | `botholomew chat --model <name>` (the active model shows in the status bar) |
+| Reflection | `botholomew dream --model <name>` |
+| A whole worker | `botholomew worker run --model <name>` / `worker start --model <name>` |
+| One task | `model:` in the task's frontmatter (`botholomew task add --model <name>`) |
+| A schedule's tasks | `model:` on the schedule — inherited by every task it spawns |
+
+Precedence, most specific first:
+
+```
+--model flag  >  the task's own `model:`  >  default_model
+```
+
+The flag wins over the task's pin because that's the usual CLI convention, and
+because the inverse is a cost footgun — a `--model local` run for offline
+debugging shouldn't let tasks quietly escape to a paid model. When a flag does
+displace a task's pin, the worker logs the override rather than applying it
+silently.
 
 ### Anthropic example
 
 ```jsonc
 {
-  "llm": { "provider": "anthropic", "model": "claude-opus-4-6", "api_key": "sk-ant-..." },
-  "chunker_llm": { "provider": "anthropic", "model": "claude-haiku-4-5-20251001", "api_key": "sk-ant-..." }
+  "models": {
+    "default": { "provider": "anthropic", "model": "claude-opus-4-6", "api_key": "sk-ant-..." },
+    "fast": { "provider": "anthropic", "model": "claude-haiku-4-5-20251001", "api_key": "sk-ant-..." }
+  }
 }
 ```
 
@@ -86,8 +152,10 @@ Run `ollama serve` and `ollama pull llama3.1:8b` first.
 
 ```jsonc
 {
-  "llm": { "provider": "ollama", "model": "llama3.1:8b" },
-  "chunker_llm": { "provider": "ollama", "model": "qwen2.5:3b" }
+  "models": {
+    "default": { "provider": "ollama", "model": "llama3.1:8b" },
+    "fast": { "provider": "ollama", "model": "qwen2.5:3b" }
+  }
 }
 ```
 
@@ -99,17 +167,25 @@ Known-good tool-capable Ollama models: `llama3.1:8b`, `llama3.1:70b`,
 
 ```jsonc
 {
-  "llm": {
-    "provider": "openai-compatible",
-    "model": "gpt-4o",
-    "base_url": "https://openrouter.ai/api/v1",
-    "api_key": "sk-or-..."
+  "models": {
+    "default": {
+      "provider": "openai-compatible",
+      "model": "gpt-4o",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key": "sk-or-..."
+    }
   }
 }
 ```
 
 Any OpenAI-compatible chat-completions endpoint that supports tool calling
-works. Set `supports_tools: false` to opt out of the probe assumption.
+works. Set `supports_tools: false` on the entry to opt out of the probe
+assumption.
+
+Env overrides apply per entry, keyed on that entry's `provider` — so one
+`ANTHROPIC_API_KEY` covers every Anthropic entry at once, and leaves your
+`ollama` entries untouched. If you need distinct keys per entry, set them in
+the file instead.
 
 ---
 
@@ -117,8 +193,9 @@ works. Set `supports_tools: false` to opt out of the probe assumption.
 
 | Key | Default | Purpose |
 |---|---|---|
-| `llm` | see above | Provider + model for the main agent loop (workers + chat). See "LLM providers". |
-| `chunker_llm` | see above | Provider + model for auxiliary calls (schedule eval, thread titles, capability summarization). |
+| `models` | see above | Named registry of model entries. At least one required. See "LLM providers". |
+| `default_model` | `"default"` | Which `models` entry chat and the worker agent loop use. Overridable per run with `--model`. |
+| `fast_model` | `"fast"` | Which `models` entry auxiliary calls use (schedule eval, thread titles, capability summarization). Not per-run selectable. |
 | `embedding_model` | `Xenova/bge-small-en-v1.5` | A local [`@huggingface/transformers`](https://huggingface.co/docs/transformers.js) feature-extraction model. Weights are downloaded on first use and cached under the project's `models/` directory. Any feature-extraction model in the Xenova/* namespace works — e.g. `Xenova/multilingual-e5-small` (also 384-dim) for non-English content. |
 | `embedding_dimension` | `384` | Vector dimension. Must match the model. Changing model + dimension requires running `botholomew membot reembed` to recompute every stored vector — old and new vectors aren't comparable. |
 | `tick_interval_seconds` | `300` | Seconds a `--persist` worker sleeps between ticks **when there's no work**. It ticks back-to-back while a backlog exists. |
@@ -155,9 +232,9 @@ the gate regardless of `enabled`.
 
 | Var | Effect |
 |---|---|
-| `ANTHROPIC_API_KEY` | Fills in `llm.api_key` / `chunker_llm.api_key` when the provider is `anthropic`. Always wins. |
-| `OPENAI_API_KEY` | Fills in `api_key` when the provider is `openai-compatible` and the field is empty. |
-| `OLLAMA_HOST` | Fills in `base_url` when the provider is `ollama` and the field is empty. |
+| `ANTHROPIC_API_KEY` | Fills in `api_key` on **every** `models` entry whose provider is `anthropic`. Always wins over the file. |
+| `OPENAI_API_KEY` | Fills in `api_key` on every `openai-compatible` entry whose field is empty. |
+| `OLLAMA_HOST` | Fills in `base_url` on every `ollama` entry whose field is empty. |
 | `BOTHOLOMEW_LOG_LEVEL` | Overrides `log_level` in config. One of `silent`, `error`, `warn`, `info`, `debug`. |
 | `BOTHOLOMEW_NO_UPDATE_CHECK` | Disable the background "new version available" check. |
 
@@ -183,15 +260,19 @@ defaults (30s reap, 60s threshold) are conservative.
 
 **For model-cost sensitivity:**
 
-- Switch `llm.model` to `claude-sonnet-4-*` or `claude-haiku-*`. Opus is the
-  default because quality on complex knowledge work matters more than
-  per-token cost for most users, but Sonnet handles the majority of tasks
-  well.
-- The default `chunker_llm` already targets Haiku — leave it there.
+- Point `default_model` at a Sonnet or Haiku entry. Opus is the seeded default
+  because quality on complex knowledge work matters more than per-token cost
+  for most users, but Sonnet handles the majority of tasks well.
+- The seeded `fast` entry already targets Haiku — leave it there.
 - Lower `max_turns` (e.g., 15) to hard-cap tool-use budgets.
-- For zero-API-cost runs, switch both blocks to a tool-capable Ollama model.
-  Note: cache-token reporting is Anthropic-only, so the TUI will show all
-  input tokens as fresh on local providers.
+- Keep a cheap entry in the registry and reach for it per run rather than
+  editing config: `worker run --model cheap` for routine queue work, or
+  `model: cheap` on the specific tasks and schedules that don't need the big
+  model. Interactive chat keeps the default.
+- For zero-API-cost runs, add a tool-capable Ollama entry and either point
+  `default_model` at it or pass `--model` per run. Note: cache-token reporting
+  is Anthropic-only, so the TUI will show all input tokens as fresh on local
+  providers.
 
 **For prompt-sensitive workflows:** use `system_prompt_override` to add
 instructions without touching `prompts/goals.md`. This keeps the default

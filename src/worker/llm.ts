@@ -1,11 +1,10 @@
 import type { McpxClient } from "@evantahler/mcpx";
 import type { ModelMessage, ToolCallPart } from "ai";
 import { streamText } from "ai";
-import type { BotholomewConfig } from "../config/schemas.ts";
+import type { BotholomewConfig, LlmBlock } from "../config/schemas.ts";
 import {
   buildProviderOptions,
   createAbortHandle,
-  describeModel,
   drainStreamPromises,
   extractCacheTokens,
   formatLlmError,
@@ -62,6 +61,12 @@ export async function runAgentLoop(input: {
   systemPrompt: string;
   task: Task;
   config: BotholomewConfig;
+  /**
+   * The model this task runs on, already resolved by `runClaimedTask` from the
+   * `--model` flag / the task's own `model:` / `default_model`. Passed in so
+   * this loop stays model-agnostic and testable with a synthetic block.
+   */
+  llm: LlmBlock;
   withMem: WithMem;
   threadId: string;
   projectDir: string;
@@ -73,6 +78,7 @@ export async function runAgentLoop(input: {
     systemPrompt,
     task,
     config,
+    llm,
     withMem,
     threadId,
     projectDir,
@@ -80,7 +86,7 @@ export async function runAgentLoop(input: {
     callbacks,
   } = input;
 
-  const model = getLanguageModel(config.llm);
+  const model = getLanguageModel(llm);
 
   // Build predecessor context from completed blocking tasks
   let predecessorContext = "";
@@ -111,7 +117,7 @@ export async function runAgentLoop(input: {
 
   clearLargeResults();
   const workerTools = toAiSdkTools(getAllTools());
-  const maxInputTokens = await getMaxInputTokens(config.llm);
+  const maxInputTokens = await getMaxInputTokens(llm);
 
   const maxTurns = config.max_turns;
   let nudgeCount = 0;
@@ -125,7 +131,7 @@ export async function runAgentLoop(input: {
     fitToContextWindow(messages, systemPrompt, maxInputTokens);
 
     const wrapped = withAnthropicCacheBreakpoints({
-      provider: config.llm.provider,
+      provider: llm.provider,
       system: systemPrompt,
       messages,
       tools: workerTools,
@@ -139,7 +145,7 @@ export async function runAgentLoop(input: {
       tools: wrapped.tools,
       maxOutputTokens: 4096,
       abortSignal: abortHandle.signal,
-      providerOptions: buildProviderOptions(config.llm, maxInputTokens),
+      providerOptions: buildProviderOptions(llm, maxInputTokens),
     });
 
     let streamedText = "";
@@ -165,7 +171,7 @@ export async function runAgentLoop(input: {
       }
     } catch (err) {
       drainStreamPromises(result);
-      const message = formatLlmError(err, config.llm);
+      const message = formatLlmError(err, llm);
       logger.error(`Worker LLM stream failed: ${message}`);
       return { status: "failed", reason: `LLM error: ${message}` };
     }
@@ -322,9 +328,6 @@ export async function runAgentLoop(input: {
         reason: `Awaiting human approval (${pendingApprovalId})`,
       };
     }
-
-    // Touch describeModel so the import isn't flagged unused on a clean build.
-    void describeModel;
   }
 
   return { status: "failed", reason: "Max turns exceeded" };

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resolveModel } from "../../config/models.ts";
 import { spawnWorker } from "../../worker/spawn.ts";
 import type { ToolDefinition } from "../tool.ts";
 
@@ -14,6 +15,12 @@ const inputSchema = z.object({
     .optional()
     .describe(
       "If true, spawn a long-running worker that loops over the tick cycle. Defaults to false (one-shot).",
+    ),
+  model: z
+    .string()
+    .optional()
+    .describe(
+      "Named model from the `models` block in config for this worker to run tasks on. Overrides each task's own pinned model. Omit to honor task pins, then the default.",
     ),
 });
 
@@ -35,10 +42,26 @@ export const spawnWorkerTool = {
   outputSchema,
   execute: async (input, ctx) => {
     const mode = input.persist ? "persist" : "once";
+    if (input.model) {
+      try {
+        resolveModel(ctx.config, input.model);
+      } catch (err) {
+        return {
+          worker_pid: null,
+          mode,
+          message: err instanceof Error ? err.message : String(err),
+          is_error: true,
+          error_type: "unknown_model",
+          next_action_hint:
+            "Retry with one of the listed model names, or omit `model` to honor the task's own pin.",
+        };
+      }
+    }
     try {
       const { pid } = await spawnWorker(ctx.projectDir, {
         mode,
         taskId: input.task_id,
+        modelName: input.model,
       });
       const target = input.task_id
         ? `task ${input.task_id}`
