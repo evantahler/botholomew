@@ -29,6 +29,7 @@ the human/LLM-readable description:
 id: 0193abcd-7c10-7d8a-...
 name: Summarize PR #42
 priority: medium
+model: null              # named `models` entry to run on; null = `default_model`
 status: pending          # pending | in_progress | complete | failed | waiting
 blocked_by: []           # task ids that must reach status: complete first
 context_paths: []        # files under context/ this task should reference
@@ -47,6 +48,30 @@ Frontmatter is strictly validated by Zod (`src/tasks/schema.ts`).
 Files that fail validation are quarantined — workers skip them and the
 DAG checker ignores them. `botholomew tasks doctor` lists malformed files
 so you can fix them in place.
+
+### Pinning a task to a model
+
+`model` names an entry in the `models` registry from
+[configuration](configuration.md), letting expensive work run on a frontier
+model while routine work runs somewhere cheap:
+
+```bash
+botholomew task add "audit the Q3 numbers" --model default
+botholomew task add "tidy up my notes"     --model fast
+botholomew task update <id> --model ""     # clear the pin
+```
+
+Precedence when a worker picks up the task:
+
+```
+worker's --model flag  >  the task's `model:`  >  default_model
+```
+
+The flag wins so a `worker run --model local` debugging session can't let
+tasks quietly escape to a paid model; when it displaces a task's pin the
+worker logs the override. An unknown name fails that one task (with the valid
+names listed) rather than crashing the worker — and a typo'd `--model` is
+caught before the worker starts at all.
 
 ---
 
@@ -147,6 +172,7 @@ description: Read my email, check my calendar, draft a morning summary
 frequency: every weekday at 7am   # human-friendly; LLM evaluator decides if due
 last_run_at: 2026-05-02T07:03:00Z
 enabled: true
+model: null                       # inherited by every task this schedule spawns
 created_at: ...
 updated_at: ...
 ---
@@ -155,6 +181,11 @@ updated_at: ...
 ---
 
 ## LLM-evaluated "is it due?"
+
+A schedule's own `model:` is **inherited by the tasks it spawns**, so "run
+this recurring work on the cheap model" is a one-time setting. The schedule's
+due/not-due evaluation itself always uses `fast_model` — it's a cheap
+structured decision, not the work.
 
 Instead of parsing cron expressions, `processSchedules(projectDir,
 config, workerId)` (`src/worker/schedules.ts`) walks

@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { loadConfig } from "../config/loader.ts";
+import { resolveModel } from "../config/models.ts";
 import type { LlmProvider } from "../config/schemas.ts";
 import {
   CONFIG_DIR,
@@ -159,12 +160,14 @@ export async function initProject(
   logger.dim(`  workers/         one JSON pidfile per worker (heartbeats)`);
   logger.dim(`  skills/, mcpx/, logs/`);
   logger.dim("");
+  const { name: modelName, llm } = resolveModel(config);
+  const where = `models.${modelName}`;
   const providerLine =
-    config.llm.provider === "anthropic"
-      ? `  1. Set ANTHROPIC_API_KEY or add \`llm.api_key\` to ${CONFIG_DIR}/${CONFIG_FILENAME}`
-      : config.llm.provider === "ollama"
-        ? `  1. Make sure \`ollama serve\` is running and you've pulled \`${config.llm.model}\``
-        : `  1. Set \`llm.base_url\` (and \`llm.api_key\` if needed) in ${CONFIG_DIR}/${CONFIG_FILENAME}`;
+    llm.provider === "anthropic"
+      ? `  1. Set ANTHROPIC_API_KEY or add \`${where}.api_key\` to ${CONFIG_DIR}/${CONFIG_FILENAME}`
+      : llm.provider === "ollama"
+        ? `  1. Make sure \`ollama serve\` is running and you've pulled \`${llm.model}\``
+        : `  1. Set \`${where}.base_url\` (and \`${where}.api_key\` if needed) in ${CONFIG_DIR}/${CONFIG_FILENAME}`;
   logger.dim("Next steps:");
   logger.dim(providerLine);
   logger.dim("  2. Run 'botholomew task add' to create your first task");

@@ -5,7 +5,7 @@ import { sharedWithMem } from "../../src/mem/client.ts";
 import type { Task } from "../../src/tasks/schema.ts";
 import { createThread } from "../../src/threads/store.ts";
 import { runAgentLoop } from "../../src/worker/llm.ts";
-import { setupTestMembot, TEST_CONFIG } from "../helpers.ts";
+import { setupTestMembot, TEST_CONFIG, TEST_LLM } from "../helpers.ts";
 
 // runAgentLoop reads the model via getLanguageModel, which returns the fake
 // MockLanguageModelV3 whenever BOTHOLOMEW_FAKE_LLM=1. The fake replays the
@@ -39,6 +39,7 @@ function makeTask(): Task {
     name: "Test task",
     description: "Do a thing",
     priority: "medium",
+    model: null,
     status: "in_progress",
     blocked_by: [],
     context_paths: [],
@@ -64,6 +65,7 @@ async function run(): Promise<Awaited<ReturnType<typeof runAgentLoop>>> {
     systemPrompt: "You are a test worker.",
     task: makeTask(),
     config: TEST_CONFIG,
+    llm: TEST_LLM,
     withMem: sharedWithMem(mem),
     threadId,
     projectDir,

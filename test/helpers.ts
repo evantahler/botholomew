@@ -2,8 +2,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { MembotClient } from "membot";
-import type { BotholomewConfig } from "../src/config/schemas.ts";
-import { DEFAULT_CONFIG } from "../src/config/schemas.ts";
+import type { BotholomewConfig, LlmBlock } from "../src/config/schemas.ts";
+import {
+  DEFAULT_CONFIG,
+  DEFAULT_LLM,
+  DEFAULT_MODEL_NAME,
+  FAST_MODEL_NAME,
+} from "../src/config/schemas.ts";
 import { openMembot, sharedWithMem } from "../src/mem/client.ts";
 import type { ToolContext } from "../src/tools/tool.ts";
 
@@ -24,15 +29,18 @@ export const silentLogger = {
 // Test config
 // ---------------------------------------------------------------------------
 
+/** A credentialed `LlmBlock`, for call sites that now take a resolved model. */
+export const TEST_LLM: LlmBlock = { ...DEFAULT_LLM, api_key: "test-key" };
+
 export const TEST_CONFIG: BotholomewConfig = {
   ...DEFAULT_CONFIG,
-  llm: {
-    ...DEFAULT_CONFIG.llm,
-    api_key: "test-key",
-  },
-  chunker_llm: {
-    ...DEFAULT_CONFIG.chunker_llm,
-    api_key: "test-key",
+  models: {
+    [DEFAULT_MODEL_NAME]: TEST_LLM,
+    [FAST_MODEL_NAME]: {
+      ...DEFAULT_LLM,
+      model: DEFAULT_CONFIG.models[FAST_MODEL_NAME]?.model ?? DEFAULT_LLM.model,
+      api_key: "test-key",
+    },
   },
   // Force project-scoped membot in tests so per-tick / per-turn opens hit the
   // test's temp dir, not the developer's real `~/.membot` store.

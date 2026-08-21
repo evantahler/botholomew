@@ -37,6 +37,10 @@ interface AppProps {
   initialPrompt?: string;
   idleTimeoutMs: number;
   unsafe?: boolean;
+  /** Named `config.models` entry this session runs on; undefined = `default_model`. */
+  modelName?: string;
+  /** Pre-rendered `<name> · <provider>:<model>` label for the status bar. */
+  modelLabel?: string;
 }
 
 export function App({
@@ -45,6 +49,8 @@ export function App({
   initialPrompt,
   idleTimeoutMs,
   unsafe,
+  modelName,
+  modelLabel,
 }: AppProps) {
   return (
     <IdleProvider timeoutMs={idleTimeoutMs}>
@@ -53,6 +59,8 @@ export function App({
         threadId={resumeThreadId}
         initialPrompt={initialPrompt}
         unsafe={unsafe}
+        modelName={modelName}
+        modelLabel={modelLabel}
       />
     </IdleProvider>
   );
@@ -63,6 +71,8 @@ interface AppInnerProps {
   threadId?: string;
   initialPrompt?: string;
   unsafe?: boolean;
+  modelName?: string;
+  modelLabel?: string;
 }
 
 function AppInner({
@@ -70,6 +80,8 @@ function AppInner({
   threadId: resumeThreadId,
   initialPrompt,
   unsafe,
+  modelName,
+  modelLabel,
 }: AppInnerProps) {
   const { markActivity } = useIdle();
   const rows = useTerminalRows();
@@ -104,6 +116,7 @@ function AppInner({
     resumeThreadId,
     initialPrompt,
     unsafe,
+    modelName,
     setMessages,
     setError,
   });
@@ -219,10 +232,11 @@ function AppInner({
         <StatusBar
           projectDir={projectDir}
           chatTitle={chatTitle}
+          modelLabel={modelLabel}
           onWorkerStatusChange={setWorkerRunning}
         />
       ) : null,
-    [projectDir, sessionReady, chatTitle],
+    [projectDir, sessionReady, chatTitle, modelLabel],
   );
 
   const allToolCalls = useMemo(

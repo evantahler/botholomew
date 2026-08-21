@@ -10,6 +10,7 @@ import {
   updateSchedule,
 } from "../schedules/store.ts";
 import { logger } from "../utils/logger.ts";
+import { assertModelFlag } from "./model-flag.ts";
 
 export function registerScheduleCommand(program: Command) {
   const schedule = program.command("schedule").description("Manage schedules");
@@ -46,12 +47,18 @@ export function registerScheduleCommand(program: Command) {
       "how often to run (e.g. 'every morning')",
     )
     .option("--description <text>", "schedule description", "")
+    .option(
+      "--model <name>",
+      "named model from the `models` block in config that tasks spawned by this schedule inherit",
+    )
     .action(async (name, opts) => {
       const dir = program.opts().dir;
+      await assertModelFlag(dir, opts.model);
       const s = await createSchedule(dir, {
         name,
         description: opts.description,
         frequency: opts.frequency,
+        model: opts.model ?? null,
       });
       logger.success(`Created schedule: ${s.name} (${s.id})`);
     });
@@ -167,6 +174,7 @@ function printScheduleDetail(s: Schedule) {
   console.log(`  ID:          ${s.id}`);
   console.log(`  Status:      ${enabledColor(s.enabled)}`);
   console.log(`  Frequency:   ${s.frequency}`);
+  if (s.model) console.log(`  Model:       ${s.model}`);
   if (s.description) console.log(`  Description: ${s.description}`);
   console.log(`  Last run:    ${s.last_run_at ?? ansis.dim("never")}`);
   console.log(`  Created:     ${s.created_at}`);

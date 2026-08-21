@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resolveModel } from "../../config/models.ts";
 import { TASK_PRIORITIES } from "../../tasks/schema.ts";
 import { CircularDependencyError, createTask } from "../../tasks/store.ts";
 import { logger } from "../../utils/logger.ts";
@@ -28,6 +29,12 @@ const inputSchema = z.object({
     .describe(
       "Project-relative paths under context/ that the task should reference",
     ),
+  model: z
+    .string()
+    .optional()
+    .describe(
+      "Named model from the `models` block in config to run this task on. Omit to use the default. Call `capabilities_refresh` or read config if unsure which names exist.",
+    ),
 });
 
 const outputSchema = z.object({
@@ -47,6 +54,21 @@ export const createTaskTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
+    if (input.model) {
+      try {
+        resolveModel(ctx.config, input.model);
+      } catch (err) {
+        return {
+          id: null,
+          name: null,
+          message: err instanceof Error ? err.message : String(err),
+          is_error: true,
+          error_type: "unknown_model",
+          next_action_hint:
+            "Retry with one of the listed model names, or omit `model` to use the default.",
+        };
+      }
+    }
     try {
       const newTask = await createTask(ctx.projectDir, {
         name: input.name,
@@ -54,6 +76,7 @@ export const createTaskTool = {
         priority: input.priority,
         blocked_by: input.blocked_by,
         context_paths: input.context_paths,
+        model: input.model ?? null,
       });
       const msg = `Created subtask: ${newTask.name} (${newTask.id})`;
       if (ctx.notify) ctx.notify(msg);

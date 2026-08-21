@@ -15,9 +15,10 @@
 | 11 | [Disk-Backed Project Layout](disk-backed-project-layout.md) | Move context, tasks, and schedules out of DuckDB onto real disk; lockfile claim; sandbox helper |
 | 12 | [Generic Prompts CRUD](milestone-12-generic-prompts-crud.md) | Drop the four-file cast; strict Zod-validated frontmatter; full CRUD via CLI + agent tools |
 | 13 | [Replace Context with `membot`](milestone-13-replace-context-with-membot.md) | Delete `src/context/` + `src/db/`; consume membot as an SDK; agent learns `membot_*` tools; per-project DuckDB store |
-| 14 | [Pluggable LLM Providers](milestone-14-pluggable-llm-providers.md) | Drop direct Anthropic SDK; adopt Vercel AI SDK; ship Anthropic + Ollama + OpenAI-compatible; nested `llm`/`chunker_llm` config; fully-local execution possible |
+| 14 | [Pluggable LLM Providers](milestone-14-pluggable-llm-providers.md) | Drop direct Anthropic SDK; adopt Vercel AI SDK; ship Anthropic + Ollama + OpenAI-compatible; nested per-role config (superseded by M17's `models` registry); fully-local execution possible |
 | 15 | [JSON Transforms](milestone-15-json-transforms.md) | Declarative JSONata queries (`membot_query`) over JSON stored in membot; reduce large MCP blobs without context bloat |
 | 16 | [Reflections (`dream`)](milestone-16-reflections.md) | Reflection loop: `dream` CLI + built-in `/dream` consolidate recent threads into membot + self-edited prompts; `thread search` CLI for episodic recall |
+| 17 | [Named Models](milestone-17-named-models.md) | Replace the fixed `llm`/`chunker_llm` blocks with a named `models` registry + `default_model`/`fast_model`; `--model` on chat/worker/dream and `model:` on tasks/schedules; supersedes M14's one-model-per-role non-goal |
 
 ## Stub/TODO Coverage
 

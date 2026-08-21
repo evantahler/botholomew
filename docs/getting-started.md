@@ -123,7 +123,7 @@ Either export the environment variable:
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-…or set `llm.api_key` in `config/config.json`.
+…or set `api_key` on the `models.default` entry in `config/config.json`.
 
 ### Run fully locally with Ollama
 
@@ -136,10 +136,10 @@ ollama pull llama3.1:8b
 botholomew init --provider ollama
 ```
 
-That writes an `llm` / `chunker_llm` block pointing at `llama3.1:8b` and
-`qwen2.5:3b`. No API key needed. Tool-capable models include
+That writes a `models` registry with a `default` entry on `llama3.1:8b` and a
+`fast` entry on `qwen2.5:3b`. No API key needed. Tool-capable models include
 `llama3.1:8b`, `qwen2.5:7b`, `mistral-nemo`, and `command-r`. Models
-without the `tools` capability are refused at startup.
+without the `tools` capability are refused when a session or task starts.
 
 ### OpenAI-compatible endpoint
 
@@ -147,10 +147,23 @@ without the `tools` capability are refused at startup.
 botholomew init --provider openai-compatible
 ```
 
-then edit `config/config.json` to set `llm.base_url` and `llm.api_key`
-for your endpoint (OpenRouter, LM Studio, vLLM, Groq, Together, etc.).
+then edit `config/config.json` to set `base_url` and `api_key` on each
+`models` entry for your endpoint (OpenRouter, LM Studio, vLLM, Groq,
+Together, etc.).
 
-See [Configuration](./configuration.md) for the full LLM block schema.
+### Keep several models on hand
+
+`models` is a named registry, so you can declare as many as you like and pick
+one per run instead of editing config to switch:
+
+```bash
+botholomew chat --model fast          # cheap model for a quick question
+botholomew worker run --model fast    # routine queue work
+botholomew task add "deep research" --model default
+```
+
+See [Configuration](./configuration.md) for the full schema and the
+`--model` precedence rules.
 
 ## Queue work and run a worker
 

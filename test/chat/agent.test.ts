@@ -12,7 +12,7 @@ import { getPromptsDir } from "../../src/constants.ts";
 import { createFakeLanguageModel } from "../../src/llm/fake.ts";
 import { sharedWithMem } from "../../src/mem/client.ts";
 import { createThread } from "../../src/threads/store.ts";
-import { setupTestMembot } from "../helpers.ts";
+import { setupTestMembot, TEST_LLM } from "../helpers.ts";
 
 let projectDir: string;
 
@@ -77,6 +77,7 @@ describe("runChatTurn streaming", () => {
       messages: [{ role: "user", content: "hi" }],
       projectDir: dir,
       config: { ...DEFAULT_CONFIG, max_turns: 1 },
+      llm: TEST_LLM,
       threadId,
       mcpxClient: null,
       _testModel: createFakeLanguageModel(),

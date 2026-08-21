@@ -266,10 +266,39 @@ helpers — never the AI SDK or its provider plugins directly. The
 boundary rule lets us swap providers, add new ones, or change SDK
 versions without touching the rest of the codebase.
 
-Tool calling is a hard runtime invariant: `assertToolCapable(cfg)` runs
-at chat session start and worker startup, and throws a clear error
-listing known-good models per provider if the configured model can't
-call tools. There is no ReAct text-protocol fallback.
+### Named models, resolved at the boundary
+
+`config.models` is a named registry of self-contained `LlmBlock` entries;
+`default_model` and `fast_model` point at two of them. `src/config/models.ts`
+is the only thing that reads the registry:
+
+- `resolveModel(config, name?)` — a named entry, else `default_model`
+- `resolveFastModel(config)` — the auxiliary-call model
+- `resolveModelFor(config, { override, pinned })` — the `--model` > task
+  `model:` > `default_model` chain, reporting which pin a flag displaced
+
+Resolution happens at **boundaries**, and the resolved `LlmBlock` is passed
+into the agent loops explicitly:
+
+| Boundary | Resolves | Passes `llm` into |
+|---|---|---|
+| `startChatSession` | once per session, from `--model` | `runChatTurn` |
+| `runDream` | once, from `--model` | `runChatTurn` |
+| `runClaimedTask` | once **per task**, from `--model` + the task's `model:` | `runAgentLoop` |
+
+Per-task rather than per-worker, because a `--persist` worker claims
+heterogeneous tasks. Neither agent loop reads config for its model — they take
+a resolved block, which also makes them testable with a synthetic one.
+
+The auxiliary callers (`generateThreadTitle`, `evaluateSchedule`,
+`summarizeViaLLM`) keep taking `BotholomewConfig` and call `resolveFastModel`
+internally: their model isn't user-selectable, so there's nothing to thread.
+
+Tool calling is a hard runtime invariant: `assertToolCapable(llm)` runs at
+chat session start and per task in the worker — against the model actually
+selected, not every entry in the registry — and throws a clear error listing
+known-good models per provider if that model can't call tools. A broken entry
+you aren't using never blocks a run. There is no ReAct text-protocol fallback.
 
 Prompt caching is preserved on Anthropic via `providerOptions.anthropic.cacheControl`
 on the system prompt and the most recent assistant message; the response's
@@ -279,7 +308,9 @@ Non-Anthropic providers report zero cache tokens — the TUI shows all
 input as fresh on Ollama / OpenAI-compatible runs.
 
 See [milestone 14](https://github.com/evantahler/botholomew/blob/main/docs/plans/milestone-14-pluggable-llm-providers.md)
-for the full design.
+for the provider abstraction and
+[milestone 17](https://github.com/evantahler/botholomew/blob/main/docs/plans/milestone-17-named-models.md)
+for the named registry.
 
 ---
 

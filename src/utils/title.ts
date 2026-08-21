@@ -1,5 +1,6 @@
 import { generateText } from "ai";
-import type { BotholomewConfig } from "../config/schemas.ts";
+import { resolveFastModel } from "../config/models.ts";
+import type { BotholomewConfig, LlmBlock } from "../config/schemas.ts";
 import {
   buildProviderOptions,
   formatLlmError,
@@ -10,7 +11,7 @@ import { updateThreadTitle } from "../threads/store.ts";
 import { logger } from "./logger.ts";
 
 /**
- * Generate a short title for a thread using the chunker model.
+ * Generate a short title for a thread using the configured fast model.
  * Fire-and-forget — errors are logged and never propagated.
  */
 export async function generateThreadTitle(
@@ -19,9 +20,13 @@ export async function generateThreadTitle(
   threadId: string,
   context: string,
 ): Promise<void> {
+  // Declared out here so the catch can still name the provider in its
+  // message when resolution itself is what failed.
+  let llm: LlmBlock | undefined;
   try {
-    const model = getLanguageModel(config.chunker_llm);
-    const numCtx = await getMaxInputTokens(config.chunker_llm);
+    llm = resolveFastModel(config).llm;
+    const model = getLanguageModel(llm);
+    const numCtx = await getMaxInputTokens(llm);
 
     const { text } = await generateText({
       model,
@@ -29,7 +34,7 @@ export async function generateThreadTitle(
       system:
         "You are a title generator. The user will provide the first message from a conversation. Output a short descriptive title (5-8 words). Output ONLY the title, nothing else.",
       prompt: `Generate a title for this message:\n\n"${context}"`,
-      providerOptions: buildProviderOptions(config.chunker_llm, numCtx),
+      providerOptions: buildProviderOptions(llm, numCtx),
     });
 
     const title = text.trim();
@@ -37,8 +42,6 @@ export async function generateThreadTitle(
       await updateThreadTitle(projectDir, threadId, title);
     }
   } catch (err) {
-    logger.warn(
-      `Failed to generate thread title: ${formatLlmError(err, config.chunker_llm)}`,
-    );
+    logger.warn(`Failed to generate thread title: ${formatLlmError(err, llm)}`);
   }
 }

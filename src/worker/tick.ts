@@ -1,5 +1,7 @@
 import type { McpxClient } from "@evantahler/mcpx";
-import type { BotholomewConfig } from "../config/schemas.ts";
+import { resolveModelFor } from "../config/models.ts";
+import type { BotholomewConfig, LlmBlock } from "../config/schemas.ts";
+import { describeModel } from "../llm/index.ts";
 import {
   openMembot,
   resolveMembotDir,
@@ -31,6 +33,12 @@ export interface TickOptions {
   callbacks?: WorkerStreamCallbacks;
   tickNum?: number;
   evalSchedules?: boolean;
+  /**
+   * Name of a `config.models` entry from the worker's `--model` flag. Overrides
+   * each task's own `model:` (see `resolveModelFor`); `undefined` falls back to
+   * the task's pin, then `default_model`.
+   */
+  modelName?: string;
   /** Holder the mcpx approval callback reads; set per-task before the loop. */
   approvalCtx?: WorkerApprovalCtx;
 }
@@ -53,6 +61,7 @@ export async function tick(opts: TickOptions): Promise<boolean> {
     callbacks,
     tickNum = 1,
     evalSchedules = true,
+    modelName,
     approvalCtx,
   } = opts;
 
@@ -97,6 +106,7 @@ export async function tick(opts: TickOptions): Promise<boolean> {
       mcpxClient,
       callbacks,
       task,
+      modelName,
       approvalCtx,
     });
   } finally {
@@ -119,6 +129,7 @@ export async function runSpecificTask(opts: {
   taskId: string;
   mcpxClient?: McpxClient | null;
   callbacks?: WorkerStreamCallbacks;
+  modelName?: string;
   approvalCtx?: WorkerApprovalCtx;
 }): Promise<boolean> {
   const task = await claimSpecificTask(
@@ -143,6 +154,7 @@ export async function runSpecificTask(opts: {
       mcpxClient: opts.mcpxClient,
       callbacks: opts.callbacks,
       task,
+      modelName: opts.modelName,
       approvalCtx: opts.approvalCtx,
     });
   } finally {
@@ -159,6 +171,7 @@ async function runClaimedTask(opts: {
   mcpxClient?: McpxClient | null;
   callbacks?: WorkerStreamCallbacks;
   task: Task;
+  modelName?: string;
   approvalCtx?: WorkerApprovalCtx;
 }): Promise<void> {
   const {
@@ -169,6 +182,7 @@ async function runClaimedTask(opts: {
     mcpxClient,
     callbacks,
     task,
+    modelName,
     approvalCtx,
   } = opts;
 
@@ -190,6 +204,35 @@ async function runClaimedTask(opts: {
   if (approvalCtx) {
     approvalCtx.taskId = task.id;
     approvalCtx.threadId = threadId;
+  }
+
+  // Resolve the model for *this* task: `--model` > the task's own `model:` >
+  // `default_model`. A typo in a task's pin fails that task rather than
+  // crashing the worker, mirroring the prompt-load failure below. (A typo in
+  // `--model` is caught in the CLI parent, before the worker ever starts.)
+  let llm: LlmBlock;
+  try {
+    const resolved = resolveModelFor(config, {
+      override: modelName,
+      pinned: task.model,
+    });
+    llm = resolved.llm;
+    if (resolved.shadowed) {
+      logger.warn(
+        `Task ${task.id} pins model "${resolved.shadowed}", overridden by --model "${resolved.name}"`,
+      );
+    }
+    logger.info(`Model: ${resolved.name} (${describeModel(llm)})`);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    await updateTaskStatus(projectDir, task.id, "failed", reason, null);
+    await logInteraction(projectDir, threadId, {
+      role: "system",
+      kind: "status_change",
+      content: `Task ${task.id} failed during model resolution: ${reason}`,
+    });
+    logger.error(`Task ${task.id} failed during model resolution: ${reason}`);
+    return;
   }
 
   let systemPrompt: string;
@@ -214,6 +257,7 @@ async function runClaimedTask(opts: {
       systemPrompt,
       task,
       config,
+      llm,
       withMem,
       threadId,
       projectDir,

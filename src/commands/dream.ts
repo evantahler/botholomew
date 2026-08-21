@@ -5,6 +5,7 @@ import { type ChatTurnCallbacks, runChatTurn } from "../chat/agent.ts";
 import { DREAM_PROMPT_BODY } from "../chat/dream-prompt.ts";
 import { requireProviderCreds } from "../chat/session.ts";
 import { loadConfig } from "../config/loader.ts";
+import { resolveModel } from "../config/models.ts";
 import { createMcpxClient, resolveMcpxDir } from "../mcpx/client.ts";
 import type { WithMem } from "../mem/client.ts";
 import {
@@ -15,6 +16,7 @@ import {
 } from "../threads/store.ts";
 import { logger } from "../utils/logger.ts";
 import { utcDateString } from "../utils/v7-date.ts";
+import { assertModelFlag } from "./model-flag.ts";
 
 /** Gray `HH:MM:SS` stamp, matching the logger's line prefix. */
 function ts(): string {
@@ -30,6 +32,8 @@ function previewInput(input: string, max = 100): string {
 export interface DreamOptions {
   /** ISO date or relative duration (`24h`, `7d`). Defaults to `dream_lookback_hours`. */
   since?: string;
+  /** Named entry in `config.models`. Defaults to `default_model`. */
+  modelName?: string;
   /** Propose edits without writing anything. */
   dryRun?: boolean;
   /** Test seam: inject a language model + membot accessor. */
@@ -78,7 +82,8 @@ export async function runDream(
   opts: DreamOptions = {},
 ): Promise<string> {
   const config = await loadConfig(projectDir);
-  requireProviderCreds(config);
+  const { name: modelName, llm } = resolveModel(config, opts.modelName);
+  requireProviderCreds(llm, modelName);
   await ensureThreadsDir(projectDir);
 
   const now = new Date();
@@ -151,6 +156,7 @@ export async function runDream(
       messages: [{ role: "user", content: userMessage }],
       projectDir,
       config,
+      llm,
       threadId,
       mcpxClient,
       callbacks,
@@ -181,14 +187,22 @@ export function registerDreamCommand(program: Command) {
       "propose edits without writing prompts or the knowledge store",
       false,
     )
-    .action(async (opts: { since?: string; dryRun?: boolean }) => {
-      const dir = program.opts().dir;
-      const threadId = await runDream(dir, {
-        since: opts.since,
-        dryRun: opts.dryRun,
-      });
-      logger.success(
-        `Dream complete — audit with ${ansis.cyan(`botholomew thread view ${threadId}`)}`,
-      );
-    });
+    .option(
+      "--model <name>",
+      "named model from the `models` block in config (default: `default_model`)",
+    )
+    .action(
+      async (opts: { since?: string; dryRun?: boolean; model?: string }) => {
+        const dir = program.opts().dir;
+        await assertModelFlag(dir, opts.model);
+        const threadId = await runDream(dir, {
+          since: opts.since,
+          dryRun: opts.dryRun,
+          modelName: opts.model,
+        });
+        logger.success(
+          `Dream complete — audit with ${ansis.cyan(`botholomew thread view ${threadId}`)}`,
+        );
+      },
+    );
 }

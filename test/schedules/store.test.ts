@@ -383,4 +383,19 @@ describe("schedule claim race", () => {
       LockHeldError,
     );
   });
+  test("model defaults to null and a pin round-trips", async () => {
+    const plain = await createSchedule(projectDir, {
+      name: "n",
+      frequency: "daily",
+    });
+    expect(plain.model).toBeNull();
+
+    const pinned = await createSchedule(projectDir, {
+      name: "n2",
+      frequency: "daily",
+      model: "fast",
+    });
+    expect(pinned.model).toBe("fast");
+    expect((await getSchedule(projectDir, pinned.id))?.model).toBe("fast");
+  });
 });

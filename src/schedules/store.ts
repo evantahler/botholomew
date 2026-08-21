@@ -121,6 +121,7 @@ export async function createSchedule(
     description?: string;
     frequency: string;
     enabled?: boolean;
+    model?: string | null;
   },
 ): Promise<Schedule> {
   const id = uuidv7();
@@ -131,6 +132,7 @@ export async function createSchedule(
     description: params.description ?? "",
     frequency: params.frequency,
     enabled: params.enabled ?? true,
+    model: params.model ?? null,
     last_run_at: null,
     created_at: now,
     updated_at: now,

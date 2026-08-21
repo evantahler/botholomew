@@ -358,4 +358,38 @@ describe("resetStaleTasks + reapOrphanLocks", () => {
     );
     expect(released).toEqual([]);
   });
+  test("model defaults to null when no pin is given", async () => {
+    const t = await createTask(projectDir, { name: "n" });
+    expect(t.model).toBeNull();
+  });
+
+  test("a model pin round-trips through the frontmatter", async () => {
+    const t = await createTask(projectDir, { name: "n", model: "fast" });
+    expect(t.model).toBe("fast");
+    const reread = await getTask(projectDir, t.id);
+    expect(reread?.model).toBe("fast");
+  });
+
+  test("updateTask can set and clear the model pin", async () => {
+    const t = await createTask(projectDir, { name: "n" });
+    expect((await updateTask(projectDir, t.id, { model: "fast" }))?.model).toBe(
+      "fast",
+    );
+    expect(
+      (await updateTask(projectDir, t.id, { model: null }))?.model,
+    ).toBeNull();
+  });
+
+  test("a task file predating the model field parses without quarantine", async () => {
+    // `model` is `.default(null)`, so an older file on disk must still load.
+    const id = "01900000-0000-7000-8000-000000000abc";
+    const now = new Date().toISOString();
+    await atomicWrite(
+      join(getTasksDir(projectDir), `${id}.md`),
+      `---\nid: ${id}\nname: legacy\ndescription: ""\npriority: medium\nstatus: pending\nblocked_by: []\ncontext_paths: []\noutput: null\nwaiting_reason: null\nclaimed_by: null\nclaimed_at: null\ncreated_at: "${now}"\nupdated_at: "${now}"\n---\n\nbody\n`,
+    );
+    const t = await getTask(projectDir, id);
+    expect(t).not.toBeNull();
+    expect(t?.model).toBeNull();
+  });
 });

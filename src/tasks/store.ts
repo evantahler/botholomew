@@ -175,6 +175,7 @@ export async function createTask(
     priority?: TaskPriority;
     blocked_by?: string[];
     context_paths?: string[];
+    model?: string | null;
   },
 ): Promise<Task> {
   const id = uuidv7();
@@ -185,6 +186,7 @@ export async function createTask(
     name: params.name,
     description: params.description ?? "",
     priority: params.priority ?? "medium",
+    model: params.model ?? null,
     status: "pending",
     blocked_by: params.blocked_by ?? [],
     context_paths: params.context_paths ?? [],
@@ -208,7 +210,7 @@ export async function updateTask(
   updates: Partial<
     Pick<
       TaskFrontmatter,
-      "name" | "description" | "priority" | "blocked_by" | "status"
+      "name" | "description" | "priority" | "blocked_by" | "status" | "model"
     >
   >,
 ): Promise<Task | null> {

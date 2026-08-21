@@ -148,10 +148,9 @@ the rendered file; the agent uses `mcp_list_tools`, `mcp_search`, or
 `mcp_info` to look up exact names when it actually needs to invoke a
 tool. This keeps the always-loaded context small.
 
-Summarization uses Claude (the `chunker_model` from config) on every
-refresh. When no Anthropic API key is configured, a static fallback
-listing is rendered with internal themes + MCPX server names and tool
-counts.
+Summarization uses the `fast_model` entry from config on every refresh.
+When that entry has no usable credentials, a static fallback listing is
+rendered with internal themes + MCPX server names and tool counts.
 
 `init` seeds it with the built-in tools already populated. Regenerate
 any time via:

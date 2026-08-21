@@ -1,5 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
+import { resolveFastModel } from "../config/models.ts";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import {
   buildProviderOptions,
@@ -46,8 +47,9 @@ export async function evaluateSchedule(
   config: BotholomewConfig,
   schedule: Schedule,
 ): Promise<ScheduleEvaluation> {
-  const model = getLanguageModel(config.chunker_llm);
-  const numCtx = await getMaxInputTokens(config.chunker_llm);
+  const { llm } = resolveFastModel(config);
+  const model = getLanguageModel(llm);
+  const numCtx = await getMaxInputTokens(llm);
 
   const systemPrompt = `You are a schedule evaluator. Given a recurring schedule, the current time, and when the schedule last ran, determine:
 1. Whether the schedule is currently due to run
@@ -70,7 +72,7 @@ Is this schedule due to run? If yes, what tasks should be created?`;
       system: systemPrompt,
       prompt: userMessage,
       maxOutputTokens: 1024,
-      providerOptions: buildProviderOptions(config.chunker_llm, numCtx),
+      providerOptions: buildProviderOptions(llm, numCtx),
     });
 
     return {
@@ -84,7 +86,7 @@ Is this schedule due to run? If yes, what tasks should be created?`;
       })),
     };
   } catch (err) {
-    const message = formatLlmError(err, config.chunker_llm);
+    const message = formatLlmError(err, llm);
     logger.warn(`Failed to evaluate schedule "${schedule.name}": ${message}`);
     return {
       isDue: false,
@@ -132,6 +134,9 @@ export async function processSchedules(
               description: taskDef.description,
               priority: taskDef.priority,
               blocked_by: blockedBy,
+              // Tasks inherit the schedule's model pin, so "run this recurring
+              // work on the cheap model" is a one-time setting on the schedule.
+              model: claimed.model,
             });
             createdIds.push(task.id);
           }

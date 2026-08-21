@@ -1,6 +1,10 @@
 import {
+  type BotholomewConfig,
+  DEFAULT_MODEL_NAME,
+  FAST_MODEL_NAME,
   type LlmProvider,
   DEFAULT_CONFIG as SCHEMA_DEFAULT_CONFIG,
+  DEFAULT_LLM as SCHEMA_DEFAULT_LLM,
 } from "../config/schemas.ts";
 
 export const GOALS_MD = `---
@@ -83,44 +87,48 @@ and currently in progress) and format a brief standup-style update with:
 - Any blockers or waiting items
 `;
 
-const PROVIDER_PRESETS: Record<
-  LlmProvider,
-  { llm: { model: string }; chunker_llm: { model: string } }
-> = {
-  anthropic: {
-    llm: { model: "claude-opus-4-6" },
-    chunker_llm: { model: "claude-haiku-4-5-20251001" },
-  },
-  ollama: {
-    llm: { model: "llama3.1:8b" },
-    chunker_llm: { model: "qwen2.5:3b" },
-  },
-  "openai-compatible": {
-    llm: { model: "gpt-4o" },
-    chunker_llm: { model: "gpt-4o-mini" },
-  },
-};
+/**
+ * Model ids seeded into the two named entries per provider. Both entries are
+ * seeded with the *same* provider — `init --provider` picks one stack, and
+ * mixing providers is a thing users do by hand afterwards.
+ */
+const PROVIDER_PRESETS: Record<LlmProvider, { default: string; fast: string }> =
+  {
+    anthropic: {
+      default: "claude-opus-4-6",
+      fast: "claude-haiku-4-5-20251001",
+    },
+    ollama: {
+      default: "llama3.1:8b",
+      fast: "qwen2.5:3b",
+    },
+    "openai-compatible": {
+      default: "gpt-4o",
+      fast: "gpt-4o-mini",
+    },
+  };
 
-export function buildDefaultConfig(provider: LlmProvider = "anthropic") {
+export function buildDefaultConfig(
+  provider: LlmProvider = "anthropic",
+): BotholomewConfig {
   const preset = PROVIDER_PRESETS[provider];
   const apiKeyPlaceholder = provider === "anthropic" ? "your-api-key-here" : "";
   const baseUrl = provider === "ollama" ? "http://localhost:11434" : "";
+  const entry = (model: string) => ({
+    ...SCHEMA_DEFAULT_LLM,
+    provider,
+    model,
+    base_url: baseUrl,
+    api_key: apiKeyPlaceholder,
+  });
   return {
     ...SCHEMA_DEFAULT_CONFIG,
-    llm: {
-      ...SCHEMA_DEFAULT_CONFIG.llm,
-      provider,
-      model: preset.llm.model,
-      base_url: baseUrl,
-      api_key: apiKeyPlaceholder,
+    models: {
+      [DEFAULT_MODEL_NAME]: entry(preset.default),
+      [FAST_MODEL_NAME]: entry(preset.fast),
     },
-    chunker_llm: {
-      ...SCHEMA_DEFAULT_CONFIG.chunker_llm,
-      provider,
-      model: preset.chunker_llm.model,
-      base_url: baseUrl,
-      api_key: apiKeyPlaceholder,
-    },
+    default_model: DEFAULT_MODEL_NAME,
+    fast_model: FAST_MODEL_NAME,
   };
 }
 

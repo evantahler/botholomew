@@ -1,5 +1,8 @@
 import type { Command } from "commander";
 import { loadConfig } from "../config/loader.ts";
+import { resolveModel } from "../config/models.ts";
+import { describeModel } from "../llm/index.ts";
+import { assertModelFlag } from "./model-flag.ts";
 
 export function registerChatCommand(program: Command) {
   program
@@ -33,11 +36,16 @@ export function registerChatCommand(program: Command) {
       "bypass the mcpx approval gate (allow every tool without approval)",
       false,
     )
+    .option(
+      "--model <name>",
+      "named model from the `models` block in config (default: `default_model`)",
+    )
     .action(
       async (opts: {
         threadId?: string;
         prompt?: string;
         unsafe?: boolean;
+        model?: string;
       }) => {
         const { render } = await import("ink");
         const React = await import("react");
@@ -45,6 +53,14 @@ export function registerChatCommand(program: Command) {
         const dir = program.opts().dir;
         const config = await loadConfig(dir);
         const idleTimeoutMs = config.tui_idle_timeout_seconds * 1000;
+
+        // Validate + resolve here as well as in `startChatSession`, so an
+        // unknown --model prints a one-line error instead of a stack trace
+        // buried under a torn-down Ink render, and so the status bar has a
+        // label before the session opens.
+        await assertModelFlag(dir, opts.model);
+        const { name: modelName, llm } = resolveModel(config, opts.model);
+        const modelLabel = `${modelName} · ${describeModel(llm)}`;
 
         // VHS/ttyd doesn't fully negotiate the Kitty Keyboard protocol, so
         // Ink's "enabled" mode drops non-text keystrokes (Tab, Escape) under
@@ -59,6 +75,8 @@ export function registerChatCommand(program: Command) {
             initialPrompt: opts.prompt,
             idleTimeoutMs,
             unsafe: opts.unsafe,
+            modelName,
+            modelLabel,
           }),
           {
             exitOnCtrlC: false,
