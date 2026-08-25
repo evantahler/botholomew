@@ -1,7 +1,7 @@
-import type { SharedV3ProviderOptions } from "@ai-sdk/provider";
+import type { SharedV4ProviderOptions } from "@ai-sdk/provider";
 import type { LlmBlock } from "../config/schemas.ts";
 
-type ProviderOptions = SharedV3ProviderOptions;
+type ProviderOptions = SharedV4ProviderOptions;
 
 /**
  * Build the `providerOptions` payload passed to `streamText` / `generateText`

@@ -9,7 +9,7 @@ interface AnthropicCacheMeta {
 /**
  * Normalize cache-token accounting across providers. Anthropic surfaces cache
  * read/creation via `providerMetadata.anthropic`; AI SDK also bubbles cache
- * reads into `usage.inputTokenDetails.cacheReadTokens` for some providers.
+ * reads/writes into `usage.inputTokenDetails` for some providers.
  * Non-caching providers (Ollama, OpenAI-compatible) yield zeros.
  */
 export function extractCacheTokens(
@@ -23,7 +23,6 @@ export function extractCacheTokens(
     cacheRead:
       anthropicMeta.cacheReadInputTokens ??
       usage?.inputTokenDetails?.cacheReadTokens ??
-      usage?.cachedInputTokens ??
       0,
     cacheCreation:
       anthropicMeta.cacheCreationInputTokens ??
