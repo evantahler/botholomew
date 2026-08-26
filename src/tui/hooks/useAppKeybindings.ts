@@ -10,6 +10,7 @@ import { abortActiveStream, type ChatSession } from "../../chat/session.ts";
 import type { SlashCommand } from "../../skills/commands.ts";
 import type { TabId } from "../components/TabBar.tsx";
 import { TAB_BY_CTRL_KEY } from "../keys.ts";
+import type { LinkEntry } from "../links.ts";
 import { getSlashMatches } from "../slashCompletion.ts";
 import type { QueueEntry } from "./useMessageQueue.ts";
 
@@ -30,6 +31,11 @@ interface UseAppKeybindingsParams {
   markActivityRef: MutableRefObject<() => void>;
   /** True while the approval prompt owns input; gates all bindings but Ctrl+C. */
   approvalActiveRef: MutableRefObject<boolean>;
+  /** True while the link picker owns input; gated the same way. */
+  linkPickerActiveRef: MutableRefObject<boolean>;
+  /** Links available to Ctrl+L. Read at keypress time, never during render. */
+  linksRef: MutableRefObject<LinkEntry[]>;
+  openLinkPicker: () => void;
 }
 
 export function useAppKeybindings({
@@ -48,6 +54,9 @@ export function useAppKeybindings({
   inputValueRef,
   markActivityRef,
   approvalActiveRef,
+  linkPickerActiveRef,
+  linksRef,
+  openLinkPicker,
 }: UseAppKeybindingsParams): void {
   // Stable refs for the input handler — same pattern as InputBar to prevent
   // Ink's useInput from re-registering stdin listeners on every render.
@@ -76,6 +85,16 @@ export function useAppKeybindings({
       // by its own useInput). Swallow everything else so a tab-jump or Esc-abort
       // doesn't fire mid-prompt.
       if (approvalActiveRef.current) return;
+
+      // Same for the link picker (o/c/v/j/k/Esc handled by its own useInput).
+      if (linkPickerActiveRef.current) return;
+
+      // Ctrl+L opens the link picker from any tab. No-op with nothing to show,
+      // so the keystroke doesn't pop an empty box mid-conversation.
+      if (input === "l" && key.ctrl) {
+        if (linksRef.current.length > 0) openLinkPicker();
+        return;
+      }
 
       // Ctrl+<letter> jumps directly to a tab from any tab. On Chat, only
       // suppress these if the slash-autocomplete popup needs the keystroke
@@ -168,6 +187,9 @@ export function useAppKeybindings({
       inputValueRef,
       markActivityRef,
       approvalActiveRef,
+      linkPickerActiveRef,
+      linksRef,
+      openLinkPicker,
     ],
   );
 

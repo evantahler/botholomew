@@ -125,8 +125,10 @@ Switch with one of:
 returned by `resolveMcpxDir(projectDir, config)`):
 
 1. Reads `servers.json`.
-2. Connects to every server.
-3. Returns an `McpxClient | null` (`null` if no servers are configured).
+2. Returns an `McpxClient | null` (`null` if no servers are configured).
+
+Connections are lazy — `McpxClient` dials a server on the first `search` /
+`info` / `exec` that needs it, not at construction time.
 
 Each worker (and the chat session) holds the client for its lifetime
 and calls `client.close()` on SIGTERM/SIGINT. CLI commands like
@@ -172,6 +174,41 @@ approve inline; a background worker writes an `approvals/<id>.md` record and
 parks the task until you decide. The gate is built on mcpx's `approvalPolicy` /
 `onApprovalRequired` SDK hooks. See [Approvals](/approvals) for the full
 workflow and config.
+
+---
+
+## OAuth authorization challenges
+
+A gateway like Arcade brokers OAuth for the services behind it. The first time
+the agent calls a tool for a service you haven't authorized, the tool comes back
+with an authorization URL instead of a result, and the agent relays it to you.
+
+Those URLs are long — 400+ characters of percent-encoded scopes and state — so
+in the chat TUI, press `Ctrl+L` and `c` to copy the link as one unbroken string
+rather than selecting it out of scrollback, where the terminal's wrapping breaks
+it. See [Links](/tui#links-ctrl-l).
+
+Authorizing a service is a **different thing** from the [approval
+gate](/approvals): approval asks *may Botholomew do this?*, authorization asks
+*will you grant this app access to your account?* Approving a call that isn't
+authorized yet still returns a challenge.
+
+### Known gaps
+
+Two authorization paths don't surface a usable URL yet:
+
+- **`tools/call` answering with JSON-RPC `-32042`.** `mcp_exec` stringifies the
+  error, which drops the `elicitations[].url` payload that carries the link, and
+  classifies it as an input error — so the agent is told to retry with corrected
+  arguments instead of asking you to authorize.
+- **Server-initiated URL elicitation.** `@evantahler/mcpx` connects with
+  `noInteractive: true`, so an `elicitation/create` request is auto-declined and
+  the URL never reaches Botholomew. Fixing this needs an `onElicitation` hook in
+  the mcpx SDK.
+
+In both cases the URL never makes it into the transcript, so `Ctrl+L` can't show
+it either. Workaround: run `botholomew mcpx exec <server> <tool>` from a plain
+terminal, where the mcpx CLI prints the challenge itself.
 
 ---
 

@@ -245,6 +245,52 @@ and recovers). While the prompt is up it owns the keyboard. Run
 
 ---
 
+## Links (`Ctrl+L`)
+
+Long URLs — OAuth authorization links especially — are hard to get out of a
+terminal. They wrap at the viewport edge, so selecting one out of scrollback
+picks up embedded newlines and the pasted result is broken.
+
+`Ctrl+L` opens a picker over every URL Botholomew has shown you this session,
+newest first:
+
+```
+⇗ Links (1/3)
+❯ Authorize Google Calendar — Botholomew 14:32
+  accounts.google.com/o/oauth2/v2/auth?… — arcade / Arcade_UseTool
+  https://github.com/evantahler/botholomew — Botholomew 14:28
+o open · c copy · v show full URL · ↑↓ select · q/Esc close
+```
+
+| Key | Action |
+|---|---|
+| `↑` / `↓` (or `k` / `j`) | Select a link |
+| `o` | Open in your default browser |
+| `c` | Copy the URL to the clipboard as a single unbroken string |
+| `v` | Show/hide the full URL, chunked so all of it is visible |
+| `q` / `Esc` | Close |
+
+`c` is the reliable path — it copies the URL as one string, with no wrapping.
+
+The picker scans both the agent's replies and **tool output**, so a URL a tool
+returned but the agent never repeated is still reachable (the inline tool-call
+preview clips output at 120 characters).
+
+Assistant messages that contain a link get a dim `↳ N links · ^l to open/copy`
+footer so you know the picker has something.
+
+Botholomew also emits [OSC-8][osc8] hyperlinks, which make URLs clickable in
+iTerm2, Ghostty, WezTerm, VS Code and Windows Terminal. Terminals without
+support (Terminal.app) ignore the escape and show plain text. Set
+`BOTHOLOMEW_NO_HYPERLINKS=1` to turn them off.
+
+[osc8]: https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+
+**Clipboard requirements:** macOS uses `pbcopy` and Windows `clip` (both
+built in). Linux needs one of `wl-copy`, `xclip`, or `xsel` on `PATH`.
+
+---
+
 ## The input bar
 
 The bar at the bottom of the Chat tab is a custom multi-line input
@@ -391,6 +437,7 @@ on the agent side) and disappears when the wait elapses or you press
 | `Ctrl+s` | Schedules |
 | `Ctrl+w` | Workers |
 | `Ctrl+p` | Approvals |
+| `Ctrl+l` | Open the link picker (open / copy any URL shown this session) |
 | `Ctrl+g` | Help (`Ctrl+/` also works in most terminals — it's typically delivered as the same byte) |
 | `Ctrl+R` | Refresh the active list (Context · Tasks · Threads · Schedules · Workers · Approvals) |
 | `Esc` | Return to Chat from any other tab |

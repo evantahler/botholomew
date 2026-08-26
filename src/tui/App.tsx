@@ -6,6 +6,7 @@ import {
 } from "../skills/commands.ts";
 import { ApprovalPrompt } from "./components/ApprovalPrompt.tsx";
 import { InputBar } from "./components/InputBar.tsx";
+import { LinkPicker } from "./components/LinkPicker.tsx";
 import { AnimatedLogo } from "./components/Logo.tsx";
 import {
   type ChatMessage,
@@ -16,6 +17,7 @@ import { QueuePanel } from "./components/QueuePanel.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import { TabBar, type TabId } from "./components/TabBar.tsx";
 import { TabPanels } from "./components/TabPanels.tsx";
+import { resolveToolDisplay } from "./components/ToolCall.tsx";
 import { useChatSubmit } from "./handleSubmit.ts";
 import { useAppKeybindings } from "./hooks/useAppKeybindings.ts";
 import { useApprovalCount } from "./hooks/useApprovalCount.ts";
@@ -27,6 +29,7 @@ import { useMessageQueue } from "./hooks/useMessageQueue.ts";
 import { useResizeRedraw } from "./hooks/useResizeRedraw.ts";
 import { useTerminalRows } from "./hooks/useTerminalRows.ts";
 import { IdleProvider, useIdle } from "./idle.tsx";
+import { collectLinks, type LinkEntry, type LinkSource } from "./links.ts";
 import { FOOTER_RESERVE } from "./messages.ts";
 import { buildSlashCommands } from "./slashCompletion.ts";
 import { clearTerminal } from "./terminal.ts";
@@ -150,6 +153,14 @@ function AppInner({
     useApprovalPrompt(sessionRef);
   const approvalActiveRef = useRef(false);
   approvalActiveRef.current = approvalPending != null;
+
+  // Ctrl+L link picker. `linksRef` is filled in below (the memo depends on
+  // `messages`, which is declared after the keybindings hook); the keybinding
+  // handler only reads it at keypress time.
+  const [linkPickerOpen, setLinkPickerOpen] = useState(false);
+  const linksRef = useRef<LinkEntry[]>([]);
+  const linkPickerActiveRef = useRef(false);
+  linkPickerActiveRef.current = linkPickerOpen;
   const pendingApprovals = useApprovalCount(projectDir, ready);
 
   useCaptureTabCycle(setActiveTab);
@@ -205,6 +216,9 @@ function AppInner({
     inputValueRef,
     markActivityRef,
     approvalActiveRef,
+    linkPickerActiveRef,
+    linksRef,
+    openLinkPicker: () => setLinkPickerOpen(true),
   });
 
   const handleSubmit = useChatSubmit({
@@ -243,6 +257,36 @@ function AppInner({
     () => messages.flatMap((m) => m.toolCalls ?? []),
     [messages],
   );
+
+  // Every URL shown this session, newest first. Tool output is scanned too:
+  // `ToolCall` clips its inline preview to 120 chars, so a URL a tool returned
+  // but the model never repeated is otherwise unreachable.
+  const links = useMemo(() => {
+    const sources: LinkSource[] = [];
+    messages.forEach((m, i) => {
+      const at = m.timestamp.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      if (m.role === "assistant" && m.content) {
+        sources.push({
+          text: m.content,
+          source: `Botholomew ${at}`,
+          order: i * 1000,
+        });
+      }
+      m.toolCalls?.forEach((tc, j) => {
+        if (!tc.output) return;
+        sources.push({
+          text: tc.output,
+          source: resolveToolDisplay(tc.name, tc.input).displayName,
+          order: i * 1000 + j + 1,
+        });
+      });
+    });
+    return collectLinks(sources);
+  }, [messages]);
+  linksRef.current = links;
 
   if (error) {
     return (
@@ -334,6 +378,13 @@ function AppInner({
         />
       )}
 
+      {/* Ctrl+L link picker — open/copy a URL without selecting wrapped text */}
+      <LinkPicker
+        links={links}
+        open={linkPickerOpen}
+        onClose={() => setLinkPickerOpen(false)}
+      />
+
       {/* Inline approval prompt (gates input while a gated tool call waits) */}
       <ApprovalPrompt request={approvalPending} onDecide={decideApproval} />
 
@@ -342,7 +393,12 @@ function AppInner({
         value={inputValue}
         onChange={setInputValue}
         onSubmit={handleSubmit}
-        disabled={activeTab !== 1 || clearing || approvalPending != null}
+        disabled={
+          activeTab !== 1 ||
+          clearing ||
+          approvalPending != null ||
+          linkPickerOpen
+        }
         history={inputHistory}
         header={inputBarHeader}
         slashCommands={slashCommands}

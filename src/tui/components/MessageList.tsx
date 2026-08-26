@@ -1,6 +1,7 @@
 import { Box, Text, useStdout } from "ink";
 import Spinner from "ink-spinner";
 import { memo, useMemo } from "react";
+import { extractUrls } from "../links.ts";
 import { renderMarkdown, tailLines } from "../markdown.ts";
 import { theme } from "../theme.ts";
 import { ToolCall, type ToolCallData } from "./ToolCall.tsx";
@@ -71,6 +72,14 @@ export const MessageBubble = memo(function MessageBubble({
     [message.role, message.content],
   );
 
+  // The terminal hard-wraps a long URL at the viewport edge, so selecting one
+  // out of scrollback picks up newlines. Point at Ctrl+L, which copies it whole.
+  const linkCount = useMemo(
+    () =>
+      message.role === "assistant" ? extractUrls(message.content).length : 0,
+    [message.role, message.content],
+  );
+
   if (message.role === "user") {
     const paddedContent = message.content
       .split("\n")
@@ -124,6 +133,12 @@ export const MessageBubble = memo(function MessageBubble({
           </Box>
         )}
         <Text>{renderedContent}</Text>
+        {linkCount > 0 && (
+          <Text dimColor>
+            {"  ↳ "}
+            {linkCount} link{linkCount === 1 ? "" : "s"} · ^l to open/copy
+          </Text>
+        )}
       </Box>
     </Box>
   );
