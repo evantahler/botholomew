@@ -91,6 +91,9 @@ export const HelpPanel = memo(function HelpPanel({
         <Text>
           {"  "}Esc{"            "}Steer / abort in-flight turn
         </Text>
+        <Text>
+          {"  "}Ctrl+l{"         "}Links — open (o) or copy (c) any URL shown
+        </Text>
       </Box>
 
       <Box marginTop={1} flexDirection="column">
