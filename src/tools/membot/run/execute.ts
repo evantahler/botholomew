@@ -125,9 +125,11 @@ export function mapRunError(err: unknown): RunFailure {
         next_action_hint: HOST_API_PRIMER,
       };
     }
+    const msg = err.message.toLowerCase();
     if (
       err.code === "RUN_BRIDGE_LIMIT" ||
-      err.code === "RUN_CONCURRENCY_LIMIT"
+      err.code === "RUN_CONCURRENCY_LIMIT" ||
+      msg.includes("size limit")
     ) {
       return {
         is_error: true,
@@ -153,7 +155,6 @@ export function mapRunError(err: unknown): RunFailure {
           "The stored continuation could not be replayed. Do not invent a new program for a parked approval — the worker should resume the saved run.",
       };
     }
-    const msg = err.message.toLowerCase();
     if (
       msg.includes("expecting") ||
       msg.includes("unexpected") ||
