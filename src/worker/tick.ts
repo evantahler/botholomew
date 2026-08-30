@@ -1,4 +1,5 @@
 import type { McpxClient } from "@evantahler/mcpx";
+import { listApprovals } from "../approvals/store.ts";
 import { resolveModelFor } from "../config/models.ts";
 import type { BotholomewConfig, LlmBlock } from "../config/schemas.ts";
 import { describeModel } from "../llm/index.ts";
@@ -17,6 +18,12 @@ import {
   updateTaskStatus,
 } from "../tasks/store.ts";
 import { createThread, endThread, logInteraction } from "../threads/store.ts";
+import { findRunContinuationForTask } from "../tools/membot/run/continuation.ts";
+import {
+  formatResumeNote,
+  resumeStoredRun,
+} from "../tools/membot/run/execute.ts";
+import type { ToolContext } from "../tools/tool.ts";
 import { logger } from "../utils/logger.ts";
 import { generateThreadTitle } from "../utils/title.ts";
 import type { WorkerApprovalCtx } from "./approval.ts";
@@ -41,6 +48,8 @@ export interface TickOptions {
   modelName?: string;
   /** Holder the mcpx approval callback reads; set per-task before the loop. */
   approvalCtx?: WorkerApprovalCtx;
+  /** True when the worker's mcpx client was constructed with a policy. */
+  approvalGateActive?: boolean;
 }
 
 /**
@@ -63,6 +72,7 @@ export async function tick(opts: TickOptions): Promise<boolean> {
     evalSchedules = true,
     modelName,
     approvalCtx,
+    approvalGateActive,
   } = opts;
 
   const tickStart = Date.now();
@@ -108,6 +118,7 @@ export async function tick(opts: TickOptions): Promise<boolean> {
       task,
       modelName,
       approvalCtx,
+      approvalGateActive,
     });
   } finally {
     await mem.close();
@@ -131,6 +142,7 @@ export async function runSpecificTask(opts: {
   callbacks?: WorkerStreamCallbacks;
   modelName?: string;
   approvalCtx?: WorkerApprovalCtx;
+  approvalGateActive?: boolean;
 }): Promise<boolean> {
   const task = await claimSpecificTask(
     opts.projectDir,
@@ -156,6 +168,7 @@ export async function runSpecificTask(opts: {
       task,
       modelName: opts.modelName,
       approvalCtx: opts.approvalCtx,
+      approvalGateActive: opts.approvalGateActive,
     });
   } finally {
     await mem.close();
@@ -173,6 +186,7 @@ async function runClaimedTask(opts: {
   task: Task;
   modelName?: string;
   approvalCtx?: WorkerApprovalCtx;
+  approvalGateActive?: boolean;
 }): Promise<void> {
   const {
     projectDir,
@@ -184,6 +198,7 @@ async function runClaimedTask(opts: {
     task,
     modelName,
     approvalCtx,
+    approvalGateActive,
   } = opts;
 
   logger.info(`Claimed task: ${task.name} (${task.id})`);
@@ -252,6 +267,46 @@ async function runClaimedTask(opts: {
     return;
   }
 
+  let resumeNote = "";
+  const storedRun = await findRunContinuationForTask(projectDir, task.id);
+  if (storedRun) {
+    const resumeCtx: ToolContext = {
+      withMem,
+      projectDir,
+      config,
+      mcpxClient: mcpxClient ?? null,
+      workerId,
+      taskId: task.id,
+      threadId,
+      approvalGateActive,
+    };
+    const outcome = await resumeStoredRun(resumeCtx, storedRun);
+    if (outcome.status === "interrupted") {
+      const pending = (
+        await listApprovals(projectDir, { status: "pending" })
+      ).find((a) => a.task_id === task.id);
+      const reason = pending
+        ? `Awaiting human approval (${pending.id})`
+        : "Awaiting human approval";
+      await updateTaskStatus(projectDir, task.id, "waiting", reason, null);
+      await logInteraction(projectDir, threadId, {
+        role: "system",
+        kind: "status_change",
+        content: `Task ${task.id} -> waiting: ${reason}`,
+      });
+      logger.info(`Task ${task.id} -> waiting`);
+      await releaseTaskLock(projectDir, task.id);
+      await endThread(projectDir, threadId);
+      return;
+    }
+    resumeNote = formatResumeNote(outcome);
+    await logInteraction(projectDir, threadId, {
+      role: "system",
+      kind: "status_change",
+      content: resumeNote,
+    });
+  }
+
   try {
     const result = await runAgentLoop({
       systemPrompt,
@@ -264,6 +319,8 @@ async function runClaimedTask(opts: {
       workerId,
       mcpxClient,
       callbacks,
+      approvalGateActive,
+      resumeNote,
     });
 
     const isComplete = result.status === "complete";

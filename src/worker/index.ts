@@ -2,6 +2,7 @@ import { hostname } from "node:os";
 import ansis from "ansis";
 import { loadConfig } from "../config/loader.ts";
 import { resolveModel } from "../config/models.ts";
+import { isMcpApprovalBypassed } from "../mcpx/bypass.ts";
 import {
   buildApprovalPolicy,
   createMcpxClient,
@@ -125,7 +126,14 @@ export async function startWorker(
     {
       approvalPolicy,
       onApprovalRequired: approvalPolicy
-        ? makeWorkerApprovalCallback(projectDir, workerId, approvalCtx)
+        ? async (req) => {
+            if (isMcpApprovalBypassed()) return true;
+            return makeWorkerApprovalCallback(
+              projectDir,
+              workerId,
+              approvalCtx,
+            )(req);
+          }
         : undefined,
     },
   );
@@ -193,6 +201,7 @@ export async function startWorker(
           callbacks,
           modelName: options.modelName,
           approvalCtx,
+          approvalGateActive: approvalPolicy != null,
         });
       } else {
         await tick({
@@ -205,6 +214,7 @@ export async function startWorker(
           evalSchedules,
           modelName: options.modelName,
           approvalCtx,
+          approvalGateActive: approvalPolicy != null,
         });
       }
       return;
@@ -227,6 +237,7 @@ export async function startWorker(
           evalSchedules: true,
           modelName: options.modelName,
           approvalCtx,
+          approvalGateActive: approvalPolicy != null,
         });
       } catch (err) {
         logger.error(`Tick failed: ${err}`);

@@ -231,7 +231,7 @@ describe("buildSystemPrompt", () => {
     expect(prompt).not.toContain("## External Tools (MCP)");
   });
 
-  test("teaches the pipe -> query pattern regardless of MCP tooling", async () => {
+  test("teaches the pipe -> run pattern regardless of MCP tooling", async () => {
     const withMcp = await buildSystemPrompt(projectDir, undefined, undefined, {
       hasMcpTools: true,
     });
@@ -239,7 +239,7 @@ describe("buildSystemPrompt", () => {
     for (const prompt of [withMcp, withoutMcp]) {
       expect(prompt).toContain("## Large JSON results");
       expect(prompt).toContain("membot_pipe");
-      expect(prompt).toContain("membot_query");
+      expect(prompt).toContain("membot_run");
     }
   });
 

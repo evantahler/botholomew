@@ -32,6 +32,13 @@ export const ApprovalFrontmatterSchema = z.object({
   updated_at: z.string(),
   decided_at: z.string().nullable().default(null),
   decided_by: z.string().nullable().default(null),
+  /**
+   * When this gate fired from a `membot_run` sandbox, the id of the stored
+   * continuation (sibling `approvals/<run_id>.run.json`).
+   */
+  run_id: z.string().nullable().default(null),
+  /** Run SDK interruption id this record resolves, when `run_id` is set. */
+  interruption_id: z.string().nullable().default(null),
 });
 
 export type ApprovalFrontmatter = z.infer<typeof ApprovalFrontmatterSchema>;

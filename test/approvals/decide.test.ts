@@ -65,6 +65,33 @@ describe("decideAndRequeue", () => {
     expect(await decideAndRequeue(projectDir, a.id, "denied", "x")).toBeNull();
   });
 
+  test("membot_run batch waits until every interruption is decided", async () => {
+    const task = await createTask(projectDir, { name: "batch" });
+    const { updateTaskStatus } = await import("../../src/tasks/store.ts");
+    await updateTaskStatus(projectDir, task.id, "waiting", "Awaiting approval");
+
+    const first = await createApproval(projectDir, {
+      server: "gmail",
+      tool: "send",
+      task_id: task.id,
+      run_id: "run-1",
+      interruption_id: "interrupt-1",
+    });
+    const second = await createApproval(projectDir, {
+      server: "slack",
+      tool: "post",
+      task_id: task.id,
+      run_id: "run-1",
+      interruption_id: "interrupt-2",
+    });
+
+    await decideAndRequeue(projectDir, first.id, "approved", "cli");
+    expect((await getTask(projectDir, task.id))?.status).toBe("waiting");
+
+    await decideAndRequeue(projectDir, second.id, "denied", "cli");
+    expect((await getTask(projectDir, task.id))?.status).toBe("pending");
+  });
+
   test("no task_id: decides without throwing", async () => {
     const a = await createApproval(projectDir, { server: "s", tool: "t" });
     const decided = await decideAndRequeue(projectDir, a.id, "approved", "x");

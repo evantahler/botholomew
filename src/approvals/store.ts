@@ -165,6 +165,8 @@ export async function createApproval(
     task_id?: string | null;
     thread_id?: string | null;
     worker_id?: string | null;
+    run_id?: string | null;
+    interruption_id?: string | null;
   },
 ): Promise<Approval> {
   const id = uuidv7();
@@ -184,6 +186,8 @@ export async function createApproval(
     updated_at: now,
     decided_at: null,
     decided_by: null,
+    run_id: params.run_id ?? null,
+    interruption_id: params.interruption_id ?? null,
   };
   await atomicWrite(approvalFilePath(projectDir, id), serializeApproval(fm));
   const fresh = await getApproval(projectDir, id);
@@ -239,6 +243,22 @@ export async function findByCallKey(
   for (const a of all) {
     // listApprovals is newest-first, so the first match is the latest.
     if (a.call_key === key) return a;
+  }
+  return null;
+}
+
+/**
+ * Find the approval created for one `membot_run` sandbox interruption. Unlike
+ * `findByCallKey`, this is unambiguous when a program makes the same gated call
+ * twice, or when two tasks queue an identical call.
+ */
+export async function findByInterruptionId(
+  projectDir: string,
+  interruptionId: string,
+): Promise<Approval | null> {
+  const all = await listApprovals(projectDir);
+  for (const a of all) {
+    if (a.interruption_id === interruptionId) return a;
   }
   return null;
 }

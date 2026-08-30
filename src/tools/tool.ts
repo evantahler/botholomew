@@ -43,6 +43,28 @@ export interface ToolContext {
    * Chat leaves this `undefined` (chat resolves approvals inline).
    */
   onApprovalPending?: (approvalId: string) => void;
+  /**
+   * True when the current mcpx client was constructed with an approval
+   * policy (`--unsafe` / `approvals.enabled: false` leave this false).
+   * Sandboxed MCP calls interrupt instead of blocking inside QuickJS.
+   */
+  approvalGateActive?: boolean;
+  /** Originating task id, when a worker is executing a claimed task. */
+  taskId?: string;
+  /** Originating thread id for the current worker tick or chat turn. */
+  threadId?: string;
+  /**
+   * Chat-mode only. Resolve a batch of gated MCP calls from a paused
+   * `membot_run` via the inline approval prompt, then resume.
+   */
+  requestApprovals?: (
+    reqs: Array<{
+      server: string;
+      tool: string;
+      args: Record<string, unknown>;
+      reason: string;
+    }>,
+  ) => Promise<boolean[]>;
 }
 
 type ToolOutputBase = { is_error: z.ZodBoolean };

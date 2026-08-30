@@ -1,7 +1,7 @@
 import { getTask, updateTaskStatus } from "../tasks/store.ts";
 import { logger } from "../utils/logger.ts";
 import type { Approval } from "./schema.ts";
-import { decideApproval, getApproval } from "./store.ts";
+import { decideApproval, getApproval, listApprovals } from "./store.ts";
 
 /**
  * Apply a human decision to a pending approval and re-queue its originating
@@ -22,6 +22,14 @@ export async function decideAndRequeue(
   const existing = await getApproval(projectDir, id);
   if (existing?.status !== "pending") return null;
   const decided = await decideApproval(projectDir, id, decision, decidedBy);
+  if (decided.run_id) {
+    const batch = (await listApprovals(projectDir)).filter(
+      (a) => a.run_id === decided.run_id,
+    );
+    if (batch.some((a) => a.status === "pending")) {
+      return decided;
+    }
+  }
   if (decided.task_id) {
     const task = await getTask(projectDir, decided.task_id);
     if (task) {

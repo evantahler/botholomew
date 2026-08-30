@@ -102,10 +102,24 @@ count): select a request and press `a` to approve or `d` to deny.
   re-run the agent receives a structured "denied by a human reviewer" error and
   is told not to retry — it should try an alternative or `fail_task`.
 
-> **Note:** re-queueing re-runs the task from the start. Any *non-gated* side
-> effects the agent performed before parking (e.g. a knowledge-store write) will
-> happen again. For the common case — a single outbound action at the end of a
-> task — this is fine; design long tasks with that in mind.
+> **Note:** a top-level `mcp_exec` re-run starts the task from the beginning.
+> Any *non-gated* side effects the agent performed before parking (e.g. a
+> knowledge-store write) will happen again. Gated calls made from
+> `membot_run` are different: the worker stores a signed continuation and
+> resumes the exact program after every approval in that batch is decided, so
+> completed host calls are not replayed.
+
+When several `membot_run` MCP calls interrupt together, every approval in the
+batch must be decided before the task is re-queued. A single `approve` /
+`deny` on one item leaves the task parked until the rest of the batch is
+decided. Each approval records the sandbox interruption it came from, so the
+resumed program consumes its own grant and never another task's.
+
+Continuations are signed with a per-project key at
+`approvals/.continuation-secret` (created once, mode `0600`). The signature
+provides integrity, not secrecy: it stops a tampered continuation from
+replaying, but the token still encodes the program and its host-call results,
+so treat the `approvals/` directory as sensitive.
 
 ---
 
