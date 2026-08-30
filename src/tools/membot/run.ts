@@ -10,6 +10,9 @@ import {
 import { DEFAULT_MAX_INPUT_BYTES, PREVIEW_CHARS } from "./run/limits.ts";
 import { HOST_API_PRIMER } from "./run/primer.ts";
 
+/** Ceiling on interactive approve-and-resume rounds for one chat invocation. */
+const MAX_APPROVAL_ROUNDS = 16;
+
 const inputSchema = z.object({
   source: z
     .string()
@@ -34,7 +37,7 @@ const inputSchema = z.object({
     .positive()
     .optional()
     .describe(
-      `Reject a files.readJson / files.readText source if it exceeds this many characters (default ${DEFAULT_MAX_INPUT_BYTES}).`,
+      `Reject a files.readJson / files.readText source if it exceeds this many bytes (default ${DEFAULT_MAX_INPUT_BYTES}).`,
     ),
 });
 
@@ -79,9 +82,20 @@ export const membotRunTool = {
     };
 
     let outcome = await invokeSandbox(ctx, invocation);
+    let approvalRounds = 0;
 
     while (outcome.status === "interrupted") {
       if (ctx.requestApprovals) {
+        if (approvalRounds >= MAX_APPROVAL_ROUNDS) {
+          return {
+            is_error: true,
+            error_type: "sandbox_limit",
+            message: `This program asked for approval ${approvalRounds} times. Batch the gated calls or capture once instead of gating per record.`,
+            next_action_hint:
+              "Rewrite the program to make far fewer gated MCP calls, then run it again.",
+          };
+        }
+        approvalRounds += 1;
         const decisions = await ctx.requestApprovals(
           outcome.interruptions.map((i) => ({
             server: i.payload.server,
@@ -94,12 +108,26 @@ export const membotRunTool = {
           ...invocation,
           continuation: outcome.continuation,
           continuationContext: outcome.continuationContext,
+          // A short decisions array denies the rest — never assume approval.
           resolutions: outcome.interruptions.map((interruption, idx) => ({
             interruptionId: interruption.id,
             value: decisions[idx] === true,
           })),
         });
         continue;
+      }
+
+      // Only a task can be re-claimed and resumed. Without one, parking would
+      // leave an approval and a continuation nobody ever picks up.
+      if (!ctx.taskId) {
+        return {
+          is_error: true,
+          error_type: "mcp_error",
+          message:
+            "This MCP call needs human approval, but this run has no task to resume and no interactive approver.",
+          next_action_hint:
+            "Re-run the program from a task (or an interactive chat session), or allowlist the tool in config.approvals.",
+        };
       }
 
       const persisted = await persistInterruptedRun(ctx, invocation, outcome);

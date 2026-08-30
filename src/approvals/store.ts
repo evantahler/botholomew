@@ -248,6 +248,22 @@ export async function findByCallKey(
 }
 
 /**
+ * Find the approval created for one `membot_run` sandbox interruption. Unlike
+ * `findByCallKey`, this is unambiguous when a program makes the same gated call
+ * twice, or when two tasks queue an identical call.
+ */
+export async function findByInterruptionId(
+  projectDir: string,
+  interruptionId: string,
+): Promise<Approval | null> {
+  const all = await listApprovals(projectDir);
+  for (const a of all) {
+    if (a.interruption_id === interruptionId) return a;
+  }
+  return null;
+}
+
+/**
  * Delete an approval record. Approvals are single-use: once an approved record
  * has authorized its call, it's consumed so a later identical call re-prompts.
  */

@@ -112,7 +112,14 @@ count): select a request and press `a` to approve or `d` to deny.
 When several `membot_run` MCP calls interrupt together, every approval in the
 batch must be decided before the task is re-queued. A single `approve` /
 `deny` on one item leaves the task parked until the rest of the batch is
-decided.
+decided. Each approval records the sandbox interruption it came from, so the
+resumed program consumes its own grant and never another task's.
+
+Continuations are signed with a per-project key at
+`approvals/.continuation-secret` (created once, mode `0600`). The signature
+provides integrity, not secrecy: it stops a tampered continuation from
+replaying, but the token still encodes the program and its host-call results,
+so treat the `approvals/` directory as sensitive.
 
 ---
 

@@ -126,10 +126,12 @@ export function mapRunError(err: unknown): RunFailure {
       };
     }
     const msg = err.message.toLowerCase();
+    // Result and host-output overflow have no dedicated code — they arrive as
+    // a plain RunError. (Source overflow is already handled by code above.)
     if (
       err.code === "RUN_BRIDGE_LIMIT" ||
       err.code === "RUN_CONCURRENCY_LIMIT" ||
-      msg.includes("size limit")
+      (msg.includes("exceeds the") && msg.includes("size limit"))
     ) {
       return {
         is_error: true,
@@ -153,6 +155,15 @@ export function mapRunError(err: unknown): RunFailure {
         message: err.message,
         next_action_hint:
           "The stored continuation could not be replayed. Do not invent a new program for a parked approval — the worker should resume the saved run.",
+      };
+    }
+    if (err.code === "RUN_DETACHED_BRIDGE_REQUEST") {
+      return {
+        is_error: true,
+        error_type: "invalid_source",
+        message: err.message,
+        next_action_hint:
+          "Await every files.* / mcp.* call (or Promise.all them) before returning. Do not start a host call and return without awaiting it.",
       };
     }
     if (

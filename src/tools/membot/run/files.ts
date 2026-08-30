@@ -5,6 +5,7 @@ import {
   DEFAULT_MAX_INPUT_BYTES,
   LIST_DEFAULT_LIMIT,
   LIST_MAX_LIMIT,
+  SEARCH_DEFAULT_LIMIT,
   SEARCH_HIT_CAP,
 } from "./limits.ts";
 
@@ -32,10 +33,11 @@ async function readContent(
       mem.read({ logical_path: logicalPath }),
     );
     const content = read.content ?? "";
-    if (content.length > maxInputBytes) {
+    const bytes = Buffer.byteLength(content, "utf8");
+    if (bytes > maxInputBytes) {
       throw new HostOpError(
         "source_too_large",
-        `Source is ${content.length} chars, exceeding max_input_bytes (${maxInputBytes}).`,
+        `Source is ${bytes} bytes, exceeding max_input_bytes (${maxInputBytes}).`,
       );
     }
     return content;
@@ -200,11 +202,9 @@ export function createFilesHost(ctx: ToolContext, opts: FilesHostOptions) {
         options && typeof options === "object"
           ? (options as { limit?: unknown; path_prefix?: unknown })
           : {};
-      let limit = 10;
+      let limit = SEARCH_DEFAULT_LIMIT;
       if (typeof optsIn.limit === "number" && optsIn.limit > 0) {
         limit = Math.min(Math.floor(optsIn.limit), SEARCH_HIT_CAP);
-      } else {
-        limit = Math.min(limit, SEARCH_HIT_CAP);
       }
       const pathPrefix =
         typeof optsIn.path_prefix === "string" ? optsIn.path_prefix : undefined;

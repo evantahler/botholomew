@@ -79,12 +79,12 @@ export async function findRunContinuationForTask(
   const matches: StoredRunContinuation[] = [];
   for (const name of names) {
     if (!name.endsWith(".run.json")) continue;
-    const raw = await Bun.file(join(dir, name)).text();
     try {
+      const raw = await Bun.file(join(dir, name)).text();
       const parsed = JSON.parse(raw) as StoredRunContinuation;
       if (parsed.task_id === taskId) matches.push(parsed);
     } catch {
-      // skip malformed
+      // Malformed, or deleted by a concurrent resume — skip it.
     }
   }
   matches.sort((a, b) => (a.run_id < b.run_id ? 1 : -1));

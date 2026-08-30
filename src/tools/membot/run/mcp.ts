@@ -1,8 +1,7 @@
 import { getHostFunctionContext } from "run";
 import {
-  callKey,
   consumeApproval,
-  findByCallKey,
+  findByInterruptionId,
 } from "../../../approvals/store.ts";
 import { withMcpApprovalBypass } from "../../../mcpx/bypass.ts";
 import { buildApprovalPolicy } from "../../../mcpx/client.ts";
@@ -41,7 +40,10 @@ async function toolNeedsApproval(
     if (!schema) return false;
     return policy(schema, server);
   } catch {
-    return false;
+    // The gate is on but the policy can't be evaluated (server down, bad
+    // handshake). Interrupt rather than dispatch: mcpx would gate the call
+    // again anyway, but only as an unresumable error inside guest code.
+    return true;
   }
 }
 
@@ -83,11 +85,11 @@ async function execOrCapture(
   const dispatched = await withMcpApprovalBypass(() =>
     dispatchMcpExec({ server, tool, args }, ctx),
   );
-  const existing = await findByCallKey(
+  const granted = await findByInterruptionId(
     ctx.projectDir,
-    callKey(server, tool, args),
+    resume.interruptionId,
   );
-  if (existing) await consumeApproval(ctx.projectDir, existing.id);
+  if (granted) await consumeApproval(ctx.projectDir, granted.id);
   if (!dispatched.ok) {
     throw new HostOpError(
       "mcp_error",
