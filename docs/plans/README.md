@@ -19,6 +19,7 @@
 | 15 | [JSON Transforms](milestone-15-json-transforms.md) | Declarative JSONata queries (`membot_query`) over JSON stored in membot; reduce large MCP blobs without context bloat |
 | 16 | [Reflections (`dream`)](milestone-16-reflections.md) | Reflection loop: `dream` CLI + built-in `/dream` consolidate recent threads into membot + self-edited prompts; `thread search` CLI for episodic recall |
 | 17 | [Named Models](milestone-17-named-models.md) | Replace the fixed `llm`/`chunker_llm` blocks with a named `models` registry + `default_model`/`fast_model`; `--model` on chat/worker/dream and `model:` on tasks/schedules; supersedes M14's one-model-per-role non-goal |
+| 18 | [Sandboxed TypeScript](milestone-18-sandboxed-code.md) | Replace JSONata with a Run SDK sandbox over curated `files.*` and approval-gated `mcp.*` host functions |
 
 ## Stub/TODO Coverage
 
