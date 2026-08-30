@@ -347,7 +347,7 @@ Topics worth understanding in detail:
   visualization, and a live workers panel.
 - **[Files & the knowledge store](docs/files.md)** — the membot store,
   the path sandbox (NFC + lstat-walk) for non-knowledge files, and how
-  `membot_read`/`membot_write`/`membot_edit` work.
+  `membot_read`/`membot_write`/`membot_edit`/`membot_run` work.
 - **[Context & search](docs/context-and-search.md)** — pointer to
   membot for ingestion, chunking, embeddings, and hybrid search.
 - **[Tasks & schedules](docs/tasks-and-schedules.md)** — markdown

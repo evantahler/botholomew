@@ -26,19 +26,19 @@ afterEach(async () => {
 });
 
 describe("chat agent tooling", () => {
-  test("exposes the JSON-reduction tools (pipe + query)", () => {
+  test("exposes the JSON-reduction tools (pipe + run)", () => {
     const tools = getChatTools();
     expect(tools).toHaveProperty("membot_pipe");
-    expect(tools).toHaveProperty("membot_query");
+    expect(tools).toHaveProperty("membot_run");
   });
 
-  test("system prompt teaches the pipe -> query pattern", async () => {
+  test("system prompt teaches the pipe -> run pattern", async () => {
     const prompt = await buildChatSystemPrompt(projectDir, {
       hasMcpTools: true,
     });
     expect(prompt).toContain("## Large JSON results");
     expect(prompt).toContain("membot_pipe");
-    expect(prompt).toContain("membot_query");
+    expect(prompt).toContain("membot_run");
   });
 });
 

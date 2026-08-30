@@ -65,7 +65,7 @@ const CHAT_TOOL_NAMES = new Set([
   "membot_count_lines",
   "membot_copy",
   "membot_pipe",
-  "membot_query",
+  "membot_run",
   "list_threads",
   "view_thread",
   "search_threads",
@@ -151,9 +151,10 @@ Before calling any MCP tool you haven't used yet this session, you MUST fetch it
 
 1. Discover tools with \`mcp_search\` (preferred — semantic) or \`mcp_list_tools\`.
 2. Call \`mcp_info\` with the exact \`server\` and \`tool\` to read the tool's input schema, required fields, and types.
-3. Only then call \`mcp_exec\` with arguments that conform to that schema.
+3. Only then call \`mcp_exec\` (or \`mcp.exec\` / \`mcp.capture\` inside \`membot_run\`) with arguments that conform to that schema.
 
-Skip step 2 only if you already called \`mcp_info\` for that exact server+tool earlier in this conversation. Do not guess arguments from the tool's description alone — descriptions omit types and required/optional markers.
+Skip step 2 only if you already called \`mcp_info\` (or \`mcp.info\` in a program) for that exact server+tool earlier in this conversation. Do not guess arguments from the tool's description alone — descriptions omit types and required/optional markers.
+For multi-step fetch+reduce, prefer one \`membot_run\` over many \`mcp_exec\` calls.
 `;
   }
 
@@ -226,6 +227,8 @@ export async function runChatTurn(input: {
   mcpxClient: McpxClient | null;
   callbacks: ChatTurnCallbacks;
   session?: ChatSession;
+  approvalGateActive?: boolean;
+  requestApprovals?: ToolContext["requestApprovals"];
   /** Test seam: inject a pre-built language model. */
   _testModel?: LanguageModel;
   _testMaxInputTokens?: number;
@@ -254,6 +257,8 @@ async function runChatTurnBody(input: {
   mcpxClient: McpxClient | null;
   callbacks: ChatTurnCallbacks;
   session?: ChatSession;
+  approvalGateActive?: boolean;
+  requestApprovals?: ToolContext["requestApprovals"];
   _testModel?: LanguageModel;
   _testMaxInputTokens?: number;
 }): Promise<void> {
@@ -268,6 +273,8 @@ async function runChatTurnBody(input: {
     callbacks,
     session,
   } = input;
+  const approvalGateActive = input.approvalGateActive;
+  const requestApprovals = input.requestApprovals;
 
   const model = input._testModel ?? getLanguageModel(llm);
 
@@ -468,6 +475,9 @@ async function runChatTurnBody(input: {
           notify: callbacks.onToolNotify
             ? (msg) => callbacks.onToolNotify?.(tc.id, msg)
             : undefined,
+          approvalGateActive,
+          threadId,
+          requestApprovals,
         });
         const d = Date.now() - start;
         const stored = maybeStoreResult(tc.name, exec.output);
@@ -519,6 +529,9 @@ interface ChatToolCallCtx {
   mcpxClient: McpxClient | null;
   shouldAbort?: () => boolean;
   notify?: (message: string) => void;
+  approvalGateActive?: boolean;
+  threadId?: string;
+  requestApprovals?: ToolContext["requestApprovals"];
 }
 
 async function executeChatToolCall(

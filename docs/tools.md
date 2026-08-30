@@ -214,39 +214,40 @@ at 2KB), so the agent can retry with different arguments.
 
 ---
 
-## `membot_query` — reduce a JSON blob without reading it
+## `membot_run` — reduce and join index files in TypeScript
 
-`membot_pipe` lands a big JSON result in the store; `membot_query` reduces it
-there. It runs a [JSONata](https://jsonata.org) expression over the JSON at a
-`logical_path` and returns only the (usually small) result — so "bucket 303
-entries by day" or "pull the id and subject of each" costs the size of the
+`membot_pipe` lands a big JSON result in the store; `membot_run` reduces it
+there. The agent writes a JavaScript or type-stripped TypeScript function body
+that runs in a [Run SDK](https://vercel.com/blog/introducing-run) QuickJS
+sandbox. Guest code can call curated `files.*` host functions over the membot
+index and `mcp.*` host functions that reuse the existing MCPX approval gate —
+so "bucket 303 entries by day" or "join these two dumps" costs the size of the
 *answer*, not the size of the source.
 
 ```text
 agent → membot_pipe(tool_name="mcp_exec", tool_input={…}, path="mcp/inbox.json")
-agent → membot_query(logical_path="mcp/inbox.json",
-                     expression="${ $substring(ts,0,10): $count($) }")
+agent → membot_run(source=`
+    const rows = await files.readJson("mcp/inbox.json");
+    return rows.reduce((counts, row) => {
+      const day = String(row.ts).slice(0, 10);
+      counts[day] = (counts[day] ?? 0) + 1;
+      return counts;
+    }, {});
+  `)
         → { result: { "2026-05-31": 2, "2026-06-01": 1 }, result_type: "object" }
 ```
 
-JSONata expressions run against the parsed JSON root (`$`): filter
-`$[amount > 100]`, pluck `$.{ 'id': id, 'subject': subject }`, dedup
-`$distinct(email)`, sort+slice `$^(>created)[[0..9]]`, sum `$sum(amount)`. Set
-`output_logical_path` to write the result back as a new entry instead of
-returning it inline — that's how you chain `pipe → query → query`.
+There is no Node, filesystem, `fetch`, or shell inside the sandbox. Pass
+`source: "?"` for the host API. Set `output_logical_path` to write the returned
+value back as a new entry. Large MCP dumps should use `mcp.capture` (or
+`membot_pipe`) so the payload never enters the conversation — or QuickJS —
+until `files.readJson` needs it.
 
-It is a **declarative transform, not code execution**: a JSONata expression can
-only read and reshape the document it's given, with no filesystem, network, or
-host access.
+Gated `mcp.exec` / `mcp.capture` calls interrupt the run for a human. Chat
+resolves that inline; a worker stores a continuation and resumes the exact
+program after `decideAndRequeue`. See
 [Milestone 18](https://github.com/evantahler/botholomew/blob/main/docs/plans/milestone-18-sandboxed-code.md)
-plans to replace it with sandboxed TypeScript over curated membot and MCP host
-functions; `membot_query` remains the shipping tool until that milestone is
-implemented.
-Disclosure is token-light: the tool description carries only a handful of
-examples, and the full syntax reference comes back on a malformed expression or
-when you pass `expression: "?"`. The source must be a `logical_path` (a complete
-JSON document) — `membot_query` deliberately won't read from a paged
-`read_large_result` id, whose page boundaries aren't valid JSON.
+and [Approvals](./approvals.md).
 
 ---
 

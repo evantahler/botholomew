@@ -73,6 +73,9 @@ export async function runAgentLoop(input: {
   workerId?: string;
   mcpxClient?: McpxClient | null;
   callbacks?: WorkerStreamCallbacks;
+  approvalGateActive?: boolean;
+  /** Result of a resumed membot_run, prepended so the model does not rewrite it. */
+  resumeNote?: string;
 }): Promise<AgentLoopResult> {
   const {
     systemPrompt,
@@ -105,7 +108,8 @@ export async function runAgentLoop(input: {
     }
   }
 
-  const userMessage = `Task:\nName: ${task.name}\nDescription: ${task.description}\nPriority: ${task.priority}${predecessorContext}`;
+  const resumeBlock = input.resumeNote ? `\n\n${input.resumeNote}` : "";
+  const userMessage = `Task:\nName: ${task.name}\nDescription: ${task.description}\nPriority: ${task.priority}${predecessorContext}${resumeBlock}`;
 
   const messages: ModelMessage[] = [{ role: "user", content: userMessage }];
 
@@ -270,6 +274,9 @@ export async function runAgentLoop(input: {
           onApprovalPending: (id) => {
             pendingApprovalId = id;
           },
+          approvalGateActive: input.approvalGateActive,
+          taskId: task.id,
+          threadId,
         });
         const elapsed = Date.now() - start;
         callbacks?.onToolEnd(tc.name, result.output, result.isError, elapsed);
@@ -347,6 +354,9 @@ interface ToolCallCtx {
   mcpxClient: McpxClient | null;
   workerId?: string;
   onApprovalPending?: (approvalId: string) => void;
+  approvalGateActive?: boolean;
+  taskId?: string;
+  threadId?: string;
 }
 
 async function executeToolCall(

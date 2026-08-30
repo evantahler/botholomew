@@ -32,7 +32,7 @@ a few megabytes of JSON out of Huckleberry — baby-tracking data, because
 I have a toddler and apparently now so does my agent. Stuffing that into
 the context window is a great way to light money on fire. So large tool
 responses get piped straight into the membot store, and the agent gets a
-jq-style query tool (JSONata under the hood) to slice it down to just the
+sandboxed TypeScript program (`membot_run`) to slice it down to just the
 part it needs. It works through megabytes without ever holding them all
 in context at once.
 

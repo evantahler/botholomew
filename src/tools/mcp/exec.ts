@@ -1,12 +1,6 @@
-import {
-  ToolApprovalDeniedError,
-  ToolApprovalRequiredError,
-} from "@evantahler/mcpx";
 import { z } from "zod";
-import { ApprovalPendingError } from "../../approvals/errors.ts";
-import { formatCallToolResult } from "../../mcpx/client.ts";
-import { fakeMcpExec, isCaptureMode } from "../../worker/fake-mcp.ts";
-import { getTool, type ToolDefinition } from "../tool.ts";
+import type { ToolDefinition } from "../tool.ts";
+import { dispatchMcpExec } from "./dispatch.ts";
 
 const inputSchema = z.object({
   server: z.string().describe("MCP server name"),
@@ -28,57 +22,6 @@ const outputSchema = z.object({
   hint: z.string().optional(),
 });
 
-type ErrorKind = z.infer<typeof errorKindSchema>;
-
-function classifyError(err: unknown): { error_kind: ErrorKind; hint: string } {
-  const msg = String(err).toLowerCase();
-
-  if (
-    msg.includes("econnrefused") ||
-    msg.includes("etimedout") ||
-    msg.includes("enotfound") ||
-    msg.includes("rate limit") ||
-    msg.includes("429") ||
-    msg.includes("503")
-  ) {
-    return {
-      error_kind: "retryable",
-      hint: "Transient network error. Retry after a pause.",
-    };
-  }
-
-  if (
-    msg.includes("401") ||
-    msg.includes("403") ||
-    msg.includes("unauthorized") ||
-    msg.includes("forbidden") ||
-    msg.includes("authentication") ||
-    msg.includes("auth")
-  ) {
-    return {
-      error_kind: "auth_error",
-      hint: "Authentication failed. Check MCP server credentials. Not retryable.",
-    };
-  }
-
-  if (
-    msg.includes("invalid") ||
-    msg.includes("validation") ||
-    msg.includes("required") ||
-    msg.includes("schema")
-  ) {
-    return {
-      error_kind: "input_error",
-      hint: `Tool rejected input. Use mcp_info to check the expected schema for ${msg}, then retry with corrected arguments.`,
-    };
-  }
-
-  return {
-    error_kind: "permanent",
-    hint: "Unexpected error. Use mcp_search to find an alternative tool.",
-  };
-}
-
 export const mcpExecTool = {
   name: "mcp_exec",
   description:
@@ -87,89 +30,20 @@ export const mcpExecTool = {
   inputSchema,
   outputSchema,
   execute: async (input, ctx) => {
-    // Guard: the agent sometimes routes a top-level Botholomew tool through
-    // mcp_exec (e.g. read_large_result on a payload that originated from an
-    // MCP server). Bounce with a clear redirect rather than forwarding to a
-    // server that doesn't have the tool.
-    if (getTool(input.tool)) {
+    const dispatched = await dispatchMcpExec(input, ctx);
+    if (dispatched.ok) {
       return {
-        result: `\`${input.tool}\` is a top-level Botholomew tool, not an MCP tool. Call it directly by name instead of routing it through mcp_exec.`,
-        is_error: true,
-        error_kind: "input_error" as const,
-        hint: `Re-emit a tool_use block with name="${input.tool}" and its own input schema. Do not wrap it in mcp_exec.`,
-      };
-    }
-    if (isCaptureMode()) {
-      const canned = fakeMcpExec(input.server, input.tool, input.args);
-      if (canned) {
-        return {
-          result: canned,
-          is_error: false,
-          error_kind: undefined,
-          hint: undefined,
-        };
-      }
-    }
-    if (!ctx.mcpxClient) {
-      return {
-        result:
-          "No MCP servers configured. This task requires external tool access. Add servers with `botholomew mcpx add`.",
-        is_error: true,
-        error_kind: "permanent" as const,
-        hint: "Consider calling fail_task noting that MCP servers need to be configured.",
-      };
-    }
-
-    try {
-      const callResult = await ctx.mcpxClient.exec(
-        input.server,
-        input.tool,
-        input.args,
-      );
-      const isError = callResult.isError ?? false;
-      return {
-        result: formatCallToolResult(callResult),
-        is_error: isError,
+        result: dispatched.result,
+        is_error: false,
         error_kind: undefined,
-        hint: isError
-          ? "The tool returned an error. Check the error message and use mcp_info to verify you're passing the correct arguments."
-          : undefined,
-      };
-    } catch (err) {
-      // Human-in-the-loop approval gate outcomes (see src/mcpx/client.ts).
-      if (err instanceof ApprovalPendingError) {
-        // Worker context: signal the loop to park this task as `waiting`.
-        ctx.onApprovalPending?.(err.approvalId);
-        return {
-          result: `This action is queued for human approval (id ${err.approvalId}).`,
-          is_error: true,
-          error_kind: "permanent" as const,
-          hint: `Awaiting approval. Call wait_task with a reason referencing approval ${err.approvalId}; the task will be re-queued automatically once a human approves or denies it.`,
-        };
-      }
-      if (err instanceof ToolApprovalDeniedError) {
-        return {
-          result: `This action was denied by a human reviewer (${input.server}/${input.tool}).`,
-          is_error: true,
-          error_kind: "permanent" as const,
-          hint: "Do not retry the same call — the human said no. Try a different approach, or call fail_task explaining that the required action was denied.",
-        };
-      }
-      if (err instanceof ToolApprovalRequiredError) {
-        return {
-          result: `This action requires approval, but no approver is wired up.`,
-          is_error: true,
-          error_kind: "permanent" as const,
-          hint: "The approval gate is active but no approver is available. Call fail_task; a human must re-run with --unsafe or allowlist this tool in config.",
-        };
-      }
-      const { error_kind, hint } = classifyError(err);
-      return {
-        result: `MCP tool error: ${err}`,
-        is_error: true,
-        error_kind,
-        hint,
+        hint: undefined,
       };
     }
+    return {
+      result: dispatched.result,
+      is_error: true,
+      error_kind: dispatched.error_kind,
+      hint: dispatched.hint,
+    };
   },
 } satisfies ToolDefinition<typeof inputSchema, typeof outputSchema>;

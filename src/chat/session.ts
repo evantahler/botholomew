@@ -5,6 +5,7 @@ import type { BotholomewConfig, LlmBlock } from "../config/schemas.ts";
 import type { AbortHandle } from "../llm/abort.ts";
 import { assertToolCapable } from "../llm/index.ts";
 import { BotholomewLlmError } from "../llm/types.ts";
+import { isMcpApprovalBypassed } from "../mcpx/bypass.ts";
 import {
   buildApprovalPolicy,
   createMcpxClient,
@@ -38,6 +39,8 @@ export interface ChatSession {
   mcpxClient: any;
   /** Drives the inline tool-approval prompt in the TUI. */
   approvalBridge: ChatApprovalBridge;
+  /** True when the mcpx client was constructed with an approval policy. */
+  approvalGateActive: boolean;
   cleanup: () => Promise<void>;
   /** Set by `runChatTurn` while a `streamText(...)` is in flight. */
   activeAbort: AbortHandle | null;
@@ -139,13 +142,15 @@ export async function startChatSession(
     {
       approvalPolicy,
       onApprovalRequired: approvalPolicy
-        ? (req) =>
-            approvalBridge.request({
+        ? (req) => {
+            if (isMcpApprovalBypassed()) return Promise.resolve(true);
+            return approvalBridge.request({
               server: req.server,
               tool: req.tool,
               args: req.args,
               reason: req.reason,
-            })
+            });
+          }
         : undefined,
     },
   );
@@ -165,6 +170,7 @@ export async function startChatSession(
     skills,
     mcpxClient,
     approvalBridge,
+    approvalGateActive: approvalPolicy != null,
     cleanup,
     activeAbort: null,
     aborted: false,
@@ -206,6 +212,14 @@ export async function sendMessage(
     mcpxClient: session.mcpxClient,
     callbacks,
     session,
+    approvalGateActive: session.approvalGateActive,
+    requestApprovals: async (reqs) => {
+      const out: boolean[] = [];
+      for (const req of reqs) {
+        out.push(await session.approvalBridge.request(req));
+      }
+      return out;
+    },
   });
 }
 

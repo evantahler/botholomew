@@ -57,42 +57,39 @@ idioms it already knows:
 | `membot_exists` | `info` + catch `not_found`. Returns `{ exists: true \| false }` — never throws. |
 | `membot_count_lines` | `wc -l` over the markdown surrogate. Useful before a paginated read. |
 | `membot_pipe` | Run another tool and write its output as a new membot entry without ever flowing the body through the conversation. |
-| `membot_query` | Run a [JSONata](https://jsonata.org) transform over a JSON entry — group, filter, pluck, dedup, sort, aggregate — without loading the blob into context. |
+| `membot_run` | Run sandboxed TypeScript against the membot index (`files.*`) and approval-gated MCP tools (`mcp.*`). |
 
-### Reducing large JSON blobs with `membot_query`
+### Reducing large JSON blobs with `membot_run`
 
 External MCP tools often return big JSON arrays (an inbox, a list of issues, a
 table dump). Pulling the whole thing into the conversation to "count by day" or
 "pull these three fields" burns the context window. The pattern instead:
 
-1. **Land it.** `membot_pipe` the MCP call into a `logical_path` — the bytes go
-   straight to the store, never through the conversation.
-2. **Reduce it.** `membot_query` that `logical_path` with a
-   [JSONata](https://docs.jsonata.org) expression. Only the (usually small)
-   result returns to the agent.
+1. **Land it.** `membot_pipe` the MCP call into a `logical_path`, or
+   `mcp.capture` inside a program — the bytes go straight to the store.
+2. **Reduce it.** `membot_run` TypeScript against `files.readJson(...)`. Only
+   the (usually small) returned value reaches the agent.
 
-JSONata expressions run against the parsed JSON root (`$`). A few examples:
+Guest code has no Node, filesystem, `fetch`, or shell. It can call only the
+host functions we install. A few examples:
 
 ```
-count by day:    ${ $substring(ts,0,10): $count($) }
-filter:          $[amount > 100]
-pluck fields:    $.{ 'id': id, 'subject': subject }
-dedup a field:   $distinct(email)
-top-10 newest:   $^(>created)[[0..9]]
-sum a field:     $sum(amount)
+const rows = await files.readJson("mcp/inbox.json");
+return rows.filter((r) => r.amount > 100);
+
+await mcp.capture("gmail", "list_messages", { q: "newer_than:7d" }, "mcp/inbox.json");
+const messages = await files.readJson("mcp/inbox.json");
+return messages.slice(0, 5).map((m) => ({ id: m.id, subject: m.subject }));
 ```
 
-Set `output_logical_path` to write the result back into the store as a new
-entry instead of returning it inline — handy for chaining `pipe → query →
-query`. Pass `expression: "?"` to get the full syntax reference back from the
-tool. This is a declarative transform, not code execution: a JSONata expression
-can only read and reshape the document it's given — it has no filesystem,
-network, or host access.
+Set `output_logical_path` to write the returned value back into the store as a
+new entry instead of returning it inline. Pass `source: "?"` to get the host
+API reference. Gated MCP calls pause for a human (the same approval policy as
+`mcp_exec`); a worker resumes the exact program after a decision instead of
+asking the model to write a new one.
 
-This is the current implementation.
-[Milestone 18](https://github.com/evantahler/botholomew/blob/main/docs/plans/milestone-18-sandboxed-code.md)
-plans to replace `membot_query` with sandboxed TypeScript over a curated membot
-and MCP host API; that replacement is not available yet.
+See [Milestone 18](https://github.com/evantahler/botholomew/blob/main/docs/plans/milestone-18-sandboxed-code.md)
+for the sandbox design.
 
 ## The patch format
 
