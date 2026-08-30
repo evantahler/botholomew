@@ -89,7 +89,8 @@ tool. This is a declarative transform, not code execution: a JSONata expression
 can only read and reshape the document it's given — it has no filesystem,
 network, or host access.
 
-This is the current implementation. [Milestone 18](./plans/milestone-18-sandboxed-code.md)
+This is the current implementation.
+[Milestone 18](https://github.com/evantahler/botholomew/blob/main/docs/plans/milestone-18-sandboxed-code.md)
 plans to replace `membot_query` with sandboxed TypeScript over a curated membot
 and MCP host API; that replacement is not available yet.
 
