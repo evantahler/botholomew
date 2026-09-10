@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Tool } from "@evantahler/mcpx";
+import type { Tool } from "@arcadeai/mcpx";
 import type { ApprovalConfig } from "../../src/config/schemas.ts";
 import {
   buildApprovalPolicy,

@@ -8,7 +8,7 @@ import {
   McpxClient,
   type Tool,
   type ToolApprovalCallback,
-} from "@evantahler/mcpx";
+} from "@arcadeai/mcpx";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import { getMcpxDir, MCPX_SERVERS_FILENAME } from "../constants.ts";
 

@@ -70,7 +70,7 @@ if (membotIdx !== -1) {
   await import("membot/cli");
 } else if (mcpxIdx !== -1) {
   process.argv = [process.execPath, "mcpx", ...argv.slice(mcpxIdx + 1)];
-  await import("@evantahler/mcpx/cli");
+  await import("@arcadeai/mcpx/cli");
 } else {
   await import("./cli.ts");
 }

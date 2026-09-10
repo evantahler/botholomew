@@ -21,7 +21,7 @@ function resolveMcpxCli(): string {
   if (mcpxCli === undefined) {
     mcpxCli = null;
     try {
-      const cli = fileURLToPath(import.meta.resolve("@evantahler/mcpx/cli"));
+      const cli = fileURLToPath(import.meta.resolve("@arcadeai/mcpx/cli"));
       if (existsSync(cli)) mcpxCli = cli;
     } catch {
       // unresolvable (e.g. standalone binary) — handled below
@@ -29,17 +29,17 @@ function resolveMcpxCli(): string {
     if (mcpxCli) {
       // Strict version pin — only checkable when mcpx is actually reachable.
       const require = createRequire(import.meta.url);
-      const mcpxPkg = require("@evantahler/mcpx/package.json");
-      if (mcpxPkg.version !== ourPkg.dependencies["@evantahler/mcpx"]) {
+      const mcpxPkg = require("@arcadeai/mcpx/package.json");
+      if (mcpxPkg.version !== ourPkg.dependencies["@arcadeai/mcpx"]) {
         throw new Error(
-          `@evantahler/mcpx version mismatch: installed ${mcpxPkg.version}, expected ${ourPkg.dependencies["@evantahler/mcpx"]}`,
+          `@arcadeai/mcpx version mismatch: installed ${mcpxPkg.version}, expected ${ourPkg.dependencies["@arcadeai/mcpx"]}`,
         );
       }
     }
   }
   if (!mcpxCli) {
     logger.error(
-      "The `botholomew mcpx` passthrough requires a reachable @evantahler/mcpx install, which the standalone binary doesn't bundle. Install botholomew via npm/Bun, or run `mcpx` directly.",
+      "The `botholomew mcpx` passthrough requires a reachable @arcadeai/mcpx install, which the standalone binary doesn't bundle. Install botholomew via npm/Bun, or run `mcpx` directly.",
     );
     process.exit(1);
   }
@@ -102,6 +102,7 @@ const PASSTHROUGH_SUBCOMMANDS: ReadonlyArray<[name: string, desc: string]> = [
   ["add", "Add an MCP server"],
   ["remove", "Remove an MCP server"],
   ["ping", "Check connectivity to MCP servers"],
+  ["session", "Show the Streamable HTTP session id for a connected server"],
   ["auth", "Authenticate with an HTTP MCP server"],
   ["deauth", "Remove stored authentication for a server"],
   ["resource", "List resources for a server, or read a specific resource"],

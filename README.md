@@ -24,7 +24,7 @@ has nowhere to land. Local files and URLs are brought in through
 `botholomew membot add`. External capabilities (email, Slack, the web,
 and hundreds of other services) are granted deliberately, per project,
 through MCP servers wired up via
-[MCPX](https://github.com/evantahler/mcpx).
+[MCPX](https://github.com/arcadeai-labs/mcpx).
 
 ---
 
@@ -75,7 +75,7 @@ plain file I can open, `grep`, and `git diff`. — Evan
   calls go direct to Anthropic; any further reach is scoped to the MCP
   servers you add.
 - **Tool use, done through a gateway.** External tools come from MCP
-  servers via [MCPX](https://github.com/evantahler/mcpx). Run them locally
+  servers via [MCPX](https://github.com/arcadeai-labs/mcpx). Run them locally
   (Gmail, Slack, GitHub) — but the setup Botholomew is tuned for points a
   single [Arcade](https://www.arcade.dev/) gateway at hundreds of
   authenticated services, so you handle auth once instead of babysitting a
@@ -387,7 +387,7 @@ Topics worth understanding in detail:
   versioning, URL refresh. Botholomew consumes it as an SDK.
 - **[Anthropic SDK](https://docs.anthropic.com/en/api/client-sdks)** for
   Claude — the reasoning model
-- **[MCPX](https://github.com/evantahler/mcpx)** for external tools
+- **[MCPX](https://github.com/arcadeai-labs/mcpx)** for external tools
 - **[Ink 6](https://github.com/vadimdemedes/ink)** + **React 19** for the
   terminal UI
 - **[Commander.js](https://github.com/tj/commander.js)** for the CLI

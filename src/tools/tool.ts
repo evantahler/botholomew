@@ -1,4 +1,4 @@
-import type { McpxClient } from "@evantahler/mcpx";
+import type { McpxClient } from "@arcadeai/mcpx";
 import type { z } from "zod";
 import type { BotholomewConfig } from "../config/schemas.ts";
 import type { WithMem } from "../mem/client.ts";

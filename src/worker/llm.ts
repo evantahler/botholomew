@@ -1,4 +1,4 @@
-import type { McpxClient } from "@evantahler/mcpx";
+import type { McpxClient } from "@arcadeai/mcpx";
 import type { ModelMessage, ToolCallPart } from "ai";
 import { streamText } from "ai";
 import type { BotholomewConfig, LlmBlock } from "../config/schemas.ts";

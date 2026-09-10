@@ -3,7 +3,7 @@ import {
   type McpxClient,
   ToolApprovalDeniedError,
   ToolApprovalRequiredError,
-} from "@evantahler/mcpx";
+} from "@arcadeai/mcpx";
 import { ApprovalPendingError } from "../../../src/approvals/errors.ts";
 import { mcpExecTool } from "../../../src/tools/mcp/exec.ts";
 import { registerAllTools } from "../../../src/tools/registry.ts";

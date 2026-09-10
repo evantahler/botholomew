@@ -75,7 +75,7 @@ has nowhere to land. Local files and URLs are brought in through
 `botholomew membot add`. External capabilities (email, Slack, the web,
 and hundreds of other services) are granted deliberately, per project,
 through MCP servers wired up via
-[MCPX](https://github.com/evantahler/mcpx).
+[MCPX](https://github.com/arcadeai-labs/mcpx).
 
 ## Quickstart
 

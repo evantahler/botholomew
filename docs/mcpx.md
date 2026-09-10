@@ -3,7 +3,7 @@
 Botholomew has no network, no shell, and no filesystem access on its
 own. Everything external — reading email, searching the web, talking to
 GitHub — comes from MCP servers, managed per project via
-[**MCPX**](https://github.com/evantahler/mcpx).
+[**MCPX**](https://github.com/arcadeai-labs/mcpx).
 
 Think of MCPX as the `package.json` of the agent's tools: a manifest
 (`servers.json`) lists the MCP servers a project can use, and workers
@@ -68,6 +68,7 @@ access per user. MCPX accepts both shapes.
 botholomew mcpx servers                                      # list configured server names
 botholomew mcpx list                                         # every tool / resource / prompt across all configured servers
 botholomew mcpx ping                                         # check connectivity to all servers (or pass names to filter)
+botholomew mcpx session arcade                               # Streamable HTTP session id for a connected server
 botholomew mcpx add gmail --command npx --args "-y,@modelcontextprotocol/server-gmail"
 botholomew mcpx add arcade --url https://api.arcade.dev/mcp/engineering
 botholomew mcpx remove gmail                                 # --dry-run to preview, --keep-auth to keep stored tokens
@@ -201,7 +202,7 @@ Two authorization paths don't surface a usable URL yet:
   error, which drops the `elicitations[].url` payload that carries the link, and
   classifies it as an input error — so the agent is told to retry with corrected
   arguments instead of asking you to authorize.
-- **Server-initiated URL elicitation.** `@evantahler/mcpx` connects with
+- **Server-initiated URL elicitation.** `@arcadeai/mcpx` connects with
   `noInteractive: true`, so an `elicitation/create` request is auto-declined and
   the URL never reaches Botholomew. Fixing this needs an `onElicitation` hook in
   the mcpx SDK.
