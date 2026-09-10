@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { McpxClient } from "@evantahler/mcpx";
+import type { McpxClient } from "@arcadeai/mcpx";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { resolveFastModel } from "../config/models.ts";

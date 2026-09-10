@@ -18,13 +18,47 @@ jobs:
 
       - name: Determine versions
         id: versions
+        env:
+          # Fail the job if the registry's `latest` hasn't moved in this many
+          # days. mcpx ships often, so a long silence means the feed is dead —
+          # the package was renamed, unpublished, or moved scope — rather than
+          # "no news". Without this the job reports "already up to date" every
+          # week and the staleness is invisible. Raise it if mcpx genuinely
+          # goes quiet for a release cycle.
+          STALE_AFTER_DAYS: "120"
         run: |
-          CURRENT=$(jq -r '.dependencies["@evantahler/mcpx"]' package.json)
-          LATEST=$(bun info @evantahler/mcpx version 2>/dev/null | tail -n1 | tr -d '[:space:]')
-          if [ -z "$LATEST" ] || [ "$LATEST" = "null" ]; then
-            echo "Failed to resolve latest @evantahler/mcpx version" >&2
+          set -euo pipefail
+          PKG="@arcadeai/mcpx"
+
+          CURRENT=$(jq -r --arg p "$PKG" '.dependencies[$p]' package.json)
+          if [ -z "$CURRENT" ] || [ "$CURRENT" = "null" ]; then
+            echo "::error::$PKG is not in package.json dependencies. Was it renamed again?" >&2
             exit 1
           fi
+
+          # Hit the registry directly so a 404 (unpublished/renamed) is a hard
+          # error rather than an empty string that reads as "up to date".
+          META=$(curl -fsSL "https://registry.npmjs.org/${PKG//\//%2f}") || {
+            echo "::error::$PKG could not be fetched from the npm registry — it may have been unpublished or renamed." >&2
+            exit 1
+          }
+
+          LATEST=$(jq -r '.["dist-tags"].latest // empty' <<< "$META")
+          if [ -z "$LATEST" ]; then
+            echo "::error::$PKG has no dist-tags.latest — the package may have been unpublished." >&2
+            exit 1
+          fi
+
+          PUBLISHED=$(jq -r --arg v "$LATEST" '.time[$v] // empty' <<< "$META")
+          if [ -n "$PUBLISHED" ]; then
+            AGE_DAYS=$(( ( $(date -u +%s) - $(date -u -d "$PUBLISHED" +%s) ) / 86400 ))
+            echo "$PKG@$LATEST published $PUBLISHED (${AGE_DAYS}d ago)."
+            if [ "$AGE_DAYS" -gt "$STALE_AFTER_DAYS" ]; then
+              echo "::error::$PKG@$LATEST is ${AGE_DAYS} days old (> ${STALE_AFTER_DAYS}). The release feed looks dead — check whether the package moved scope or was renamed. If mcpx is simply stable, raise STALE_AFTER_DAYS in this workflow." >&2
+              exit 1
+            fi
+          fi
+
           echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
           echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
           if [ "$CURRENT" = "$LATEST" ]; then
@@ -39,7 +73,7 @@ jobs:
         if: steps.versions.outputs.up_to_date == 'false'
         run: |
           jq --arg v "${{ steps.versions.outputs.latest }}" \
-            '.dependencies["@evantahler/mcpx"] = $v' package.json > package.json.tmp
+            '.dependencies["@arcadeai/mcpx"] = $v' package.json > package.json.tmp
           mv package.json.tmp package.json
 
           CUR=$(jq -r .version package.json)
@@ -65,12 +99,12 @@ jobs:
         with:
           branch: bot/bump-mcpx
           delete-branch: true
-          commit-message: "Bump @evantahler/mcpx to ${{ steps.versions.outputs.latest }}"
-          title: "Bump @evantahler/mcpx to ${{ steps.versions.outputs.latest }}"
+          commit-message: "Bump @arcadeai/mcpx to ${{ steps.versions.outputs.latest }}"
+          title: "Bump @arcadeai/mcpx to ${{ steps.versions.outputs.latest }}"
           body: |
-            Automated bump of `@evantahler/mcpx`: `${{ steps.versions.outputs.current }}` → `${{ steps.versions.outputs.latest }}`.
+            Automated bump of `@arcadeai/mcpx`: `${{ steps.versions.outputs.current }}` → `${{ steps.versions.outputs.latest }}`.
 
-            Release notes: https://github.com/evantahler/mcpx/releases/tag/v${{ steps.versions.outputs.latest }}
+            Release notes: https://github.com/arcadeai-labs/mcpx/releases/tag/v${{ steps.versions.outputs.latest }}
 
             `bun run lint` and `bun test` passed in the bump workflow. Auto-merge is enabled; the PR will squash-merge once any required status checks pass (or immediately if none are required).
 

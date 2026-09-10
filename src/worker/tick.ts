@@ -1,4 +1,4 @@
-import type { McpxClient } from "@evantahler/mcpx";
+import type { McpxClient } from "@arcadeai/mcpx";
 import { listApprovals } from "../approvals/store.ts";
 import { resolveModelFor } from "../config/models.ts";
 import type { BotholomewConfig, LlmBlock } from "../config/schemas.ts";

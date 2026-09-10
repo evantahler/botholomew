@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import type { McpxClient } from "@evantahler/mcpx";
+import type { McpxClient } from "@arcadeai/mcpx";
 import { decideApproval } from "../../../src/approvals/store.ts";
 import { findRunContinuationForTask } from "../../../src/tools/membot/run/continuation.ts";
 import { resumeStoredRun } from "../../../src/tools/membot/run/execute.ts";

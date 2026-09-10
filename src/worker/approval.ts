@@ -1,4 +1,4 @@
-import type { ToolApprovalCallback } from "@evantahler/mcpx";
+import type { ToolApprovalCallback } from "@arcadeai/mcpx";
 import { ApprovalPendingError } from "../approvals/errors.ts";
 import {
   callKey,

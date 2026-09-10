@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { McpxClient } from "@evantahler/mcpx";
+import type { McpxClient } from "@arcadeai/mcpx";
 import { capabilitiesRefreshTool } from "../../src/tools/capabilities/refresh.ts";
 import { registerAllTools } from "../../src/tools/registry.ts";
 import { parseContextFile } from "../../src/utils/frontmatter.ts";

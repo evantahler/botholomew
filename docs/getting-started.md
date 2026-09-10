@@ -15,7 +15,7 @@ processing tasks. For deeper background, see
   required.
 - Optional: any [MCP servers](./mcpx.md) you want to expose to the agent
   (Gmail, Slack, GitHub, etc.) — managed through
-  [MCPX](https://github.com/evantahler/mcpx).
+  [MCPX](https://github.com/arcadeai-labs/mcpx).
 
 ## Install
 

@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { McpxClient } from "@evantahler/mcpx";
+import type { McpxClient } from "@arcadeai/mcpx";
 import { mcpSearchTool } from "../../../src/tools/mcp/search.ts";
 import { setupToolContext } from "../../helpers.ts";
 

@@ -1,7 +1,7 @@
 import {
   ToolApprovalDeniedError,
   ToolApprovalRequiredError,
-} from "@evantahler/mcpx";
+} from "@arcadeai/mcpx";
 import { ApprovalPendingError } from "../../approvals/errors.ts";
 import { formatCallToolResult } from "../../mcpx/client.ts";
 import { fakeMcpExec, isCaptureMode } from "../../worker/fake-mcp.ts";

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ToolApprovalRequest } from "@evantahler/mcpx";
+import type { ToolApprovalRequest } from "@arcadeai/mcpx";
 import { ApprovalPendingError } from "../../src/approvals/errors.ts";
 import {
   callKey,
