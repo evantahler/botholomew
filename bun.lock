@@ -7,7 +7,7 @@
       "dependencies": {
         "@ai-sdk/anthropic": "^4.0.42",
         "@ai-sdk/openai-compatible": "^3.0.37",
-        "@arcadeai/mcpx": "1.2.1",
+        "@arcadeai/mcpx": "1.2.3",
         "ai": "^7.0.79",
         "ansis": "^4.3.1",
         "commander": "^15.0.0",
@@ -94,7 +94,7 @@
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.32.1", "", { "dependencies": { "@types/node": "^18.11.18", "@types/node-fetch": "^2.6.4", "abort-controller": "^3.0.0", "agentkeepalive": "^4.2.1", "form-data-encoder": "1.7.2", "formdata-node": "^4.3.2", "node-fetch": "^2.6.7" } }, "sha512-U9JwTrDvdQ9iWuABVsMLj8nJVwAyQz6QXvgLsVhryhCEPkLsbcP/MXxm+jYcAwLoV8ESbaTTjnD4kuAFa+Hyjg=="],
 
-    "@arcadeai/mcpx": ["@arcadeai/mcpx@1.2.1", "", { "dependencies": { "@huggingface/transformers": "^4.2.0", "@modelcontextprotocol/client": "2.0.0", "@modelcontextprotocol/core": "2.0.0", "@types/picomatch": "^4.0.3", "ajv": "^8.20.0", "ansis": "^4.2.0", "commander": "^14.0.3", "nanospinner": "^1.2.2", "onnxruntime-web": "1.26.0-dev.20260416-b7804b056c", "picomatch": "^4.0.4", "upgradr": "^0.1.1" }, "bin": { "mcpx": "src/cli.ts" } }, "sha512-8J3IcyBey6rY2xWCREduE6+CcbdC/rTcJ/XOkzo6xjej/zPzFhkwhINWvszeiS55Uo9tXU/FZJxLSNENaEpjVA=="],
+    "@arcadeai/mcpx": ["@arcadeai/mcpx@1.2.3", "", { "dependencies": { "@huggingface/transformers": "^4.2.0", "@modelcontextprotocol/client": "2.0.0", "@modelcontextprotocol/core": "2.0.0", "@types/picomatch": "^4.0.3", "ajv": "^8.20.0", "ansis": "^4.2.0", "commander": "^14.0.3", "nanospinner": "^1.2.2", "onnxruntime-web": "1.26.0-dev.20260416-b7804b056c", "picomatch": "^4.0.4", "upgradr": "^0.1.1" }, "bin": { "mcpx": "src/cli.ts" } }, "sha512-p5oBHN6ITX2uqP6cwOxsUX9qLhk5hKrcHoiSvRCpAOCQQ3T0GbBhr67iBfXZ8y2MqpeWXnmU4wv6WhrCKw8FBQ=="],
 
     "@babel/helper-string-parser": ["@babel/helper-string-parser@7.29.7", "", {}, "sha512-Pb5ijPrZ89GDH8223L4UP8i6QApWxs04RbPQJTeWDV0/keR2E36MeKnyr6LYmUUvqRRI+Iv87SuF1W6ErINzYw=="],
 
