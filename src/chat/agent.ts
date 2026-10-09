@@ -28,6 +28,7 @@ import { maybeStoreResult } from "../worker/large-results.ts";
 import {
   buildMetaHeader,
   extractKeywords,
+  KNOWLEDGE_VS_MCP_SECTION,
   LARGE_JSON_SECTION,
   loadPersistentContext,
   MEMBOT_PROMPT_SECTION,
@@ -128,23 +129,7 @@ Format your responses using Markdown. Use headings, bold, italic, lists, and cod
     prompt += `
 ## External Tools (MCP)
 
-### Local knowledge store first
-
-**Before any MCP read, search the membot knowledge store.** Prior ingests (Gmail dumps, GitHub fetches, URL captures, prior agent outputs) are usually already there — refetching is slower, costs tokens, and risks rate limits.
-
-Workflow for any "look up / find / read" intent:
-
-1. \`membot_search\` (hybrid semantic + BM25) over the store, then \`membot_read\` / \`membot_tree\` to drill in.
-2. If freshness matters, call \`membot_info\` and check the source mtime / refresh status. To re-pull stale content, call \`membot_refresh\` for URL-backed entries, or \`membot_pipe\` an \`mcp_exec\` call to capture a fresh snapshot.
-3. Only call \`mcp_exec\` for reads when the data is genuinely missing locally **or** must be real-time (e.g., "what's on my calendar right now").
-
-Writes to external systems always go through MCP — sending an email, creating an issue, posting to Slack. Don't search membot first for those.
-
-Examples:
-- "What does doc X say?" → \`membot_search\` first.
-- "Any new emails from Y?" → \`membot_search\` for the sender's name before hitting Gmail MCP.
-- "Send an email to Y" → MCP write directly; no membot lookup.
-
+${KNOWLEDGE_VS_MCP_SECTION}
 ### Calling MCP tools
 
 Before calling any MCP tool you haven't used yet this session, you MUST fetch its schema first:

@@ -29,7 +29,24 @@ export const LARGE_JSON_SECTION = `## Large JSON results
 When a tool would return a large JSON payload (mcp_exec dumps, search results, web fetches) that you don't need to read verbatim, don't pull it into context:
 1. Land the bytes with \`membot_pipe\` or, inside a program, \`mcp.capture\` — you get back only an ack.
 2. Reduce with \`membot_run\`: write TypeScript against \`files.*\` (and \`mcp.*\` when you need a fresh fetch). Return a small value, or write with \`files.writeJson\` / \`output_logical_path\`. Pass \`source="?"\` for the host API.
-For multi-step fetch-and-reduce work, prefer one \`membot_run\` over many conversational \`mcp_exec\` calls. Search the membot store before fetching fresh external data.
+For multi-step fetch-and-reduce work, prefer one \`membot_run\` over many conversational \`mcp_exec\` calls.
+`;
+
+/**
+ * Guidance on when to consult the membot store vs. call MCP directly. Shared
+ * verbatim by the worker and chat prompts. Deliberately soft: the store is a
+ * cache worth checking when a request plausibly touches previously-ingested
+ * content, not a mandatory first hop for every read.
+ */
+export const KNOWLEDGE_VS_MCP_SECTION = `### Knowledge store vs. live data
+
+The membot store may already hold relevant content (prior ingests, URL captures, earlier agent outputs). Use judgment about whether to check it — it's not a required first step.
+
+- Check membot (\`membot_search\`, then \`membot_read\` / \`membot_tree\`) when the request refers to something you or the user likely saved before, or when refetching would be expensive (large dumps, rate-limited APIs).
+- Go straight to \`mcp_exec\` when the user wants current/live data, names a specific external source, or the request is clearly about something new. If a store lookup comes up empty, move on rather than retrying variations.
+- If you do use stored content and freshness matters, check \`membot_info\`; re-pull with \`membot_refresh\` (URL-backed entries) or \`membot_pipe\` from an \`mcp_exec\` call.
+
+Writes to external systems (sending an email, creating an issue, posting to Slack) always go through MCP directly.
 `;
 
 export const STYLE_RULES = `## Style
@@ -158,23 +175,7 @@ When calling complete_task, write a summary that captures your key findings, dec
     prompt += `
 ## External Tools (MCP)
 
-### Local knowledge store first
-
-**Before any MCP read, search the membot knowledge store.** Prior ingests (Gmail dumps, GitHub fetches, URL captures, prior agent outputs) are usually already there — refetching is slower, costs tokens, and risks rate limits.
-
-Workflow for any "look up / find / read" intent:
-
-1. \`membot_search\` (hybrid semantic + BM25) over the store, then \`membot_read\` / \`membot_tree\` to drill in.
-2. If freshness matters, call \`membot_info\` and check the source mtime / refresh status. To re-pull stale content, call \`membot_refresh\` for URL-backed entries, or \`membot_pipe\` from an \`mcp_exec\` call for fresh captures.
-3. Only call \`mcp_exec\` for reads when the data is genuinely missing locally **or** must be real-time (e.g., "what's on my calendar right now").
-
-Writes to external systems always go through MCP — sending an email, creating an issue, posting to Slack. Don't search membot first for those.
-
-Examples:
-- "What does doc X say?" → \`membot_search\` first.
-- "Any new emails from Y?" → \`membot_search\` for the sender's name before hitting Gmail MCP.
-- "Send an email to Y" → MCP write directly; no membot lookup.
-
+${KNOWLEDGE_VS_MCP_SECTION}
 ### Calling MCP tools
 
 Before calling any MCP tool you haven't used yet this session, you MUST fetch its schema first:
