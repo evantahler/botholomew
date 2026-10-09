@@ -222,7 +222,8 @@ describe("buildSystemPrompt", () => {
       hasMcpTools: true,
     });
     expect(prompt).toContain("## External Tools (MCP)");
-    expect(prompt).toContain("Local knowledge store first");
+    expect(prompt).toContain("Knowledge store vs. live data");
+    expect(prompt).not.toContain("Before any MCP read");
     expect(prompt).toContain("mcp_info");
   });
 
