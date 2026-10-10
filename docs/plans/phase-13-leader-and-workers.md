@@ -129,9 +129,10 @@ it is absent.
 The brief is a thread message authored by whoever delegated. It reads as the task's title, description, and
 priority, plus the outputs of any predecessors — the same shape v1's `runAgentLoop` built. When a person creates
 the task, the brief is that person's message and carries human priority. A root task may instead be **placed**
-in an existing thread its assignee already owns. That is how a schedule firing lands in its own thread
-([phase 14](./phase-14-schedules-and-wakeups.md)), and how a person runs `task create --thread`. In that case
-the brief arrives as a `task.assigned` event, not as a new message.
+in an existing thread its assignee already owns. That is how a person runs `task create --thread`, and the
+brief is still their message in that thread. It is also how a schedule firing lands in the schedule's own
+thread ([phase 14](./phase-14-schedules-and-wakeups.md)). A schedule has no author to write a message, so
+its brief arrives as a `task.assigned` event.
 
 It is both a thread and a row because each answers a different question. The thread is where the work happens:
 the assignee's conversation, which a person can read, interrupt, or steer with the chat UI from

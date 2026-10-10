@@ -46,8 +46,8 @@ user docs; tests.
 ([phase 9](./phase-09-memory-search-and-ingestion.md)). URL ingest ([phase 19](./phase-19-url-ingest.md)).
 Refresh ([phase 20](./phase-20-upstream-refresh.md)). Source routers and bulk sync
 ([phase 21](./phase-21-source-routers-and-bulk-sync.md)). LLM-assisted ingestion
-([phase 22](./phase-22-llm-assisted-ingestion.md)). Original bytes and `memory_blobs`
-([phase 23](./phase-23-original-bytes-and-blob-policy.md)). Pruning old versions and sweeping `scratch/`
+([phase 22](./phase-22-llm-assisted-ingestion.md)). Original bytes: the `memory_blobs` table name is reserved
+for [phase 23](./phase-23-original-bytes-and-blob-policy.md), which defines it. Pruning old versions and sweeping `scratch/`
 ([phase 18](./phase-18-operations.md)). Bot identities and namespace ownership
 ([phase 5](./phase-05-bots.md)). Bots writing ([phase 6](./phase-06-durable-bot-loop.md)). The `scratch/`
 writer ([phase 8](./phase-08-context-management.md)). Skill behaviour ([phase 12](./phase-12-skills.md)).
@@ -286,8 +286,8 @@ This is the whole membot port. [Phase 9](./phase-09-memory-search-and-ingestion.
 | `authorUserId`, `onBehalfOfUserId` | `integer` | → `users.id`, `set null` |
 | `authorBotId` | `integer` | No foreign key yet; [phase 5](./phase-05-bots.md) adds one with `set null` |
 | `changeNote` | `varchar(1000)` | |
-| `sourceType` | `varchar(16)` | Default `inline`. Reserved for ingestion: `upload`, `url`, `router` |
-| `sourceUri`, `sourceSha256`, `sourceMimeType` | `text`, `varchar(64)`, `varchar(128)` | Reserved for ingestion, so it adds no columns to a table that already has rows |
+| `sourceType` | `varchar(16)` | Default `inline`. Reserved for ingestion: `upload` ([phase 9](./phase-09-memory-search-and-ingestion.md)), `remote` ([phase 19](./phase-19-url-ingest.md)) |
+| `sourceSha256`, `sourceMime`, `sourceFilename` | `varchar(64)`, `varchar(128)`, `text` | Reserved for ingestion: the sha of the source bytes, their sniffed mime, and an upload's original name. Declared now so ingestion adds no columns to a table that already has rows; URL-specific columns arrive with [phase 19](./phase-19-url-ingest.md) |
 | `searchTsv` | `tsvector` | Generated, stored |
 | `createdAt` | `timestamp(withTimezone)` | `defaultNow()` |
 

@@ -17,8 +17,8 @@ stream, notifications), and **what a person sees** (the chat page, the composer,
 
 The loop itself does not change. Every routing decision here produces the same `conversation_inbox` rows
 phase 6 consumes, every frame is published by phase 6's `ThreadChannelOps` after commit, and every page still
-hydrates over HTTP — the socket only decides *when* to ask, which is ToolExec's
-[phase 18](#what-already-exists) lesson carried over intact.
+hydrates over HTTP — the socket only decides *when* to ask, which is the lesson of ToolExec's
+dashboard-websockets phase (`toolexec:docs/plans/phase-18-dashboard-websockets.md`) carried over intact.
 
 It deliberately leaves out the terminal chat client ([phase 15](./phase-15-tui-and-cli-publishing.md)), slash
 commands and their popup ([phase 12](./phase-12-skills.md)), thread search ([phase 8](./phase-08-context-management.md)),

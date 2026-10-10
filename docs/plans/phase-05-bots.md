@@ -1,7 +1,7 @@
 # Phase 5 — Bots: identity, prompts, goals, models
 
 > **Goal:** Every project has a roster — the seeded leader, Botholomew, plus any worker bots people define —
-> each with a name, a role, a routing description, access tags, a model, budgets, and a concurrency cap, and
+> each with a name, a role, a routing description, access tags, a model, a budget, and a concurrency cap, and
 > each with its identity, goals, and beliefs as versioned files in project memory. The project connects its
 > own model providers and names the models its bots use. Nothing runs yet.
 
@@ -27,7 +27,7 @@ enforcement, and everything a bot *does*. Those are phase 6 onward.
 ## Scope
 
 **In:** the `bots` table (name, slug, avatar, `leader | worker` role with one leader per project, routing
-description, model pin, `accessRead` / `accessWrite`, enabled, budgets, concurrency cap, a reserved `status`);
+description, model pin, `accessRead` / `accessWrite`, enabled, a monthly budget, a concurrency cap);
 `BotOps` (access checks, slugs, rename with a namespace move, leader swap, seeding); `canWriteBot` replacing
 phase 4's refusal on `bots/**`; prompt loading and cache-stable assembly with `bot:prompt-preview`;
 `bot:validate`; `project_connections` with `CryptoOps` and kinds `anthropic | openai | openai_compatible`,
@@ -36,7 +36,8 @@ rules, plus `model:options`; seeding the leader at project creation and backfill
 audit; the Bots pages and editor; Settings → Connections and Models; `botholomew bot`, `connection`, and
 `model`; user docs; tests.
 
-**Out:** model calls, the loop, status derivation, budget enforcement and the usage ledger
+**Out:** model calls, the loop, `bots.status` and the pause columns (reserved for phase 6, which adds and
+derives them), budget enforcement and the usage ledger
 ([phase 6](./phase-06-durable-bot-loop.md)); thread ownership and routing by description
 ([phase 7](./phase-07-threads-and-web-chat.md)); per-bot MCP allowlists
 ([phase 10](./phase-10-mcp-servers-and-approvals.md)); skills in the prompt
@@ -129,7 +130,7 @@ provider's prompt cache could never hit — the most expensive line in the codeb
 
 | Order | Layer | Changes when |
 |---|---|---|
-| 1 | Platform preamble: what a Botholomew bot is, the one-output-channel rule, v1's `STYLE_RULES` | A deploy |
+| 1 | Phase 6's fixed sections — platform identity, the one output channel, fencing, v1's `STYLE_RULES` — and the generated tool section. Written there; the preview shows them as placeholders | A deploy |
 | 2 | `bots/<slug>/prompts/identity.md` | A person edits it (`agent-modification: false` by default) |
 | 3 | Project `prompts/*.md` with `loading: always`, by path | An admin edits one |
 | 4 | The bot's other `always` prompts, by path | Rarely |
@@ -138,9 +139,9 @@ provider's prompt cache could never hit — the most expensive line in the codeb
 | 6 | `contextual` prompts matched to the trigger text | Every message |
 
 Ordering by volatility means a bot's self-edit to `beliefs.md` invalidates only the tail of the cached
-prefix. No layer above the breakpoint contains a timestamp, a counter, or anything per-request; the date and
-the per-message facts are placed after it by phase 6, which records them as a `system` entry where they took
-effect. Contextual matching ports `extractKeywords` (lowercased, whitespace-split, longer than three
+prefix. No layer above the breakpoint contains a timestamp, a counter, or anything per-request. Layers 2–5
+are what phase 6 hashes into its `system` entry; layer 6, the current time, and the other per-turn facts go
+into the turn's volatile tail, after the breakpoints. Contextual matching ports `extractKeywords` (lowercased, whitespace-split, longer than three
 characters) and adds a stopword list — v1's matched "that" and "with" — then ranks files by overlap and caps
 the set at 5 files and 16,000 characters. The result carries every layer's `logicalPath` and `versionId`, so
 phase 6 can record exactly which prompt versions the model saw.
@@ -217,11 +218,13 @@ default, the fast model, or anyone's pin.
 
 ### Declared now, used later
 
-`status` (`hibernating | working | waiting | paused | errored`, default `hibernating`) is
-[phase 6](./phase-06-durable-bot-loop.md)'s denormalized derivation; nothing here writes it after create.
-`maxConcurrentConversations` (default 3, at least 2 — one slot is reserved for human-initiated work) and the
-daily and monthly budgets are enforced by phase 6. Declaring them now keeps the editor complete and avoids a
-migration against a table that will have rows; the schema comment says what reads each one.
+`concurrencyCap` (default 3, at least 1) and `monthlyBudgetUsd` are enforced by
+[phase 6](./phase-06-durable-bot-loop.md): with a cap of 2 or more, one slot is held back for human-priority
+work, and the budget is checked against the month's `usage_events` before each model step. Declaring them now
+keeps the editor complete and avoids a migration against a table that will have rows; the schema comment says
+what reads each one. `bots.status` (`hibernating | working | waiting | paused | errored`) is reserved for
+phase 6, which adds it with the pause columns and derives it from conversations; nothing in this phase shows a
+status, because nothing here could make one true.
 
 ## Steps
 
@@ -239,9 +242,8 @@ migration against a table that will have rows; the schema comment says what read
 | `modelName` | `varchar(64)` | Nullable pin; null means the project default |
 | `accessRead`, `accessWrite` | `jsonb string[]` | Default `["*"]` |
 | `enabled` | `boolean` | Default `true` |
-| `maxConcurrentConversations` | `integer` | Default 3, `CHECK (>= 2)` |
-| `budgetDailyCents`, `budgetMonthlyCents` | `integer` | Nullable = no bot-level cap |
-| `status`, `statusChangedAt` | `varchar(16)`, `timestamp(withTimezone)` | `CHECK` over the five values |
+| `concurrencyCap` | `integer` | Default 3, `CHECK (>= 1)`; read by phase 6's lease acquisition |
+| `monthlyBudgetUsd` | `numeric(12,2)` | Nullable = no bot-level cap; read by phase 6's budget guard |
 | `createdBy` | → `users.id` | `set null` |
 
 `project_connections`: `projectId` (cascade), `name` (`uniqueIndex(projectId, name)`), `kind`, `authMode`
@@ -297,9 +299,9 @@ Creates a leader for any project lacking one, under a per-project advisory lock;
 ### 5. Frontend — `frontend/src/pages/{BotsPage,BotPage,NewBotPage}.tsx`, settings sections
 
 - `BotsPage` (`/bots`): a card per readable bot — avatar, name, leader badge, description, resolved model,
-  status (always "hibernating" for now), enabled.
+  enabled.
 - `BotPage` (`/bots/:slug`): **Overview** (name, slug, description, avatar, model pin, access tag
-  multi-selects with an explicit "everyone", enabled, concurrency cap, budgets, and a Validate button that
+  multi-selects with an explicit "everyone", enabled, concurrency cap, monthly budget, and a Validate button that
   lists every problem); **Prompts** and **Notes** (phase 4's tree and editor rooted at the bot's directories,
   with project-wide prompts linked read-only for non-admins); **Prompt preview** (layers, the breakpoint, and
   a sample-message box showing which contextual files would load).
@@ -312,7 +314,7 @@ Creates a leader for any project lacking one, under a per-project advisory lock;
 |---|---|
 | `botholomew bot list` / `view <slug>` | |
 | `botholomew bot create --name … [--description …] [--model …] [--access-read t1,t2] [--access-write …]` | |
-| `botholomew bot edit <slug> [--name] [--slug] [--description] [--model] [--enabled] [--max-concurrency n] [--budget-daily c] [--budget-monthly c]` | A slug change reports how many files moved |
+| `botholomew bot edit <slug> [--name] [--slug] [--description] [--model] [--enabled] [--concurrency-cap n] [--monthly-budget usd]` | A slug change reports how many files moved |
 | `botholomew bot delete <slug>` / `make-leader <slug>` / `validate <slug>` | |
 | `botholomew bot prompt <slug> [--sample "text"]` | The prompt preview; prompts themselves are edited with `botholomew memory edit bots/<slug>/prompts/goals.md` |
 | `botholomew connection list` / `probe <name>` / `delete <name>` | |
@@ -390,7 +392,7 @@ Then the edge cases:
 
 ## Definition of done
 
-- [ ] `bots` with the one-leader index, the reserved `status`, declared limits, and slug rules;
+- [ ] `bots` with the one-leader index, `concurrencyCap` and `monthlyBudgetUsd` declared for phase 6, and slug rules;
       `project_connections` (named) and `project_models` (default and fast indexes)
 - [ ] `canReadBot` / `canWriteBot` ported; `bots/<slug>/**` writes gated by them; unknown slugs refused
 - [ ] Leader seeded in the project transaction with owl persona files; `bots:ensure-leaders` backfills
@@ -412,7 +414,7 @@ botholomew memory edit bots/researcher/prompts/goals.md -m "focus on primary sou
 botholomew bot prompt researcher --sample "summarize the Q3 pricing research"
 printf %s "$ANTHROPIC_KEY" | botholomew connection put --name anthropic --kind anthropic
 botholomew model create --name default --connection anthropic --model <provider-model-id> --default
-psql botholomew -c "select slug, role, model_name, status from bots where project_id = 1;"
+psql botholomew -c "select slug, role, model_name, concurrency_cap from bots where project_id = 1;"
 ```
 
 ## Learnings from the build

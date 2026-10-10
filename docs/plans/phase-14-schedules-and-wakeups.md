@@ -341,56 +341,13 @@ The run's output is that list. A reflection that writes no facts completes with 
 There is a partial index on `(id) WHERE enabled AND confirmed_at IS NOT NULL AND paused_at IS NULL`, and a
 per-bot count check of at most 50 in `createSchedule`.
 
-`schedule_runs`:
-
-| Column | Type | Notes |
+| Table | Key columns | Constraints and indexes |
 |---|---|---|
-| `projectId` | int | Cascade |
-| `scheduleId` | int | Cascade |
-| `firedFor` | timestamptz | |
-| `status` | text | `running \| succeeded \| failed \| cancelled \| skipped` |
-| `skipReason` | text, null | |
-| `missedFirings` | int | |
-| `taskId` | int, null | → `bot_tasks`, set null |
-| `isTest` | boolean | |
-| `triggeredByUserId` | int, null | Test runs |
-| `createdAt` / `finishedAt` | timestamptz | |
+| `schedule_runs` | `projectId`, `scheduleId` (both cascade), `firedFor`, `status` (`running \| succeeded \| failed \| cancelled \| skipped`), `skipReason`, `missedFirings`, `taskId` (→ `bot_tasks`, set null), `isTest`, `triggeredByUserId` (test runs), `createdAt`, `finishedAt` | Guard 3: `UNIQUE (schedule_id, fired_for) WHERE NOT is_test`; `(scheduleId, createdAt DESC)` |
+| `bot_wakeups` | `projectId`, `botId`, `conversationId` (all cascade), `kind` (`sleep \| reminder`), `dueAt`, `note`, `status` (`pending \| delivered \| cancelled`), `requestId` (the creating tool call's id, so a replayed `remind_me` makes one row), `createdAt`, `deliveredAt` | Unique `(projectId, requestId)`; `(conversationId, dueAt) WHERE status = 'pending'`; unique `(conversationId) WHERE kind = 'sleep' AND status = 'pending'`, which keeps `sleep_until`'s latest-call-wins contract |
+| `bot_webhooks` | `projectId`, `botId` (both cascade), `name`, `tokenHash`, `threadId`, `instructions`, `enabled`, `createdByUserId`, `lastDeliveryAt`, `deliveryCount` | Unique `(botId, name)`; unique `tokenHash WHERE tokenHash IS NOT NULL` |
 
-The guard-3 backstop is `CREATE UNIQUE INDEX schedule_runs_one_per_fire_idx ON schedule_runs (schedule_id,
-fired_for) WHERE NOT is_test`. There is also an index on `(scheduleId, createdAt DESC)`.
-
-`bot_wakeups`:
-
-| Column | Type | Notes |
-|---|---|---|
-| `projectId` | int | Cascade |
-| `botId` | int | Cascade |
-| `conversationId` | int | Cascade |
-| `kind` | text | `sleep \| reminder` |
-| `dueAt` | timestamptz | |
-| `note` | text, null | |
-| `status` | text | `pending \| delivered \| cancelled` |
-| `requestId` | text | Unique per project: the creating tool call's id, so a replayed `remind_me` makes one row |
-| `createdAt` / `deliveredAt` | timestamptz | |
-
-There is a partial index on `(conversationId, dueAt) WHERE status = 'pending'`, and a partial unique index on
-`(conversationId) WHERE kind = 'sleep' AND status = 'pending'`, which is what keeps `sleep_until`'s
-latest-call-wins contract. Phase 6's `sleep_until` is migrated to write that row.
-
-`bot_webhooks`:
-
-| Column | Type | Notes |
-|---|---|---|
-| `projectId` | int | Cascade |
-| `botId` | int | Cascade |
-| `name` | text | Unique `(botId, name)` |
-| `tokenHash` | text, null | Unique partial index where not null |
-| `threadId` | int | |
-| `instructions` | text, null | |
-| `enabled` | boolean | |
-| `createdByUserId` | int | |
-| `lastDeliveryAt` | timestamptz | |
-| `deliveryCount` | int | |
+Phase 6's `sleep_until` is migrated to write its `sleep` row.
 
 Other changes:
 
@@ -521,71 +478,52 @@ The tests control time by writing `lastEnqueuedAt`, `lastSeenAt`, and `dueAt` di
 
 `backend/__tests__/ops/cron.test.ts`:
 
-- `*/7 * * * *` and `0,3 * * * *` are refused, naming the gap they produce; `*/5 * * * *` passes.
-- An empty expression and an unknown timezone are refused.
+- `*/7 * * * *` and `0,3 * * * *` are refused, naming the gap they produce; `*/5 * * * *` passes. An empty
+  expression and an unknown timezone are refused.
 - `0 9 * * *` in `America/Los_Angeles` fires at 17:00Z on one side of the March transition and 16:00Z on the
   other. That is the case ToolExec's suite lost, and the reason this test exists.
 - `lastFireTimeAtOrBefore` is exact after a simulated year-long outage.
 
-`backend/__tests__/actions/schedule-compile.test.ts`, using the fake model server:
-
-- A phrase compiles to the expected cron and timezone, with residual conditions captured.
-- Invalid model output is returned as problems and nothing is saved.
-- Text that is already cron makes zero model calls.
-- A project with no fast model gets a hinted refusal.
+`backend/__tests__/actions/schedule-compile.test.ts`, using the fake model server: a phrase compiles to the
+expected cron and timezone with residual conditions captured; invalid model output comes back as problems and
+nothing is saved; text that is already cron makes zero model calls; a project with no fast model gets a
+hinted refusal.
 
 `backend/__tests__/actions/schedules-fire.test.ts`:
 
 - A due schedule produces one run, one root task placed in its thread, and one `task.assigned` event.
 - **Four parallel `schedules:fire` invocations produce exactly one run.**
 - An open previous run blocks firing without advancing; once it settles, the schedule fires once with
-  `missedFirings`.
-- The spacing check records a skipped run.
-- Unconfirmed, disabled, and paused schedules never fire.
-- An edit resets the anchor only when the expression changed.
-- Runs are pruned to 20.
+  `missedFirings`. The spacing check records a skipped run.
+- Unconfirmed, disabled, and paused schedules never fire. An edit resets the anchor only when the expression
+  changed. Runs are pruned to 20.
 - Run status follows the root task; three failures pause the schedule and notify.
 
-`backend/__tests__/actions/schedule.test.ts`:
+`backend/__tests__/actions/schedule.test.ts`: CRUD, RBAC, and pagination; `schedule:confirm` with an
+expression different from the stored proposal returns 409; `schedule:edit` cannot enable; audit rows carry the
+`describeCron` sentence; the never-MCP four are absent from the MCP tool list.
 
-- CRUD, RBAC, and pagination.
-- `schedule:confirm` with an expression different from the stored proposal returns 409.
-- `schedule:edit` cannot enable.
-- Audit rows carry the `describeCron` sentence.
-- The never-MCP four are absent from the MCP tool list.
+`backend/__tests__/actions/schedule-absence.test.ts`: an away owner gets one keep-alive prompt, and an
+unanswered prompt pauses the schedule as `owner_absent`; another writer's answer keeps it running and
+transfers ownership; an owner who loses write access pauses it at once.
 
-`backend/__tests__/actions/schedule-absence.test.ts`:
+`backend/__tests__/bots/schedule-tools.test.ts`: a bot's `schedule_create` is unconfirmed and posts a card;
+`schedule_edit` can disable but not enable; the 50-schedule cap holds; a fired run where the bot delegates two
+tasks with `blocked_by` reproduces v1's `depends_on` expansion.
 
-- An away owner gets one keep-alive prompt, and an unanswered prompt pauses the schedule as `owner_absent`.
-- Another writer's answer keeps the schedule running and transfers ownership.
-- An owner who loses write access pauses the schedule at once.
-
-`backend/__tests__/bots/schedule-tools.test.ts`:
-
-- A bot's `schedule_create` is unconfirmed and posts a card.
-- `schedule_edit` can disable but not enable.
-- The 50-schedule cap holds.
-- A fired run where the bot delegates two tasks with `blocked_by` reproduces v1's `depends_on` expansion.
-
-`backend/__tests__/bots/wakeups.test.ts`:
-
-- A sleep and a reminder coexist, and `wakeAt` is the earlier of the two.
-- Cancelling a wakeup recomputes `wakeAt`.
-- **Killing the worker between dispatch and tick still delivers the reminder exactly once.**
-- The horizon and count limits hold.
+`backend/__tests__/bots/wakeups.test.ts`: a sleep and a reminder coexist, with `wakeAt` the earlier of the
+two; cancelling a wakeup recomputes `wakeAt`; **killing the worker between dispatch and tick still delivers the
+reminder exactly once**; the horizon and count limits hold.
 
 `backend/__tests__/actions/bot-webhook.test.ts`:
 
 - **An unknown token, a disabled hook, a disabled bot, and a rotated token produce byte-identical responses.**
-- A `token` key in the body cannot redirect the delivery.
-- A body over the cap gets 413, measured while reading.
-- The per-token 429 leaves other tokens unaffected.
-- A missing delivery key gets 422.
+- A `token` key in the body cannot redirect the delivery. A body over the cap gets 413, measured while
+  reading. The per-token 429 leaves other tokens unaffected. A missing delivery key gets 422.
 - A duplicate key gets 202 `duplicate` and writes one inbox row in total.
 - **`cap * 4` concurrent deliveries are accepted exactly up to the cap.**
-- `authorization` and `cookie` headers are never stored.
-- A rejected delivery writes no audit row.
-- Rotation returns the plaintext once.
+- `authorization` and `cookie` headers are never stored; a rejected delivery writes no audit row; rotation
+  returns the plaintext once.
 
 The remaining tests:
 

@@ -110,8 +110,10 @@ gets embedded.
 transformers pipeline: `bge-small-en-v1.5`, CLS pooling, normalized, batches of 16, `numThreads = 1`.
 Membot's own comment is the reason for the thread: ONNX WASM holds the JavaScript thread for hundreds of
 milliseconds per batch. On the main thread that would stall [phase 6](./phase-06-durable-bot-loop.md)'s
-lease renewals and token streaming. A thread is not membot's subprocess pool: no stdio protocol, no model copy
-per CPU.
+lease renewals and token streaming, and trip Keryx's `maxEventLoopDelay` — the invariant
+[phase 2](./phase-02-deployment.md) reserved memory for. Phase 2 assumed a child process; a thread meets the
+same invariant without membot's subprocess pool — no stdio protocol, no second runtime, no model copy per
+CPU — and the thread is restarted, not the process, if inference throws.
 
 The WASM backend is used everywhere, with membot's patch applied through `patchedDependencies` (Botholomew's
 backend is not a published package, so membot's reason for an imperative script does not apply). A Docker
@@ -230,8 +232,8 @@ JSON (`content`, or `contentBase64` up to 5 MiB decoded, plus `mimeType`) and is
 
 `memory:ingest { jobId }` (`embed` queue) claims the job, hashes the payload into `sourceSha256`, and if the
 path's live head came from the same source bytes, finishes as `unchanged`. Otherwise it converts, describes,
-and writes through `MemoryOps` as the uploader (`operation: ingest`, `sourceType: upload`, `sourceUri` = the
-original filename, `sourceMimeType`), which chunks and enqueues embedding in that transaction. The payload is
+and writes through `MemoryOps` as the uploader (`operation: ingest`, `sourceType: upload`, and phase 4's reserved
+`sourceSha256`, `sourceMime`, and `sourceFilename`), which chunks and enqueues embedding in that transaction. The payload is
 nulled on success. `memory:ingest-sweep` (every 60 s) re-enqueues `queued` jobs older than two minutes,
 reclaims `running` jobs whose claim is older than ten minutes (attempts capped at three), and nulls failed
 jobs' payloads after seven days. `(projectId, requestId)` is unique, so a CLI retry or a replayed bot tool call
@@ -289,7 +291,8 @@ Indexes: HNSW `(embedding vector_cosine_ops) WHERE isCurrent AND embedding IS NO
 WHERE isCurrent`; `(projectId, logicalPath) WHERE isCurrent`; `(projectId) WHERE isCurrent AND (embedding IS
 NULL OR embeddingRevision < current)` for the backlog. `memory_ingest_jobs`: `projectId`, `logicalPath`,
 `status` (`queued | running | succeeded | unchanged | failed`), `payload bytea`, `payloadSizeBytes`,
-`sourceFilename`, `sourceMimeType`, `sourceSha256`, `description`, `changeNote`, `expectedVersionId`,
+`kind` (`upload | add`; [phase 19](./phase-19-url-ingest.md) adds `url`), `sourceFilename`, `sourceMime`,
+`sourceSha256`, `description`, `changeNote`, `expectedVersionId`,
 `requestId` (`uniqueIndex(projectId, requestId)`), `createdByUserId`, `createdByBotId`, `onBehalfOfUserId`,
 `versionId`, `attempts`, `lastError` (≤ 2 KB, scrubbed), `claimedAt`, `finishedAt`, `createdAt`; indexes
 `(projectId, createdAt DESC)` and `(status, createdAt)`. `memory_settings` gains `semanticWeight` (0.6),
