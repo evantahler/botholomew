@@ -14,7 +14,8 @@ processor count — and the bot loop in [phase 6](./phase-06-durable-bot-loop.md
 Finding out that Render's Postgres refuses `CREATE EXTENSION vector` under the app's role, or that the OAuth
 issuer resolves to an internal hostname, costs an afternoon with a shell and a week with a swarm.
 
-Most of this is ToolExec's [phase 2](#what-already-exists) with its learnings already applied: the worker
+Most of this is ToolExec's deployment phase (`toolexec:docs/plans/phase-02-deployment.md`) with its
+learnings already applied: the worker
 owns migrations, the encryption key lives in a shared env group because two `generateValue` keys are two
 different keys, `MCP_OAUTH_TRUST_PROXY` is on, instance types are spec ids a test pins, and the blueprint is
 parsed and asserted in `bun test`. What is new is Botholomew's: the worker drains `bots` before anything else
@@ -37,7 +38,7 @@ doc URLs to the `v1` branch; extending `render-blueprint.test.ts`; user docs nam
 
 **Out:** a production environment (staging is the only one until a later decision makes a second); more than
 one worker instance and the migration lock that would need ([phase 18](./phase-18-operations.md)); SMTP, which
-arrives with the first mail anyone sends ([phase 7](./phase-07-threads-and-web-chat.md)); OpenTelemetry metrics
+arrives with the first feature that sends mail; OpenTelemetry metrics
 and spans for the loop ([phase 6](./phase-06-durable-bot-loop.md)); the request-body cap, raised by the phase
 that first accepts uploads ([phase 9](./phase-09-memory-search-and-ingestion.md)); a CDN or edge cache in
 front of the frontend; frontend error reporting.
@@ -75,21 +76,20 @@ What does not exist: any Render resource, DNS for `api.botholomew.com`, a Sentry
 ### Topology
 
 ```
-┌──────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
-│ botholomew-api   │   │ botholomew-worker    │   │ botholomew-frontend  │
-│ type: web  1c-2g │   │ type: worker  1c-2g  │   │ type: web  starter   │
-│ backend/Docker   │   │ backend/Docker       │   │ frontend/Docker      │
-│ HTTP, WS, /mcp   │   │ tasks: 12 processors │   │ nginx :10000         │
-│ tasks: off       │   │ migrations: ON ◀─────┼── owns the schema      │
-│ api.botholomew…  │   │ queues: bots,        │   │ www.botholomew.com   │
-│ health /api/status   │   orchestrator,      │   │ (+ apex → www)       │
-└────────┬─────────┘   │   embed, default     │   └──────────────────────┘
-         │             └──────────┬───────────┘
-         └────────────┬───────────┘
-          ┌───────────▼─────────┐   ┌────────────────────────────┐
-          │ botholomew-redis    │   │ botholomew-db              │
-          │ keyvalue, noeviction│   │ postgres 18 + vector       │
-          └─────────────────────┘   └────────────────────────────┘
+┌─────────────────────┐   ┌──────────────────────────┐   ┌─────────────────────┐
+│ botholomew-api      │   │ botholomew-worker        │   │ botholomew-frontend │
+│ web · 1c-2g         │   │ worker · 1c-2g           │   │ web · starter       │
+│ backend/Dockerfile  │   │ backend/Dockerfile       │   │ frontend/Dockerfile │
+│ HTTP, WebSocket,/mcp│   │ 12 task processors       │   │ nginx :10000        │
+│ tasks off           │   │ migrations ON (only one) │   │ www.botholomew.com  │
+│ api.botholomew.com  │   │ bots → orchestrator →    │   │ apex → 30x to www   │
+│ health /api/status  │   │   embed → default        │   │ health /            │
+└──────────┬──────────┘   └────────────┬─────────────┘   └─────────────────────┘
+           └──────────────┬────────────┘
+           ┌──────────────▼───────────┐   ┌──────────────────────────┐
+           │ botholomew-redis         │   │ botholomew-db            │
+           │ keyvalue · noeviction    │   │ Postgres 18 + vector     │
+           └──────────────────────────┘   └──────────────────────────┘
 ```
 
 API and worker share one image and differ only by environment, as in ToolExec. The frontend builds from the
@@ -240,9 +240,13 @@ migrator applies a journal entry it did not generate; if it does not, that is a 
 ### 2. Config — `backend/config/{tasks,bots,database}.ts`
 
 `tasks.ts`: `queues: ["bots", "orchestrator", "embed", "default"]`, with the two paragraphs above as its comment.
-`bots.ts` (new): `tickSlots: loadFromEnvIfSet("BOT_TICK_SLOTS", 2)` and its `KeryxConfig` augmentation; the
-local default leaves room under the local default of one processor plus the test default of zero. `database.ts`
-is unchanged — `DATABASE_POOL_MAX` is already an env key.
+`bots.ts` (new): `tickSlots: loadFromEnvIfSet("BOT_TICK_SLOTS", 2)` and its `KeryxConfig` augmentation.
+`backend/.env.example` raises development's `TASK_PROCESSORS` from 1 to 4 so the default slots fit under it;
+tests keep `TASK_PROCESSORS_TEST=0` and drive tasks with `runAction` / `drainTasks`, where the rule does not
+apply. The rule is also a **boot assertion**, not only a blueprint test: `initializers/taskHeadroom.ts` refuses
+to start a process with tasks enabled, processors above zero, and `tickSlots >= taskProcessors`, naming both
+variables — so a dashboard override cannot quietly undo it. `database.ts` is unchanged; `DATABASE_POOL_MAX` is
+already an env key.
 
 ### 3. Health and key fingerprint — `backend/actions/status.ts`, `backend/initializers/secrets.ts`
 
@@ -298,6 +302,10 @@ connector address `https://api.botholomew.com/mcp`. Say plainly that the service
 - `config.tasks.queues` is exactly `["bots", "orchestrator", "embed", "default"]`.
 - Every registered action with a `task` names a queue in that list. A job on a queue nobody drains never runs
   and nothing reports it.
+
+`backend/__tests__/config/task-headroom.test.ts` (new):
+- `assertTaskHeadroom` throws for `tickSlots >= taskProcessors` with tasks on, names both variables, and passes
+  with tasks off or zero processors — the API role and the test process.
 
 `backend/__tests__/schema/pgvector.test.ts` (new):
 - `pg_extension` has `vector` after migrations, and `'[1,2,3]'::vector <-> '[1,2,4]'::vector` returns `1` —
@@ -360,6 +368,7 @@ Then the edge cases:
 - [ ] The Blueprint is synced: `botholomew-api`, `botholomew-worker`, `botholomew-frontend`, `botholomew-redis`, `botholomew-db` (Postgres 18), and `botholomew-shared`
 - [ ] Only the worker migrates and runs tasks, as one instance; queues are `bots, orchestrator, embed, default`
 - [ ] `TASK_PROCESSORS=12`, `BOT_TICK_SLOTS=10`, `TASK_TIMEOUT=500`, worker pool 20, all pinned by the blueprint test
+- [ ] A process with tasks on refuses to boot unless tick slots are fewer than processors
 - [ ] `vector` is created by a migration on staging, in CI, and locally; its operator is tested
 - [ ] `status` is healthy only when applied migrations ≥ the image's journal
 - [ ] Both roles log the same key fingerprint; the generated key decodes to 32 bytes
