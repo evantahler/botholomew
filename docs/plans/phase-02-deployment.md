@@ -15,10 +15,9 @@ Finding out that Render's Postgres refuses `CREATE EXTENSION vector` under the a
 issuer resolves to an internal hostname, costs an afternoon with a shell and a week with a swarm.
 
 Most of this is ToolExec's deployment phase (`toolexec:docs/plans/phase-02-deployment.md`) with its
-learnings already applied: the worker
-owns migrations, the encryption key lives in a shared env group because two `generateValue` keys are two
-different keys, `MCP_OAUTH_TRUST_PROXY` is on, instance types are spec ids a test pins, and the blueprint is
-parsed and asserted in `bun test`. What is new is Botholomew's: the worker drains `bots` before anything else
+learnings already applied: the worker owns migrations, the encryption key lives in a shared env group because
+two `generateValue` keys are two different keys, `MCP_OAUTH_TRUST_PROXY` is on, instance types are spec ids a
+test pins, and the blueprint is parsed and asserted in `bun test`. What is new is Botholomew's: the worker drains `bots` before anything else
 and runs many processors because a bot tick spends its life waiting on a model; an `embed` queue is reserved
 for local embeddings; pgvector must exist before [phase 9](./phase-09-memory-search-and-ingestion.md) needs it;
 and www.botholomew.com — today v1's VitePress site on GitHub Pages — moves to the app.
@@ -38,10 +37,10 @@ doc URLs to the `v1` branch; extending `render-blueprint.test.ts`; user docs nam
 
 **Out:** a production environment (staging is the only one until a later decision makes a second); more than
 one worker instance and the migration lock that would need ([phase 18](./phase-18-operations.md)); SMTP, which
-arrives with the first feature that sends mail; OpenTelemetry metrics
-and spans for the loop ([phase 6](./phase-06-durable-bot-loop.md)); the request-body cap, raised by the phase
-that first accepts uploads ([phase 9](./phase-09-memory-search-and-ingestion.md)); a CDN or edge cache in
-front of the frontend; frontend error reporting.
+arrives with the first feature that sends mail; OpenTelemetry metrics and spans for the loop
+([phase 6](./phase-06-durable-bot-loop.md)); the request-body cap, raised by the phase that first accepts
+uploads ([phase 9](./phase-09-memory-search-and-ingestion.md)); a CDN or edge cache in front of the frontend;
+frontend error reporting.
 
 ## What already exists
 
@@ -121,9 +120,9 @@ the number of conversations that may hold a lease at once is **strictly less** t
 them: `TASK_PROCESSORS=12`, `BOT_TICK_SLOTS=10`, leaving two processors that always scan past `bots`. A tick that
 cannot acquire a lease exits in milliseconds and its inbox row waits for dispatch, so running ticks ≤ leased
 conversations ≤ slots. This phase sets the numbers, adds `backend/config/bots.ts` to carry `tickSlots`
-(documented as "read by lease acquisition"), and pins `BOT_TICK_SLOTS < TASK_PROCESSORS` in the blueprint test;
-[phase 6](./phase-06-durable-bot-loop.md)'s lease acquisition enforces it alongside the per-bot cap and the
-project's `concurrencyLimit`.
+(documented as "read by lease acquisition"), and makes `tickSlots < taskProcessors` both a blueprint-test
+assertion and a boot assertion (step 2); [phase 6](./phase-06-durable-bot-loop.md)'s lease acquisition enforces
+the slot count alongside the per-bot cap and the project's `concurrencyLimit`.
 
 Twelve processors on one CPU is deliberate. A tick spends almost all of its time awaiting a streamed model
 response or an MCP call, so processors are concurrency, not parallelism; the limits are memory (each holds a
