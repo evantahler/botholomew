@@ -4,7 +4,7 @@
 > schedule, writes a new version only when the source actually changed, and shows every file's refresh health —
 > so shared knowledge neither goes stale quietly nor disappears because someone else's server had a bad day.
 
-> **Status: planned, not built.** Stage F — Memory, later. Depends on
+> **Status: planned, not built.** Stage F — Memory, extended. Depends on
 > [phase 4](./phase-0004-project-memory-core.md) (versions, `mv`, undelete), [phase 7](./phase-0007-threads-and-web-chat.md)
 > (notifications), [phase 9](./phase-0009-memory-search-and-ingestion.md) (conversion and embedding), and
 > [phase 19](./phase-0019-url-ingest.md) (the guarded fetcher and the source columns it persists).
@@ -115,7 +115,7 @@ The window function is the fairness — a project with a thousand due rows gets 
 this tick, a project with one gets its one, and ordering by rank first means every project's most overdue row is
 in the batch before any project's second. Postgres refuses `FOR UPDATE` alongside a window function, so the
 claim is an `UPDATE` whose outer predicate is re-evaluated under each row lock: two overlapping ticks that rank
-the same ids claim disjoint sets, because the loser re-reads a `claimed_at` it now fails to match. Each claimed
+the same ids claim disjoint sets, because the loser re-reads a `claimed_at` it fails to match. Each claimed
 row enqueues `memory:refresh-one { refreshId, claimEpoch }` on `default` in `afterCommit`. A task that dies leaves
 a claim that expires after `refreshClaimTtlMs` (10 min); every write the task makes — status, `nextRefreshAt`,
 staging the ingest job — is fenced on `claim_epoch = $mine`, so a task that wakes after its claim was retaken

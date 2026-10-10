@@ -303,7 +303,7 @@ tenant. The order on the settings page is the order that works:
 3. They paste the **signing secret** (shown at once on Basic Information), install the app to the workspace,
    and paste the **bot token**. `connection:slack-activate` probes `auth.test`, records `teamId`, `teamName`, `appId` and
    `botUserId`, and flips the row to `active`.
-4. The page tells them to press *Retry* on Slack's Event Subscriptions page, which now passes.
+4. The page tells them to press *Retry* on Slack's Event Subscriptions page, which passes.
 
 The routing token sits in the clear on the row. It is a router, not a credential (the signature is the
 credential), and the manifest must be re-renderable. Both secrets are stored as **one encrypted JSON map**,
@@ -314,7 +314,7 @@ definition's Zod schema. Putting the signing secret in refresh-token columns wou
 kept open by one rule: everything after the connection row reads a `slack` connection and never asks how it
 was created.
 
-## Decisions so far
+## Decisions
 
 | Question | Decision |
 |---|---|

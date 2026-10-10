@@ -136,9 +136,9 @@ typed error carrying `currentVersionId`, the current author, and `updatedAt`, pl
 re-apply". Nothing is ever merged on the server.
 
 `edit` requires `expectedVersionId`, because line numbers are meaningless without the version they were
-counted against. v1's `membot_edit` read, patched, and wrote with no check, so two edits in flight
-silently lost one of them. The patches are v1's `LinePatchSchema`, unchanged. This phase adds two refusals
-v1 lacked: overlapping ranges, and ranges past end-of-file. Both come with a hint that names the file's
+counted against. v1's `membot_edit` reads, patches, and writes with no check, so two edits in flight
+silently lose one of them. The patches are v1's `LinePatchSchema`, unchanged. This phase adds two refusals
+v1 lacks: overlapping ranges, and ranges past end-of-file. Both come with a hint that names the file's
 line count.
 
 ### Paths are database keys
@@ -162,7 +162,7 @@ That is the client-side half of `resolveInRoot`.
 
 | Path | Validator | People who may write | Bots that may write (seam) |
 |---|---|---|---|
-| `skills/<name>.md` | Strict skill frontmatter; `name` equals the file stem; flat (no subdirectories) | Any member | Any bot, only when the project setting `botsMayWriteSkills` is on ([phase 12](./phase-0012-skills.md) adds it; until then the predicate's input is `false`) |
+| `skills/<name>.md` | Strict skill frontmatter; `name` equals the file stem; flat (no subdirectories) | Any member | Any bot, only when the project setting `botsMayWriteSkills` is on ([phase 12](./phase-0012-skills.md) adds it; without it the predicate's input is `false`) |
 | `prompts/<name>.md` | Strict prompt frontmatter; flat | Admins. A project prompt shapes every bot, so writing it is writing every bot | None |
 | `bots/<slug>/prompts/<name>.md` | Strict prompt frontmatter; flat | Writers of that bot ([phase 5](./phase-0005-bots.md)) | That bot, only where the current file says `agent-modification: true`; it may never flip the flag, and a prompt it creates must say `true` |
 | `bots/<slug>/notes/**` | None | Writers of that bot | That bot |
@@ -175,10 +175,10 @@ else" is the fallback. The validators are v1's, with no loosening:
 
 - **Prompts:** `PromptFrontmatterSchema` (`title`, `loading: always | contextual`, `agent-modification`),
   `.strict()`.
-- **Skills:** a new `.strict()` schema over exactly the fields v1's parser read: `name` (`validateSkillName`
+- **Skills:** a new `.strict()` schema over exactly the fields v1's parser reads: `name` (`validateSkillName`
   form, at most 64 characters, not a reserved built-in), `description` (1–1,024 characters), and
-  `arguments[]` of `{ name, description, required, default? }`. v1's parser silently defaulted a missing
-  `name` and dropped malformed arguments, so a typo became a different skill. Here it is a 406 that names the
+  `arguments[]` of `{ name, description, required, default? }`. v1's parser silently defaults a missing
+  `name` and drops malformed arguments, so a typo becomes a different skill. Here it is a 406 that names the
   field.
 
 A write that fails validation is refused with v1's `formatZodIssues` text and a hint carrying a minimal
@@ -237,12 +237,12 @@ This is the whole membot port. [Phase 9](./phase-0009-memory-search-and-ingestio
 | Local files, directories, globs read by the server | **Adapt**: the CLI walks them and uploads; the server never reads a host path | 9 |
 | `stats` | **Bring** | 9 |
 | Embedder subprocess pool | **Drop**: one in-process embedder thread per process | 9 |
-| URL ingest (membot only had per-service downloaders, with no generic web fetch) | **Adapt**: a public fetch behind the SSRF guard, plus HTML→md | 19 |
+| URL ingest (membot only has per-service downloaders, with no generic web fetch) | **Adapt**: a public fetch behind the SSRF guard, plus HTML→md | 19 |
 | `refresh`, `refresh_frequency`, the refresh daemon | **Adapt**: a `memory:refresh-due` clock that writes a new version only when the sha changes | 20 |
 | Downloaders (`github`, `github-repo`, `linear`, `linear-team`), `--sync`, `sources` | **Adapt** into MCP-backed source routers with bulk sync | 21 |
 | Custom shell-command routers | **Drop** the shell; MCP routers replace it | 21 |
 | Image vision captions, LLM conversion fallback, LLM describer | **Bring** on the project's BYOK fast model | 22 |
-| Original bytes, blob policy (25 MB cap, skip video/audio), blob sha dedupe, `read --bytes`, `prune --strip-blob-bytes` | **Bring**: per-project `bytea`; until then only the markdown surrogate and its sha are kept | 23 |
+| Original bytes, blob policy (25 MB cap, skip video/audio), blob sha dedupe, `read --bytes`, `prune --strip-blob-bytes` | **Bring**: per-project `bytea`; earlier phases keep only the markdown surrogate and its sha | 23 |
 | `prune --before` | **Bring** as admin-only retention | 18 |
 | Cross-encoder rerank | Later, unphased, opt-in | later |
 | LLM chunker mode (a config knob with no implementation) | **Drop** | dropped |
@@ -259,7 +259,7 @@ This is the whole membot port. [Phase 9](./phase-0009-memory-search-and-ingestio
 | Binary content | Not in this phase; writes must be UTF-8 text of at most `MEMORY_MAX_FILE_BYTES` (5 MiB). Binaries arrive with uploads in [phase 9](./phase-0009-memory-search-and-ingestion.md), and their original bytes in [phase 23](./phase-0023-original-bytes-and-blob-policy.md) |
 | Project settings | None in this phase. The skills gate reads `botsMayWriteSkills`, which [phase 12](./phase-0012-skills.md) adds; memory's own knobs arrive in `memory_settings` with [phase 9](./phase-0009-memory-search-and-ingestion.md) |
 | What the audit row carries | Version metadata only (path, `versionId`, sha, size, change note). The version table is the content record |
-| `rm` across many paths | All-or-nothing in one transaction, capped at 1,000 matches. Membot reported per-entry failures because DuckDB could not do better |
+| `rm` across many paths | All-or-nothing in one transaction, capped at 1,000 matches. Membot reports per-entry failures because DuckDB cannot do better |
 | `push` | All-or-nothing through `memory:batch` (at most 200 operations), each guarded by the manifest's version |
 | Who writes project-wide `prompts/` | Admins only; bots never |
 
@@ -279,14 +279,14 @@ This is the whole membot port. [Phase 9](./phase-0009-memory-search-and-ingestio
 | `contentSha256` | `varchar(64)` | Null for tombstones |
 | `sizeBytes`, `lineCount` | `integer` | |
 | `mimeType` | `varchar(128)` | Default `text/markdown`; set from the extension (`.json`, `.yaml`, `.csv`, …) |
-| `description` | `text` | Author-set here; derived when absent from [phase 9](./phase-0009-memory-search-and-ingestion.md) on |
+| `description` | `text` | Author-set here; [phase 9](./phase-0009-memory-search-and-ingestion.md) derives it when absent |
 | `frontmatter` | `jsonb` | Parsed reserved-path frontmatter, so prompt and skill listings do not re-parse |
 | `operation` | `varchar(16)` | `create \| write \| edit \| copy \| move \| delete \| restore` |
 | `parentVersionId`, `derivedFromVersionId` | `integer` | Self-references, `set null` |
 | `authorUserId`, `onBehalfOfUserId` | `integer` | → `users.id`, `set null` |
 | `authorBotId` | `integer` | No foreign key yet; [phase 5](./phase-0005-bots.md) adds one with `set null` |
 | `changeNote` | `varchar(1000)` | |
-| `sourceType` | `varchar(16)` | Default `inline`. Reserved for ingestion: `upload` ([phase 9](./phase-0009-memory-search-and-ingestion.md)), `url` ([phase 19](./phase-0019-url-ingest.md)), `router` ([phase 21](./phase-0021-source-routers-and-bulk-sync.md)) — membot called the URL case `remote` |
+| `sourceType` | `varchar(16)` | Default `inline`. Reserved for ingestion: `upload` ([phase 9](./phase-0009-memory-search-and-ingestion.md)), `url` ([phase 19](./phase-0019-url-ingest.md)), `router` ([phase 21](./phase-0021-source-routers-and-bulk-sync.md)) — membot calls the URL case `remote` |
 | `sourceUri`, `sourceSha256`, `sourceMimeType`, `sourceFilename` | `text`, `varchar(64)`, `varchar(128)`, `text` | Reserved for ingestion: where the bytes came from, the sha of the source bytes, their sniffed mime, and an upload's original name. Declared now so ingestion adds no columns to a table that already has rows; fetch-specific columns (final URI, ETag, fetcher args) arrive with [phase 19](./phase-0019-url-ingest.md) |
 | `searchTsv` | `tsvector` | Generated, stored |
 | `createdAt` | `timestamp(withTimezone)` | `defaultNow()` |
@@ -310,7 +310,8 @@ logicalPath, id DESC)` for history and prefix scans; GIN on `searchTsv WHERE isC
   - `canWritePath(actor, path, ctx)` returns allowed, or denied with a hint.
   - The ported `PromptFrontmatterSchema`, `SkillFrontmatterSchema`, `formatZodIssues`, and
     `RESERVED_SKILL_NAMES`.
-  - `resolveBotNamespace(projectId, slug)`, which returns `null` until [phase 5](./phase-0005-bots.md).
+  - `resolveBotNamespace(projectId, slug)`, which returns `null` in this phase; [phase 5](./phase-0005-bots.md) gives it
+    bots to resolve.
 - `MemoryOps` (each mutation takes `tx` and a `MemoryActor`, and returns the new head)
   - `readFile`, `fileInfo`, `listEntries`, `buildTree`, `listVersions`, `diffVersions`, `manifest`.
   - `writeFile`, `editFile`, `copyFile`, `moveFile`, `movePrefix`, `removePaths`, `restoreVersion`,
@@ -361,7 +362,7 @@ membership row. A malformed name is refused rather than thrown.
 ### 6. Bot tools — `backend/bots/tools/{tool.ts,memory/*.ts}`
 
 `tool.ts` ports v1's `ToolDefinition` shape. Its context carries a `MemoryActor` and `projectId` instead of
-`withMem`. The memory tools are its first members. No bot receives them until
+`withMem`. The memory tools are its first members. No bot receives them here;
 [phase 6](./phase-0006-durable-bot-loop.md) adds the execution half: the registry, replay, and the effect
 sandwich. Each tool's `description` begins with a bash tag, and each returns the PATs envelope
 `{ is_error, error_type, message, next_action_hint }`.

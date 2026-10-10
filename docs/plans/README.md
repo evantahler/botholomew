@@ -251,7 +251,7 @@ for agents and people; `CLAUDE.md` is only a symlink to it — states them in fu
 | [16](./phase-0016-slack.md) | Slack | Per-project Slack app, linked identities, threads as conversations, outbox, approval cards |
 | [17](./phase-0017-imessage.md) | iMessage | Linq lines, reach and opt-out, reply threading |
 | [18](./phase-0018-operations.md) | Operations | Retention, deletion semantics, key rotation, usage dashboards, behaviour evals |
-| **Stage F — Memory, later** | | |
+| **Stage F — Memory, extended** | | |
 | [19](./phase-0019-url-ingest.md) | URL ingest | "Add from URL": SSRF-guarded fetch, HTML → markdown, `remotes/<host>/…` paths |
 | [20](./phase-0020-upstream-refresh.md) | Upstream refresh | Per-file refresh cadence and a refresh clock; a new version only when the source changed |
 | [21](./phase-0021-source-routers-and-bulk-sync.md) | Source routers and bulk sync | MCP-backed routers replacing membot's GitHub/Linear downloaders and shell routers; bulk import and sync |
@@ -262,7 +262,7 @@ Each phase ends in a reviewable, deployable state. The core of [phase 16](./phas
 identities, threads as conversations, the outbox — depends only on phases 1–8 and may move up if Slack is
 wanted sooner; its approval cards and slash commands wait for phases 10 and 12.
 
-**Later, unphased:** organization billing; per-asker MCP authorization (Arcade user ids, "act as the
+**Unphased:** organization billing; per-asker MCP authorization (Arcade user ids, "act as the
 asker"); an auto-review model for approvals; project dump/apply; MCP Apps; bot templates; cross-encoder
 reranking; private threads with audience-scoped memory.
 

@@ -169,15 +169,15 @@ and written into the learnings.
 ### One key, proven without a secret to decrypt
 
 ToolExec verifies the shared key by writing a secret through the web service and reading it in a worker task.
-Nothing in this phase encrypts anything (encryption arrives with [phase 5](./phase-0005-bots.md)), so `initializers/secrets.ts` logs a **fingerprint**
-at boot — the first eight hex characters of SHA-256 over the key — and the runbook compares the two roles' log
-lines. A truncated hash of a 256-bit random key discloses nothing useful, and a mismatch is visible on the first
+Nothing in this phase encrypts anything (encryption arrives with [phase 5](./phase-0005-bots.md)), so
+`initializers/secrets.ts` logs a **fingerprint** at boot — the first eight hex characters of SHA-256 over the
+key — and the runbook compares the two roles' log lines. A truncated hash of a 256-bit random key discloses nothing useful, and a mismatch is visible on the first
 deploy instead of the first decryption.
 
 ### www.botholomew.com moves from GitHub Pages to the app
 
-Phase 1 removes the Pages workflow, so GitHub Pages serves v1's last docs build for as long as DNS points at it. The cutover
-order keeps a working site at every step:
+Phase 1 removes the Pages workflow, so GitHub Pages serves v1's last docs build for as long as DNS points at
+it. The cutover order keeps a working site at every step:
 
 1. Sync the blueprint; `api.botholomew.com` is a new name, so its DNS record and certificate go first.
 2. Lower the TTL on `www` and the apex a day ahead.
@@ -200,7 +200,8 @@ ignored by Render, so a dashboard-only value could leave one role dark after a s
 (this is staging, and it says so), `SENTRY_TRACES_SAMPLE_RATE=0`, metrics and logs off. `OTEL_SERVICE_NAME` and
 `PROCESS_NAME` are the Render service names, so Sentry's `serverName` and every log line say which role spoke.
 OpenTelemetry metrics stay disabled; loop spans worth exporting arrive with
-[phase 6](./phase-0006-durable-bot-loop.md). Render's health checks and logs are the rest of the observability this phase needs.
+[phase 6](./phase-0006-durable-bot-loop.md). Render's health checks and logs are the rest of the observability
+this phase needs.
 
 ### Env matrix
 

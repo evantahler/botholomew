@@ -291,7 +291,7 @@ provenance fence (`mcp:<server>/<tool>`, call id) as data. Tool descriptions are
 description is the cheapest injection a hostile server has. In the UI, server text is labelled as coming from the
 server and links are never auto-opened.
 
-## Decisions so far
+## Decisions
 
 | Question | Decision |
 |---|---|

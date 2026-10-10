@@ -254,7 +254,7 @@ and code mode ([phase 11](./phase-0011-code-mode.md)) are the other sources of b
 prompt section gains the search half of `SERVER_INSTRUCTIONS` — search before you read, read before you
 write — minus the GitHub, Linear, and Apple Notes paragraphs, with tool names generated from the registry.
 
-## Decisions so far
+## Decisions
 
 | Question | Decision |
 |---|---|

@@ -317,7 +317,7 @@ follows, and a takeover does not have to wait for the reaper. It settles every r
 | `model_steps` `started` | `abandoned` (`crash`), estimated `usage_events` row | nothing; the step is retried as the next attempt | +1 |
 | `tool_calls` `started`, `replay: "safe"` | `pending` | nothing; it runs again | +1 |
 | `tool_calls` `started`, `replay: "unsafe"` | `unknown` | "The call to `<tool>` was interrupted by a crash and may or may not have taken effect. Verify (for example by reading the target) before retrying." | +1 |
-| `tool_calls` `denied` with no result | — | the denial result is written now | — |
+| `tool_calls` `denied` with no result | — | the denial result is written | — |
 | `tool_calls` `pending` / `approved` | unchanged | — (SETTLE runs them) | — |
 
 **Two crashes on the same step make the conversation `errored`.** The counter resets when a step reaches
@@ -968,7 +968,7 @@ End to end, with a real Anthropic connection on a local project:
    and the interim text that was not posted.
 2. Send a long request, then immediately `botholomew thread send <id> "actually, just the first item"
    --steer`. The transcript shows the steer between steps, and one final answer.
-3. Ask for "a reminder in two minutes". The bot answers now. Write `wakeAt` into the past with `psql` (or
+3. Ask for "a reminder in two minutes". The bot answers immediately. Write `wakeAt` into the past with `psql` (or
    wait), and a new turn posts the reminder.
 4. Open the bot page. Its status chip reads `working`, then `hibernating`. This month's spend increases.
 

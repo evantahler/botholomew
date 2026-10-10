@@ -4,7 +4,7 @@
 > markdown file at `remotes/<host>/<path>` with its provenance attached — fetched once, by the server, through a
 > guard that reaches nothing but the public internet.
 
-> **Status: planned, not built.** Stage F — Memory, later. Depends on
+> **Status: planned, not built.** Stage F — Memory, extended. Depends on
 > [phase 4](./phase-0004-project-memory-core.md) (versions and the reserved source columns),
 > [phase 6](./phase-0006-durable-bot-loop.md) (provenance fencing), [phase 9](./phase-0009-memory-search-and-ingestion.md)
 > (sniffing, converters, ingest jobs, `memory:add`, `memory_add`), and

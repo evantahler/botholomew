@@ -213,7 +213,7 @@ The root task is placed in the schedule's thread, so its brief arrives as a `tas
 ([phase 13](./phase-0013-leader-and-workers.md)). The event carries the schedule's name and id, the run id,
 `firedFor` in the schedule's timezone, `missedFirings`, the description, and the residual conditions. It ends
 with the instruction to do the work directly or split it with `delegate`, chaining steps with `blocked_by`.
-That is v1's "a schedule naturally expands into a chained DAG", now a decision the bot makes when the schedule
+That is v1's "a schedule naturally expands into a chained DAG", here a decision the bot makes when the schedule
 fires instead of a model guess on every tick. The root task gets the swarm's guards, reports, and canvas for
 free.
 

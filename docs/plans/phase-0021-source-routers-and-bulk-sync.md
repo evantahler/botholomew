@@ -5,7 +5,7 @@
 > URL, refresh replays exactly that call, and a whole repository's issues or a team's tickets can be imported as
 > one collection and optionally kept in sync — with every credential living only on the project's MCP servers.
 
-> **Status: planned, not built.** Stage F — Memory, later. Depends on
+> **Status: planned, not built.** Stage F — Memory, extended. Depends on
 > [phase 10](./phase-0010-mcp-servers-and-approvals.md) (MCP servers, credentials, the backend MCP client, the
 > approval gate), [phase 19](./phase-0019-url-ingest.md) (fetcher identity, fencing), and
 > [phase 20](./phase-0020-upstream-refresh.md) (the refresh dispatch table and machine authorship).
@@ -38,7 +38,7 @@ in phase 10's approval and allowlist model; router test with dry match and optio
 `collection …`; user docs; tests against phase 10's fake MCP server.
 
 **Out:** multi-call routers (an issue *and* its comments as two tool calls — choose a tool that returns both, or
-compose in code mode, [phase 11](./phase-0011-code-mode.md)); per-asker credentials (later, unphased — routers use
+compose in code mode, [phase 11](./phase-0011-code-mode.md)); per-asker credentials (unphased — routers use
 the server's project-level credential); shell routers and shell post-processors, ever; Apple Notes and other
 local-machine sources (the CLI uploads files instead); write-capable tools as routers.
 
@@ -156,7 +156,7 @@ should choose.
 ### Sync is opt-in, complete, and guarded
 
 `syncMode = 'tombstone'` on a collection makes each enumeration tombstone files that the collection created
-(`fetcherArgs.collectionId`) and the source now omits — `operation = 'delete'`, `systemActor = 'sync'`, and
+(`fetcherArgs.collectionId`) and the source omits — `operation = 'delete'`, `systemActor = 'sync'`, and
 a note such as `sync: issue #412 no longer listed by github-repo:acme/api:issues`. Three rules keep it from being
 the worst button in the product:
 

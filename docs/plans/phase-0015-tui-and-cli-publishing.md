@@ -158,7 +158,7 @@ The status bar says `polling`, and the reader retries the socket every 60 s.
 
 **Exits.** `thread follow` runs until Ctrl+C. `task view --follow` exits when the task settles.
 `thread send --wait` exits when the conversation the message woke goes idle — the same condition phase 6
-polls for, now observed from the bot channel. `schedule test --follow` follows the run's thread until its root
+polls for, observed from the bot channel. `schedule test --follow` follows the run's thread until its root
 task settles. With `--json`, output is JSONL.
 
 ### `botholomew chat`
@@ -192,10 +192,10 @@ Several v1 pieces port nearly as they are:
   ([phase 7](./phase-0007-threads-and-web-chat.md)).
 
 The status bar shows the project, the bot, the bot's status (including "sleeping until 14:00", which replaces
-v1's `SleepProgress` bar now that sleeping is durable), its model, the queue count, and `live`, `polling`, or
+v1's `SleepProgress` bar, because sleeping is durable), its model, the queue count, and `live`, `polling`, or
 `reconnecting`.
 
-### The queue lives on the server now
+### The queue lives on the server
 
 In v1 the queue is "ephemeral (in-memory, not persisted)". The TUI holds messages until the agent finishes,
 and `Ctrl+E` / `Ctrl+X` edit or drop them. In 2.0, Enter while the bot is busy sends the message straight

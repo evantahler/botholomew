@@ -4,7 +4,7 @@
 > controls. People download the PDF they uploaded, code mode can parse the spreadsheet itself, and when a converter
 > improves an admin regenerates surrogates from the originals — without asking anyone to upload anything again.
 
-> **Status: planned, not built.** Stage F — Memory, later. Depends on
+> **Status: planned, not built.** Stage F — Memory, extended. Depends on
 > [phase 4](./phase-0004-project-memory-core.md) (`memory_files`, the reserved `memory_blobs`),
 > [phase 9](./phase-0009-memory-search-and-ingestion.md) (uploads, converters, embedding),
 > [phase 18](./phase-0018-operations.md) (version retention and deletion semantics), and
@@ -106,7 +106,7 @@ the strip, which is the reason it exists. The policy is per project in `memory_s
 (25 MiB), `blobSkipMimeTypes` (`video/*`, `audio/*`), and `blobQuotaBytes` (2 GiB) — and a project may lower the
 size cap but not raise it past the platform ceiling `MEMORY_BLOB_MAX_BYTES`. A skipped file still gets a blob row
 with sha, mime, size, and `skipReason` (`size`, `mime`, `quota`, or later `stripped`), exactly as membot's
-nullable `bytes` does. When a blob row exists without bytes and a later ingest of the same sha is now allowed —
+nullable `bytes` does. When a blob row exists without bytes and a later ingest of the same sha is allowed —
 the policy was loosened, the quota freed — the bytes are filled in: **rehydration**, free on the next upload.
 
 Reaching the quota never fails an ingest; it records `quota` and notifies admins once a day while it persists.
@@ -115,7 +115,7 @@ success, it instead hands the payload to `putBlob` in the transaction that write
 already in Postgres, so keeping them is a move, not a second upload. Sources that emit markdown directly (routers with `docmd`, inline writes) store no blob, as in membot. Fetched
 HTML *does* keep its bytes: turndown's configuration is exactly the kind of converter that improves.
 
-### Image files, at last
+### Image files
 
 [Phase 9](./phase-0009-memory-search-and-ingestion.md) refuses image uploads because accepting one would keep a
 placeholder and discard the only copy. With originals kept that objection does not hold, so `memory:upload`,
@@ -154,7 +154,7 @@ includes its spend estimate; this is also what lets phase 22 caption uploads fro
 ### Strip and collect, with phase 18
 
 `memory:blob-strip` applies the current policy retroactively — membot's `prune --strip-blob-bytes` — deleting the
-parts of every blob the predicate now rejects, keeping the row with `skipReason = 'stripped'`, and reporting the
+parts of every blob the predicate rejects, keeping the row with `skipReason = 'stripped'`, and reporting the
 bytes reclaimed. It is admin-only, dry-run by default, audited, and the confirmation says it cannot be undone.
 
 Blobs follow versions, not paths. A tombstoned file keeps its blob, because undelete must restore the original.

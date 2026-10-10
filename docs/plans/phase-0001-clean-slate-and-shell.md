@@ -129,9 +129,9 @@ Anything that turns out to be a Keryx bug goes upstream first (AGENTS.md rule 4)
 ToolExec's thirty-three migrations describe tables this repository never has. The shell's schema is
 seven files, so ToolExec's `backend/drizzle/` and its `meta/` are not copied and `bun run migrations`
 generates one fresh `0000`. `audit_logs` gains `actorBotId` and `onBehalfOfUserId` now — nullable integers, no foreign key yet —
-because every bot-made change in [phase 5](./phase-0005-bots.md) and every phase after it (creating a worker,
-editing a prompt or a skill) is audited through them, and adding audit columns later would mean a migration on the one table that is
-deliberately never rewritten. They carry no foreign key for the reason `projectId` has none: the record must
+because every bot-made change in [phase 5](./phase-0005-bots.md) and every phase after it (creating a
+worker, editing a prompt or a skill) is audited through them, and adding audit columns later would mean a
+migration on the one table that is deliberately never rewritten. They carry no foreign key for the reason `projectId` has none: the record must
 outlive its subject. A bot table to point at does not exist yet anyway.
 
 ### Renaming and scrubbing
@@ -159,8 +159,8 @@ that stays is AGENTS.md's link to Patterns for Agentic Tools, which is a citatio
 ### 1. Confirm the `v1` branch — `refs/heads/v1`
 
 The `v1` branch is the planning PR session's `git push origin origin/main:refs/heads/v1`: `origin/v1` points at
-`d9dabb0`, the same commit as `origin/main` at that push. Before deleting anything, confirm it is still there and still an ancestor of `main`,
-and protect it from deletion and force-push:
+`d9dabb0`, the same commit as `origin/main` at that push. Before deleting anything, confirm it is still there
+and still an ancestor of `main`, and protect it from deletion and force-push:
 
 ```bash
 git fetch origin && git merge-base --is-ancestor origin/v1 origin/main && echo "v1 is intact"

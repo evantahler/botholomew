@@ -87,7 +87,7 @@ derives them), budget enforcement and the usage ledger
 The row is what code reasons about: identity for URLs and mentions (`slug`), role, access, model pin,
 limits. The directory is what a model reads: `bots/<slug>/prompts/` (seeded with `identity.md`, `goals.md`,
 `beliefs.md`) and `bots/<slug>/notes/` (the bot's working notes, empty until it writes). Phase 4's namespace
-registry already knows both shapes; this phase fills its seam: `resolveBotNamespace(projectId, slug)` now
+registry already knows both shapes; this phase fills its seam: `resolveBotNamespace(projectId, slug)`
 finds the bot, and the human rule for `bots/<slug>/**` becomes `canWriteBot`. A write under a slug with no bot
 is refused — namespaces are created by their bot, never by a stray path.
 
@@ -216,11 +216,11 @@ an unknown name fails before anything is spent. `bots.modelName` pins by name, a
 renaming a model rewrites its pins in the same transaction, and deleting a model is refused while it is the
 default, the fast model, or anyone's pin.
 
-### Declared now, used later
+### Declared here, read by phase 6
 
 `concurrencyCap` (default 3, at least 1) and `monthlyBudgetUsd` are enforced by
 [phase 6](./phase-0006-durable-bot-loop.md): with a cap of 2 or more, one slot is held back for human-priority
-work, and the budget is checked against the month's `usage_events` before each model step. Declaring them now
+work, and the budget is checked against the month's `usage_events` before each model step. Declaring them in this phase
 keeps the editor complete and avoids a migration against a table that already has rows; the schema comment says
 what reads each one. `bots.status` (`hibernating | working | waiting | paused | errored`) is reserved for
 phase 6, which adds it with the pause columns and derives it from conversations; nothing in this phase shows a
@@ -378,7 +378,7 @@ Manually, in the browser:
 3. Open Botholomew's prompt preview, type a sample message, and watch a `contextual` project prompt you
    created join below the breakpoint.
 4. Create a worker "Researcher" with a one-word description; Validate reports the description.
-5. Rename its slug to `research`; its files now live under `bots/research/` with history intact.
+5. Rename its slug to `research`; its files live under `bots/research/` with history intact.
 6. `botholomew bot list`, `botholomew model list`, `botholomew connection probe anthropic` match the UI.
 
 Then the edge cases:

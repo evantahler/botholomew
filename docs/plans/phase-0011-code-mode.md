@@ -18,7 +18,7 @@ running guest JavaScript or type-stripped TypeScript in a worker thread with no 
 host only through supplied functions. 2.0 keeps the design and the limits, renames the tool `run_code`, and gives
 it to every bot.
 
-It comes now because [phase 10](./phase-0010-mcp-servers-and-approvals.md) makes MCP calls something a bot can make,
+It sits here because [phase 10](./phase-0010-mcp-servers-and-approvals.md) makes MCP calls something a bot can make,
 and the useful unit of work is rarely one call: it is "list everything from the last week, group it, join it with
 what memory already says, and tell me the three that matter". As conversational tool calls that is a dozen model
 steps with every payload in context; as one program it is one step and a small result.
@@ -228,7 +228,7 @@ enqueues `bot:tick`. Because one-off jobs are never retried, `code:dispatch` (ev
 runs whose claim is stale — the row is the delivery. Off by default: one service is simpler, and inline is the
 reference path every test exercises first.
 
-## Decisions so far
+## Decisions
 
 | Question | Decision |
 |---|---|

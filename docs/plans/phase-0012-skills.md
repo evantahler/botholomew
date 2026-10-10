@@ -191,7 +191,7 @@ rendering the unsaved draft through `skill:render`; a raw toggle into the whole 
 restore from the memory viewer. Saving writes a new version with a change note and `expectedVersionId`. "Try it"
 opens the composer with the command filled in.
 
-## Decisions so far
+## Decisions
 
 | Question | Decision |
 |---|---|

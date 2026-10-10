@@ -358,7 +358,7 @@ notification frame's key set is exactly `id`, `userId`.
 
 `actions/routing.test.ts`
 - Unaddressed → the fake model server sees exactly one conversation's request, the owner's.
-- `@slug` → that bot only, now a participant; `@everyone` → every bot participant; reply-to → that bot.
+- `@slug` → that bot only, which becomes a participant; `@everyone` → every bot participant; reply-to → that bot.
 - A mention of a bot the sender cannot write is listed in `unrouted`; with nothing routable the send is
   refused and the counts of messages, inbox rows, and audit rows are all unchanged.
 - A bot's `@everyone` routes nobody; bots mentioning each other trip phase 6's hop limit.
@@ -405,7 +405,7 @@ Manually, with two browser windows — an admin, and a member whose tags can rea
    onto each call beside its result; the home's chip shows `working` and then clears, without a reload.
 2. While it works, send a second message (it shows `queued`, then is answered in the next turn), then send
    one with **Steer** (it appears between steps).
-3. Write `@Research what do you think?`. Only Research answers; it is now a participant.
+3. Write `@Research what do you think?`. Only Research answers, and becomes a participant.
 4. As the member, open the thread list: the Botholomew thread is absent; opening its URL directly is a 403.
    Open Research's conversation from the bot page: only the `@Research` message and its reply are there.
 5. In a terminal, `botholomew thread follow <id>`, and send from the browser: the CLI streams the reply.

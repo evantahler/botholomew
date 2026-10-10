@@ -128,7 +128,7 @@ inside the window and adds one deleter. For each conversation with entries older
    and release the lease. **No model call.** Summarizing would spend the customer's key to delete their
    data.
 3. **Expired entries are still part of the live context** (the base has expired or there is none, but the
-   conversation also has recent entries). Nothing is deleted now. Retention never changes what a model sees
+   conversation also has recent entries). Nothing is deleted at this step. Retention never changes what a model sees
    in the middle of a conversation. The conversation is flagged to compact at its next tick, which it would
    have paid for anyway as it grew, and the next sweep deletes the expired entries behind the new base.
 4. **A leased conversation** is skipped and picked up the next day.
@@ -342,7 +342,7 @@ named, argued exception list, the same shape as `rbac.test.ts`. Every 429 carrie
 honours it. The review also checks dispatch fairness. If phase 6's `bots:dispatch` orders purely by priority
 and age, it gains a per-project cap per tick, so one busy project cannot fill the `bots` queue.
 
-### Data export, later
+### Data export (unphased)
 
 A full project dump/apply format stays unphased, and ToolExec's `ProjectDumpOps` is its starting
 point. In its absence the documented path is: `botholomew memory pull <prefix> <dir>` for files, prompts

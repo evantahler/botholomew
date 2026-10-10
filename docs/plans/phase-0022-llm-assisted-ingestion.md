@@ -5,7 +5,7 @@
 > on the project's own model, inside a budget an admin set, with every token recorded. A project that does not
 > opt in loses nothing: ingestion stays deterministic and complete.
 
-> **Status: planned, not built.** Stage F — Memory, later. Depends on [phase 5](./phase-0005-bots.md) (BYOK
+> **Status: planned, not built.** Stage F — Memory, extended. Depends on [phase 5](./phase-0005-bots.md) (BYOK
 > connections and the named model registry), [phase 6](./phase-0006-durable-bot-loop.md) (`backend/llm/`,
 > `usage_events`, budgets, the fake model server), and [phase 9](./phase-0009-memory-search-and-ingestion.md) (the
 > converters, the describer, ingest jobs). Re-running on uploads gets better with
@@ -34,7 +34,7 @@ capability flags on `project_models`; the budget check, `usage_events` with `kin
 notifications; enrichment provenance on every version; degraded-file tracking; `memory:enrich` to re-run; the
 settings UI, CLI, user docs, and tests on the fake model server.
 
-**Out:** a platform key, ever; cross-encoder reranking (later, unphased); a model choosing how to *fetch* (phases
+**Out:** a platform key, ever; cross-encoder reranking (unphased); a model choosing how to *fetch* (phases
 19–21 stay deterministic); model-assisted chunking; audio and video; rendering PDF pages to images for models
 without document input; any bot tool that spends the ingestion budget on demand.
 
