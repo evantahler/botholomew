@@ -87,9 +87,10 @@ local-machine sources (the CLI uploads files instead); write-capable tools as ro
 | `pathTemplate` | Optional, e.g. `github/{owner}/{repo}/issues/{number}.md` (membot's layout); default `remotes/<host>/<path>` |
 | `priority`, `timeoutMs`, `maxBytes`, `enabled` | First match by priority wins; 60 s (membot's `timeout_ms`, within the server's own `timeoutMs`) and 25 MiB (phase 9's cap, inside phase 10's 32 MiB response abort) |
 
-`json-to-markdown` is new: many MCP tools return structured JSON, and membot handed JSON to a model to tidy. Here
-a deterministic renderer turns objects into headings and definition lists and long strings into paragraphs;
-[phase 22](./phase-22-llm-assisted-ingestion.md) may improve it with a model, never replace it.
+`json-to-markdown` is new: many MCP tools return structured JSON, which membot handed to a model to tidy when it
+had a key. Here a deterministic renderer turns objects into headings and definition lists and long strings into
+paragraphs. A router that would rather keep the JSON declares `application/json` with `passthrough`, and gets phase
+9's fenced block or, where enabled, [phase 22](./phase-22-llm-assisted-ingestion.md)'s model normalizer.
 
 Patterns run on every add against a string a bot may have chosen, so a backtracking regex an admin wrote by
 accident is a CPU denial of service. Patterns compile with an RE2 engine built to WASM — linear time, no native

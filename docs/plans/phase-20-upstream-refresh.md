@@ -169,9 +169,9 @@ five-minute poll of a page it saw once is the "unrestricted swarm" failure in mi
 are deferred to tomorrow with status `failed: daily fetch budget reached`, not dropped. Phase 19's per-host
 concurrency applies, so a hundred schedules on one site are serialized two at a time.
 
-Setting a cadence is MCP-visible. The never-MCP list in `AGENTS.md` covers things that arm an unattended *ingress* — a
-URL an outsider can trigger. A cadence arms an outbound read of a URL that is already in memory, with nothing an
-outsider can call; it is closer to a routine than to a webhook.
+Setting a cadence is MCP-visible. The never-MCP list in `AGENTS.md` covers things that arm an unattended
+*ingress* — a URL an outsider can trigger. A cadence arms an outbound read of a URL already in memory, with nothing
+an outsider can call; it is closer to a routine than to a webhook.
 
 ## Steps
 
@@ -236,7 +236,7 @@ fair claim bounds any one tenant; the claim TTL bounds a crash.
 
 ### 6. Bot tools — `backend/bots/tools/memory/{refresh,add}.ts`
 
-`memory_refresh` — `[[ bash equivalent command: wget -N <url> ]]` — inputs `path`, `force`; `replay: safe`
+`memory_refresh` — `[[ bash equivalent command: wget -N ]]` — inputs `path`, `force`; `replay: safe`
 (re-reading a source is idempotent in effect). One manual refresh per path per `refreshManualCooldownMs`. Its
 result says `changed`, `unchanged`, `conflict`, `gone`, or `failed` with a next action for each.
 `memory_add` gains `refresh` (bot floor applies). `memory_info` reports cadence and health.
