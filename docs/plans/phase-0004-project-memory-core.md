@@ -2,7 +2,7 @@
 
 > **Goal:** Every project has a versioned filesystem that people browse, read, edit, move, delete, restore,
 > and diff from the web app, the CLI, and any MCP client. Every change is a new version with an author and a
-> change note, keyword search finds files, and the reserved paths that will hold skills and prompts refuse a
+> change note, keyword search finds files, and the reserved paths that hold skills and prompts refuse a
 > file whose frontmatter is wrong.
 
 > **Status: planned, not built.** Stage B — One bot that thinks. Depends on
@@ -25,7 +25,7 @@ skill or prompt can never be saved in a shape its loader would reject.
 This phase is the filesystem, not the search engine. Search here is keyword-only, over a `tsvector`. Chunks,
 embeddings, hybrid search, uploads, and converters are [phase 9](./phase-0009-memory-search-and-ingestion.md).
 Bots cannot write yet. The rules for what a bot may write ship here as complete, tested predicates, but
-nothing constructs a bot writer until [phase 5](./phase-0005-bots.md) gives bots identities and
+nothing here constructs a bot writer: [phase 5](./phase-0005-bots.md) gives bots identities and
 [phase 6](./phase-0006-durable-bot-loop.md) lets them act.
 
 ## Scope
@@ -62,12 +62,12 @@ writer ([phase 8](./phase-0008-context-management.md)). Skill behaviour ([phase 
 | `LinePatchSchema`, `applyLinePatches` | v1's single edit shape for every resource: 1-based ranges, applied bottom-up, `end_line: 0` inserts, empty `content` deletes | [src/fs/patches.ts](https://github.com/evantahler/botholomew/blob/v1/src/fs/patches.ts) |
 | `resolveInRoot` | v1's path rules (NFC, NUL, length, `..`, containment). This phase adapts them to a database key | [src/fs/sandbox.ts](https://github.com/evantahler/botholomew/blob/v1/src/fs/sandbox.ts) |
 | `PromptFrontmatterSchema`, `parsePromptFile`, `formatZodIssues` | Strict prompt frontmatter (`title`, `loading`, `agent-modification`) and readable Zod messages, ported verbatim | [src/utils/frontmatter.ts](https://github.com/evantahler/botholomew/blob/v1/src/utils/frontmatter.ts) |
-| Skill parser and writer | The skill fields (`name`, `description`, `arguments[]`), `validateSkillName`, and the reserved built-in names. v1 parsed leniently; 2.0 makes the same fields strict | [src/skills/parser.ts](https://github.com/evantahler/botholomew/blob/v1/src/skills/parser.ts), [src/skills/writer.ts](https://github.com/evantahler/botholomew/blob/v1/src/skills/writer.ts) |
+| Skill parser and writer | The skill fields (`name`, `description`, `arguments[]`), `validateSkillName`, and the reserved built-in names. v1 parses leniently; 2.0 makes the same fields strict | [src/skills/parser.ts](https://github.com/evantahler/botholomew/blob/v1/src/skills/parser.ts), [src/skills/writer.ts](https://github.com/evantahler/botholomew/blob/v1/src/skills/writer.ts) |
 | `prompt_edit`'s guard | Refuses a patch that clears `agent-modification`. The rule moves into the namespace predicate | [src/tools/prompt/edit.ts](https://github.com/evantahler/botholomew/blob/v1/src/tools/prompt/edit.ts) |
 | `membot_edit` | The lost-update bug this phase fixes: read, patch, and write with no check that nothing changed in between | [src/tools/membot/edit.ts](https://github.com/evantahler/botholomew/blob/v1/src/tools/membot/edit.ts) |
 | `ToolDefinition` / `ToolContext` | The tool shape the memory tools are written against: Zod input and output, an `is_error` envelope, and a `group` | [src/tools/tool.ts](https://github.com/evantahler/botholomew/blob/v1/src/tools/tool.ts) |
 | `AuditedAction`, RBAC middleware | Audited writes through `tx`; the membership and admin gates; `actions:permissions` | `toolexec:backend/classes/AuditedAction.ts`, `toolexec:backend/middleware/rbac.ts` |
-| `satisfiesAccess` / `canWriteAgent` | The tag-list rule that bot namespaces will defer to | `toolexec:backend/ops/AgentOps.ts` |
+| `satisfiesAccess` / `canWriteAgent` | The tag-list rule that bot namespaces defer to | `toolexec:backend/ops/AgentOps.ts` |
 | Subscribe-time channel gate | A membership check on a client-named channel | `toolexec:backend/channels/projectNotifications.ts` |
 | MCP publish policy | Human MCP mirrors HTTP, with a closed never-list | `toolexec:backend/ops/McpToolPolicyOps.ts` |
 | Subscribe, then hydrate | Content-free pings plus HTTP re-reads, with no polling | `toolexec:docs/plans/phase-18-dashboard-websockets.md` |
@@ -100,7 +100,7 @@ directory on one machine.
 ### A file is a chain of versions
 
 Each `memory_files` row is one version. Its serial `id` is the `versionId`. That id is monotonic, unique
-across the database, and cheap to compare, where membot's millisecond timestamps could collide and depended
+across the database, and cheap to compare, where membot's millisecond timestamps can collide and depend
 on the clock. One row per path is the **head**, marked `isCurrent = true` and enforced by a partial unique
 index on `(projectId, logicalPath) WHERE isCurrent`. A tombstone is an ordinary head with `tombstone = true`
 and null content. That way a deleted path still has a head to guard against, and undelete is just a restore.
@@ -125,7 +125,7 @@ paths never take that lock.
 `cp`, `mv`, or `restore` to its source. `operation` (`create | write | edit | copy | move | delete |
 restore`, with `ingest` added in [phase 9](./phase-0009-memory-search-and-ingestion.md)) says which one made
 it. Following `derivedFromVersionId` across a `move` is what lets `versions --follow` show a renamed file's
-whole life, the way `git log --follow` does. Membot kept history "under both names" but never connected them.
+whole life, the way `git log --follow` does. Membot keeps history "under both names" but never connects them.
 
 ### Optimistic concurrency
 
