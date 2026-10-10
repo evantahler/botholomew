@@ -1,4 +1,4 @@
-# CLAUDE.md — Botholomew
+# AGENTS.md — Botholomew
 
 Botholomew is a **cloud service of always-on bot swarms**. Every project has a team of bots — one **leader**
 and any number of **workers** — that do work, watch work, hibernate when idle, and wake when a person, another
@@ -10,6 +10,8 @@ Built on **[Keryx](https://www.keryxjs.com/)** — one Action class is simultane
 command, a background task, and an OAuth-protected MCP tool.
 
 **This file is the working summary: the rules, the conventions, and enough architecture to find your way.**
+It is the one instruction file for every coding agent and every person working here; `CLAUDE.md` is only a
+symlink to it, so edit `AGENTS.md`.
 The reasoning behind each decision lives with the plan that ships it, in [`docs/plans/`](./docs/plans/README.md).
 Every doc there ends in a **Learnings from the build** section, and that is where to read before changing
 something load-bearing, and where to write when you learn something new. See

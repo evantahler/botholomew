@@ -200,8 +200,8 @@ use `memory_*` tools and, from [phase 11](./phase-11-code-mode.md), `memory.*` i
 
 ## Non-negotiable rules
 
-These carry over from ToolExec and v1. The repository's [`AGENTS.md`](../../AGENTS.md) (with `CLAUDE.md` as a
-symlink) states them in full; in short:
+These carry over from ToolExec and v1. The repository's [`AGENTS.md`](../../AGENTS.md) — the single instruction file
+for agents and people; `CLAUDE.md` is only a symlink to it — states them in full; in short:
 
 1. **Tests required** — a real booted server over HTTP against an isolated test database; no mocks (a fake
    model server, fake MCP server, and deterministic fake embedder stand in for third parties).
