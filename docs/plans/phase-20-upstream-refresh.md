@@ -171,7 +171,7 @@ concurrency applies, so a hundred schedules on one site are serialized two at a 
 
 Setting a cadence is MCP-visible. The never-MCP list in `AGENTS.md` covers things that arm an unattended
 *ingress* — a URL an outsider can trigger. A cadence arms an outbound read of a URL already in memory, with nothing
-an outsider can call; it is closer to a routine than to a webhook.
+an outsider can call; it is closer to a schedule than to a webhook.
 
 ## Steps
 

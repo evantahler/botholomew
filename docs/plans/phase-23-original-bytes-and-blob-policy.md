@@ -54,7 +54,7 @@ owns `memory:prune`).
 | Versions, path rules, `isCurrent` | What a blob hangs off | [phase 4](./phase-04-project-memory-core.md) |
 | Converters, uploads, embedding, reindex shape | What reconvert re-runs | [phase 9](./phase-09-memory-search-and-ingestion.md) |
 | Staged payloads | `memory_ingest_jobs.payload` holds the bytes until `memory:ingest` nulls it on success — "a deliberate stopgap" that defers this decision here | [phase 9](./phase-09-memory-search-and-ingestion.md) |
-| `memory_settings` | The lazily created per-project row the policy lives in | [phase 4](./phase-04-project-memory-core.md) |
+| `memory_settings` | The lazily created per-project row the policy lives in | [phase 9](./phase-09-memory-search-and-ingestion.md) |
 | `captionImage`, enrichment re-run | Captions for image files; re-running from stored originals | [phase 22](./phase-22-llm-assisted-ingestion.md) |
 
 ## What this must not weaken
@@ -175,7 +175,7 @@ deletion needs nothing: the cascade from `projects` removes blobs and parts with
 
 `memory_files` gains `blobId` (→ `memory_blobs.id`, `no action` — checked at statement end, so a project's
 cascade removes both while deleting a blob a live version names fails) and `converterRevision`; `systemActor` and
-`operation` gain `reconvert`. Phase 4's `memory_settings` gains `blobMaxSizeBytes`, `blobSkipMimeTypes text[]`, and
+`operation` gain `reconvert`. Phase 9's `memory_settings` gains `blobMaxSizeBytes`, `blobSkipMimeTypes text[]`, and
 `blobQuotaBytes`. Index `memory_files (projectId, blobId)` for
 reference checks.
 

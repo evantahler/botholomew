@@ -233,7 +233,7 @@ JSON (`content`, or `contentBase64` up to 5 MiB decoded, plus `mimeType`) and is
 `memory:ingest { jobId }` (`embed` queue) claims the job, hashes the payload into `sourceSha256`, and if the
 path's live head came from the same source bytes, finishes as `unchanged`. Otherwise it converts, describes,
 and writes through `MemoryOps` as the uploader (`operation: ingest`, `sourceType: upload`, and phase 4's reserved
-`sourceSha256`, `sourceMime`, and `sourceFilename`), which chunks and enqueues embedding in that transaction. The payload is
+`sourceSha256`, `sourceMimeType`, and `sourceFilename`), which chunks and enqueues embedding in that transaction. The payload is
 nulled on success. `memory:ingest-sweep` (every 60 s) re-enqueues `queued` jobs older than two minutes,
 reclaims `running` jobs whose claim is older than ten minutes (attempts capped at three), and nulls failed
 jobs' payloads after seven days. `(projectId, requestId)` is unique, so a CLI retry or a replayed bot tool call
@@ -291,7 +291,7 @@ Indexes: HNSW `(embedding vector_cosine_ops) WHERE isCurrent AND embedding IS NO
 WHERE isCurrent`; `(projectId, logicalPath) WHERE isCurrent`; `(projectId) WHERE isCurrent AND (embedding IS
 NULL OR embeddingRevision < current)` for the backlog. `memory_ingest_jobs`: `projectId`, `logicalPath`,
 `status` (`queued | running | succeeded | unchanged | failed`), `payload bytea`, `payloadSizeBytes`,
-`kind` (`upload | add`; [phase 19](./phase-19-url-ingest.md) adds `url`), `sourceFilename`, `sourceMime`,
+`kind` (`upload | add`; [phase 19](./phase-19-url-ingest.md) adds `url`), `sourceFilename`, `sourceMimeType`,
 `sourceSha256`, `description`, `changeNote`, `expectedVersionId`,
 `requestId` (`uniqueIndex(projectId, requestId)`), `createdByUserId`, `createdByBotId`, `onBehalfOfUserId`,
 `versionId`, `attempts`, `lastError` (≤ 2 KB, scrubbed), `claimedAt`, `finishedAt`, `createdAt`; indexes

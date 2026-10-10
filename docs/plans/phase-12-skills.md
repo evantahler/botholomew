@@ -2,7 +2,7 @@
 
 > **Goal:** A person types `/standup` — or any skill the project has written — in the web composer, picks it from
 > an autocomplete popup with argument hints, and the rendered prompt is sent as their own message. Every bot,
-> including workers running routines and delegated tasks, sees the project's skills by name and description and
+> including workers running schedules and delegated tasks, sees the project's skills by name and description and
 > loads one with `skill_read` when it applies. People manage skills in a form editor with history and diff.
 
 > **Status: planned, not built.** Stage C — Shared capabilities. Depends on
@@ -19,7 +19,7 @@ searchable, editable in the memory browser — but nothing yet gives them behavi
 Two audiences get the same file. For people, a skill is a parameterized prompt invoked as a slash command; v1's
 parser, argument rules, and ambiguity check come across nearly verbatim, with one substitution bug fixed. For
 bots, a skill is a playbook: its name and description are listed in every bot's system prompt, and `skill_read`
-loads the body on demand, so a worker bot that wakes for a routine at 7 a.m. can follow the same "standup"
+loads the body on demand, so a worker bot that wakes for a schedule at 7 a.m. can follow the same "standup"
 playbook a person would have typed.
 
 Out of this phase: the TUI and Slack surfaces, which call the same actions later; skills that carry tool
@@ -42,8 +42,8 @@ calling these actions; Slack's `/botholomew <skill>` with authorized linked iden
 [phase 16](./phase-16-slack.md); iMessage, [phase 17](./phase-17-imessage.md). Skills that declare allowed tools,
 carry code (use [code mode](./phase-11-code-mode.md)), or install from a URL (membot's `skill install` is dropped)
 are not planned. Per-bot skills under `bots/<slug>/` are not planned: a playbook only one bot uses belongs in that
-bot's prompts. Scheduling a skill is [phase 14](./phase-14-schedules-and-wakeups.md), whose routines carry a
-prompt that may invoke one.
+bot's prompts. Scheduling a skill is [phase 14](./phase-14-schedules-and-wakeups.md), whose schedules carry a
+description that may invoke one.
 
 ## What already exists
 
@@ -145,7 +145,7 @@ with the current bot). `RESERVED_SKILL_NAMES` is the union of every surface's bu
 `skills`, `new`, `clear`, `exit`, `quit`, `steer`, `queue`, `model`, `bot`, `approve`, `deny`. Reserving early is
 cheaper than renaming somebody's skill after a later surface claims its name. The list lives in
 `backend/skills/reserved.ts`, is served by `skill:list` so no client restates it, and a test asserts each
-surface's built-ins are a subset. v1's `/dream` is not a built-in: reflection becomes an optional routine in
+surface's built-ins are a subset. v1's `/dream` is not a built-in: reflection becomes an optional schedule in
 [phase 14](./phase-14-schedules-and-wakeups.md).
 
 ### Bots discover skills, then load them

@@ -26,7 +26,7 @@ stays.
 
 ## Scope
 
-**In:** columns on phase 4's `memory_settings` (opt-in, model choice, budgets, caps, excluded prefixes);
+**In:** columns on phase 9's `memory_settings` (opt-in, model choice, budgets, caps, excluded prefixes);
 `backend/llm/ingestion.ts` with membot's three prompts; vision captions for images embedded in HTML and DOCX,
 capped per document; model conversion of scanned PDFs (native document input only) and of structured text;
 model-written descriptions when a file has no title; the caption path standalone image files will use; model
@@ -157,7 +157,7 @@ enrichment degraded — the "we ran out of budget last week" case.
 
 ### 1. Schema — `backend/schema/{memory_settings,memory_files,project_models,usage_events}.ts`
 
-Phase 4's `memory_settings` gains `llmEnabled` (false), `llmModel` (nullable registry name), `llmCaptions`,
+Phase 9's `memory_settings` gains `llmEnabled` (false), `llmModel` (nullable registry name), `llmCaptions`,
 `llmConversion`, `llmDescriptions` (true), `llmExcludePrefixes text[]`, `llmMonthlyBudgetUsd numeric` (5),
 `llmMonthlyTokenBudget integer` (2 000 000), `llmMaxImageCaptionsPerDocument` (20),
 `llmMaxPdfPagesPerDocument` (50), and `llmConcurrency` (2). `memory_files` gains `enrichment jsonb`;

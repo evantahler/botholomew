@@ -56,7 +56,7 @@ cards; a `Bun.serve` fake model server for CI; and a nightly behaviour-eval harn
   ([phase 13](./phase-13-leader-and-workers.md)).
 - Recurring schedules ([phase 14](./phase-14-schedules-and-wakeups.md)). `sleep_until` is a one-shot wake on
   a conversation, not a schedule.
-- Slack and iMessage `requestId`s (Slack `event_id`, Linq ids) and the `outbox`
+- Slack and iMessage `requestId`s (the Slack message key `teamId:channelId:ts`, Linq message ids) and the `outbox`
   ([phase 16](./phase-16-slack.md), [phase 17](./phase-17-imessage.md)). The `(projectId, requestId)`
   uniqueness they rely on lands here.
 - Usage dashboards, rollups, and expanding the evals ([phase 18](./phase-18-operations.md)).

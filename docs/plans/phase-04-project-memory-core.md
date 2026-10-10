@@ -286,8 +286,8 @@ This is the whole membot port. [Phase 9](./phase-09-memory-search-and-ingestion.
 | `authorUserId`, `onBehalfOfUserId` | `integer` | → `users.id`, `set null` |
 | `authorBotId` | `integer` | No foreign key yet; [phase 5](./phase-05-bots.md) adds one with `set null` |
 | `changeNote` | `varchar(1000)` | |
-| `sourceType` | `varchar(16)` | Default `inline`. Reserved for ingestion: `upload` ([phase 9](./phase-09-memory-search-and-ingestion.md)), `remote` ([phase 19](./phase-19-url-ingest.md)) |
-| `sourceSha256`, `sourceMime`, `sourceFilename` | `varchar(64)`, `varchar(128)`, `text` | Reserved for ingestion: the sha of the source bytes, their sniffed mime, and an upload's original name. Declared now so ingestion adds no columns to a table that already has rows; URL-specific columns arrive with [phase 19](./phase-19-url-ingest.md) |
+| `sourceType` | `varchar(16)` | Default `inline`. Reserved for ingestion: `upload` ([phase 9](./phase-09-memory-search-and-ingestion.md)), `url` ([phase 19](./phase-19-url-ingest.md)), `router` ([phase 21](./phase-21-source-routers-and-bulk-sync.md)) — membot called the URL case `remote` |
+| `sourceUri`, `sourceSha256`, `sourceMimeType`, `sourceFilename` | `text`, `varchar(64)`, `varchar(128)`, `text` | Reserved for ingestion: where the bytes came from, the sha of the source bytes, their sniffed mime, and an upload's original name. Declared now so ingestion adds no columns to a table that already has rows; fetch-specific columns (final URI, ETag, fetcher args) arrive with [phase 19](./phase-19-url-ingest.md) |
 | `searchTsv` | `tsvector` | Generated, stored |
 | `createdAt` | `timestamp(withTimezone)` | `defaultNow()` |
 
