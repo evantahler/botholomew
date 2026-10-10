@@ -469,12 +469,16 @@ All of these are DB-only and keyed by the tool call's id, so they are `replay: s
 | `reminder_list` | `atq` | `limit`, `offset` | This bot's pending reminders |
 | `reminder_cancel` | `atrm` | `reminder_id` | |
 
-PATs errors include:
+Errors use the closed `error_type` set from [AGENTS.md](../../AGENTS.md) rule 8, with the specifics in the
+message and the hint:
 
-- `frequency_too_frequent`, naming the gap that was found.
-- `needs_confirmation`, which says a person must confirm and where the card is.
-- `schedule_limit`, which suggests disabling an unused schedule.
-- `reminder_too_far`.
+- A frequency under the floor is `input_error`. The message names the gap the scan found.
+- Enabling a schedule is `auth_error`. The hint says a person must confirm it, and where the card is.
+- The 50-schedule cap is `conflict`. The hint suggests disabling an unused schedule.
+- A reminder beyond the horizon is `input_error`.
+
+Creating a schedule while confirmation is required is not an error at all: the result says the schedule
+awaits a person.
 
 ### 7. Frontend — `frontend/src/pages/SchedulesPage.tsx`, `frontend/src/components/schedule/*`
 

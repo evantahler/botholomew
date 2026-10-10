@@ -452,12 +452,14 @@ Every tool here writes only Postgres, in one transaction keyed by its tool call'
 | `bot_create` / `bot_configure` | `useradd` / — | the leader, when the setting is not `off` | name, slug, description, identity, goals, model, budget |
 | `bot_pause` / `bot_resume` | — | the leader, when the setting is not `off` | `bot`, `reason`, `cancel_open_tasks?` |
 
-Errors follow the PATs envelope: `error_type` plus a `next_action_hint`. Examples:
+Errors use the PATs envelope and the closed `error_type` set from [AGENTS.md](../../AGENTS.md) rule 8. The
+specific reason goes in the message and the hint, never in a new type:
 
-- `cycle` names the path and suggests another bot.
-- `duplicate_task` returns the existing id and suggests `task_view`.
-- `tree_full` suggests `wait_for` on the open tasks.
-- `output_too_large` suggests `memory_write`.
+- A DAG or assignee cycle is `conflict`. The message renders the path, and the hint suggests another bot.
+- A duplicate delegation is `conflict`. It returns the existing task id, and the hint names `task_view`.
+- A full tree, or too many open children, is `retryable`. The hint suggests `wait_for` on the open tasks.
+- An oversized output is `input_error`. The hint names `memory_write`.
+- Exceeding the depth limit is `permanent`. The hint suggests doing the work yourself or asking the leader.
 
 ### 7. Frontend — `frontend/src/pages/SwarmPage.tsx`, `frontend/src/components/task/*`
 

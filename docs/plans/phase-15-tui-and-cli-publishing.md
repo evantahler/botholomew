@@ -10,11 +10,13 @@
 > [phase 12](./phase-12-skills.md), and [phase 13](./phase-13-leader-and-workers.md).
 
 The CLI is not new in this phase. Commands ship with every phase, because the product CLI tracks the HTTP
-surface (rule 9 in [AGENTS.md](../../AGENTS.md)). By the time this phase starts, `botholomew memory …`,
+surface (rule 14 in [AGENTS.md](../../AGENTS.md)). By the time this phase starts, `botholomew memory …`,
 `bot …`, `thread …`, `task …`, and `schedule …` all exist as thin HTTP clients copied from ToolExec's shell.
-What they lack is three things. They have no interactive client. They `--follow` by polling every 500 ms,
-just as ToolExec's `follow.ts` does. And there is no way to get them onto anyone's machine. This phase adds
-those three, and nothing else.
+What they lack is three things. They have no interactive client. Only one of them is live:
+[phase 7](./phase-07-threads-and-web-chat.md)'s `thread follow` has a small socket client
+(`cli/src/socket.ts`), while `thread send --wait` ([phase 6](./phase-06-durable-bot-loop.md)) and the other
+followers still poll, as ToolExec's `follow.ts` does. And there is no way to get them onto anyone's machine.
+This phase adds those three, and nothing else.
 
 The TUI comes from v1. [docs/field-notes.md](https://github.com/evantahler/botholomew/blob/v1/docs/field-notes.md)
 says it plainly: "TUIs are hard, and worth it" — Ink and React in a terminal, redrawing on resize, a message
@@ -70,8 +72,8 @@ new line, and it has to do so without silently capturing the people still runnin
 | v1 markdown renderer | `Bun.markdown.ansi`, plus the long-URL fix (#282): URLs are masked with sentinels and spliced back whole, rather than getting newlines baked in at column 80. Tables are pre-rendered to fit the width | [src/tui/markdown.ts](https://github.com/evantahler/botholomew/blob/v1/src/tui/markdown.ts), [src/tui/links.ts](https://github.com/evantahler/botholomew/blob/v1/src/tui/links.ts), [src/tui/markdownTables.ts](https://github.com/evantahler/botholomew/blob/v1/src/tui/markdownTables.ts), [test/tui/markdown.test.ts](https://github.com/evantahler/botholomew/blob/v1/test/tui/markdown.test.ts) |
 | v1 input pieces | Slash completion, the message queue hook, and resize redraw | [src/tui/slashCompletion.ts](https://github.com/evantahler/botholomew/blob/v1/src/tui/slashCompletion.ts), [src/tui/hooks/useMessageQueue.ts](https://github.com/evantahler/botholomew/blob/v1/src/tui/hooks/useMessageQueue.ts), [src/tui/hooks/useResizeRedraw.ts](https://github.com/evantahler/botholomew/blob/v1/src/tui/hooks/useResizeRedraw.ts), [docs/tui.md](https://github.com/evantahler/botholomew/blob/v1/docs/tui.md) |
 | v1 distribution | Compiled binaries (most of [scripts/build.ts](https://github.com/evantahler/botholomew/blob/v1/scripts/build.ts) stages DuckDB and ORT WASM), the install script, an `upgradr` updater, and an npm publish with `--provenance` | [install.sh](https://github.com/evantahler/botholomew/blob/v1/install.sh), [src/update/updater.ts](https://github.com/evantahler/botholomew/blob/v1/src/update/updater.ts), [src/commands/upgrade.ts](https://github.com/evantahler/botholomew/blob/v1/src/commands/upgrade.ts), [.github/workflows/auto-release.yml](https://github.com/evantahler/botholomew/blob/v1/.github/workflows/auto-release.yml) |
-| Live channels and messaging | Content-free `project:<id>:thread:<id>` frames; token deltas on the read-authorized `…:thread:<id>:stream`; send with `whenBusy: follow_up \| steer` | [phase 7](./phase-07-threads-and-web-chat.md) |
-| Approvals, skills, and tasks | Allow once, always allow, or deny; slash commands sent the way the web composer sends them; the task list and tree | [phase 10](./phase-10-mcp-servers-and-approvals.md), [phase 12](./phase-12-skills.md), [phase 13](./phase-13-leader-and-workers.md) |
+| Live channels and messaging | Content-free `project:<id>:thread:<id>` and `…:bot:<id>` frames; token deltas on the read-authorized `…:thread:<id>:stream`; `cli/src/socket.ts` and `thread follow`; `message:send` with `whenBusy: follow_up \| steer`; `thread send --wait`; `conversation:stop` | [phase 6](./phase-06-durable-bot-loop.md), [phase 7](./phase-07-threads-and-web-chat.md) |
+| Approvals, skills, and tasks | `approval:approve` (`--always bot\|project`) and `approval:deny`; `skill:list`, `skill:render`, `skill:run`; the task list and tree | [phase 10](./phase-10-mcp-servers-and-approvals.md), [phase 12](./phase-12-skills.md), [phase 13](./phase-13-leader-and-workers.md) |
 
 ## What this must not weaken
 
@@ -133,7 +135,8 @@ Config lives at `$XDG_CONFIG_HOME/botholomew/config.json`, mode 0600, holding `b
 
 ### One live client for `--follow` and the TUI
 
-`cli/src/live/` holds the socket, a channel registry, and a cursor reader.
+Phase 7's `cli/src/socket.ts` grows into `cli/src/live/`, which holds the socket, a channel registry, and a
+cursor reader. Every follower and the TUI then use the same client.
 
 **The socket.** There is one WebSocket per process, on the same endpoint the web app uses, carrying the
 session cookie as a header on the upgrade. Bun's `WebSocket` accepts headers.
@@ -153,8 +156,10 @@ deaf (`toolexec:docs/plans/phase-18-dashboard-websockets.md`).
 **Fallback.** After three failed upgrades, or when a proxy refuses the upgrade, the reader polls every 2 s.
 The status bar says `polling`, and the reader retries the socket every 60 s.
 
-**Exits.** `thread view --follow` runs until Ctrl+C. `task view --follow` exits when the task settles.
-`message send --follow` exits when the conversation the message woke goes idle. With `--json`, output is JSONL.
+**Exits.** `thread follow` runs until Ctrl+C. `task view --follow` exits when the task settles.
+`thread send --wait` exits when the conversation the message woke goes idle — the same condition phase 6
+polls for, now observed from the bot channel. `schedule test --follow` follows the run's thread until its root
+task settles. With `--json`, output is JSONL.
 
 ### `botholomew chat`
 
@@ -170,7 +175,7 @@ shortcuts, so muscle memory carries over:
 | Chat | `Ctrl+a` | The thread. Messages from people and bots, each with its author: 2.0 threads are multi-party, and v1's were one-to-one. The bot's streaming text sits in a live block, and the posted final message replaces it. Tool calls render as v1's folded `ToolCall` boxes, driven by `tool_calls` rows. `event` entries — task settled, schedule fired, reminder — appear as dim system lines |
 | Threads | `Ctrl+e` | Your threads with this bot and the others you can read. Enter switches to one |
 | Tasks | `Ctrl+t` | Open tasks as an ASCII tree, read-only. Enter opens the task's thread in Chat |
-| Approvals | `Ctrl+p` | Pending approvals on bots you can write. `y` allow once, `a` always allow, `n`/`Esc` deny, as in v1 |
+| Approvals | `Ctrl+p` | Pending approvals on bots you can write, through `approval:approve` / `approval:deny` ([phase 10](./phase-10-mcp-servers-and-approvals.md)). `y` allow once, `a` always allow for this bot, `n`/`Esc` deny, as in v1 |
 | Help | `Ctrl+g` | Keys, connection state, and versions |
 
 Several v1 pieces port nearly as they are:
@@ -180,8 +185,9 @@ Several v1 pieces port nearly as they are:
 - **`useResizeRedraw`.**
 - **Inline `ApprovalPrompt`**, for a gated call in the current thread.
 - **The slash popup.** It lists the project's skills from `skill:list` plus the built-ins `/new`, `/bot`,
-  `/threads`, `/link`, `/help`, and `/quit`. A chosen skill is sent the way the web composer sends one
-  ([phase 12](./phase-12-skills.md)).
+  `/threads`, `/link`, `/help`, and `/quit`. Argument hints and the preview come from `skill:render`, and
+  Enter calls `skill:run`, exactly as the web composer does ([phase 12](./phase-12-skills.md)). Rendering
+  happens only on the server.
 - **An `@` popup**, which is new and reuses the same completion component, completes bot names for routing
   ([phase 7](./phase-07-threads-and-web-chat.md)).
 
@@ -196,7 +202,9 @@ and `Ctrl+E` / `Ctrl+X` edited or dropped them. In 2.0, Enter while the bot is b
 away with `whenBusy: follow_up`. It becomes an inbox row that survives the terminal closing, and the TUI shows
 it dimmed until a tick claims it.
 
-`Esc` sends the current input as a `steer`. `Esc` on an empty input sends "Stop now", the stop message
+`Esc` sends the current input as a `steer`. Pressing `Esc` twice on an empty input calls
+`conversation:stop`. That is phase 6's "stop is not steer": it aborts the in-flight step, where a steer only
+redirects the next one. It is the terminal's form of the "Stop now" message
 [Grok Bot](https://docs.x.ai/grok-bot/chat-and-collaboration) suggests. Editing and withdrawing a queued
 message do not survive: a queued message has already been delivered, and correcting it is a steer. So
 `useMessageQueue` becomes a view of server state, not a store.
@@ -349,7 +357,7 @@ and older than a day, and `cli_sessions` that are revoked or expired and older t
 | `botholomew logout` / `whoami` | `session:destroy` plus `cli-session:revoke` for this session / `me:view` |
 | `botholomew auth sessions` / `auth revoke <id>` | `cli-session:list` / `cli-session:revoke` |
 | `botholomew chat [--bot] [--thread \| --new]` | The TUI |
-| `botholomew thread view <id> --follow`, `task view <id> --follow`, `message send … --follow` | The live reader, replacing ToolExec's poll loop |
+| `botholomew thread follow <id>`, `thread send … --wait`, `task view <id> --follow`, `schedule test <id> --follow` | All four move onto the live reader. The command names are unchanged from the phases that added them |
 | `botholomew upgrade` / `botholomew --version` | `upgradr`; reports the channel and the server's minimum |
 
 The port of v1's `src/tui/` is copied file by file. Its imports are rewritten from the in-process `ChatSession`
@@ -410,7 +418,7 @@ exist. A failed npm publish leaves the release a draft that nothing points at.
 
 **`backend/__tests__/cli/follow.test.ts`** — the CLI binary against a booted server:
 
-- `thread view --follow` prints a new message within a second, while the server's request counter shows no
+- `thread follow` prints a new message within a second, while the server's request counter shows no
   polling GETs after hydration.
 - With the WebSocket path refused, it falls back to polling and still delivers.
 - A server restart mid-follow reconnects and hydrates again without duplicating lines, because the cursor
@@ -469,7 +477,8 @@ End to end, with a project that has a connected model, a gated MCP server, and a
 6. Ask for something that calls the gated MCP server. The inline approval prompt appears; press `y`.
 7. `Ctrl+t` shows open tasks, and `Ctrl+p` shows approvals. Resize the window: nothing smears. Ask for a long
    OAuth URL and use `Ctrl+L` to copy it whole.
-8. In a second terminal, run `botholomew thread view <id> --follow`. Messages appear as they are posted.
+8. In a second terminal, run `botholomew thread follow <id>`. Messages appear as they are posted. Then run
+   `botholomew thread send <id> "and one more thing" --wait`, which returns as soon as the reply lands.
 9. `bun run --cwd cli build:binary` builds the binary. `./dist/botholomew-<host> chat` behaves the same.
 
 Then the edge cases:
