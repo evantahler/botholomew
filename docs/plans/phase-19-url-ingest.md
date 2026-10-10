@@ -28,8 +28,9 @@ HTTP, no browser, no model in the loop, behind a guard.
 A URL is fetched **once** here; keeping it current is [phase 20](./phase-20-upstream-refresh.md). Anything that
 needs a credential — a private GitHub issue, a Google Doc — goes through an MCP-backed router in
 [phase 21](./phase-21-source-routers-and-bulk-sync.md), never through headers or cookies on this fetcher.
-Images and scanned-PDF conversion wait for [phase 22](./phase-22-llm-assisted-ingestion.md); the fetched bytes
-are dropped after conversion until [phase 23](./phase-23-original-bytes-and-blob-policy.md) keeps originals.
+Scanned-PDF conversion waits for [phase 22](./phase-22-llm-assisted-ingestion.md); the fetched bytes are dropped
+after conversion, and image URLs refused, until [phase 23](./phase-23-original-bytes-and-blob-policy.md) keeps
+originals.
 
 ## Scope
 
@@ -44,8 +45,8 @@ content in every bot read path; per-project and per-host rate limits; the "Add f
 `botholomew memory add <url>`; user docs; tests against a local fixture server.
 
 **Out:** scheduled refresh ([phase 20](./phase-20-upstream-refresh.md)); authenticated sources, bulk import, and
-sync ([phase 21](./phase-21-source-routers-and-bulk-sync.md)); images and model-assisted conversion
-([phase 22](./phase-22-llm-assisted-ingestion.md)); keeping fetched bytes
+sync ([phase 21](./phase-21-source-routers-and-bulk-sync.md)); model-assisted conversion
+([phase 22](./phase-22-llm-assisted-ingestion.md)); keeping fetched bytes and accepting image URLs
 ([phase 23](./phase-23-original-bytes-and-blob-policy.md)). Never: a headless browser or JavaScript rendering,
 link-following or crawling, cookies, caller-supplied headers.
 
@@ -106,7 +107,7 @@ and total (30 s) through one `AbortSignal`.
 The bytes then go where an upload's go. Phase 9's `sniffMime` already lets magic bytes beat `Content-Type`; this
 phase adds an HTML signature (`<!doctype html` / `<html` in the first KB), because servers send HTML as
 `text/plain` and `application/octet-stream` often enough to matter. Anything phase 9 refuses — images, audio,
-video, unknown binaries — is refused here with the same hint, before a job is queued. HTML goes through turndown
+video, unknown binaries — is refused with the same hint, and the job fails without staging a payload. HTML goes through turndown
 with membot's stripping, plus two additions: the `<title>` becomes the H1 when the body has none (so phase 9's
 title-derived describer has something to use), and `<link rel="canonical">` is recorded in `fetcherArgs` but
 **not followed** — following it would be a second fetch nobody asked for.
@@ -191,7 +192,7 @@ Phase 9's `sniffMime` gains the HTML signature; its HTML converter gains `<title
 
 | Action | Route | Middleware | Audited | MCP |
 |---|---|---|---|---|
-| `memory:add` (phase 9) gains `url`, `replace`, `preview` | `PUT /memory/add` | member + `canWritePath` | yes | yes |
+| `memory:add` (phase 9) gains `url`, `replace`, `preview` | `PUT /memory/add` | member + `canWritePath` | yes, unless `preview` | yes |
 | `memory:fetch` | — (task-only, `default`) | — | no — the job and version are the record | no |
 
 `url` is exclusive with `content` / `contentBase64`. `preview: true` runs the guard and path resolution without
@@ -200,7 +201,7 @@ fetching and returns `{ logicalPath, collision }` for the dialog. `memory:jobs`,
 
 ### 5. Bot tools — `backend/bots/tools/memory/add.ts`
 
-`memory_add` gains `url` and `replace` beside `logical_path`; it keeps phase 9's decision of no bash tag — the URL
+`memory_add` gains `url` and `replace`, and `logical_path` becomes optional when `url` is given; it keeps phase 9's decision of no bash tag — the URL
 form alone would be `wget -O`, but the tool is not. Errors use phase 10's `error_kind`s: `policy_error` for a
 refused address or reserved path, `input_error` for an unsupported type or an owned path (naming the owner),
 `not_found` for 404 / 410, `retryable` for 429 and 5xx with any `Retry-After`, `timeout`, and `permanent` for an
@@ -234,7 +235,8 @@ that a URL is fetched once. `security.md` gains the guard's guarantees and the f
   sixth redirect is refused; `https` → `http` is refused; port 8080, `ftp:`, and `file:` are refused unresolved.
 - A 30 MiB body and a 40 KB gzip body that inflates past the cap both stop at cap + 1; a server that stalls after
   its headers is aborted at the total timeout.
-- HTML served as `application/octet-stream` converts as HTML; a PNG is refused before a job is queued.
+- HTML served as `application/octet-stream` converts as HTML; a PNG fails its job with phase 9's hint and stages
+  nothing.
 - With `fetchAllowPrivateHosts` false, loopback is refused; the suite flips it per test, never globally.
 
 `backend/__tests__/actions/memory-add-url.test.ts` — the default path; the collision refusal naming the owner and

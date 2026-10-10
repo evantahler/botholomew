@@ -60,8 +60,8 @@ retention of the versions refresh produces ([phase 18](./phase-18-operations.md)
 
 1. **Refresh never deletes knowledge.** A 404, a 410, a DNS failure, or an auth wall changes a status; it never
    writes a tombstone. Removing a file is a person's decision (or phase 21's explicit, guarded sync).
-2. **Refresh never overwrites an edit.** If the current version is not the one the last fetch produced, a changed
-   upstream pauses the schedule as a conflict instead of writing over a person's or bot's work.
+2. **Refresh never overwrites an edit.** If a person or bot has written the file since the last fetch, a changed
+   upstream pauses the schedule as a conflict instead of writing over their work.
 3. **Append-only.** Refresh writes new versions; it never updates `content` in place. Only the
    `memory_refreshes` row is mutable, which is why the mutable state lives there and not on a version.
 4. **Deterministic replay.** Refresh re-runs the persisted fetcher with the persisted arguments; no model and no
@@ -105,14 +105,15 @@ WHERE id IN (
     FROM memory_refreshes
     WHERE enabled AND next_refresh_at <= now()
       AND (claimed_at IS NULL OR claimed_at < now() - $claimTtl)
-  ) ranked WHERE rn <= $perProject ORDER BY id LIMIT $batch
+  ) ranked WHERE rn <= $perProject ORDER BY rn, next_refresh_at LIMIT $batch
 )
 AND enabled AND (claimed_at IS NULL OR claimed_at < now() - $claimTtl)
 RETURNING id, claim_epoch;
 ```
 
 The window function is the fairness — a project with a thousand due rows gets `refreshPerProjectPerTick` (10)
-this tick, and a project with one gets its one. Postgres refuses `FOR UPDATE` alongside a window function, so the
+this tick, a project with one gets its one, and ordering by rank first means every project's most overdue row is
+in the batch before any project's second. Postgres refuses `FOR UPDATE` alongside a window function, so the
 claim is an `UPDATE` whose outer predicate is re-evaluated under each row lock: two overlapping ticks that rank
 the same ids claim disjoint sets, because the loser re-reads a `claimed_at` it can no longer match. Each claimed
 row enqueues `memory:refresh-one { refreshId, claimEpoch }` on `default` in `afterCommit`. A task that dies leaves
@@ -131,7 +132,8 @@ changes nothing. Once staged, the ingest job is phase 9's to deliver, with its o
    is **unchanged**, with no body downloaded.
 3. Compare the fetched sha to the `sourceSha256` of the last *fetched* version. Equal is **unchanged**: bump
    `refreshedAt`, schedule the next run, write nothing.
-4. Changed, but the current version is not the last fetched one: someone edited the file since. **Conflict** —
+4. Changed, and some version since the last fetched one has a person or bot as its author (machine versions —
+   phase 22's `enrich`, phase 23's `reconvert` — do not count): someone edited the file. **Conflict** —
    write nothing, pause with `pausedReason = 'conflict'`, notify. A person resolves it with "take upstream"
    (`memory:refresh --force`, which writes the new version) or "keep mine" (clear the cadence).
 5. Changed and unedited: stage the bytes on a `memory_ingest_jobs` row exactly as phase 19 stages a fetch, with

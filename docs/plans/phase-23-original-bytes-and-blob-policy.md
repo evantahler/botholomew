@@ -8,7 +8,7 @@
 > [phase 4](./phase-04-project-memory-core.md) (`memory_files`, the reserved `memory_blobs`),
 > [phase 9](./phase-09-memory-search-and-ingestion.md) (uploads, converters, embedding),
 > [phase 18](./phase-18-operations.md) (version retention and deletion semantics), and
-> [phase 22](./phase-22-llm-assisted-ingestion.md) (`memory_settings`, re-running enrichment).
+> [phase 22](./phase-22-llm-assisted-ingestion.md) (captions and re-running enrichment).
 
 Until now an ingest is lossy on purpose. [Phase 9](./phase-09-memory-search-and-ingestion.md) keeps the markdown
 surrogate and the source's sha and throws the bytes away, which kept the first memory phases small and the
@@ -28,8 +28,9 @@ avoids clobbering human edits.
 
 **In:** `memory_blobs` defined (phase 4 reserved it) with `memory_blob_parts` for the bytes; per-project sha
 dedupe; membot's `shouldPersistBlobBytes` predicate with a per-project policy under a platform ceiling, plus a
-storage quota; metadata-only rows when bytes are skipped; uploads and fetches persisting bytes in the version's
-transaction; download as an attachment, `memory:read bytes` for MCP clients, `memory.readBytes` in code mode;
+storage quota; metadata-only rows when bytes are skipped; an ingest job's staged payload becoming the blob in
+the version's transaction instead of being nulled; image uploads opened, now that the original is kept; download
+as an attachment, `memory:read bytes` for MCP clients, `memory.readBytes` in code mode;
 converter revisions and `memory:reconvert`; the retroactive strip; orphan collection coordinated with phase 18;
 storage accounting in `memory:stats`; UI, CLI, user docs, tests.
 
@@ -52,7 +53,9 @@ owns `memory:prune`).
 | Capped body reads | The one-byte-past-the-cap upload reader | `toolexec:backend/ops/RawRequestOps.ts` |
 | Versions, path rules, `isCurrent` | What a blob hangs off | [phase 4](./phase-04-project-memory-core.md) |
 | Converters, uploads, embedding, reindex shape | What reconvert re-runs | [phase 9](./phase-09-memory-search-and-ingestion.md) |
-| `memory_settings`, enrichment re-run | Where the policy lives; captions from stored originals | [phase 22](./phase-22-llm-assisted-ingestion.md) |
+| Staged payloads | `memory_ingest_jobs.payload` holds the bytes until `memory:ingest` nulls it on success — "a deliberate stopgap" that defers this decision here | [phase 9](./phase-09-memory-search-and-ingestion.md) |
+| `memory_settings` | The lazily created per-project row the policy lives in | [phase 4](./phase-04-project-memory-core.md) |
+| `captionImage`, enrichment re-run | Captions for image files; re-running from stored originals | [phase 22](./phase-22-llm-assisted-ingestion.md) |
 
 ## What this must not weaken
 
@@ -79,10 +82,10 @@ ToolExec made the same call for 32 MB session checkpoints for the same reason. O
 service, a credential, a second deletion path that can drift from the first, and an "orphaned in the bucket"
 failure Postgres cannot have.
 
-The argument against is size: a large table slows backups and restores, and one 25 MB `bytea` value is
-materialized whole by the driver. The 25 MB per-file ceiling and a per-project quota bound the first. The second
+The argument against is size: a large table slows backups and restores, and one 25 MiB `bytea` value is
+materialized whole by the driver. The 25 MiB per-file ceiling and a per-project quota bound the first. The second
 is why bytes are stored in **1 MiB parts** (`memory_blob_parts`) rather than one column: a download streams part
-by part, no query ever holds more than a part, and a 25 MB upload is 25 inserts in the version's transaction.
+by part, no query ever holds more than a part, and a 25 MiB upload is 25 inserts in the version's transaction.
 
 `memory_blobs.storage` is `pg` today, and `BlobStoreOps` is the only code that reads or writes parts. When a
 deployment's blob total or backup time crosses what Postgres should carry — tens of gigabytes, not hundreds of
@@ -100,15 +103,27 @@ depend on another's references.
 
 `shouldPersistBlobBytes(mime, size, policy)` is membot's function, ported unchanged and used both at ingest and by
 the strip, which is the reason it exists. The policy is per project in `memory_settings` — `blobMaxSizeBytes`
-(25 MB), `blobSkipMimeTypes` (`video/*`, `audio/*`), and `blobQuotaBytes` (2 GB) — and a project may lower the
+(25 MiB), `blobSkipMimeTypes` (`video/*`, `audio/*`), and `blobQuotaBytes` (2 GiB) — and a project may lower the
 size cap but not raise it past the platform ceiling `MEMORY_BLOB_MAX_BYTES`. A skipped file still gets a blob row
 with sha, mime, size, and `skipReason` (`size`, `mime`, `quota`, or later `stripped`), exactly as membot's
 nullable `bytes` does. When a blob row exists without bytes and a later ingest of the same sha is now allowed —
 the policy was loosened, the quota freed — the bytes are filled in: **rehydration**, free on the next upload.
 
 Reaching the quota never fails an ingest; it records `quota` and notifies admins once a day while it persists.
-Sources that emit markdown directly (routers with `docmd`, inline writes) store no blob, as in membot. Fetched
+Where [phase 9](./phase-09-memory-search-and-ingestion.md)'s `memory:ingest` nulls a job's staged payload on
+success, it now hands the payload to `putBlob` in the transaction that writes the version — the bytes are already
+in Postgres, so keeping them is a move, not a second upload. Sources that emit markdown directly (routers with `docmd`, inline writes) store no blob, as in membot. Fetched
 HTML *does* keep its bytes: turndown's configuration is exactly the kind of converter that improves.
+
+### Image files, at last
+
+[Phase 9](./phase-09-memory-search-and-ingestion.md) refused image uploads because accepting one would keep a
+placeholder and discard the only copy. With originals kept that objection is gone, so `memory:upload`,
+`memory:add`, and a [phase 19](./phase-19-url-ingest.md) URL accept PNG, JPEG, GIF, and WebP. The surrogate is
+[phase 22](./phase-22-llm-assisted-ingestion.md)'s caption when enrichment is on and the model can see images,
+otherwise membot's placeholder plus the filename — and a later `memory:enrich` captions it from the stored bytes.
+An image whose bytes the policy would skip is still refused, because accepting it would be exactly the loss phase
+9 refused. Audio and video stay refused: there is no converter, and the default policy skips their bytes.
 
 ### Serving originals
 
@@ -144,8 +159,9 @@ bytes reclaimed. It is admin-only, dry-run by default, audited, and the confirma
 
 Blobs follow versions, not paths. A tombstoned file keeps its blob, because undelete must restore the original.
 A blob becomes collectable only when no version references it, which happens only when
-[phase 18](./phase-18-operations.md)'s retention prunes old versions or deletes a project. Phase 18's prune calls
-`gcOrphanBlobs` at its end, and the daily `memory:blob-sweep` catches anything a crash left behind. Project
+[phase 18](./phase-18-operations.md)'s retention prunes old versions or deletes a project. Phase 18's
+`memory:prune` already deletes a `memory_blobs` row no version references in the same batch, and parts cascade
+with it; the daily `memory:blob-sweep` (`gcOrphanBlobs`) catches anything a crash left behind. Project
 deletion needs nothing: the cascade from `projects` removes blobs and parts with everything else.
 
 ## Steps
@@ -158,14 +174,15 @@ deletion needs nothing: the cascade from `projects` removes blobs and parts with
 | `memory_blob_parts` | `blobId`, `partIndex`, `bytes bytea` | primary key `(blobId, partIndex)`; `blobId` cascade |
 
 `memory_files` gains `blobId` (→ `memory_blobs.id`, `no action` — checked at statement end, so a project's
-cascade removes both while deleting a blob a live version names fails) and `converterRevision`; `systemActor` gains `reconvert`. `memory_settings` gains
-`blobMaxSizeBytes`, `blobSkipMimeTypes text[]`, and `blobQuotaBytes`. Index `memory_files (projectId, blobId)` for
+cascade removes both while deleting a blob a live version names fails) and `converterRevision`; `systemActor` and
+`operation` gain `reconvert`. Phase 4's `memory_settings` gains `blobMaxSizeBytes`, `blobSkipMimeTypes text[]`, and
+`blobQuotaBytes`. Index `memory_files (projectId, blobId)` for
 reference checks.
 
 ### 2. Config — `backend/config/memory.ts`
 
-`blobMaxBytes` (`MEMORY_BLOB_MAX_BYTES`, 25 MB ceiling), `blobPartBytes` (1 MiB), `blobDefaultQuotaBytes`
-(2 GB), `bytesMcpMax` (5 MB), `reconvertBatchSize` (50), `blobSweepFrequencyMs` (86 400 000).
+`blobMaxBytes` (`MEMORY_BLOB_MAX_BYTES`, 25 MiB ceiling), `blobPartBytes` (1 MiB), `blobDefaultQuotaBytes`
+(2 GiB), `bytesMcpMax` (5 MiB), `reconvertBatchSize` (50), `blobSweepFrequencyMs` (86 400 000).
 
 ### 3. Ops — `backend/ops/{MemoryBlobOps,BlobStoreOps,MemoryReconvertOps}.ts`
 
@@ -173,7 +190,8 @@ reference checks.
 - `putBlob(tx, projectId, bytes, mime)` → `{ blobId, stored, skipReason }` — dedupe, policy, quota, rehydration.
 - `BlobStoreOps.write(tx, blobId, bytes)` / `stream(blobId)` / `drop(tx, blobId)` — the only part access; `pg` now.
 - `stripByPolicy(projectId, { dryRun })` → `{ blobs, reclaimedBytes }`.
-- `gcOrphanBlobs(projectId?)` — delete blobs no version references; called by phase 18's prune and the sweep.
+- `gcOrphanBlobs(projectId?)` — delete blobs no version references; the sweep's body, and the same predicate
+  phase 18's prune applies in its batch.
 - `storageStats(projectId, prefix?)` — stored bytes, counts by `skipReason`, quota use.
 - `CONVERTER_REVISIONS`, `reconvertCandidates(selector)`, `reconvertOne(versionId)`.
 
@@ -185,22 +203,23 @@ reference checks.
 | `memory:read` (phase 4) gains `bytes` | `GET /memory/file` | `ProjectMemberMiddleware()` | — | Yes, ≤ 5 MB |
 | `memory:reconvert` | `POST /memory/reconvert` | `AdminMiddleware()` | Yes (when applied) | Yes |
 | `memory:blob-strip` | `POST /memory/blobs/strip` | `AdminMiddleware()` | Yes (when applied) | Yes |
-| `memory:settings-edit` (phase 22) gains blob policy | `POST /memory/settings` | `AdminMiddleware()` | Yes | Yes |
+| `memory-settings:edit` (phase 4) gains the blob policy | `POST /memory/settings` | `AdminMiddleware()` | Yes | Yes |
 | `memory:reconvert-batch` | — (task-only child) | — | No — versions are the record | No |
 | `memory:blob-sweep` | — (task-only, `default`, daily) | — | No — a sweep | No |
 
 `memory:stats` gains a `storage` block. `memory:download` sets its headers in the action, and its test asserts
 them, because a framework default changing under it would be silent.
 
-### 5. Code mode — `backend/bots/codeMode/hostMemory.ts`
+### 5. Code mode — `backend/bots/code/host-memory.ts`
 
-`memory.readBytes(path, { version })` beside phase 11's `memory.*`; refuses with `bytes_not_stored` and the reason.
+`memory.readBytes(path, { version })` beside phase 11's `memory.readText` / `readJson`, under the same
+`max_input_bytes`; refuses with `bytes_not_stored` and the reason.
 No bot tool changes: `memory_info` reports whether an original is stored and why not.
 
 ### 6. Frontend — `frontend/src/pages/MemoryPage.tsx`, `frontend/src/components/settings/sections/MemoryStorage.tsx`
 
 The info panel shows **Original**: filename, size, mime, and either **Download** or "not stored — larger than the
-25 MB policy" (or skipped type, quota, stripped). History rows download any version's original. Settings →
+25 MiB policy" (or skipped type, quota, stripped). History rows download any version's original. Settings →
 **Memory storage**: the policy form, a quota bar, storage by prefix and by reason, **Strip** (dry run, then a
 confirmation naming the reclaimed size and that it is permanent), and **Reconvert** listing converters with files
 behind, each with its four counts and **Run**.
@@ -235,6 +254,8 @@ retention interact with stored bytes. `security.md` notes that originals are alw
 - Strip: the dry run changes nothing; applying deletes parts, keeps rows, reports reclaimed bytes, and is audited.
 - A tombstoned file keeps its blob and undelete serves it; after phase 18's prune removes the last referencing
   version, the sweep deletes the blob; deleting a project removes its parts.
+- A PNG upload is accepted with its bytes and a placeholder surrogate, captioned when enrichment is on, and refused
+  when the policy would skip its bytes.
 - `memory:stats` storage totals equal the sum of stored part sizes.
 
 `frontend/e2e/memory.spec.ts` gains: upload a PDF, download it, compare bytes. `cli/__tests__/memory.test.ts` gains
@@ -271,8 +292,9 @@ Then the edge cases:
 - [ ] `memory_blobs` and `memory_blob_parts` with per-project dedupe; bytes committed with the version
 - [ ] membot's predicate ported unchanged; per-project policy under a platform ceiling; quota; metadata-only rows; rehydration
 - [ ] `memory:download` as a sandboxed attachment; `memory:read bytes` for MCP; `memory.readBytes` in code mode
+- [ ] Image uploads accepted when their bytes are kept, captioned through phase 22 when enabled
 - [ ] Converter revisions and `memory:reconvert`: dry run, change-only versions, edits spared, no-bytes reported
-- [ ] `memory:blob-strip` admin-only, dry run, audited; `gcOrphanBlobs` wired into phase 18's prune and a daily sweep
+- [ ] `memory:blob-strip` admin-only, dry run, audited; orphans collected by phase 18's prune and a daily sweep
 - [ ] Storage accounting in `memory:stats`; UI, CLI, user docs, tests as listed
 
 ## Learnings from the build
