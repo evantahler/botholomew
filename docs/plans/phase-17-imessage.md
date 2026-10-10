@@ -10,8 +10,8 @@
 > [phase 7](./phase-07-threads-and-web-chat.md), and [phase 10](./phase-10-mcp-servers-and-approvals.md) for
 > approvals.
 
-Slack reaches people at their desks. A phone reaches them everywhere else, and the agents that most need a
-person are the ones that outlast a sitting. Apple publishes no iMessage API. [Linq](https://linqapp.com/)
+Slack reaches people at their desks. A phone reaches them everywhere else, and the bots that most need a
+person are the ones whose work outlasts a sitting. Apple publishes no iMessage API. [Linq](https://linqapp.com/)
 operates that side and exposes a REST API and signed webhooks. ToolExec chose Linq and worked out what the
 choice implies in `toolexec:docs/plans/phase-32-remote-interfaces.md`, which never shipped. This phase builds
 that half on the foundations [phase 16](./phase-16-slack.md) lays down: `user_remote_identities`,
