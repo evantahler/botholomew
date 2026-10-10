@@ -601,5 +601,5 @@ psql botholomew -c "select name, cron_expression, cron_timezone, last_enqueued_a
 
 ## Learnings from the build
 
-Not built yet. This section records what turns out to be load-bearing once the phase ships; until then
-the plan above is the only account.
+Not built yet. This section records what is load-bearing in the shipped phase; today the plan above is the only
+account.

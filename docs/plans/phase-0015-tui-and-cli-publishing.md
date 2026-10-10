@@ -533,5 +533,5 @@ bun run --cwd cli build && bun run --cwd cli build:binary
 
 ## Learnings from the build
 
-Not built yet. This section records what turns out to be load-bearing once the phase ships; until then
-the plan above is the only account.
+Not built yet. This section records what is load-bearing in the shipped phase; today the plan above is the only
+account.

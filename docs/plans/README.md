@@ -12,10 +12,11 @@ teammates" — rebuilt as a multi-tenant service on **[Keryx](https://keryxjs.co
 one Action class is simultaneously an HTTP endpoint, a WebSocket action, a CLI command, a background task,
 and an OAuth-protected MCP tool.
 
-> **Status: planned.** Nothing in 2.0 is built. The v1 local CLI/TUI agent (v0.27.3) still occupies this
-> repository until [phase 1](./phase-0001-clean-slate-and-shell.md) executes, and lives on permanently on the
-> [`v1` branch](https://github.com/evantahler/botholomew/tree/v1). The v1 milestone docs sit beside these
-> files (`milestone-*.md`, indexed by [`v1-milestones.md`](./v1-milestones.md)) until phase 1 removes them.
+> **Status: planned.** Nothing in 2.0 is built. The v1 local CLI/TUI agent (v0.27.3) occupies this repository
+> and lives permanently on the [`v1` branch](https://github.com/evantahler/botholomew/tree/v1);
+> [phase 1](./phase-0001-clean-slate-and-shell.md) removes it from this one. The v1 milestone docs sit beside
+> these files (`milestone-*.md`, indexed by [`v1-milestones.md`](./v1-milestones.md)), and phase 1 removes them
+> too.
 
 ## What we are building on
 
@@ -32,7 +33,7 @@ Three earlier projects, read closely, and two outside ideas:
 ## The data model
 
 ```
-Organization                      thin grouping: members, projects, (later) billing
+Organization                      thin grouping: members, projects, billing (unphased)
 └── Project                       the tenant and the privacy boundary
     ├── Members                   users × tags (reserved `admin`); per-bot read/write tag lists
     ├── Bots
@@ -159,7 +160,7 @@ Project memory is the project's filesystem: a versioned, searchable store addres
 replacing both v1's on-disk project and membot. [Phase 4](./phase-0004-project-memory-core.md) builds the
 versioned filesystem (and carries the full membot feature map — what is brought, adapted, and dropped);
 [phase 9](./phase-0009-memory-search-and-ingestion.md) adds local embeddings, hybrid search, uploads, and the
-deterministic converters. Everything else membot does arrives later, one phase each, in Stage F: adding from a
+deterministic converters. Everything else membot does has its own phase in Stage F: adding from a
 URL ([19](./phase-0019-url-ingest.md)), refreshing upstream content ([20](./phase-0020-upstream-refresh.md)),
 MCP-backed source routers and bulk sync ([21](./phase-0021-source-routers-and-bulk-sync.md)), LLM-assisted
 ingestion ([22](./phase-0022-llm-assisted-ingestion.md)), and keeping original bytes
@@ -213,13 +214,15 @@ for agents and people; `CLAUDE.md` is only a symlink to it — states them in fu
 6. **Human MCP ≈ HTTP; never-MCP is a closed list** — login/signup, machine ingress (`webhook:*`), clocks,
    and anything that arms an unattended trigger.
 7. **Never name a plan phase outside `docs/plans/`.**
-8. **User-facing docs ship with the feature**, in the same commit.
-9. **The product CLI tracks the HTTP surface** — every phase ships its CLI commands.
-10. **Bot tools are named and described like bash** (`[[ bash equivalent command: … ]]`) and answer with
+8. **Docs and comments speak in the present tense** — they say what is, not what is to come or what came
+   before; a test enforces the mechanical slice.
+9. **User-facing docs ship with the feature**, in the same commit.
+10. **The product CLI tracks the HTTP surface** — every phase ships its CLI commands.
+11. **Bot tools are named and described like bash** (`[[ bash equivalent command: … ]]`) and answer with
     structured, hinted errors (Patterns for Agentic Tools).
-11. **LLM access goes through `backend/llm/`**, and models are resolved at boundaries
+12. **LLM access goes through `backend/llm/`**, and models are resolved at boundaries
     (`--model` > pin > default).
-12. **The plans are kept current, and only half of each one is** — see below.
+13. **The plans are kept current, and only half of each one is** — see below.
 
 ## Roadmap
 
@@ -281,12 +284,17 @@ cd .. && bun dev
 — followed by a manual end-to-end script and its edge cases; a **Definition of done** checklist; optional
 **Commands**; and **Learnings from the build**.
 
-The rule ToolExec learned the hard way applies here unchanged: **a plan section is never updated** — it is
-the only record of what was intended, and the gap between it and the code is information — while **the
-learnings section is always updated**, because it claims to describe the system as it stands. When a later
-change invalidates a section's premise, add a note and a translation table at its top rather than rewriting
-it in place. Every doc here keeps its `## Learnings from the build` heading; once phase 1 lands, a links test
-enforces that and resolves every relative link in `docs/`.
+ToolExec's rule applies here unchanged: **a plan section is never updated** — it is the only record of the
+intent, and the gap between it and the code is information — while **the learnings section is always
+updated**, because it claims to describe the system as it stands. When a change invalidates a section's
+premise, add a note and a translation table at its top rather than rewriting it in place.
+
+**Both halves are written in the present tense.** A plan section states the design as though it stands ("the
+tick acquires the lease"); a learnings section states what holds in the shipped system and why ("the fence
+holds because…"), not the story of finding it. Neither narrates what is to come or what came before; history
+lives in git, intent lives here. Every doc keeps its `## Learnings from the build` heading, and phase 1's
+`links.test.ts` and `tense.test.ts` enforce the heading, every relative link in `docs/`, and the tense
+denylist.
 
 ## References
 

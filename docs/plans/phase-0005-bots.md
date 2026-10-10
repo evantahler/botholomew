@@ -419,5 +419,5 @@ psql botholomew -c "select slug, role, model_name, concurrency_cap from bots whe
 
 ## Learnings from the build
 
-Not built yet. This section records what turns out to be load-bearing once the phase ships; until then
-the plan above is the only account.
+Not built yet. This section records what is load-bearing in the shipped phase; today the plan above is the only
+account.

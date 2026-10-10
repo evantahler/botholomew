@@ -17,12 +17,12 @@ Every doc there ends in a **Learnings from the build** section, and that is wher
 something load-bearing, and where to write when you learn something new. See
 [Where the detail lives](#where-the-detail-lives) for the map.
 
-> **Status: 2.0 is planned, not built.** The plans are complete; the code is not. Until
-> [phase 1](./docs/plans/phase-0001-clean-slate-and-shell.md) lands, the tree still holds the **v1** local CLI/TUI
-> agent (`src/`, `test/`, `docs/*.md`), which is frozen — do not extend it. v1 lives permanently on the
-> [`v1` branch](https://github.com/evantahler/botholomew/tree/v1). Sections below that describe `backend/`,
-> `frontend/`, and `cli/` describe the codebase phase 1 creates; where a rule names a file, that file arrives
-> with the phase that introduces it.
+> **Status: 2.0 is planned, not built.** The plans are complete; the code is not. The tree holds the frozen
+> **v1** local CLI/TUI agent (`src/`, `test/`, `docs/*.md`) — do not extend it; it lives permanently on the
+> [`v1` branch](https://github.com/evantahler/botholomew/tree/v1), and
+> [phase 1](./docs/plans/phase-0001-clean-slate-and-shell.md) removes it from this one. Sections below that
+> describe `backend/`, `frontend/`, and `cli/` describe the codebase phase 1 creates; a file a rule names
+> belongs to the phase that introduces it.
 
 ## Non-negotiable rules
 
@@ -93,31 +93,49 @@ something load-bearing, and where to write when you learn something new. See
     a reader six months from now has the code but not the plan. Say what a column, hook, or placeholder is
     *for* — "read by the refresh clock, which does not exist yet" — because that stays true after the
     schedule is forgotten and it survives the plan being reordered.
-13. **User-facing docs ship with the feature.** Any change that alters something an operator or visitor can
+13. **Docs and comments speak in the present tense.** Every doc, comment, and JSDoc block says what *is*: the
+    system as it stands, or — in a plan section — the design it specifies, stated as though it stands. Nothing
+    narrates what is to come (`will`, `going to`, `eventually`, `for now`, a `TODO` or `FIXME`) or what came
+    before (`used to`, `previously`, `originally`, `no longer`, "we changed", "it turned out"). History lives in
+    git and in pull requests; intent lives in `docs/plans/`. A learnings section states the decision that
+    holds and why it holds — "X holds because Y" — not the story of finding it. A placeholder says what it is
+    for, in the present, as rule 12's example does. Another codebase — v1, membot, ToolExec — is described in
+    the present too, because that code still exists. User-facing copy follows the same rule: "the bot replies",
+    never `the bot will reply`.
+
+    One slice is mechanical and is asserted: `backend/__tests__/docs/tense.test.ts` scans this file,
+    `README.md`, `docs/**`, and every comment under `backend/`, `frontend/src/`, and `cli/src/`, ignores fenced
+    code and inline code spans, and fails on a closed denylist — `will`, `won't`, `going to`, `used to`,
+    `previously`, `formerly`, `originally`, `no longer`, `in the future`, `eventually`, `for now`, `TODO`,
+    `FIXME`. There is no allowlist: a sentence that trips it is rewritten, even when the word is innocent.
+    Past tense inside a present description ("the version it was computed against") is fine; the test cannot
+    judge narration, so a reviewer does.
+14. **User-facing docs ship with the feature.** Any change that alters something an operator or visitor can
     see or do — a settings section, a bot tool, a memory namespace rule, an interface, an RBAC rule, or a
     marketing claim — updates the markdown under `frontend/src/content/docs/` in the **same commit**, and
     registers a new page in `frontend/src/content/docs/sections.ts` when one is needed. `docs/plans/` is for
     builders, not a substitute. Do not mention plan phases in user docs, and never claim a feature exists that
     is not built.
-14. **The product CLI tracks the operator HTTP surface.** A new action with a `web` route is a candidate for
+15. **The product CLI tracks the operator HTTP surface.** A new action with a `web` route is a candidate for
     `cli/` (`botholomew <noun> <verb>`). In the same commit, either wrap it or decide it is out of scope — do
     not leave the question unasked. The CLI is a session HTTP client, the same surface as the website, not a
     wrapper around `bun keryx.ts`. Out of scope by default: task-only ticks, machine ingress, and anything a
     signed-in member would not click.
-15. **The plans are kept current, and only half of each one is.** Everything above a phase doc's
-    `## Learnings from the build` heading is the **plan** — a historical record of what was going to be
-    built. Leave it alone even when it is wrong; a plan that says what it intended is doing its job, and
-    editing it destroys the only account of why the shipped thing differs. The **learnings** section is the
-    opposite — it describes what is true *now* — and so does every doc that is not a plan section: this file,
+16. **The plans are kept current, and only half of each one is.** Everything above a phase doc's
+    `## Learnings from the build` heading is the **plan** — the design as specified, frozen when the phase
+    ships. Leave it alone even when the code differs: it is the only account of the intent, and the gap between
+    it and the code is information. The **learnings** section is the opposite — it describes the system as
+    built — and so does every doc that is not a plan section: this file,
     the [plans index](./docs/plans/README.md), and anything else under `docs/` that describes the thing rather
-    than the building of it. A change that makes any of those wrong fixes them **in the same commit**.
+    than the building of it. A change that makes any of those wrong fixes them **in the same commit**. Both
+    halves are written in the present tense (rule 13).
 
     Three ways this breaks: **a rename** (grep `docs/` and this file, not only the code), **a deleted test**
     (a learnings section calling an assertion load-bearing is wrong the moment it is gone), and **a superseded
     premise** (add a note and a translation table at the top of the section instead of rewriting it in
     place). Writing is the other half of the rule: when you learn something the code cannot say for itself,
     it goes in the relevant learnings section.
-16. **A pull request is not the artifact.** A GitHub pull request, issue, or comment is for a human who
+17. **A pull request is not the artifact.** A GitHub pull request, issue, or comment is for a human who
     already has the diff. Write it as short as it can be while still conveying the meaning you intend. Do not
     paste a file-by-file list or verification dumps into GitHub. Load-bearing argument belongs in a code
     comment or a learnings section, not in the PR body.
@@ -125,7 +143,7 @@ something load-bearing, and where to write when you learn something new. See
 ## Local development
 
 > **Cloud agent VMs:** the startup caveats (how Postgres and Redis are started there, the `pg_hba.conf` trust
-> setting, and how to run the app) will live in `docs/cloud-setup.md`, which phase 1 adds.
+> setting, and how to run the app) live in `docs/cloud-setup.md`, which phase 1 adds.
 
 **Always use the system's Postgres and Redis — never Docker, and never Docker Compose.** Real services
 everywhere: local, CI, and deployed. Docker is used only to build deployment images. Postgres needs the
@@ -380,7 +398,8 @@ for the bound URL and `HOOK_TIMEOUT` for `beforeAll` / `afterAll`.
 - Deployment config is tested too: `render-blueprint.test.ts` parses the real `render.yaml` and asserts its
   invariants. `docs/links.test.ts` is the same idea pointed at the documentation — every relative link in this
   file, the root `README.md`, and `docs/**` must resolve, and every plan doc keeps its
-  `## Learnings from the build` heading.
+  `## Learnings from the build` heading. `docs/tense.test.ts` points the same idea at tense: rule 13's
+  denylist, over the same docs and every source comment.
 - **Behaviour evals are not tests.** A nightly harness drives bots against a real model and scores scenarios;
   it never gates CI.
 
@@ -393,8 +412,8 @@ One `render.yaml` at the repo root: `botholomew-api` + `botholomew-worker` (same
 differing only by env) + `botholomew-frontend` + `botholomew-redis` + `botholomew-db` (Postgres with
 pgvector), staging only, auto-deployed on merge to `main`. **The worker owns migrations** so the web service
 never races a schema change. Values that must be byte-identical across web and worker —
-`SECRETS_ENCRYPTION_KEY` above all — live in the `botholomew-shared` env var group. The runbook will be
-`docs/DEPLOY.md`; the blueprint's invariants are in [phase 2](./docs/plans/phase-0002-deployment.md).
+`SECRETS_ENCRYPTION_KEY` above all — live in the `botholomew-shared` env var group. The runbook is
+`docs/DEPLOY.md`, which phase 2 adds; the blueprint's invariants are in [phase 2](./docs/plans/phase-0002-deployment.md).
 
 ## CI
 

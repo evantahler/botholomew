@@ -376,6 +376,14 @@ already enforces — membership grants read, `admin` grants administration, audi
 - `deployment/render-blueprint.test.ts` — topology, one migrator, one task runner, build filters, origins,
   one `SECRETS_ENCRYPTION_KEY` in the group, Dockerfile agreement, no secret literal, the `COMPUTE_PLANS` enum.
 - `schema/indexes.test.ts` — the shell's indexes, read from `pg_indexes`.
+
+**New:**
+- `docs/tense.test.ts` — the mechanical slice of AGENTS.md's present-tense rule, the sibling of
+  `links.test.ts`. It scans `AGENTS.md`, `README.md`, `docs/**`, and every comment under `backend/`,
+  `frontend/src/`, and `cli/src/` (`//` and `/* … */` in `.ts` / `.tsx`), ignores fenced code and inline code
+  spans, and fails on a closed denylist: `will`, `won't`, `going to`, `used to`, `previously`, `formerly`,
+  `originally`, `no longer`, `in the future`, `eventually`, `for now`, `TODO`, `FIXME`. A hit names the file,
+  the line, and the word. There is no allowlist: a sentence that trips it is rewritten.
 - `cli/cli.test.ts` — spawns the real CLI against the booted server: `login`, `project list`, `tag create`,
   `invite create` → `accept`, `audit list --json`.
 - **New:** `deps/keryx-contract.test.ts` — enqueuing `invites:sweep` twice as a one-off yields two jobs (no
@@ -447,6 +455,7 @@ Then the edge cases:
 - [ ] AGENTS.md's Local development, Commands, and Where the detail lives are true; `README.md` and `docs/cloud-setup.md` written
 - [ ] User docs for overview, getting started, teams, CLI, MCP, and security
 - [ ] `links.test.ts` passes over `AGENTS.md`, `README.md`, and `docs/**`
+- [ ] `tense.test.ts` passes over the same docs and every comment in `backend/`, `frontend/src/`, and `cli/src/`
 
 ## Commands
 
@@ -460,5 +469,5 @@ psql botholomew -c "select action, actor_bot_id, on_behalf_of_user_id from audit
 
 ## Learnings from the build
 
-Not built yet. This section records what turns out to be load-bearing once the phase ships; until then
-the plan above is the only account.
+Not built yet. This section records what is load-bearing in the shipped phase; today the plan above is the only
+account.
