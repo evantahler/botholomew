@@ -178,7 +178,7 @@ asked for the schedule, so the card arrives while they are looking.
 for each schedule that is enabled, confirmed, and not paused (partial index), FOR UPDATE SKIP LOCKED:
   due = fireTimesBetween(expr, tz, lastEnqueuedAt, now)          capped by CATCHUP_SCAN_LIMIT
   if due is empty                                       → continue
-  if the latest run's root task is still open           → continue, without advancing (in-flight guard)
+  if the latest run's root task is still open           → continue, without advancing (guard 1: in flight)
   firedFor = lastFireTimeAtOrBefore(now)                exact after any outage
   if firedFor - previous run's firedFor < 5 min         → record a skipped run (spacing) and advance
   UPDATE schedules SET lastEnqueuedAt = firedFor
@@ -203,9 +203,9 @@ Save at 06:59 never cancels the 07:00 run.
 
 **The 5-minute floor is checked twice.** ToolExec's `validateCron` compares only the next two fire times.
 `*/7 * * * *` passes that test (07:00 then 07:07) but fires at :56 and again at :00, four minutes apart. 2.0's
-validator scans the minimum gap across the next 1,000 fire times or eight days, whichever comes first. That
-also catches the DST fold, where a wall-clock hour repeats. The fire-time spacing check backs it up: whatever
-the expression says, two runs are never under five minutes apart.
+validator scans the minimum gap across the next 1,000 fire times or eight days, whichever comes first, in the
+schedule's own timezone, so a DST transition inside the window is measured too. The fire-time spacing check
+backs it up: whatever the expression says, two runs are never under five minutes apart.
 
 ### What a firing hands the bot
 

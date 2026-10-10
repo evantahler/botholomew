@@ -119,8 +119,8 @@ silence — is the expected answer from a bot with nothing to add.
 `@everyone` is not routed: fan-out is a leader's job through delegation ([phase 13](./phase-13-leader-and-workers.md)),
 where it is a task with an owner rather than a broadcast.
 
-**Mentions are structured.** The web composer's autocomplete inserts `@[Name](bot:12)` or
-`@[Name](user:7)`; plain `@slug` from the CLI or an MCP client is resolved against the project's bot slugs;
+**Mentions are structured.** The web composer's autocomplete inserts a token such as `@{bot:12}` or
+`@{user:7}`, rendered as the name; plain `@slug` from the CLI or an MCP client is resolved against the project's bot slugs;
 the server stores the result in `thread_messages.mentions` and never re-parses rendered text. A person
 mentioning a person creates a `mentioned_you` notification for them (if they are a member who can read the
 thread) and routes nothing. Bots cannot mention people in this phase.

@@ -22,7 +22,7 @@ itself becomes a small machine writer with three outcomes worth naming — chang
 membot never had to think about: the source is **gone**, and somebody **edited** the file since it was fetched.
 Neither is allowed to destroy anything.
 
-This phase refreshes what [phase 19](./phase-19-url-ingest.md) fetched (`fetcher = 'url'`) and builds the
+This phase refreshes what [phase 19](./phase-19-url-ingest.md) fetched (`sourceType = 'url'`) and builds the
 dispatch table that [phase 21](./phase-21-source-routers-and-bulk-sync.md)'s routers plug into. It does not
 refresh uploads — the server has no path back to a person's laptop — and it never tombstones on its own.
 
@@ -51,7 +51,8 @@ retention of the versions refresh produces ([phase 18](./phase-18-operations.md)
 | Due query and cadence grammar | `listDueRefreshes`; `parseDuration` (`5m`, `1h`, `24h`, `7d`) | [src/db/files.ts](https://github.com/evantahler/membot/blob/main/src/db/files.ts), [src/ingest/ingest.ts](https://github.com/evantahler/membot/blob/main/src/ingest/ingest.ts) |
 | Claim-and-back-off | `FOR UPDATE SKIP LOCKED` claims, `2^attempts` backoff, a `maxAttempts` terminal state | `toolexec:backend/ops/NotificationOps.ts`, `toolexec:backend/actions/notification/notifications-dispatch.ts` |
 | Why `SKIP LOCKED` alone is not a limit | The dispatch claim's reasoning about concurrency caps | `toolexec:backend/ops/RunOps.ts` |
-| The fetcher and its persisted identity | `guardedFetch`, `fetcher` / `fetcherArgs`, `sourceSha256`, `sourceEtag`, `sourceLastModified` | [phase 19](./phase-19-url-ingest.md) |
+| The fetcher and its persisted identity | `guardedFetch`, `sourceType` / `sourceUri` / `fetcherArgs`, `sourceSha256`, `sourceEtag`, `sourceLastModified`, URL ingest jobs | [phase 19](./phase-19-url-ingest.md) |
+| Ingest jobs | `memory:ingest` converts staged bytes and writes through `MemoryOps`, honouring the job's `expectedVersionId` | [phase 9](./phase-09-memory-search-and-ingestion.md) |
 | Lease epochs and fenced writes | The `WHERE epoch = $mine` discipline reused for claims | [phase 6](./phase-06-durable-bot-loop.md) |
 | Notifications | Rows, dispatch, the bell | [phase 7](./phase-07-threads-and-web-chat.md) |
 
@@ -87,7 +88,8 @@ without a refreshable source (an upload, an inline note) is refused with a hint.
 
 A refresh version's content came from upstream, not from whoever set the cadence, so it is authored by neither.
 `memory_files` gains `systemActor` (`refresh` here; `sync`, `enrich`, and `reconvert` arrive in phases 21–23),
-with a check that **exactly one** of `authorUserId`, `authorBotId`, and `systemActor` is set. The change note is
+and phase 4's rule that no version is written without an author becomes a check that **exactly one** of
+`authorUserId`, `authorBotId`, and `systemActor` is set. The version's `operation` is `refresh`. The change note is
 membot's, `refresh: source updated`. A manual refresh records the requester in the note
 (`refresh: source updated (requested by Evan)`) and in its audit row — the asker chose *when*, not *what*.
 
@@ -114,17 +116,17 @@ this tick, and a project with one gets its one. Postgres refuses `FOR UPDATE` al
 claim is an `UPDATE` whose outer predicate is re-evaluated under each row lock: two overlapping ticks that rank
 the same ids claim disjoint sets, because the loser re-reads a `claimed_at` it can no longer match. Each claimed
 row enqueues `memory:refresh-one { refreshId, claimEpoch }` on `default` in `afterCommit`. A task that dies leaves
-a claim that expires after `refreshClaimTtlMs` (10 min); every write the task makes — status, `nextRefreshAt`, the
-new version's commit — is fenced on `claim_epoch = $mine`, so a task that wakes after its claim was retaken
-changes nothing.
+a claim that expires after `refreshClaimTtlMs` (10 min); every write the task makes — status, `nextRefreshAt`,
+staging the ingest job — is fenced on `claim_epoch = $mine`, so a task that wakes after its claim was retaken
+changes nothing. Once staged, the ingest job is phase 9's to deliver, with its own reconciler.
 
 ### One refresh
 
 `refreshOne(refreshId, epoch)`:
 
 1. Load the schedule and the file's current version; look up the version the last fetch produced
-   (`lastFetchedVersionId`). Dispatch on its `fetcher` through `FETCHERS` — `url` here, `router` in
-   [phase 21](./phase-21-source-routers-and-bulk-sync.md); an unknown fetcher fails with a hint to re-add.
+   (`lastFetchedVersionId`). Dispatch on its `sourceType` through `FETCHERS` — `url` here, `router` in
+   [phase 21](./phase-21-source-routers-and-bulk-sync.md); anything else fails with a hint to re-add.
 2. Fetch, sending `If-None-Match` / `If-Modified-Since` from the stored `sourceEtag` / `sourceLastModified`. A `304`
    is **unchanged**, with no body downloaded.
 3. Compare the fetched sha to the `sourceSha256` of the last *fetched* version. Equal is **unchanged**: bump
@@ -132,9 +134,10 @@ changes nothing.
 4. Changed, but the current version is not the last fetched one: someone edited the file since. **Conflict** —
    write nothing, pause with `pausedReason = 'conflict'`, notify. A person resolves it with "take upstream"
    (`memory:refresh --force`, which writes the new version) or "keep mine" (clear the cadence).
-5. Changed and unedited: run phase 19's sniff → convert → describe → commit with `expectedVersionId` set to the
-   current version (a write that raced the refresh fails the commit, and the next tick sees the conflict), carry
-   `untrusted = true`, and hand off to phase 9's embedding. **Changed.**
+5. Changed and unedited: stage the bytes on a `memory_ingest_jobs` row exactly as phase 19 stages a fetch, with
+   `operation = 'refresh'`, `untrusted`, and `expectedVersionId` set to the current version. Phase 9's
+   `memory:ingest` converts and commits, then records `lastFetchedVersionId` and `ok` on the schedule; a write that
+   raced the refresh fails the version check and is recorded as `conflict`. **Changed.**
 
 Only sha changes cost conversion and embedding; an unchanged page costs one conditional `GET`.
 
@@ -186,7 +189,7 @@ outsider can call; it is closer to a routine than to a webhook.
 | `lastStatus` | `text`, nullable | `ok` \| `unchanged` \| `failed` \| `gone` \| `conflict` |
 | `lastError`, `lastHttpStatus` | `text`, `integer`, nullable | scrubbed and truncated |
 | `consecutiveFailures`, `consecutiveGone` | `integer` | reset on success |
-| `lastFetchedVersionId` | `text` | the version the latest fetch wrote; the conflict check |
+| `lastFetchedVersionId` | `integer` → `memory_files.id`, `set null` | the version the latest fetch wrote; the conflict check |
 | `claimEpoch`, `claimedAt` | `integer`, `timestamptz` | the fenced claim |
 | `createdByUserId`, `createdByBotId` | `integer`, nullable | who to notify |
 
@@ -206,7 +209,7 @@ Index `(nextRefreshAt) WHERE enabled` for the clock; `(projectId, lastStatus)` f
 - `setSchedule(tx, projectId, path, cadence | null, actor)` — create, change, or clear; refuses unrefreshable sources.
 - `claimDue(limit, perProject)` — the statement above.
 - `refreshOne(refreshId, epoch, { force })` — the five steps; returns `{ status, versionId? }`; never throws for an upstream failure.
-- `FETCHERS` / `registerFetcher(name, fetcher)` — `url` registered here.
+- `FETCHERS` / `registerFetcher(sourceType, fetcher)` — `url` registered here.
 - `nextAttemptAt(row, outcome, retryAfter?)` — the table above, pure and unit-tested.
 - Hooks for phase 4: `onMove`, `onTombstone`, `onUndelete`.
 
@@ -222,14 +225,14 @@ Index `(nextRefreshAt) WHERE enabled` for the clock; `(projectId, lastStatus)` f
 
 `memory:refresh` takes `path` or `prefix` (at most 200 files), `force`, and `wait`; without `wait` it claims and
 enqueues like the clock and returns. `memory:refresh-list` is paginated and filters by `lastStatus`,
-`pausedReason`, and "due now". `memory:add-url` gains `refresh`.
+`pausedReason`, and "due now". `memory:add` gains `refresh`.
 
 ### 5. Clocks — `memory:refresh-due`
 
 Task-only, no `web` route (`rbac.test.ts` already asserts clocks have none). The batch cap bounds a tick; the
 fair claim bounds any one tenant; the claim TTL bounds a crash.
 
-### 6. Bot tools — `backend/bots/tools/memory_refresh.ts`, `memory_add.ts`
+### 6. Bot tools — `backend/bots/tools/memory/{refresh,add}.ts`
 
 `memory_refresh` — `[[ bash equivalent command: wget -N <url> ]]` — inputs `path`, `force`; `replay: safe`
 (re-reading a source is idempotent in effect). One manual refresh per path per `refreshManualCooldownMs`. Its
@@ -267,7 +270,8 @@ never deletes or overwrites an edit, pausing and notifications, the limits.
 - A person edits, upstream changes: no version, `conflict`, one notification; `--force` writes upstream.
 - `404` three times: status `gone`, the file still current and searchable, **no tombstone**, paused and notified.
 - `500`s back off on the documented curve and pause at 10; `Retry-After` is honoured and capped.
-- A killed task's claim is re-taken after the TTL, and the first task's late commit is rejected by the epoch fence.
+- A killed task's claim is re-taken after the TTL, and the first task's late staging is rejected by the epoch fence;
+  history shows one version.
 - `mv` carries the schedule; `rm` pauses it as `deleted`; undelete resumes it.
 - Cadence on an upload is refused; below-floor cadences are refused, with the bot floor stricter; the 501st
   schedule is refused; the daily byte budget defers rather than drops.

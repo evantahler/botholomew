@@ -332,42 +332,14 @@ subscribes first, then hydrates, as ToolExec's phase 18 learned to do.
 | `attempt` / `maxAttempts` | int | 0 / 2 |
 | `lastActivityAt`, `startedAt`, `finishedAt`, `createdAt`, `updatedAt` | timestamptz | |
 
-Indexes:
+Indexes: `(projectId, status, priority, createdAt)`, `(assigneeBotId, status)`, `(rootTaskId)`,
+`(parentTaskId)`, `(parentConversationId)`, and the partials `(wakeAt) WHERE status = 'waiting'` and
+`(lastActivityAt) WHERE status = 'running'`.
 
-- `(projectId, status, priority, createdAt)`
-- `(assigneeBotId, status)`
-- `(rootTaskId)`
-- `(parentTaskId)`
-- `(parentConversationId)`
-- Partial: `(wakeAt) WHERE status = 'waiting'`
-- Partial: `(lastActivityAt) WHERE status = 'running'`
-
-`bot_task_deps`:
-
-| Column | Type | Notes |
+| Table | Key columns | Constraints and indexes |
 |---|---|---|
-| `taskId` | int | Cascade |
-| `dependsOnTaskId` | int | Cascade |
-| `requireSuccess` | boolean | Default `true` |
-
-The primary key is `(taskId, dependsOnTaskId)`, with an index on `dependsOnTaskId` for propagation.
-
-`bot_task_waits`:
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | serial | |
-| `projectId` | int | Cascade |
-| `conversationId` | int | Cascade |
-| `requestId` | text | Unique per project |
-| `taskIds` | jsonb `number[]` | |
-| `mode` | text | `all_settled \| fail_fast` |
-| `cancelRest` | boolean | |
-| `deadlineAt` | timestamptz | |
-| `status` | text | `open \| fired \| cancelled` |
-| `firedAt` | timestamptz, null | |
-
-There is a partial index on `(deadlineAt) WHERE status = 'open'`.
+| `bot_task_deps` | `taskId`, `dependsOnTaskId` (both cascade), `requireSuccess` (default `true`) | Primary key `(taskId, dependsOnTaskId)`; index on `dependsOnTaskId` for propagation |
+| `bot_task_waits` | `projectId`, `conversationId` (both cascade), `requestId`, `taskIds jsonb number[]`, `mode` (`all_settled \| fail_fast`), `cancelRest`, `deadlineAt`, `status` (`open \| fired \| cancelled`), `firedAt` | Unique `(projectId, requestId)`; `(deadlineAt) WHERE status = 'open'` |
 
 Other changes:
 
@@ -502,46 +474,31 @@ The tests drive bots with phase 6's fake model server, which serves scripted too
   both, it gets one `tasks.waited` event instead.
 - **Propagation:** in a chain A → B → C where A fails, both B and C end up `skipped` and name A. C behind
   `requireSuccess: false` runs instead.
-- Re-running a tick that already called `delegate` creates no second task, because of the `requestId`.
-- A turn that ends with no terminal tool is nudged once, then the task fails as retryable.
+- Re-running a tick that already called `delegate` creates no second task, because of the `requestId`. A
+  task turn that ends with no status tool is nudged once, then fails as retryable.
 - `task_fail { retryable: true }` waits for the backoff, then `tasks:due` delivers a resume and the attempt
   count rises.
 - **No stranding:** a task waiting past its `wakeAt` gets exactly one `task.resume` from `tasks:due`.
 
-`backend/__tests__/ops/task-graph.test.ts`:
+`backend/__tests__/ops/task-graph.test.ts`: a DAG cycle is refused and the error renders the path; a
+cross-tree dependency is refused; delegating back up the assignee chain is refused with the path; depth 4 is
+refused; a duplicate title for the same assignee returns the existing id.
 
-- A DAG cycle is refused, and the error renders the path.
-- A cross-tree dependency is refused.
-- Delegating back up the assignee chain is refused with the path.
-- Depth 4 is refused.
-- A duplicate title for the same assignee returns the existing id.
+`backend/__tests__/actions/task-caps.test.ts`: **`cap * 4` concurrent `delegate` calls from four sibling
+tasks in one tree accept exactly the per-tree cap** — this fails if the lock moves from the root row to the
+caller — and the per-project cap holds under concurrency.
 
-`backend/__tests__/actions/task-caps.test.ts`:
+`backend/__tests__/actions/task.test.ts`: CRUD, RBAC, and pagination; edit, cancel, and retry write audit
+rows; `task:tree` hides unreadable nodes and reports a count; a person's `task:create` brief carries human
+priority.
 
-- **`cap * 4` concurrent `delegate` calls from four sibling tasks in one tree accept exactly the per-tree
-  cap.** This fails if the lock moves from the root row to the caller.
-- The per-project cap holds under concurrency.
+`backend/__tests__/actions/workforce-check.test.ts`: each problem kind produces one alert; a second run
+produces none, because of the `eventKey`; a paused leader produces a notification to admins.
 
-`backend/__tests__/actions/task.test.ts`:
-
-- CRUD, RBAC, and pagination.
-- Edit, cancel, and retry write audit rows.
-- `task:tree` hides unreadable nodes and reports a count.
-- A person's `task:create` brief carries human priority.
-
-`backend/__tests__/actions/workforce-check.test.ts`:
-
-- Each problem kind produces one alert.
-- A second run produces none, because of the dedupe key.
-- A paused leader produces a notification to admins.
-
-`backend/__tests__/bots/leader-workers.test.ts`:
-
-- Under `propose`, `bot_create` parks in `awaiting_approval`, and approving it creates the bot with an audit row
-  carrying `actorBotId` and `onBehalfOfUserId`.
-- Under `off`, the tool is absent from the registry.
-- Access wider than the leader's is refused.
-- The new bot is on no MCP allowlist.
+`backend/__tests__/bots/leader-workers.test.ts`: under `propose`, `bot_create` parks in `awaiting_approval`,
+and approving it creates the bot with an audit row carrying `actorBotId` and `onBehalfOfUserId`; under `off`
+the tool is absent from the registry; access wider than the leader's is refused; the new bot is on no MCP
+allowlist.
 
 The remaining tests:
 

@@ -32,7 +32,7 @@ nothing constructs a bot writer until [phase 5](./phase-05-bots.md) gives bots i
 
 **In:** the `memory_files` table (append-only versions, tombstones, a partial unique index on the current
 head, author user or bot, change note, sha256, mime, lineage links, and source columns reserved for
-ingestion); the `memory_settings` table; logical-path normalization; `MemoryOps` (`ls`, `tree`, `read` with
+ingestion); logical-path normalization; `MemoryOps` (`ls`, `tree`, `read` with
 offset/limit/version, `write`, `edit` with v1's `LinePatchSchema`, `cp`, `mv` with history, `rm` with globs
 and `-f` for match-all, `versions`, `diff`, `restore`, `info`, `manifest`, `batch`), all guarded by an
 optional `expectedVersionId`; the namespace layout and the reserved-path validator registry (strict
@@ -162,7 +162,7 @@ That is the client-side half of `resolveInRoot`.
 
 | Path | Validator | People who may write | Bots that may write (seam) |
 |---|---|---|---|
-| `skills/<name>.md` | Strict skill frontmatter; `name` equals the file stem; flat (no subdirectories) | Any member | Any bot, only when `memory_settings.botsMayWriteSkills` (default off) |
+| `skills/<name>.md` | Strict skill frontmatter; `name` equals the file stem; flat (no subdirectories) | Any member | Any bot, only when the project setting `botsMayWriteSkills` is on ([phase 12](./phase-12-skills.md) adds it; until then the predicate's input is `false`) |
 | `prompts/<name>.md` | Strict prompt frontmatter; flat | Admins. A project prompt shapes every bot, so writing it is writing every bot | None |
 | `bots/<slug>/prompts/<name>.md` | Strict prompt frontmatter; flat | Writers of that bot ([phase 5](./phase-05-bots.md)) | That bot, only where the current file says `agent-modification: true`; it may never flip the flag, and a prompt it creates must say `true` |
 | `bots/<slug>/notes/**` | None | Writers of that bot | That bot |
@@ -257,7 +257,7 @@ This is the whole membot port. [Phase 9](./phase-09-memory-search-and-ingestion.
 | Writing identical content | A no-op that returns `unchanged: true` and creates no version |
 | A file and a directory with the same name | Refused when the path is created, under a per-project advisory lock |
 | Binary content | Not in this phase; writes must be UTF-8 text of at most `MEMORY_MAX_FILE_BYTES` (5 MiB). Binaries arrive with uploads in [phase 9](./phase-09-memory-search-and-ingestion.md), and their original bytes in [phase 23](./phase-23-original-bytes-and-blob-policy.md) |
-| Project settings | A dedicated, lazily created `memory_settings` row, so memory owns its knobs without sharing a settings table with other phases |
+| Project settings | None in this phase. The skills gate reads `botsMayWriteSkills`, which [phase 12](./phase-12-skills.md) adds; memory's own knobs arrive in `memory_settings` with [phase 9](./phase-09-memory-search-and-ingestion.md) |
 | What the audit row carries | Version metadata only (path, `versionId`, sha, size, change note). The version table is the content record |
 | `rm` across many paths | All-or-nothing in one transaction, capped at 1,000 matches. Membot reported per-entry failures because DuckDB could not do better |
 | `push` | All-or-nothing through `memory:batch` (at most 200 operations), each guarded by the manifest's version |
@@ -265,7 +265,7 @@ This is the whole membot port. [Phase 9](./phase-09-memory-search-and-ingestion.
 
 ## Steps
 
-### 1. Schema — `backend/schema/{memory_files,memory_settings}.ts`
+### 1. Schema — `backend/schema/memory_files.ts`
 
 `memory_files` (one row per version):
 
@@ -293,9 +293,6 @@ This is the whole membot port. [Phase 9](./phase-09-memory-search-and-ingestion.
 
 Indexes: a unique index on `(projectId, logicalPath) WHERE isCurrent`; an index on `(projectId,
 logicalPath, id DESC)` for history and prefix scans; GIN on `searchTsv WHERE isCurrent AND NOT tombstone`.
-
-`memory_settings`: `projectId` (unique, cascade), `botsMayWriteSkills boolean default false`, timestamps.
-It is created lazily by `getOrCreateMemorySettings`, after ToolExec's `getOrCreateSettings`.
 
 ### 2. Config — `backend/config/memory.ts`
 
@@ -343,7 +340,6 @@ It is created lazily by `getOrCreateMemorySettings`, after ToolExec's `getOrCrea
 | `memory:rm` | `DELETE /memory/file` | member + `canWritePath` (every match) | yes | yes |
 | `memory:restore` | `POST /memory/restore` | member + `canWritePath` | yes | yes |
 | `memory:batch` | `POST /memory/batch` | member + `canWritePath` (every operation) | yes, one row per batch | yes |
-| `memory-settings:view` / `:edit` | `GET` / `POST /memory/settings` | member / `AdminMiddleware()` | edit only | yes |
 
 The rest of the action contracts:
 
@@ -404,8 +400,7 @@ sandwich. Each tool's `description` begins with a bash tag, and each returns the
 - **File operations.** Rename/move (a directory moves as a prefix), delete with a confirmation that lists
   matches.
 
-It subscribes to `project:<id>:memory`, then hydrates. Navbar link: Memory. Admins also get
-`components/settings/sections/MemorySection.tsx` with the skills toggle.
+It subscribes to `project:<id>:memory`, then hydrates. Navbar link: Memory.
 
 ### 8. CLI — `cli/src/commands/memory.ts`
 
@@ -422,7 +417,6 @@ It subscribes to `project:<id>:memory`, then hydrates. Navbar link: Memory. Admi
 | `botholomew memory restore <path> --version v [-m note]` | Also undeletes |
 | `botholomew memory pull <prefix> <dir>` | Writes the files plus `.botholomew-memory.json` (path → `versionId`, sha) |
 | `botholomew memory push <dir> [--delete] [--dry-run] [--force]` | Diffs local shas against the manifest and sends one `memory:batch`, guarded by the manifest's versions. Deletes only with `--delete`; refuses symlinks and dotfiles; on success, rewrites the manifest |
-| `botholomew memory settings [--bots-may-write-skills on\|off]` | |
 
 `--json` works on every command.
 
@@ -518,7 +512,7 @@ Then the edge cases:
 ## Definition of done
 
 - [ ] `memory_files` with the partial unique head index, tombstone check, lineage columns, reserved source
-      columns, and generated `searchTsv`; `memory_settings`
+      columns, and generated `searchTsv`
 - [ ] `normalizeLogicalPath` enforces every rule above and is the only constructor of `LogicalPath`
 - [ ] Every mutation runs one transaction: head lock, version guard, reserved-path validation, audit row,
       and frame after commit; identical content is a no-op
@@ -529,7 +523,7 @@ Then the edge cases:
       a tested bot branch
 - [ ] Keyword search with the final hit shape, default exclusion of reserved paths, and `includeHistory`
 - [ ] `project:<id>:memory` channel, membership-gated, with content-free frames
-- [ ] `memory:*` actions audited and MCP-published; paginated lists; `memory-settings:*`
+- [ ] `memory:*` actions audited and MCP-published; paginated lists
 - [ ] Memory bot tool definitions with bash tags, replay declarations, and PATs envelopes; the
       memory-section prompt text
 - [ ] Memory page: tree, viewer, editor with a conflict dialog, history, diff, restore, move, delete,

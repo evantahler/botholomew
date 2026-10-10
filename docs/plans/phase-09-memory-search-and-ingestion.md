@@ -295,7 +295,8 @@ NULL OR embeddingRevision < current)` for the backlog. `memory_ingest_jobs`: `pr
 `sourceSha256`, `description`, `changeNote`, `expectedVersionId`,
 `requestId` (`uniqueIndex(projectId, requestId)`), `createdByUserId`, `createdByBotId`, `onBehalfOfUserId`,
 `versionId`, `attempts`, `lastError` (≤ 2 KB, scrubbed), `claimedAt`, `finishedAt`, `createdAt`; indexes
-`(projectId, createdAt DESC)` and `(status, createdAt)`. `memory_settings` gains `semanticWeight` (0.6),
+`(projectId, createdAt DESC)` and `(status, createdAt)`. New `memory_settings` (one row per project, created
+lazily by `getOrCreateMemorySettings` after ToolExec's `getOrCreateSettings`): `semanticWeight` (0.6),
 `maxPerFile` (3), `reindexState jsonb`; `memory_files` gains `descriptionDerived boolean`.
 
 ### 2. Config — `backend/config/memory.ts`
@@ -329,7 +330,7 @@ production).
 | `memory:search` | `GET /memory/search` (widened) | member | — | yes |
 | `memory:stats` | `GET /memory/stats` | member | — | yes |
 | `memory:reindex` | `POST /memory/reindex` | `AdminMiddleware()` | yes (spends shared worker time) | yes |
-| `memory-settings:edit` | `POST /memory/settings` (widened) | `AdminMiddleware()` | yes | yes |
+| `memory-settings:view` / `:edit` | `GET` / `POST /memory/settings` | member / `AdminMiddleware()` | edit only | yes |
 
 `memory:upload` joins the closed never-MCP list with that reason.
 
@@ -354,7 +355,7 @@ Drop files or folders onto a tree directory, or use Upload; `UploadQueue` lists 
 `project:<id>:memory` frames (`op: "ingest"`, job id, status — no content), with the error and Retry on
 failure. `MemorySearchBar` gains the mode switch and a "recent changes not yet in semantic search" note when
 coverage is partial. `MemoryInfoPanel` shows the original filename, source mime and sha, chunk count, and
-embedding state. Settings → Memory gains stats, the semantic weight and per-file cap, and admin Reindex with
+embedding state. A new Settings → Memory section (`MemorySection.tsx`) shows stats, the semantic weight and per-file cap, and admin Reindex with
 progress.
 
 ### 8. CLI — `cli/src/commands/memory.ts`

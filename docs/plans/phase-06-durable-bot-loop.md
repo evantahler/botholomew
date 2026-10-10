@@ -192,7 +192,7 @@ bot:tick {conversationId, leaseEpoch?}                      queue "bots", explic
 │            ├─ no slot / outranked ──▶ leave readyAt set, exit ("deferred"; dispatch claims later)
 │            └─ expired + grace ──────▶ take it over; RECOVER treats the dead epoch as a crash
 │            with epoch (from dispatch): verify it is still mine, adopt it, else exit
-├─ AUTHORIZE re-read bot, pause, model connection, the turn's human, budgets
+├─ AUTHORIZE re-read bot (enabled, paused), model connection, the turn's human, budgets
 │            └─ refused ──▶ RELEASE as blocked / drop the item with a notice
 ├─ RECOVER   rows from an earlier epoch still pending/started: settle them (see crash table)
 │            └─ crashCount ≥ 2 ──▶ RELEASE as errored, post a notice
