@@ -372,7 +372,11 @@ Other changes:
 
 - **`project_settings` gains** `leaderManagesWorkers` (default `propose`), `maxWorkers` (12),
   `maxOpenTasks` (200), and `maxSpendPerTree` (null).
-- **`bots` gains** `createdByBotId`, `pausedAt`, `pausedByUserId`, `pausedByBotId`, and `pauseReason`.
+- **`bots` gains** `createdByBotId`, `pausedByBotId`, and `pauseReason`, beside phase 6's `pausedAt` and
+  `pausedByUserId`.
+- **`conversation_inbox` gains** `eventKey`, nullable text, with a partial unique index on
+  `(conversationId, eventKey) WHERE eventKey IS NOT NULL`. The `eventKind`s this phase writes are
+  `task.assigned`, `task.settled`, `task.resume`, `tasks.waited`, and `workforce.alert`.
 - **`usage_events` gains** `taskId`, nullable, set when a turn runs a task.
 
 ### 2. Config — `backend/config/swarm.ts`
@@ -440,13 +444,13 @@ Every tool here writes only Postgres, in one transaction keyed by its tool call'
 | `task_view` | — | every bot | `task_id`. Returns status, deps, outputs, and the thread id for `thread_read` |
 | `task_update` | — | the delegator or the leader | `task_id`, `priority?`, `title?`, `description?`, `blocked_by?` |
 | `task_cancel` | `kill` | the delegator or the leader | `task_id`, `tree?` |
-| `wait_for` | `wait` | every bot | `task_ids`, `mode`, `timeout_minutes`, `cancel_rest?`. Yields the turn |
+| `wait_for` | `wait` | every bot | `task_ids`, `mode`, `timeout_minutes`, `cancel_rest?`. Returns at once |
 | `task_complete` | `exit 0` | the assignee, in the task's thread | `output` |
 | `task_fail` | `exit 1` | the assignee | `reason`, `retryable` |
-| `task_wait` | — | the assignee | `reason`, `until`, `on_task_ids?`. Yields the turn |
+| `task_wait` | — | the assignee | `reason`, `until`, `on_task_ids?` |
 | `bot_list` | `who` | every bot | `query?`; delegable bots only, with description and status |
 | `bot_create` / `bot_configure` | `useradd` / — | the leader, when the setting is not `off` | name, slug, description, identity, goals, model, budget |
-| `bot_hibernate` / `bot_wake` | — | the leader, when the setting is not `off` | `bot`, `reason`, `cancel_open_tasks?` |
+| `bot_pause` / `bot_resume` | — | the leader, when the setting is not `off` | `bot`, `reason`, `cancel_open_tasks?` |
 
 Errors follow the PATs envelope: `error_type` plus a `next_action_hint`. Examples:
 
@@ -567,7 +571,7 @@ Then the edge cases:
 
 - Make one researcher fail with `task_fail`. The writer is `skipped`, naming that task, and the leader hears
   about it in the same turn as the successes.
-- Hibernate `writer` from the bot page while it holds an open task. Within one workforce interval the leader's
+- Pause `writer` from the bot page while it holds an open task. Within one workforce interval the leader's
   Workforce thread says so, once.
 - Set `leaderManagesWorkers` to `propose` and ask the leader for a new worker. An approval card appears for
   admins, and approving it creates the bot. The audit log shows the leader acting on your behalf.
@@ -581,7 +585,7 @@ Then the edge cases:
 - [ ] `settleTask` is the only terminal writer: propagation, wake-on-dependency, the report event, and waits, all under the root-row lock
 - [ ] Failure propagation is transitive, and a `requireSuccess: false` edge runs anyway
 - [ ] No task can sit in `waiting` without a wake condition, and `tasks:due` delivers every due resume
-- [ ] Reports are `event` rows with deterministic `requestId`s, and `wait_for` folds them into one event
+- [ ] Reports are `event` rows with deterministic `eventKey`s, and `wait_for` folds them into one event
 - [ ] Every guard gives a distinct, hinted refusal; cycle messages render the path; counts are re-taken under the root lock
 - [ ] `bots:workforce-check` sends deduplicated alerts to the leader's Workforce thread, and notifies people only when the leader cannot act
 - [ ] Leader-managed workers sit behind `off | propose | on`; access can never widen; MCP allowlists are untouched; every change is audited with `actorBotId`
