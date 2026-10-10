@@ -98,9 +98,10 @@ The network calls happen inside the transaction, each with a 10 s timeout. That 
 into a request with nowhere to store it. If the commit fails after step 3, the orphan subscription targets a
 routing token that does not exist. Its first delivery gets the 404, which ends Linq's retries, and step 2 of
 the next attempt deletes it. Replacing the key rotates the routing token and recreates the subscription,
-because the secret cannot be read back. Disconnecting deletes the row and then, in `afterCommit` and on a
-best-effort basis, deletes the subscription. If that call fails, the 404 ends Linq's retries on the first
-delivery anyway.
+because the secret cannot be read back. Disconnecting decrypts the key and reads the subscription id inside
+the transaction, deletes the row, and then, in `afterCommit` and on a best-effort basis, uses those values to
+delete the subscription. The key is held only in memory, because after commit the row that held it no longer
+exists. If that call fails, the 404 ends Linq's retries on the first delivery anyway.
 
 ### Linking by texting a code
 

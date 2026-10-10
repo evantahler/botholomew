@@ -19,9 +19,9 @@ what an organization *is*, so this phase decides it first.
 
 What it is: a named group of projects, with **owners** who may file new projects under it, rename it, and
 delete it when it is empty, and **members** who are simply the people in its projects. What it is not: a
-permission scope. The [decisions table](./README.md#core-architecture) is explicit that the project is the
-privacy boundary and every permission is a project permission, and the design below is mostly an argument for
-keeping that true while adding a layer above it.
+permission scope. The [plan's settled decisions](./README.md) are explicit that the project is the privacy
+boundary and every permission is a project permission, and the design below is mostly an argument for keeping
+that true while adding a layer above it.
 
 Billing, organization-wide roles, inviting someone to an organization rather than a project, moving a project
 between organizations, and SSO or verified domains are all deliberately absent.
@@ -30,7 +30,8 @@ between organizations, and SSO or verified domains are all deliberately absent.
 
 **In:** `organizations` and `organization_memberships` (with an `owner` flag); `projects.organizationId`
 required, backfilled on staging; signup creating a personal organization and a first project inside it, by
-extending `createProjectForOwner`; `organization:*` and `organization-member:*` actions; organization owners
+extending `createProjectForOwner`; the `organization:*`, `organization-member:*`, and
+`organization-audit:list` actions; organization owners
 creating projects, renaming, and deleting an empty organization; invites staying project-level, with accepting
 one implying organization membership; organization membership maintained by every action that adds or removes
 a project membership; the never-evaluated-at-org-level invariant and its tests; `audit_logs.organizationId` and
@@ -91,8 +92,8 @@ Four reasons, in order of weight:
   admins doing anything, and that no project screen shows.
 - **One place to reason.** "Who can see this thread?" is answered by reading `project_memberships`,
   `user_tags`, and (from [phase 5](./phase-05-bots.md)) the bot's tag lists. A second source makes every
-  permission a union, and every future check must remember both halves — the kind of rule a later phase
-  forgets once.
+  permission a union, and every future check must remember both halves — exactly the kind of rule that is
+  forgotten once and leaks from then on.
 - **Bots inherit project semantics.** Bots act with project permissions and carry per-bot tag lists. An
   organization layer would need its own answer for what a bot may do across projects; there is no good one,
   and not having the layer means not needing one.
@@ -105,8 +106,9 @@ deleting an organization requires it to be empty, enforced by the database, so a
 project they cannot administer.
 
 What an owner *does* see of projects they are not in is a **directory entry**: id, name, and creation time, so
-they can understand why a delete is refused and whom to ask. That is the one piece of project metadata visible
-beyond the project's members, it carries no content, and it confers no action.
+they can understand why a delete is refused and which projects their organization is accountable for. That is
+the one piece of project metadata visible beyond the project's members; it carries no content and confers no
+action.
 
 ### Organization membership is maintained, not granted
 
@@ -122,6 +124,7 @@ memberships keeps it in step, in the same transaction:
 | `invite:accept`, `membership:create` | Ensure the member's row, `owner = false`, idempotently |
 | `membership:delete` | Prune the removed user's row if it is not an owner row and no membership remains in another project of the same organization |
 | `project:delete` | Prune, as above, for every member of the deleted project |
+| `organization-member:edit` clearing `owner` | Prune, as above — a former owner in no project stops being a member |
 
 Pruning takes `SELECT … FOR UPDATE` on the user's organization row **before** counting their remaining
 memberships. Without it, two concurrent removals from two projects in the same organization each see the other
@@ -186,9 +189,10 @@ ToolExec's `0015` — adds the tables and a nullable column, runs the backfill b
 1. Every existing user gets a personal organization, "`<name>`'s Organization", as its owner — exactly what
    signup would have made.
 2. Each project goes to the personal organization of its creator: the user on its earliest `project:create`
-   audit row, if they are still a member; otherwise its lowest-id `admin`; otherwise its lowest-id member.
-   A project with no members at all gets an organization of its own, with no owner, and is listed in the
-   migration's `RAISE NOTICE` for [phase 18](./phase-18-operations.md)'s orphan handling.
+   audit row, if that row has not been swept and they are still a member; otherwise its lowest-id `admin`;
+   otherwise its lowest-id member. A project with no members at all gets an organization of its own, with no
+   owner, and is named in a `RAISE NOTICE` (inside a `DO` block) for [phase 18](./phase-18-operations.md)'s
+   orphan handling.
 3. Every project membership yields a non-owner organization membership, `ON CONFLICT DO NOTHING`.
 4. `project_invites.organization_name` and `audit_logs.organization_id` are filled from the projects that still
    exist.
@@ -210,6 +214,7 @@ ToolExec's `0015` — adds the tables and a nullable column, runs the backfill b
 
 | Column | Type | Notes |
 |---|---|---|
+| `id` | `serial` PK | |
 | `organizationId` | `integer` → `organizations.id` | `ON DELETE CASCADE` |
 | `userId` | `integer` → `users.id` | `ON DELETE CASCADE` |
 | `owner` | `boolean` | Default `false` |
@@ -342,8 +347,9 @@ outsider to both.
   `project:edit`, `tag:create`, `invite:create`, and `project:delete` on the shared project.
 - Through MCP with Daisy's token, `project-view` and `membership-list` on the shared project are refused while
   `organization-view` succeeds and shows the project as a directory entry with `isMember: false`.
-- From `actions:permissions`: every action whose inputs include `projectId` declares `member` or `admin`; every
-  action whose inputs include `organizationId` declares `org-member` or `org-owner`; none declares both.
+- From `actions:permissions` and each action's input schema: every action requiring `projectId` declares
+  `member` or `admin`; every action requiring `organizationId` declares `org-member` or `org-owner`; none
+  declares both. (`project:list`'s optional `organizationId` is a filter over the caller's own memberships.)
 - `organization-audit:list` for Peach contains `project:create` for the shared project and none of the
   shared project's `tag:create` or `invite:accept` rows.
 
@@ -384,8 +390,10 @@ Manually, in two browsers:
    settings. Mario still sees Peach's organization; opening "Castle" by URL is refused; Organization → Projects
    lists "Castle" with "you are not a member".
 5. As Mario, try Organization → Danger → Delete: disabled, naming two projects.
-6. As Peach, delete both projects, then the organization. Mario's switcher no longer lists it.
-7. `botholomew org list`, `botholomew project create Garden --org <Peach's new org>`, `botholomew org audit`.
+6. As Peach, delete both projects, then the organization. Mario's switcher no longer lists it, and Peach — now
+   in no organization — lands on New organization; she creates "Mushroom Kingdom".
+7. In a terminal as Peach: `botholomew org list`, `botholomew project create Garden --org mushroom-kingdom`,
+   `botholomew org audit` (it shows the organization's creation and Garden's, nothing from inside Garden).
 
 Then the edge cases:
 

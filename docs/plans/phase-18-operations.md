@@ -119,15 +119,19 @@ it is a thread message.
 pi-durable keeps old entries forever and lets compaction change only what is hydrated. Botholomew keeps that
 inside the window and adds one deleter. For each conversation with entries older than the cutoff:
 
-1. If its latest `compaction` or `reset` entry is newer than every expired entry, delete the expired entries
-   before it.
-2. Otherwise (no base, or a base that has itself expired), and only if the conversation is not leased, take
+1. **The base is newer than every expired entry.** Delete the expired entries before it. This is the common
+   case, because [phase 8](./phase-08-context-management.md) compacts long conversations anyway.
+2. **Every entry has expired** (an idle conversation, with or without a base), and it is not leased. Take
    the lease the way a tick does: bump `leaseEpoch` so any racing tick's fenced writes affect zero rows.
-   Then write a deterministic `reset` entry: *Earlier conversation (before 2026-07-12) was removed by the
+   Write a deterministic `reset` entry: *Earlier conversation (before 2026-07-12) was removed by the
    project's retention policy; search the thread for the human-visible record.* Delete everything before it
-   and release the lease. **No model call.** Summarizing with a compaction would spend the customer's key to
-   delete their data.
-3. A leased conversation is skipped and picked up the next day.
+   and release the lease. **No model call.** Summarizing would spend the customer's key to delete their
+   data.
+3. **Expired entries are still part of the live context** (the base has expired or there is none, but the
+   conversation also has recent entries). Nothing is deleted now. Retention never changes what a model sees
+   in the middle of a conversation. The conversation is flagged to compact at its next tick, which it would
+   have paid for anyway as it grew, and the next sweep deletes the expired entries behind the new base.
+4. **A leased conversation** is skipped and picked up the next day.
 
 `system` entries recording which prompt `versionId`s the model saw go the same way. The audit trail for a
 prompt change is `audit_logs` plus memory history, which have their own windows.
@@ -451,8 +455,9 @@ rule 6 gains `user:delete`.
 ### 11. Tests — `backend/__tests__/{operations,actions,scripts}/*.test.ts`
 
 - `retention.test.ts`: defaults and overrides; entries behind the base deleted, and never from the base on; an
-  idle conversation without a base gets a `reset` and the fake model server records **zero** requests; a
-  leased conversation is skipped; a racing tick's fenced write affects zero rows; tool bodies nulled with the
+  idle conversation gets a `reset` and the fake model server records **zero** requests; an active
+  conversation whose live context has expired loses nothing and is flagged to compact; a leased conversation
+  is skipped; a racing tick's fenced write affects zero rows; tool bodies nulled with the
   skeleton kept; raw usage deleted only once its rollup exists; scratch purged; `truncated` past the batch
   ceiling.
 - `memory-prune.test.ts`: a dry run writes nothing; the current version survives every policy; `keepLast`;
@@ -491,8 +496,9 @@ cd .. && bun dev
 Manually, against a project with a few weeks of seeded history:
 
 1. Settings → Data retention: set conversation entries to 7 days. Run `bun keryx.ts retention:sweep`, then
-   drain. Old entries are gone, a `reset` entry sits where history used to start, and the bot still answers
-   in that thread.
+   drain. In an idle thread, old entries are gone, a `reset` entry sits where history used to start, and the
+   bot still answers there. In a thread used today, nothing is gone yet and the conversation is flagged to
+   compact.
 2. `botholomew memory prune --before 2026-09-01` prints counts. Re-run with `--yes`. Current files are
    unchanged and the audit log shows `memory:prune`.
 3. Project → Usage: tokens, cache hit rate, *unpriced* where expected, and the BYOK sentence. `botholomew
