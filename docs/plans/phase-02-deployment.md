@@ -52,7 +52,7 @@ frontend error reporting.
 | `status` | The health action Render probes, with `tracing = false` | `backend/actions/status.ts` (from `toolexec:backend/actions/status.ts`) |
 | Sentry plugin | `@keryxjs/sentry`, dark until `SENTRY_DSN` is set; `release` from `RENDER_GIT_COMMIT` | `toolexec:backend/config/{plugins,sentry}.ts` |
 | Key validation | Boot fails on a bad `SECRETS_ENCRYPTION_KEY` | `toolexec:backend/initializers/secrets.ts` |
-| Subprocess embedding | membot's embedder pool: inference in child processes over JSON lines, each a ~50 MB WASM heap | [src/ingest/embedder-pool.ts](https://github.com/evantahler/membot/blob/main/src/ingest/embedder-pool.ts), [src/ingest/embed-worker.ts](https://github.com/evantahler/membot/blob/main/src/ingest/embed-worker.ts) |
+| Off-loop embedding | membot's embedder: ONNX WASM inference kept off the main thread, each instance a ~50 MB WASM heap plus the model | [src/ingest/embedder.ts](https://github.com/evantahler/membot/blob/main/src/ingest/embedder.ts), [src/ingest/embed-worker.ts](https://github.com/evantahler/membot/blob/main/src/ingest/embed-worker.ts) |
 | What is being retired | v1's Pages workflow and custom domain; the VitePress site's page slugs | [docs-deploy.yml](https://github.com/evantahler/botholomew/blob/v1/.github/workflows/docs-deploy.yml), [docs/public/CNAME](https://github.com/evantahler/botholomew/blob/v1/docs/public/CNAME), [docs/.vitepress/config.ts](https://github.com/evantahler/botholomew/blob/v1/docs/.vitepress/config.ts) |
 
 What does not exist: any Render resource, DNS for `api.botholomew.com`, a Sentry project for Botholomew, and the
@@ -142,8 +142,8 @@ The worker's one event loop carries every tick's token stream and every lease re
 60–90 s TTL). A synchronous WASM inference batch on that loop delays all of them at once, and enough delay
 loses a lease mid-stream. It also trips Keryx's `maxEventLoopDelay`, which quietly stops new processors from
 spawning — a same-thread embedder would cap tick concurrency without an error anywhere. So
-[phase 9](./phase-09-memory-search-and-ingestion.md) runs inference in child processes, as membot's
-`embedder-pool.ts` already does, with one child on this instance type (≈50 MB of WASM heap plus the model), and
+[phase 9](./phase-09-memory-search-and-ingestion.md) runs inference on one dedicated `Worker` thread per
+process (≈50 MB of WASM heap plus the model) — off the event loop, without membot's subprocess pool — and
 bakes the model weights into the image so a deploy never waits on a download. This phase only reserves the
 queue and the memory.
 

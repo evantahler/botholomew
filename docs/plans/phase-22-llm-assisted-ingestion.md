@@ -26,11 +26,11 @@ stays.
 
 ## Scope
 
-**In:** a per-project `memory_settings` row (opt-in, model choice, budgets, caps, excluded prefixes);
-`backend/llm/ingestion.ts` with membot's three prompts; vision captions for image files and for images embedded
+**In:** columns on phase 4's `memory_settings` (opt-in, model choice, budgets, caps, excluded prefixes);
+`backend/llm/ingestion.ts` with membot's three prompts; vision captions for images embedded
 in HTML and DOCX, capped per document; model conversion of scanned PDFs (native document input only) and of
-structured text; model-written descriptions when a file has no title; image files becoming ingestible; model
-capability flags on `project_models`; the budget check, `usage_events` with `purpose = 'ingestion'`, and threshold
+structured text; model-written descriptions when a file has no title; the caption path standalone image files will
+use; model capability flags on `project_models`; the budget check, `usage_events` with `kind = 'ingestion'`, and threshold
 notifications; enrichment provenance on every version; degraded-file tracking; `memory:enrich` to re-run; the
 settings UI, CLI, user docs, and tests on the fake model server.
 
@@ -98,16 +98,17 @@ always runs first.
 
 | Hole | Deterministic (phase 9) | With a model |
 |---|---|---|
-| Image file | `(image, image/png, no caption available)` | One caption; images over the provider's limit keep the placeholder |
 | Images inside HTML / DOCX | Placeholders | Captions in document order, up to `llmMaxImageCaptionsPerDocument` (20); the rest get membot's "caption skipped" placeholder |
 | Scanned PDF — fewer than 50 extracted characters per page | `(scanned PDF, …)` | The PDF as a native document, first `llmMaxPdfPagesPerDocument` (50) pages, output prefixed `<!-- converted from a scanned PDF by <model name>; may contain errors -->` |
-| JSON / XML / YAML / CSV | Phase 9's rendering (`json-to-markdown` from phase 21) | membot's normalizer, inputs up to 48 000 characters |
+| JSON / XML / YAML / CSV | A fenced code block (phase 9) | membot's normalizer, inputs up to 48 000 characters |
 | No H1 in the opening | First heading + 200-character prefix | A one-paragraph description (membot's describer prompt, first 4 000 characters) |
 
 A file with an H1 never calls the describer — membot's `describer_skip_when_titled`, fixed on rather than a
-setting, because it is the main throughput and cost win in bulk ingest and turning it off buys little. Image files
-become ingestible in every project from this phase on: with no model they carry the placeholder plus the file's
-name and size, which beats a refusal now that a caption can be added later.
+setting, because it is the main throughput and cost win in bulk ingest and turning it off buys little.
+
+Standalone image files stay refused here, for phase 9's stated reason: without the original kept, accepting one
+would discard the only copy and call it success. `captionImage` is built and tested now and becomes their surrogate
+when [phase 23](./phase-23-original-bytes-and-blob-policy.md) keeps originals and opens image uploads.
 
 Calls have membot's 60 s timeout and one retry on `429` / `5xx`. The ingest job's convert step runs on `default`
 rather than `embed` whenever enrichment is on, so a slow provider never holds the CPU-bound embedding slots;
@@ -116,14 +117,15 @@ in-flight calls per project are capped by `llmConcurrency` (2), a Redis semaphor
 
 ### Budget, attribution, and the honest price
 
-Before each call, `IngestionBudgetOps.allow(projectId, estimate)` checks this month's `purpose = 'ingestion'`
+Before each call, `IngestionBudgetOps.allow(projectId, estimate)` checks this month's `kind = 'ingestion'`
 usage plus the estimate (characters ÷ 4 plus `max_tokens` for text; a per-image and per-page token figure from
 the provider table) against `llmMonthlyTokenBudget`, against `llmMonthlyBudgetUsd` when the model is priced, and
 against the project's overall budget from phase 6. A refusal falls back with reason `budget`; admins are notified
 once at 80% and once at 100% each month. An unpriced model is held to the token budget and the settings page shows
 its spend as "unpriced" — never as $0.00.
 
-Spend is attributed to the **project's ingestion budget**, not to the bot whose `memory_add` started the job. A
+Spend is attributed to the **project's ingestion budget**, not to the bot whose `memory_add` started the job:
+the row's `botId` is null, so phase 6's per-bot sum never sees it while its per-project sum does. A
 bot's conversation budget measures what it decides to do; charging it for the size of a PDF somebody linked would
 make a bot's ability to talk depend on other people's files. The `usage_events` row still records
 `requestedByUserId` / `requestedByBotId`, the job, and the path, so the usage dashboard can answer "who caused
@@ -153,15 +155,15 @@ enrichment degraded — the "we ran out of budget last week" case.
 
 ## Steps
 
-### 1. Schema — `backend/schema/memory_settings.ts`, `memory_files.ts`, `project_models.ts`, `usage_events.ts`
+### 1. Schema — `backend/schema/{memory_settings,memory_files,project_models,usage_events}.ts`
 
-`memory_settings` (one row per project, created on first read): `projectId` (PK, cascade), `llmEnabled`
-(false), `llmModel` (nullable registry name), `llmCaptions`, `llmConversion`, `llmDescriptions` (true),
+Phase 4's `memory_settings` gains `llmEnabled` (false), `llmModel` (nullable registry name), `llmCaptions`, `llmConversion`, `llmDescriptions` (true),
 `llmExcludePrefixes text[]`, `llmMonthlyBudgetUsd numeric` (5), `llmMonthlyTokenBudget integer` (2 000 000),
-`llmMaxImageCaptionsPerDocument` (20), `llmMaxPdfPagesPerDocument` (50), `llmConcurrency` (2), `updatedAt`.
-`memory_files` gains `enrichment jsonb`; `systemActor` gains `enrich`. `project_models` gains `supportsImages`,
-`supportsPdf`. `usage_events` gains `purpose` (if no earlier phase added it) with `ingestion`, plus `ingestJobId`
-and `logicalPath`; index `(projectId, purpose, createdAt)` for the monthly sum.
+`llmMaxImageCaptionsPerDocument` (20), `llmMaxPdfPagesPerDocument` (50), and `llmConcurrency` (2).
+`memory_files` gains `enrichment jsonb`; `systemActor` and `operation` gain `enrich`. `project_models` gains `supportsImages`,
+`supportsPdf`. `usage_events.kind` (phase 6: `model_step`) gains `ingestion`, with new nullable `ingestJobId`,
+`logicalPath`, `requestedByUserId`, and `requestedByBotId`; index `(projectId, kind, createdAt)` for the monthly
+sum.
 
 ### 2. LLM — `backend/llm/ingestion.ts`, `backend/llm/capabilities.ts`
 
@@ -181,8 +183,8 @@ document limits live in `capabilities.ts`.
 
 | Action | Route | Middleware | Audited | MCP |
 |---|---|---|---|---|
-| `memory:settings-view` | `GET /memory/settings` | `ProjectMemberMiddleware()` | — | Yes |
-| `memory:settings-edit` | `POST /memory/settings` | `AdminMiddleware()` | Yes | Yes |
+| `memory-settings:view` (phase 4, widened) | `GET /memory/settings` | `ProjectMemberMiddleware()` | — | Yes |
+| `memory-settings:edit` (phase 4, widened) | `POST /memory/settings` | `AdminMiddleware()` | Yes | Yes |
 | `memory:enrich` | `POST /memory/enrich` | member + `canWritePath` | Yes (when not `dryRun`) | Yes |
 | `memory:enrich-list` | `GET /memory/enrich/degraded` | `ProjectMemberMiddleware()` | — | Yes |
 
@@ -225,7 +227,7 @@ Against phase 6's fake model server, which accepts image and document parts:
   unknown binary is never sent.
 - An exhausted token budget falls back with `degraded: budget` and notifies admins once; an unpriced model shows
   "unpriced", never zero.
-- Every call writes one `usage_events` row with `purpose = 'ingestion'` and the requesting bot, and the bot's own
+- Every call writes one `usage_events` row with `kind = 'ingestion'` and the requesting bot, and the bot's own
   budget is unchanged.
 - An `ANTHROPIC_API_KEY` in the environment with no project connection produces no call.
 - An excluded prefix and `prompts/` make no calls; a timeout and a `500` fall back, after one retry for the `500`.
@@ -260,11 +262,11 @@ Then the edge cases:
 
 ## Definition of done
 
-- [ ] `memory_settings` with opt-in, model, switches, exclusions, budgets, and caps; admin-only edits, audited
+- [ ] `memory_settings` columns for opt-in, model, switches, exclusions, budgets, and caps; admin-only edits, audited
 - [ ] `backend/llm/ingestion.ts` with membot's prompts; capability flags on `project_models`
 - [ ] Captions (files and embedded, capped), scanned-PDF conversion (native input only), structured normalization, untitled descriptions
 - [ ] Deterministic first and always as fallback; opaque binaries never sent; no platform or environment key
-- [ ] Budget check before every call, `usage_events` with `purpose = 'ingestion'`, threshold notifications, honest "unpriced"
+- [ ] Budget check before every call, `usage_events` with `kind = 'ingestion'`, threshold notifications, honest "unpriced"
 - [ ] Enrichment provenance and degraded reasons on every version; `untrusted` carried
 - [ ] `memory:enrich` with dry run, change-only versions, edit protection; `--degraded`
 - [ ] Settings UI, info-panel provenance, CLI, user docs, tests as listed

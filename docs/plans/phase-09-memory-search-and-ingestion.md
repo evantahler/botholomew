@@ -111,9 +111,9 @@ transformers pipeline: `bge-small-en-v1.5`, CLS pooling, normalized, batches of 
 Membot's own comment is the reason for the thread: ONNX WASM holds the JavaScript thread for hundreds of
 milliseconds per batch. On the main thread that would stall [phase 6](./phase-06-durable-bot-loop.md)'s
 lease renewals and token streaming, and trip Keryx's `maxEventLoopDelay` — the invariant
-[phase 2](./phase-02-deployment.md) reserved memory for. Phase 2 assumed a child process; a thread meets the
-same invariant without membot's subprocess pool — no stdio protocol, no second runtime, no model copy per
-CPU — and the thread is restarted, not the process, if inference throws.
+[phase 2](./phase-02-deployment.md) reserved memory for. A thread meets that invariant without membot's
+subprocess pool — no stdio protocol, no second runtime, no model copy per CPU — and the thread is restarted,
+not the process, if inference throws.
 
 The WASM backend is used everywhere, with membot's patch applied through `patchedDependencies` (Botholomew's
 backend is not a published package, so membot's reason for an imperative script does not apply). A Docker
