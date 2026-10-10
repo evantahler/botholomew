@@ -306,8 +306,8 @@ The layout ports ToolExec's `stepDepths`, which is cycle-safe so that a corrupt 
 Live updates arrive on `project:<id>:tasks` as frames that name nothing (`{ event: "tasks", kinds }`). A frame
 carrying task ids would leak the existence of tasks whose assignee the subscriber cannot read, so this stays a
 membership-only list channel in [phase 7](./phase-0007-threads-and-web-chat.md)'s sense, and the page re-reads
-its access-filtered tree on each frame. The page subscribes first, then hydrates, as ToolExec's phase 18
-learned to do.
+its access-filtered tree on each frame. The page subscribes first, then hydrates, which is a learning from
+ToolExec's phase 18.
 
 ## Steps
 

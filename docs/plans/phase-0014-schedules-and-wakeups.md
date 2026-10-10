@@ -1,8 +1,8 @@
 # Phase 14 — Schedules and wakeups
 
 > **Goal:** A person, or a bot, can say "every weekday at 7am, review my inbox and draft a summary". The
-> phrase is compiled once into a cron expression and timezone that a person confirms. From then on, each
-> due firing hands the schedule to its bot exactly once, and the bot turns it into tasks. Bots can also set
+> phrase is compiled once into a cron expression and timezone that a person confirms. Each due firing of
+> the confirmed schedule hands it to its bot exactly once, and the bot turns it into tasks. Bots can also set
 > durable reminders for themselves and for people, and outside systems can wake a bot through its own
 > webhook URL.
 
@@ -10,7 +10,7 @@
 > [phase 6](./phase-0006-durable-bot-loop.md), [phase 7](./phase-0007-threads-and-web-chat.md),
 > [phase 8](./phase-0008-context-management.md), and [phase 13](./phase-0013-leader-and-workers.md).
 
-Always-on bots need a clock. Until now a bot only wakes when someone writes to it. This phase gives it three
+Always-on bots need a clock. Without one, a bot only wakes when someone writes to it. This phase gives it three
 more reasons to wake: a schedule fires, a reminder comes due, or an external system calls its webhook. All
 three land in the same place every other wake lands — an `event` row in a conversation's inbox. The loop
 from [phase 6](./phase-0006-durable-bot-loop.md) does not change. Only the producers of rows are new.
@@ -19,24 +19,24 @@ Schedules come from v1. A v1 schedule ([src/schedules/schema.ts](https://github.
 has a name, a description of what to do, a natural-language `frequency`, `enabled`, a model pin, and
 `last_run_at`. When it is due, the worker turns it into tasks, using `depends_on` to chain the steps
 ([src/worker/schedules.ts](https://github.com/evantahler/botholomew/blob/v1/src/worker/schedules.ts)). Three
-parts of that design were right, and they stay:
+parts of that design are right, and they stay:
 
 - **Plain-language authoring.** People describe a schedule in their own words.
 - **A schedule expands into a task graph.** In v1's words, a schedule "naturally expands into a chained DAG".
 - **Bots create schedules themselves** with `create_schedule`.
 
-The "when" was wrong. v1 asked the fast model "is this due?" once per enabled schedule on every worker tick,
-and the default tick was 300 seconds — so each schedule cost about 288 model calls a day before doing any
-work. The v1 docs admit as much: "for thousands, you'd want a parser". The answer was nondeterministic too
-("The model's idea of 'morning' might not match yours"). A failed evaluation silently counted as "not due".
-And nothing recorded when a schedule fired, or why.
+The "when" is wrong. v1 asks the fast model "is this due?" once per enabled schedule on every worker tick,
+and the default tick is 300 seconds — so each schedule costs about 288 model calls a day before doing any
+work. The v1 docs admit as much: "for thousands, you'd want a parser". The answer is nondeterministic too
+("The model's idea of 'morning' might not match yours"). A failed evaluation silently counts as "not due".
+And nothing records when a schedule fires, or why.
 
 2.0 keeps the authoring and the expansion, and replaces the when:
 
 - **The phrase is compiled once.** The fast model turns it into cron plus an IANA timezone at creation time,
   and a person confirms the result.
 - **Firing reuses ToolExec's proven guards.** The scheduler is the one `toolexec:docs/plans/phase-09-cron-runs.md`
-  built and `toolexec:docs/plans/phase-19-workflows.md` moved onto workflows: three idempotence guards, a
+  builds and `toolexec:docs/plans/phase-19-workflows.md` moves onto workflows: three idempotence guards, a
   one-run catch-up, and correct DST handling.
 - **The product rules come from Grok Bot.** Its [schedule docs](https://docs.x.ai/grok-bot/skills-routines-and-automations)
   set them: "at least five minutes apart", up to 50 per bot, the 20 most recent run records, test runs that
@@ -62,7 +62,7 @@ schedule, off by default; the UI, `botholomew schedule …`, `reminder …`, and
 
 **Out:** Slack and iMessage triggers ([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)).
 Provider-specific webhook signatures such as GitHub's `X-Hub-Signature-256`: the token in the path is the
-secret, as in ToolExec, and HMAC verification plugs in later. Email notifications for keep-alive prompts: the
+secret, as in ToolExec, and HMAC verification plugs in beside it, unphased. Email notifications for keep-alive prompts: the
 2.0 shell drops the mail transport ([phase 1](./phase-0001-clean-slate-and-shell.md)). Retention of tasks and
 threads that schedules create ([phase 18](./phase-0018-operations.md)).
 
@@ -103,7 +103,7 @@ threads that schedules create ([phase 18](./phase-0018-operations.md)).
 
 ### Schedules are rows, not memory files
 
-v1 kept schedules as `schedules/<id>.md`. 2.0 moves prompts and skills into project memory, because those
+v1 keeps schedules as `schedules/<id>.md`. 2.0 moves prompts and skills into project memory, because those
 are authored text that gains from versioning, diff, and search. A schedule is mostly runtime state:
 
 - **The clock writes it.** `lastEnqueuedAt` changes on every firing, and pause flags, failure counts, and
@@ -154,7 +154,7 @@ the next five fire times, and the smallest gap between fire times. Model output 
 returned as problems, never saved.
 
 **Confirmation.** The person sees "every weekday at 07:00 America/New_York — Mon 6 Oct 07:00, Tue 7 Oct 07:00,
-…", plus the conditions the bot will check ("skip US federal holidays"), and confirms.
+…", plus the conditions the bot checks ("skip US federal holidays"), and confirms.
 
 **Why residual conditions exist.** This is how 2.0 keeps v1's best argument for natural language ("Every
 weekday at 7am, except US holidays, unless I'm on vacation") without a model call per tick. Cron decides
@@ -189,7 +189,7 @@ for each schedule that is enabled, confirmed, and not paused (partial index), FO
   delete runs beyond the newest 20 for this schedule
 ```
 
-`lastEnqueuedAt` is the fire time enqueued *for*, never the wall clock. ToolExec learned that stamping
+`lastEnqueuedAt` is the fire time enqueued *for*, never the wall clock. ToolExec's learning: stamping
 `now()` compounds lateness once per firing.
 
 **Catch-up.** After an outage, a schedule fires once and records `missedFirings`, so a recovering worker does
@@ -229,7 +229,7 @@ schedule (`repeated_failures`) and notify the owner.
   the check posts a keep-alive card in the schedule's thread and notifies the owner. Anyone with write access
   to the bot may answer **Keep running** (`schedule:keep-alive`), and becomes the owner by doing so. If nobody
   answers within `absenceGraceDays` (3), the schedule pauses with reason `owner_absent`.
-- **The owner has lost access.** An owner who no longer has write access to the bot pauses the schedule at
+- **The owner has lost access.** An owner who has lost write access to the bot pauses the schedule at
   once (`owner_lost_access`). A schedule must never keep acting in the name of someone who has left.
 
 The next time the owner signs in, a banner lists the schedules paused while they were away. Grok Bot says to
@@ -264,7 +264,7 @@ exactly once.
 ### A webhook URL per bot
 
 `PUT /api/webhook/bot/:token` (`webhook:bot-event`) is 2.0's first unauthenticated write surface; the signed
-Slack and Linq ingress come later ([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)). It
+Slack and Linq ingress are added by [phase 16](./phase-0016-slack.md) and [phase 17](./phase-0017-imessage.md). It
 ports ToolExec's discipline as it stands after that project's learnings:
 
 - **Raw body.** `web.rawBody: true`. The token is read from the request path, never from `params`, because a
@@ -481,7 +481,7 @@ The tests control time by writing `lastEnqueuedAt`, `lastSeenAt`, and `dueAt` di
 - `*/7 * * * *` and `0,3 * * * *` are refused, naming the gap they produce; `*/5 * * * *` passes. An empty
   expression and an unknown timezone are refused.
 - `0 9 * * *` in `America/Los_Angeles` fires at 17:00Z on one side of the March transition and 16:00Z on the
-  other. That is the case ToolExec's suite lost, and the reason this test exists.
+  other. That is the case missing from ToolExec's suite, and the reason this test exists.
 - `lastFireTimeAtOrBefore` is exact after a simulated year-long outage.
 
 `backend/__tests__/actions/schedule-compile.test.ts`, using the fake model server: a phrase compiles to the

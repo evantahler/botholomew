@@ -265,7 +265,7 @@ denied with reason `expired`, so a forgotten approval ends a wait rather than ho
 
 ### Elicitation and re-authorization are approvals too
 
-v1 dropped both. Each becomes an `approvals` row with its own `kind`, decided through the same inbox, actions, and
+v1 drops both. Each becomes an `approvals` row with its own `kind`, decided through the same inbox, actions, and
 CLI:
 
 - **`url_elicitation`** — the server answered `-32042` with URLs a person must visit. The error means the server
@@ -304,7 +304,7 @@ server and links are never auto-opened.
 | Approval expiry | Project setting, default 72 h, min 1 h, max 30 d |
 | Human messages while a conversation waits on approval | Queue; the approval card in the thread is the affordance |
 | Decisions over MCP for human OAuth clients | Never — an MCP client is itself a model; deciding is for people through rendered surfaces |
-| Notifications channel | Browser via phase 7 now; Slack in phase 16, iMessage in phase 17 |
+| Notifications channel | Browser via phase 7; Slack in phase 16, iMessage in phase 17 |
 | Form elicitation wait | 120 s default, project setting, max 240 s; streamable HTTP only |
 
 **Open question:** whether the SDK exposes the related request id for server-to-client requests on streamable
@@ -391,7 +391,7 @@ loopback work).
 
 | Action | Route | RBAC | Audited | MCP |
 |---|---|---|---|---|
-| `mcp-server:create` / `:edit` / `:delete` | `PUT` / `POST` / `DELETE /mcp-server` | admin | yes | never — changes what every allowlisted bot can reach (ToolExec made the same call for gateways) |
+| `mcp-server:create` / `:edit` / `:delete` | `PUT` / `POST` / `DELETE /mcp-server` | admin | yes | never — changes what every allowlisted bot can reach (ToolExec makes the same call for gateways) |
 | `mcp-server:list` / `:view` | `GET /mcp-servers`, `GET /mcp-server` | member | — | yes |
 | `mcp-server:probe` | `POST /mcp-server/probe` | admin, rate-limited | no (writes nothing) | never |
 | `mcp-credential:put` / `:delete` | `PUT` / `DELETE /mcp-server/credential` | admin, `secret()` | yes | never |

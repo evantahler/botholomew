@@ -10,11 +10,11 @@
 > [phase 5](./phase-0005-bots.md) (system-prompt assembly), [phase 6](./phase-0006-durable-bot-loop.md) (bot tools),
 > and [phase 7](./phase-0007-threads-and-web-chat.md) (the composer and message sending).
 
-In v1 a skill was a markdown file in `skills/` that the chat TUI rendered and queued as a user message. It worked
-well for the person at the keyboard and not at all for anyone else: rendering lived in the TUI's slash handler, so
-background workers never saw a skill, and the only way a bot learned what skills existed was being told. In 2.0
+In v1 a skill is a markdown file in `skills/` that the chat TUI renders and queues as a user message. It works
+well for the person at the keyboard and not at all for anyone else: rendering lives in the TUI's slash handler, so
+background workers never see a skill, and the only way a bot learns what skills exist is being told. In 2.0
 skills are files in project memory from [phase 4](./phase-0004-project-memory-core.md) onwards — versioned,
-searchable, editable in the memory browser — but nothing yet gives them behaviour. This phase does.
+searchable, editable in the memory browser — but nothing before this phase gives them behaviour. This phase does.
 
 Two audiences get the same file. For people, a skill is a parameterized prompt invoked as a slash command; v1's
 parser, argument rules, and ambiguity check come across nearly verbatim, with one substitution bug fixed. For
@@ -22,7 +22,7 @@ bots, a skill is a playbook: its name and description are listed in every bot's 
 loads the body on demand, so a worker bot that wakes for a schedule at 7 a.m. can follow the same "standup"
 playbook a person would have typed.
 
-Out of this phase: the TUI and Slack surfaces, which call the same actions later; skills that carry tool
+Out of this phase: the TUI and Slack surfaces, which call the same actions in their own phases; skills that carry tool
 permissions or code; and per-bot private skills.
 
 ## Scope

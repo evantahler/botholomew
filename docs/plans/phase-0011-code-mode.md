@@ -11,20 +11,20 @@
 > [phase 9](./phase-0009-memory-search-and-ingestion.md) (search), and
 > [phase 10](./phase-0010-mcp-servers-and-approvals.md) (the MCP client, the policy, `approvals`).
 
-v1's field notes put it plainly: big content is the normal case. One test pulled a few megabytes of JSON out of a
-baby tracker, and the only affordable answer was to land the payload in storage and let the agent slice it with a
-sandboxed program. v1 milestone 18 built that as `membot_run` on Vercel's Run SDK — QuickJS compiled to WASM,
+v1's field notes put it plainly: big content is the normal case. One test pulls a few megabytes of JSON out of a
+baby tracker, and the only affordable answer is to land the payload in storage and let the agent slice it with a
+sandboxed program. v1 milestone 18 builds that as `membot_run` on Vercel's Run SDK — QuickJS compiled to WASM,
 running guest JavaScript or type-stripped TypeScript in a worker thread with no Node or Bun globals, reaching the
 host only through supplied functions. 2.0 keeps the design and the limits, renames the tool `run_code`, and gives
 it to every bot.
 
-It comes now because [phase 10](./phase-0010-mcp-servers-and-approvals.md) made MCP calls something a bot can make,
+It comes now because [phase 10](./phase-0010-mcp-servers-and-approvals.md) makes MCP calls something a bot can make,
 and the useful unit of work is rarely one call: it is "list everything from the last week, group it, join it with
 what memory already says, and tell me the three that matter". As conversational tool calls that is a dozen model
 steps with every payload in context; as one program it is one step and a small result.
 
-Code mode is also what lets 2.0 skip ToolExec's sandbox VMs. ToolExec needed model and gateway proxies because
-its agents were CLIs in VMs that would otherwise hold tokens. Here the guest is a program with no socket, no
+Code mode is also what lets 2.0 skip ToolExec's sandbox VMs. ToolExec needs model and gateway proxies because
+its agents are CLIs in VMs that would otherwise hold tokens. Here the guest is a program with no socket, no
 environment, and no filesystem; its only door to an MCP server is a host function that attaches the credential
 after the guest's arguments are serialized. Containment is a property of the shape, not of a proxy someone has to
 keep correct. What this phase leaves out is anything process-shaped — shells, packages, git, builds. That needs a
@@ -44,7 +44,7 @@ concurrency cap and an optional dedicated `code` queue; transcript and approval-
 **Out:** network access of any kind from the guest — no `fetch`, no URL ingest through `memory.*`, ever; URL
 ingest is the top-level `memory_add` of [phase 19](./phase-0019-url-ingest.md). Destructive or structural memory
 operations (`rm`, `mv`, `cp`, line patches) stay top-level tools. Guest access to threads, bots, tasks, skills, or
-any other tool registry entry — v1 milestone 18 deliberately did not map every tool into the guest, and neither
+any other tool registry entry — v1 milestone 18 deliberately does not map every tool into the guest, and neither
 does this. v1's `membot_pipe`, replaced by `mcp.capture` (below). Programs run by people rather than bots, and
 guest state that persists between runs (use memory), are not planned.
 
@@ -63,9 +63,9 @@ guest state that persists between runs (use memory), are not planned.
 | Encrypted resumable state | Precedent for checkpoints that resume a conversation, AES-256-GCM under `SECRETS_ENCRYPTION_KEY` | `toolexec:backend/schema/agent_session_checkpoints.ts`, `toolexec:backend/ops/CryptoOps.ts` |
 | Phase 10 | `McpClientOps.callTool`, `McpPolicyOps.evaluate`, per-call replay, `approvals` with decide-and-resume, structural classification | [phase 10](./phase-0010-mcp-servers-and-approvals.md) |
 
-What does not exist: v1 wrote the continuation to `approvals/<run_id>.run.json` in the project directory, signed
-but not encrypted, so the token carried the program, every settled host result, and the interruption payloads in
-the clear on disk. v1 also distinguished chat (prompt inline, resume in-process) from workers (park the task);
+What does not exist: v1 writes the continuation to `approvals/<run_id>.run.json` in the project directory, signed
+but not encrypted, so the token carries the program, every settled host result, and the interruption payloads in
+the clear on disk. v1 also distinguishes chat (prompt inline, resume in-process) from workers (park the task);
 2.0 has one path, because every bot parks its conversation.
 
 ## What this must not weaken
@@ -91,7 +91,7 @@ the clear on disk. v1 also distinguished chat (prompt inline, resume in-process)
 ### One tool, one runner per worker
 
 `run_code` takes v1's four inputs. The runner is created once per worker process with the limits below and a
-continuation signer, rather than once per invocation as v1 did (re-reading a secret file each time). A
+continuation signer, rather than once per invocation as v1 does (re-reading a secret file each time). A
 process-wide cap (`maxConcurrentRuns`, default 4) bounds QuickJS heaps per process; a call waits up to five
 seconds for a slot, then fails `sandbox_busy`, which is retryable. Runs execute inline in the tick by default: the
 30-second budget fits inside a tick, and the lease keeps renewing.
@@ -116,9 +116,9 @@ stream, or class instance crosses. Logical paths are database keys, not filesyst
 
 ### `mcp.capture` fixes the pipe's envelope bug
 
-v1's `membot_pipe` stored `JSON.stringify(innerResult)`. Piping `mcp_exec` therefore wrote mcp_exec's own envelope
+v1's `membot_pipe` stores `JSON.stringify(innerResult)`. Piping `mcp_exec` therefore writes mcp_exec's own envelope
 — `{"result": "<the payload, as an escaped string>", "is_error": false, …}` — and `files.readJson` on the capture
-returned the envelope with the data double-encoded inside it. `mcp.capture` writes the payload itself:
+returns the envelope with the data double-encoded inside it. `mcp.capture` writes the payload itself:
 `structuredContent` as JSON when the server sent it, otherwise the text content, stored as `application/json` when
 it parses and markdown otherwise. A tool error is thrown as `mcp_error`, never written as a file. `membot_pipe` is
 not ported; capture-then-reduce inside one program replaces it.
@@ -137,13 +137,13 @@ v1's values, as `backend/config/codeMode.ts` with operator environment overrides
 | Console buffer | 64 KiB, discarded | `max_input_bytes` default | 20 MB |
 
 Console output is never surfaced. The contract is "return a small value or write a large one"; a console channel
-into the transcript would be a way to pour large data back into context, and v1 never surfaced it either.
+into the transcript would be a way to pour large data back into context, and v1 never surfaces it either.
 
 ### Approvals inside a program
 
 Before any dispatch, the `mcp.*` host function evaluates phase 10's policy. A refusal throws `policy_error`. A gate
 calls `interrupt({ kind: "approval", server, tool, args, message })` **before** a request exists; if the policy
-cannot be evaluated (server unreachable for `tools/list`), it interrupts rather than dispatches, as v1 did. Run then
+cannot be evaluated (server unreachable for `tools/list`), it interrupts rather than dispatches, as v1 does. Run then
 returns the continuation and the batch of concurrent interruptions.
 
 In one transaction the worker encrypts the continuation into `code_runs`, inserts one `approvals` row per
@@ -163,7 +163,7 @@ that the call be made with `mcp_exec`, where the wait exists.
 
 ### Continuations are encrypted, bound, and short-lived
 
-Run's tokens are signed, which gives integrity and not confidentiality; v1's own docs said so and asked that the
+Run's tokens are signed, which gives integrity and not confidentiality; v1's own docs say so and ask that the
 approvals directory be treated as sensitive. Here the signing key is derived by HKDF from
 `SECRETS_ENCRYPTION_KEY` (label `run-code-continuation/v1`, no new secret to provision), the audience is constant,
 and `continuationContext` binds `{ v, projectId, botId, conversationId, toolCallId, codeRunId }`, so a continuation
@@ -200,11 +200,11 @@ again. This is the [effect sandwich](https://earendil.com/posts/pi-durable/) app
 | `HostOpError` codes | passed through: `source_not_found`, `source_too_large`, `invalid_json`, `write_refused`, `write_failed`, `mcp_error`, `policy_error`, `elicitation_unanswered`, `host_error` |
 | Slot not acquired | `sandbox_busy` (retryable) |
 
-v1 fell back to message substrings for three conditions Run reports without a code: syntax errors, heap
+v1 falls back to message substrings for three conditions Run reports without a code: syntax errors, heap
 exhaustion, and result or host-output overflow. Those are filed upstream for stable codes (the rule that framework
-bugs go upstream applies to Run too); until they land, the three substring checks live in one function,
+bugs go upstream applies to Run too); while Run lacks those codes, the three substring checks live in one function,
 `classifyRunError`, pinned by tests to the `run` version, so an upgrade that rewords a message fails CI instead of
-misclassifying. `approval_pending` is gone as an error type: a gated program parks its conversation and the model
+misclassifying. `approval_pending` is not an error type here: a gated program parks its conversation and the model
 never sees a placeholder. Failures use the PATs envelope, and `invalid_source` and `host_error` carry the primer
 in `next_action_hint`, as in v1.
 

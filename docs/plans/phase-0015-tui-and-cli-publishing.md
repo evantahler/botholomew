@@ -10,8 +10,8 @@
 > [phase 12](./phase-0012-skills.md), and [phase 13](./phase-0013-leader-and-workers.md).
 
 The CLI is not new in this phase. Commands ship with every phase, because the product CLI tracks the HTTP
-surface (rule 14 in [AGENTS.md](../../AGENTS.md)). By the time this phase starts, `botholomew memory …`,
-`bot …`, `thread …`, `task …`, and `schedule …` all exist as thin HTTP clients copied from ToolExec's shell.
+surface (rule 15 in [AGENTS.md](../../AGENTS.md)). The earlier phases ship `botholomew memory …`,
+`bot …`, `thread …`, `task …`, and `schedule …`, all as thin HTTP clients copied from ToolExec's shell.
 What they lack is three things. They have no interactive client. Only one of them is live:
 [phase 7](./phase-0007-threads-and-web-chat.md)'s `thread follow` has a small socket client
 (`cli/src/socket.ts`), while `thread send --wait` ([phase 6](./phase-0006-durable-bot-loop.md)) and the other
@@ -27,8 +27,8 @@ process ([src/chat/session.ts](https://github.com/evantahler/botholomew/blob/v1/
 TUI is a pure client: it sends messages through the same actions the web composer uses, and it watches the same
 channels.
 
-**Clean break.** After [phase 1](./phase-0001-clean-slate-and-shell.md), the old `install.sh` and the v1
-release pipeline are gone. Nothing on `main` builds, serves, or links to v1 assets. v1 lives on, unchanged, on
+**Clean break.** [Phase 1](./phase-0001-clean-slate-and-shell.md) removes the old `install.sh` and the v1
+release pipeline. Nothing on `main` builds, serves, or links to v1 assets. v1 lives on, unchanged, on
 the [`v1` branch](https://github.com/evantahler/botholomew/tree/v1). This phase ships the first artifacts of the
 new line, and it has to do so without silently capturing the people still running v0.27.
 

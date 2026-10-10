@@ -359,7 +359,7 @@ coming instead of being surprised by one.
 | `tool_calls` | `offloadPath text` | set when the result went to scratch |
 | `usage_events` | `kind` gains `compaction` | — |
 | `project_settings` | `compactionReserveTokens` (16 384), `compactionBackgroundTokens` (32 768), `compactionKeepRecentTokens` (20 000), `largeResultInlineChars` (10 000), `scratchRetentionDays` (14) | validated against every model the project's bots may resolve to |
-| project model registry ([phase 5](./phase-0005-bots.md)) | `maxInputTokens` override, if that phase did not add it | — |
+| project model registry ([phase 5](./phase-0005-bots.md)) | `maxInputTokens` override, if that phase does not add it | — |
 
 ### 2. Config — `backend/config/context.ts`
 

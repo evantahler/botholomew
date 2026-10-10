@@ -5,7 +5,7 @@
 > them, read the audit log, connect Claude over MCP, and do all of it again from `botholomew` on the command
 > line — with every suite green behind one required CI check.
 
-> **Status: planned, not built.** Stage A — Platform. Depends on nothing but the planning PR that wrote these
+> **Status: planned, not built.** Stage A — Platform. Depends on nothing but the planning PR that carries these
 > docs; [phase 2](./phase-0002-deployment.md) deploys what this phase leaves behind.
 
 v1 is a single-user CLI whose every module assumes a project directory on disk, a DuckDB file owned by
@@ -17,11 +17,11 @@ with its tests, from the [`v1` branch](https://github.com/evantahler/botholomew/
 place, with v1 still running around them, would mean keeping two architectures green at once for months. So
 this phase is a clean break: the tree is emptied and the plumbing arrives in one change.
 
-The plumbing is ToolExec's, because ToolExec already paid for it. Users, projects as tenants, tag-based RBAC
+The plumbing is ToolExec's, because ToolExec has already paid for it. Users, projects as tenants, tag-based RBAC
 with an introspection endpoint the UI cannot drift from, invites, `AuditedAction`, MCP OAuth for human
 clients, a session CLI, real-server tests, a CI gate that asserts success rather than listing failures, and a
-Render blueprint with tests of its own — each of those carries a learnings section explaining a bug it no
-longer has. Copying is about 2–3k lines of *cutting*, not a pure copy: ToolExec is agents-in-sandboxes, and
+Render blueprint with tests of its own — each of those carries a learnings section explaining a bug it has
+fixed. Copying is about 2–3k lines of *cutting*, not a pure copy: ToolExec is agents-in-sandboxes, and
 sandbox, run, agent, workflow, proxy, and connection code reaches into files that are otherwise plumbing.
 
 It deliberately ships nothing a bot does, and ends at a shell that is honest about being one.
@@ -51,7 +51,7 @@ bell, and channels ([phase 7](./phase-0007-threads-and-web-chat.md)); npm publis
 | Piece | What it gives this work | Where |
 |---|---|---|
 | The `v1` branch | v1 at v0.27.3, already pushed from `origin/main` by the planning PR's session; the permanent home of every file this phase deletes | [`v1`](https://github.com/evantahler/botholomew/tree/v1) |
-| AGENTS.md | The repository's one instruction file (`CLAUDE.md` is a symlink to it), written by the planning PR; its rules apply from this phase on | [AGENTS.md](../../AGENTS.md) |
+| AGENTS.md | The repository's one instruction file (`CLAUDE.md` is a symlink to it), from the planning PR; its rules bind this phase and every later one | [AGENTS.md](../../AGENTS.md) |
 | The 2.0 plans | This directory: the index and every phase doc, which survive the `git rm` | [README](./README.md#roadmap) |
 | Tenancy and RBAC | `createProjectForOwner`, `RBAC_DESCRIPTOR` factories, `actions:permissions`, last-admin guards, `buildTestUniverse()` | `toolexec:backend/middleware/rbac.ts`, `toolexec:backend/ops/ProjectOps.ts`, `toolexec:docs/plans/phase-04-users-and-tenancy.md` |
 | Audit | `AuditedAction` (mutation and audit row in one transaction), `SENSITIVE_KEYS` scrubbing, `audit:list`, `audit:sweep` | `toolexec:backend/classes/AuditedAction.ts`, `toolexec:backend/ops/AuditOps.ts` |
@@ -86,7 +86,7 @@ nothing to say about bots, and the job queues are named for runs.
 
 ### A clean break, not a migration
 
-The alternative — grow `backend/` beside `src/` and delete v1 at the end — was rejected for three reasons. v1's
+The alternative — grow `backend/` beside `src/` and delete v1 at the end — loses for three reasons. v1's
 CI builds a compiled binary with DuckDB and onnxruntime embedded, and keeping that green while a Keryx
 workspace grows next to it buys nothing. v1's `auto-release.yml` publishes a release on every version bump, so
 a half-converted `package.json` would ship a broken binary to every v1 user's `botholomew upgrade`. And the
