@@ -10,14 +10,14 @@
 > [phase 6](./phase-0006-durable-bot-loop.md), and [phase 7](./phase-0007-threads-and-web-chat.md).
 
 [Phase 6](./phase-0006-durable-bot-loop.md) hydrates a conversation's whole transcript on every tick. That is
-fine for a week and fatal for a leader bot that lives in a project's main thread. v1 ran into this and had
+fine for a week and fatal for a leader bot that lives in a project's main thread. v1 runs into this and has
 three answers, each of which this phase replaces:
 
 - **Trimming.** [`fitToContextWindow`](https://github.com/evantahler/botholomew/blob/v1/src/worker/context.ts)
-  dropped messages one at a time from index 1. That could remove an assistant's tool call while keeping its
+  drops messages one at a time from index 1. That can remove an assistant's tool call while keeping its
   result, which a provider rejects.
-- **Truncation.** It cut tool results to 50,000 characters in place.
-- **Large results.** It parked large results in a process-global `lr_N` map
+- **Truncation.** It cuts tool results to 50,000 characters in place.
+- **Large results.** It parks large results in a process-global `lr_N` map
   ([`large-results.ts`](https://github.com/evantahler/botholomew/blob/v1/src/worker/large-results.ts)),
   cleared every loop and lost on every crash.
 
@@ -64,7 +64,7 @@ external result. Retention for transcripts and messages is [phase 18](./phase-00
 - URL ingest into memory ([phase 19](./phase-0019-url-ingest.md)).
 - Retention of `thread_messages` and `conversation_entries` ([phase 18](./phase-0018-operations.md)). This
   phase sweeps only `scratch/`.
-- An extended (hour-long) prompt-cache TTL. Not now; the hit rate this phase measures decides whether it is
+- An extended (hour-long) prompt-cache TTL. Not scheduled; the hit rate this phase measures decides whether it is
   needed.
 - v1's reflection loop. Not ported here.
 
@@ -75,7 +75,7 @@ external result. Retention for transcripts and messages is [phase 18](./phase-00
 | v1 context windows | `getMaxInputTokens`: an override, then `KNOWN_CONTEXT_WINDOWS`, then a per-provider fallback | [src/llm/capabilities.ts](https://github.com/evantahler/botholomew/blob/v1/src/llm/capabilities.ts) |
 | v1 trimming | `CHARS_PER_TOKEN = 4`, `fitToContextWindow`'s `splice(1, 1)` (the orphaning bug), and in-place truncation | [src/worker/context.ts](https://github.com/evantahler/botholomew/blob/v1/src/worker/context.ts) |
 | v1 large results | `MAX_INLINE_CHARS = 10_000`, the stub with a preview and a next-action hint, and the process-global store not to port | [src/worker/large-results.ts](https://github.com/evantahler/botholomew/blob/v1/src/worker/large-results.ts), [read_large_result.ts](https://github.com/evantahler/botholomew/blob/v1/src/tools/util/read_large_result.ts) |
-| v1 thread search | The tool shape (pattern, role, since / until, hits with a sequence to read around), and the field note that made it worth having | [src/tools/thread/search.ts](https://github.com/evantahler/botholomew/blob/v1/src/tools/thread/search.ts), [docs/field-notes.md](https://github.com/evantahler/botholomew/blob/v1/docs/field-notes.md) |
+| v1 thread search | The tool shape (pattern, role, since / until, hits with a sequence to read around), and the field note that makes it worth having | [src/tools/thread/search.ts](https://github.com/evantahler/botholomew/blob/v1/src/tools/thread/search.ts), [docs/field-notes.md](https://github.com/evantahler/botholomew/blob/v1/docs/field-notes.md) |
 | v1 cache breakpoints | System plus last-assistant marking | [src/llm/cache-control.ts](https://github.com/evantahler/botholomew/blob/v1/src/llm/cache-control.ts) |
 | membot reads | Line-based `offset` / `limit` on `read`, which `memory_cat` inherits | [src/operations/read.ts](https://github.com/evantahler/membot/blob/main/src/operations/read.ts) |
 | pi-durable | `reserveTokens` (16,384) and `backgroundTokens` (32,768); the summary placed at the next turn boundary; compact-and-retry-once on a too-long rejection; `reset()` with a handoff; nothing deleted, so history stays searchable | [pi-durable](https://earendil.com/posts/pi-durable/) |
@@ -109,8 +109,8 @@ code, JSON, and non-English text all tokenize differently. So the conversation a
 After every model step, `contextTokens` is set to the request's measured input. That is fresh input plus
 cache reads plus cache writes, from phase 6's normalized usage, and it includes tools and system. It is
 stored with the `seq` it was measured at. The current size is then that measurement plus the estimates of
-entries appended since. v1 estimated everything from characters and never corrected itself, so its trimming
-was confidently wrong on JSON-heavy turns.
+entries appended since. v1 estimates everything from characters and never corrects itself, so its trimming
+is confidently wrong on JSON-heavy turns.
 
 ### How big the window is
 
@@ -197,7 +197,7 @@ The summarizer gets no tools. It gets a fixed prompt asking for these sections, 
 - **Memory paths** written and read.
 - **Pending wake-ups.**
 
-v1's field notes say "facts beat vibes": a reflection loop that summarized themes was not much use. A
+v1's field notes say "facts beat vibes": a reflection loop that summarizes themes is not much use. A
 summary is a working record, not an impression.
 
 Fenced input stays fenced. Content that reached the conversation inside `<untrusted>` blocks is summarized
@@ -241,8 +241,8 @@ leaves all three or none. This replaces phase 6's head-and-tail truncation.
 
 Pages are lines, as in membot's `read`, so the file is normalized for paging:
 
-- JSON is pretty-printed, and stays valid JSON for [code mode](./phase-0011-code-mode.md). v1 had to warn that
-  its paged `lr_N` splits were not valid JSON.
+- JSON is pretty-printed, and stays valid JSON for [code mode](./phase-0011-code-mode.md). v1 has to warn that
+  its paged `lr_N` splits are not valid JSON.
 - Other text has lines over 4,000 characters hard-wrapped, and the stub says so.
 
 The model sees a stub:
@@ -275,7 +275,7 @@ conditions:
 
 - it is older than `scratchRetentionDays` (default 14);
 - its tool call sits at or before the conversation's latest compaction or reset (`coversThroughSeq`), so it
-  is no longer in live context.
+  is out of live context.
 
 Files of deleted conversations go too. A file still in live context is kept whatever its age, so a stub the
 model can see never dangles. Reading a swept path returns `not_found`, with a hint that scratch results are
@@ -305,7 +305,7 @@ find those. Embedding every message would put a model call on every post for a g
 
 ### Prompt-cache discipline
 
-[Phase 6](./phase-0006-durable-bot-loop.md) set the order. This phase keeps it true across compactions and
+[Phase 6](./phase-0006-durable-bot-loop.md) sets the order. This phase keeps it true across compactions and
 makes it measurable. On Anthropic there are three breakpoints, of the four allowed:
 
 | Breakpoint | After | Changes when |

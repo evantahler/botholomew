@@ -1,9 +1,9 @@
 # Phase 21 — Source routers and bulk sync
 
-> **Goal:** An admin maps a URL pattern to a read tool on one of the project's MCP servers. From then on anyone
-> in the project can add a Google Doc, a private GitHub issue, or a Linear ticket by pasting its URL, refresh
-> replays exactly that call, and a whole repository's issues or a team's tickets can be imported as one
-> collection and optionally kept in sync — with every credential living only on the project's MCP servers.
+> **Goal:** An admin maps a URL pattern to a read tool on one of the project's MCP servers. With that mapping in
+> place, anyone in the project can add a Google Doc, a private GitHub issue, or a Linear ticket by pasting its
+> URL, refresh replays exactly that call, and a whole repository's issues or a team's tickets can be imported as
+> one collection and optionally kept in sync — with every credential living only on the project's MCP servers.
 
 > **Status: planned, not built.** Stage F — Memory, later. Depends on
 > [phase 10](./phase-0010-mcp-servers-and-approvals.md) (MCP servers, credentials, the backend MCP client, the
@@ -11,11 +11,11 @@
 > [phase 20](./phase-0020-upstream-refresh.md) (the refresh dispatch table and machine authorship).
 
 [Phase 19](./phase-0019-url-ingest.md) reads the public web and nothing else, on purpose: it sends no credential.
-But the documents teams most want their bots to know live behind sign-in. membot reached them two ways, and 2.0
-keeps neither as it was. Its built-in downloaders (`github`, `github-repo`, `linear`, `linear-team`) each carry
+But the documents teams most want their bots to know live behind sign-in. membot reaches them two ways, and 2.0
+keeps neither as it is. Its built-in downloaders (`github`, `github-repo`, `linear`, `linear-team`) each carry
 an API key in a config slice — a second credential store beside everything else. Its custom routers spawn a
 shell command per URL, and the README's own Google Docs example is a router that shells out to
-`mcpx exec GoogleDocs_GetDocumentAsDocmd`: the credential was already on an MCP server, and the shell was only
+`mcpx exec GoogleDocs_GetDocumentAsDocmd`: the credential is already on an MCP server, and the shell is only
 the way to reach it.
 
 2.0 has no shell on the server and already holds encrypted, OAuth-capable MCP credentials per project
@@ -50,11 +50,11 @@ local-machine sources (the CLI uploads files instead); write-capable tools as ro
 | Router validation | Name grammar, unique names, compilable patterns, every placeholder a real group | [src/config/router-validation.ts](https://github.com/evantahler/membot/blob/main/src/config/router-validation.ts) |
 | Post-processors | `passthrough`, `docmd` (`normalizeDocmd`), `html-to-markdown`, `substituteVars` | [src/ingest/sources/post-processors.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/post-processors.ts) |
 | Plugin contract | `enumerate`, `rehydrateEntry`, `probeUnchanged`, `sync`; scheme before URL before dynamic matching | [src/ingest/sources/types.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/types.ts), [src/ingest/sources/registry.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/registry.ts) |
-| What the downloaders fetched | Issue and PR URLs, Linear issues and projects, their logical paths | [src/ingest/sources/github.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/github.ts), [src/ingest/sources/linear.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/linear.ts) |
+| What the downloaders fetch | Issue and PR URLs, Linear issues and projects, their logical paths | [src/ingest/sources/github.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/github.ts), [src/ingest/sources/linear.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/linear.ts) |
 | Bulk + sync | Paginated enumerate, `mtime` probe, selector-scoped sync that tombstones only its own rows | [src/ingest/sources/github-repo.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/github-repo.ts), [src/ingest/sources/linear-team.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/linear-team.ts) |
 | v1's approval policy | Default-deny, allowlist patterns, `auto_allow_read_only` | [src/mcpx/client.ts](https://github.com/evantahler/botholomew/blob/v1/src/mcpx/client.ts), [docs/approvals.md](https://github.com/evantahler/botholomew/blob/v1/docs/approvals.md) |
 | MCP servers, credentials, client, gate, bot allowlist | Everything a router calls through | [phase 10](./phase-0010-mcp-servers-and-approvals.md) (from `toolexec:backend/schema/sandbox_mcp_gateways.ts`, `toolexec:backend/schema/gateway_credentials.ts`) |
-| Fetch identity, fencing, collisions | `sourceType` (phase 4 reserved `router`), `sourceUri`, `fetcherArgs`, `untrusted`, path ownership, URL ingest jobs | [phase 19](./phase-0019-url-ingest.md) |
+| Fetch identity, fencing, collisions | `sourceType` (phase 4 reserves `router`), `sourceUri`, `fetcherArgs`, `untrusted`, path ownership, URL ingest jobs | [phase 19](./phase-0019-url-ingest.md) |
 | Refresh | `FETCHERS`, claims, `systemActor`, conflict and gone handling | [phase 20](./phase-0020-upstream-refresh.md) |
 
 ## What this must not weaken
@@ -87,8 +87,8 @@ local-machine sources (the CLI uploads files instead); write-capable tools as ro
 | `pathTemplate` | Optional, e.g. `github/{owner}/{repo}/issues/{number}.md` (membot's layout); default `remotes/<host>/<path>` |
 | `priority`, `timeoutMs`, `maxBytes`, `enabled` | First match by priority wins; 60 s (membot's `timeout_ms`, within the server's own `timeoutMs`) and 25 MiB (phase 9's cap, inside phase 10's 32 MiB response abort) |
 
-`json-to-markdown` is new: many MCP tools return structured JSON, which membot handed to a model to tidy when it
-had a key. Here a deterministic renderer turns objects into headings and definition lists and long strings into
+`json-to-markdown` is new: many MCP tools return structured JSON, which membot hands to a model to tidy when it
+has a key. Here a deterministic renderer turns objects into headings and definition lists and long strings into
 paragraphs. A router that would rather keep the JSON declares `application/json` with `passthrough`, and gets phase
 9's fenced block or, where enabled, [phase 22](./phase-0022-llm-assisted-ingestion.md)'s model normalizer.
 
@@ -108,7 +108,7 @@ like membot's `--downloader`.
 A router-fetched version stores `sourceType = 'router'`, the URL in `sourceUri`, and
 `fetcherArgs = { routerId, routerName, vars, collectionId? }`, staged through the same ingest job as a
 [phase 19](./phase-0019-url-ingest.md) fetch. Refresh looks the router up **by id**, not name
-(membot's name lookup broke on rename), substitutes the persisted vars into the router's *current* template, and
+(membot's name lookup breaks on rename), substitutes the persisted vars into the router's *current* template, and
 calls again — so fixing a router's arguments fixes every file it owns, while a pattern change never re-routes an
 existing file. A deleted or disabled router fails refresh with a hint naming it; `memory-router:delete` refuses
 while files reference it unless `force`, and says how many.
@@ -144,7 +144,7 @@ item's URL and `updatedAt` pointers, and the cursor field for the next page. Add
 creates a **collection** row and a parent ingest job; enumeration pages through the list tool up to
 `collectionMaxItems` (5 000) and `collectionMaxPages` (100), and each item becomes a child job that goes through
 ordinary URL dispatch — so the GitHub issue preset serves both a pasted URL and a 2 000-issue import, as membot's
-`github-repo` reused `github`'s fetch. When an item's `updatedAt` equals the file's stored `sourceLastModified`,
+`github-repo` reuses `github`'s fetch. When an item's `updatedAt` equals the file's stored `sourceLastModified`,
 the child skips the fetch (membot's `probeUnchanged`). Children run at `collectionConcurrency` (2) per server so a
 credential's rate limit is not spent in a burst. A collection can carry a [phase 20](./phase-0020-upstream-refresh.md)
 cadence, which re-enumerates and fetches what is new or changed.
@@ -156,7 +156,7 @@ should choose.
 ### Sync is opt-in, complete, and guarded
 
 `syncMode = 'tombstone'` on a collection makes each enumeration tombstone files that the collection created
-(`fetcherArgs.collectionId`) and the source no longer lists — `operation = 'delete'`, `systemActor = 'sync'`, and
+(`fetcherArgs.collectionId`) and the source now omits — `operation = 'delete'`, `systemActor = 'sync'`, and
 a note such as `sync: issue #412 no longer listed by github-repo:acme/api:issues`. Three rules keep it from being
 the worst button in the product:
 
@@ -230,7 +230,7 @@ rendered arguments; with `exec` it makes the call and returns mime, sha, size, t
 `memory_add url` dispatches through routers transparently; refusals are `policy_error` with reason
 `not_allowlisted` (naming the server and that an admin can allowlist this bot) or `collection_requires_person`.
 Router output is fenced as `source="router:<name>"`. `memory_sources` lists routers,
-collections, and the public fetcher with example inputs, as membot's `membot_sources` did; it has no honest bash
+collections, and the public fetcher with example inputs, as membot's `membot_sources` does; it has no honest bash
 analogue, so no bash tag. Both `replay: safe`.
 
 ### 5. Frontend — `frontend/src/components/settings/sections/MemorySources.tsx`

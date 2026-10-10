@@ -12,22 +12,22 @@
 > [phase 9](./phase-0009-memory-search-and-ingestion.md) (the local embedder).
 
 MCP is how a bot does anything outside Botholomew: read a GitHub issue, post to Linear, send an email. In v1 that
-was mcpx — a per-user `servers.json`, stdio and HTTP servers, credentials in a local `auth.json`, and an approval
-gate that worked, but only by parking the whole task and re-running it from the top. A cloud service of always-on
+is mcpx — a per-user `servers.json`, stdio and HTTP servers, credentials in a local `auth.json`, and an approval
+gate that works, but only by parking the whole task and re-running it from the top. A cloud service of always-on
 bots changes three things at once: servers are shared by a team rather than owned by a laptop, credentials must
 live where no bot or guest program can read them, and a decision made in a browser hours later has to resume
 exactly the call that was paused.
 
-ToolExec already solved the first two for its sandboxes: gateways with credentials bound by foreign key, the full
+ToolExec already solves the first two for its sandboxes: gateways with credentials bound by foreign key, the full
 MCP OAuth client, a refresh clock, an SSRF guard, and a probe that tells an admin what a URL actually is the
-moment they type it. This phase ports that machinery and drops the half that existed only because guest code
-ran in a VM — there is no proxy, because the MCP client runs in the worker and no bot ever holds a token.
+moment they type it. This phase ports that machinery and drops the half that exists only because guest code
+runs in a VM — there is no proxy, because the MCP client runs in the worker and no bot ever holds a token.
 [Code mode](./phase-0011-code-mode.md) reuses everything here unchanged: the client, the policy, and the approval
 record.
 
-The approval half is v1's policy with v1's two worst failures fixed: approval re-ran the whole task, repeating
-every ungated side effect before the pause, and decisions were matched to calls by a hash of byte-identical
-arguments, so a re-run that phrased a call differently prompted again. Here an approval references a recorded
+The approval half is v1's policy with v1's two worst failures fixed: approval re-runs the whole task, repeating
+every ungated side effect before the pause, and decisions are matched to calls by a hash of byte-identical
+arguments, so a re-run that phrases a call differently prompts again. Here an approval references a recorded
 `tool_calls` row; approving it runs that row's arguments and nothing else, and the model is not asked to
 regenerate anything.
 
@@ -46,8 +46,8 @@ re-authorization routed to people as approvals; provenance fencing of everything
 section, the approvals inbox, inline approval cards, the CLI, and user docs.
 
 **Out:** stdio servers, ever (see [Design](#remote-only)). Per-asker MCP authorization — a credential per person,
-"act as the asker" — is later and unphased. An auto-review model for approvals is later and unphased.
-Argument-level rules ("allow `send_email` only to our domain") are later; rules here match server and tool
+"act as the asker" — is unphased. An auto-review model for approvals is unphased.
+Argument-level rules ("allow `send_email` only to our domain") are outside this phase; rules here match server and tool
 names. MCP-backed memory source routers, which replace membot's GitHub/Linear downloaders and shell routers, are
 [phase 21](./phase-0021-source-routers-and-bulk-sync.md) — they reuse this phase's client, credentials, and SSRF
 guard, and add nothing to it. Calling tools from code mode is [phase 11](./phase-0011-code-mode.md). Slack approval
@@ -74,8 +74,8 @@ project's MCP servers to human OAuth clients as a passthrough gateway is not pla
 | Notifications and channels | The `notifications` table, dispatch, bell, and content-free frames | [phase 7](./phase-0007-threads-and-web-chat.md) |
 
 What does not exist anywhere: an MCP client that runs **calls** (ToolExec's only client probes; its sandboxes
-called servers through a proxy), a tool index, an approval bound to a recorded call, and any handling of
-elicitation — v1's mcpx client dropped `elicitation/create` and URL-elicitation errors on the floor.
+call servers through a proxy), a tool index, an approval bound to a recorded call, and any handling of
+elicitation — v1's mcpx client drops `elicitation/create` and URL-elicitation errors on the floor.
 
 ## What this must not weaken
 
@@ -101,8 +101,8 @@ elicitation — v1's mcpx client dropped `elicitation/create` and URL-elicitatio
 
 ### Servers are the project's; bots opt in by allowlist
 
-An MCP server is a project resource configured by an admin, not a bot setting. ToolExec hung gateways off agents
-because each agent got its own sandbox config; here one server with one credential is shared, and the question is
+An MCP server is a project resource configured by an admin, not a bot setting. ToolExec hangs gateways off agents
+because each agent gets its own sandbox config; here one server with one credential is shared, and the question is
 which bots may use it. The answer is `mcp_server_bots` (or `allBots: true`, an explicit checkbox that also covers
 future bots), edited by admins only. That is the rule the master plan states — write on one bot must not grant
 every credential — and it is why allowlist edits are not a bot-write privilege: whoever could add a bot to a
@@ -158,8 +158,8 @@ the server forgot it and did not process the request, so the client re-initializ
 `notifications/tools/list_changed` enqueues a reindex. Edits to a server's URL, transport, or headers publish
 `mcp:server:<id>:changed` after commit and every worker evicts its client.
 
-A result is kept whole. v1's `formatCallToolResult` flattened `content` to text and dropped `structuredContent`
-entirely, so a tool's machine-readable answer never reached the bot or a program. Here the full `CallToolResult`
+A result is kept whole. v1's `formatCallToolResult` flattens `content` to text and drops `structuredContent`
+entirely, so a tool's machine-readable answer never reaches the bot or a program. Here the full `CallToolResult`
 is the call's recorded outcome (offloaded through [phase 8](./phase-0008-context-management.md) above its
 threshold), and the bot sees `structuredContent` as JSON when present, otherwise the text blocks; image, audio,
 and blob resources are written to the conversation's scratch path and referenced by logical path.
@@ -177,8 +177,8 @@ the moment the upstream deploys still holds — so `mcp_info` and `mcp_exec` rea
 for 60 s) and repair the row when its `schemaSha` differs.
 
 A tool whose name equals a built-in bot tool is indexed with `shadowedByBuiltin` and is not callable. v1's
-`dispatchMcpExec` already refused a built-in name routed through `mcp_exec` and told the model to call the tool
-directly, because a model that can wrap a built-in in `mcp_exec` sometimes will; the same refusal applies here,
+`dispatchMcpExec` already refuses a built-in name routed through `mcp_exec` and tells the model to call the tool
+directly, because a model that can wrap a built-in in `mcp_exec` sometimes does; the same refusal applies here,
 and the Settings page warns the admin which server tools a collision hides.
 
 The system prompt names the servers a bot may use, one line each (name and the admin's description), sorted so the
@@ -188,8 +188,8 @@ which are a stranger's text.
 
 ### Errors are classified by structure, not by message
 
-v1's `classifyMcpError` lower-cased the error string and searched it for `"auth"`, `"invalid"`, and `"429"`, so
-an error mentioning an "author" was an auth failure. Classification here reads types and codes only:
+v1's `classifyMcpError` lower-cases the error string and searches it for `"auth"`, `"invalid"`, and `"429"`, so
+an error mentioning an "author" is an auth failure. Classification here reads types and codes only:
 
 | Signal | `error_kind` | Notes |
 |---|---|---|
@@ -224,7 +224,7 @@ Evaluated in the worker, in this order, before a call becomes `started`:
 3. If the server has `autoAllowReadOnly` and the tool says `readOnlyHint: true`, allow. Off by default, as in v1:
    annotations are a stranger's hints, and trusting them is a judgement about one server an admin makes once.
 4. If any rule matches — project-wide (`botId` null) or for this bot — allow. Patterns are v1's
-   `matchesAllowlist` verbatim; an invalid `/regex/`, which v1 silently ignored, is refused at write time.
+   `matchesAllowlist` verbatim; an invalid `/regex/`, which v1 silently ignores, is refused at write time.
 5. Otherwise gate: the call goes `pending → awaiting_approval` and an `approvals` row is inserted with it.
 
 There is no master switch and no `--unsafe`. A project that wants no gate adds the rule `*` — audited, visible, and
@@ -247,8 +247,8 @@ durable without the queue. Tick step 3 then runs the approved call with the row'
 configuration that has since changed; rules are not, because a person decided. A denial becomes the call's result:
 `{ is_error: true, error_kind: "denied", decided_by, note, hint: "Do not retry this call…" }`.
 
-Why park rather than return a placeholder: v1's `mcp_exec` returned "queued for human approval" and told the model
-to call `wait_task`; the task parked, and approval re-ran it from the top, repeating every ungated side effect made
+Why park rather than return a placeholder: v1's `mcp_exec` returns "queued for human approval" and tells the model
+to call `wait_task`; the task parks, and approval re-runs it from the top, repeating every ungated side effect made
 before the gate — v1's own approvals doc warns about exactly that. A parked
 conversation does not answer new messages in that thread until the gate resolves (they queue in its inbox, per
 [phase 7](./phase-0007-threads-and-web-chat.md)); the thread shows the approval card at the parked call, so the

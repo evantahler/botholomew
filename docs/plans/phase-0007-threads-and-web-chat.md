@@ -9,7 +9,7 @@
 > [phase 1](./phase-0001-clean-slate-and-shell.md), [phase 5](./phase-0005-bots.md), and
 > [phase 6](./phase-0006-durable-bot-loop.md).
 
-[Phase 6](./phase-0006-durable-bot-loop.md) made a bot think, durably, but a person can only reach it through
+[Phase 6](./phase-0006-durable-bot-loop.md) makes a bot think, durably, but a person can only reach it through
 the CLI or an MCP client, every message goes to the thread's owner, and nothing tells a browser that anything
 happened. This phase makes the thread the product surface. Three things change: **who hears a message**
 (owner routing, mentions, participants), **how a client learns something happened** (channels, a token
@@ -50,7 +50,7 @@ MCP publication; user docs; tests including channel authorization and MCP forwar
   added as new `notifications.channel` values.
 - Editing, withdrawing, or reordering a queued message; archiving threads. Not scheduled.
 - Private threads. Never in this plan; the [README](./README.md#roadmap) lists audience-scoped memory as
-  later, unphased.
+  unphased.
 
 ## What already exists
 
@@ -102,14 +102,14 @@ applies only when none of them named anyone:
 
 An author is never its own recipient. A person must `canWriteBot` every recipient; a mention of a bot they
 cannot write is not routed and comes back in `unrouted: [{ bot, reason }]`, and a message whose every named
-recipient is unroutable is **refused with nothing written** — posting a message nobody will hear, while the
-composer looked like it worked, is the failure ToolExec's undeliverable-message learning names. A mentioned
+recipient is unroutable is **refused with nothing written** — posting a message nobody hears, while the
+composer looks like it worked, is the failure ToolExec's undeliverable-message learning names. A mentioned
 bot joins the thread as a participant in the same transaction.
 
 **Unaddressed goes to the owner, not to "whoever wants it".** Grok Bot's group chats let the participating
 bots decide who responds to a plain message, and its own guidance then warns that "too many parallel
 handoffs can create duplicate work and noisy updates" and asks for "a single owner at each stage". Routing
-plain messages to the owner makes the cost one model call instead of N, and makes "who will answer this"
+plain messages to the owner makes the cost one model call instead of N, and makes "who answers this"
 something the person typing can predict. `@everyone` is the deliberate opt-in to N calls, and its recipients
 are told they were addressed collectively (an `event` line in the volatile tail), so an empty reply —
 silence — is the expected answer from a bot with nothing to add.
@@ -190,14 +190,14 @@ participant or title change.
 
 ### Notifications
 
-Ported from ToolExec with three changes. **Browser channel only** for now (see Out). **Templates:**
+Ported from ToolExec with three changes. **Browser channel only** in this phase (see Out). **Templates:**
 `mentioned_you`, `conversation_errored`, `conversation_blocked` (budget, unpriced model, no model),
 `routing_stopped` (hop or chain limit), `tool_call_waiting` (a gated call needs a decision; phase 10 replaces
 it with its approval template), and `bot_replied` — sent only to the turn's human, only when the turn took
 longer than 30 seconds (they have probably looked away), and marked read automatically when they open the
 thread. **Recipients:** the turn's human when there is one; otherwise the holders of the bot's `accessWrite`
 tags; otherwise the project's admins — and always filtered to people who can read the thread, because
-ToolExec learned that a notify-tag that routes around `accessRead` is a leak.
+ToolExec's learning is that a notify-tag that routes around `accessRead` is a leak.
 
 Rows are written by `enqueueNotification(tx, …)` in the same transaction as their cause (the phase 6 tick's
 release for errors and blocks, routing for mentions and stops), and `afterCommit` enqueues
@@ -245,7 +245,7 @@ same list channel.
 
 ### `botholomew thread follow` uses the socket
 
-ToolExec's CLI follower polls, and its phase 18 left that alone on purpose. Following a thread is different:
+ToolExec's CLI follower polls, and its phase 18 leaves that alone on purpose. Following a thread is different:
 the token stream exists only on the socket. So the CLI gains a small Keryx WebSocket client
 (`cli/src/socket.ts`) that authenticates with the session cookie, subscribes to the thread and stream
 channels, then hydrates over HTTP — the browser's discipline exactly — prints messages, one summary line per

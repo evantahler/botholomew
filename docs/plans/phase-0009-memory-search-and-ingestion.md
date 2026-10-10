@@ -48,7 +48,7 @@ reindex`; a deterministic fake embedder; the search-quality eval with a CI gate;
 LLM describer ([phase 22](./phase-0022-llm-assisted-ingestion.md)); original bytes, `read --bytes`,
 re-conversion from source, and the blob policy ([phase 23](./phase-0023-original-bytes-and-blob-policy.md));
 pruning versions, chunks, and job payloads ([phase 18](./phase-0018-operations.md)); cross-encoder rerank
-(later, unphased). Image, audio, and video uploads are refused until captions and original bytes exist.
+(unphased). Image, audio, and video uploads are refused; captions and original bytes are what admit them.
 
 ## What already exists
 
@@ -99,7 +99,7 @@ in the same statement batch; a tombstone flips them and adds none.
 Before inserting, each new chunk looks up a chunk of the parent version with the same `searchTextSha256` and
 the current revision, and copies its vector. An edit to one paragraph of a long note re-embeds only the chunks
 that changed. A **move** changes the path, which is the first line of every `searchText`, so every chunk
-re-embeds: membot's `mv` re-keyed rows but copied vectors computed for the old path, and that bug is closed by
+re-embeds: membot's `mv` re-keys rows but copies vectors computed for the old path, and that bug is closed by
 construction rather than by a special case. A description is derived when the author gave none —
 `tryTitleDescription`, else `deterministicDescription` — and stored on the version, because it is part of what
 gets embedded.
@@ -111,7 +111,7 @@ transformers pipeline: `bge-small-en-v1.5`, CLS pooling, normalized, batches of 
 Membot's own comment is the reason for the thread: ONNX WASM holds the JavaScript thread for hundreds of
 milliseconds per batch. On the main thread that would stall [phase 6](./phase-0006-durable-bot-loop.md)'s
 lease renewals and token streaming, and trip Keryx's `maxEventLoopDelay` — the invariant
-[phase 2](./phase-0002-deployment.md) reserved memory for. A thread meets that invariant without membot's
+[phase 2](./phase-0002-deployment.md) reserves memory for. A thread meets that invariant without membot's
 subprocess pool — no stdio protocol, no second runtime, no model copy per CPU — and the thread is restarted,
 not the process, if inference throws.
 
@@ -120,7 +120,7 @@ backend is not a published package, so membot's reason for an imperative script 
 image could load `onnxruntime-node`, but one backend means identical vectors on a macOS laptop, in CI, and in
 production, and an image that ships no native inference binary. The weights are fetched at image build time
 (`backend/scripts/fetch-embedding-model.ts`) and `allowRemoteModels` is off in production, so a deploy never
-downloads from HuggingFace at runtime — the rate limit membot's CI tripped over. CI caches them the same way.
+downloads from HuggingFace at runtime — the rate limit membot's CI trips over. CI caches them the same way.
 
 The worker process embeds passages; the API process embeds only queries, lazily, with a 1,000-entry LRU per
 process keyed by revision and normalized query. Each process that loads the model holds on the order of
@@ -160,7 +160,7 @@ and vice versa. Each retriever takes `limit × 5` candidates; `fuseRRF` (k = 60,
 `memory_settings`, default 0.6) fuses to a depth of `min(50, max(3 × limit, 20))`; `diversify` keeps at most
 `maxPerFile` (default 3) hits per path and backfills; `makeSnippet` centers on the first query term. Hits join
 back to `memory_files` for `versionId`; reserved paths stay excluded unless the prefix names them. Two
-departures from membot: `includeHistory` applies to the keyword list too (membot's FTS only indexed current
+departures from membot: `includeHistory` applies to the keyword list too (membot's FTS indexes only current
 rows), and the response reports `semanticCoverage` (`complete | partial | unavailable`) so a caller knows
 when recent writes are not yet in the semantic list.
 
@@ -173,14 +173,14 @@ deploy) runs.
 
 ### `ts_rank_cd` is not BM25
 
-Membot's keyword list was DuckDB's BM25: term frequency with saturation, inverse document frequency, and
+Membot's keyword list is DuckDB's BM25: term frequency with saturation, inverse document frequency, and
 length normalization. Postgres's `ts_rank_cd` is cover density — how many query terms appear and how close
 together — with no IDF and only crude length normalization. A rare identifier and the word "project" count
 alike. It is acceptable here for three reasons. RRF consumes **ranks**, not scores, so only the order within
 the keyword list matters, never its scale. Chunks are bounded at 1,800 characters, which removes most of what
 length normalization exists for. And the semantic list carries the queries where rarity matters most. That is
 an argument, not a measurement, so the eval gate decides: if keyword-heavy golden queries regress beyond the
-thresholds, a BM25 extension is evaluated before this phase ships, and the learnings record which way it went.
+thresholds, a BM25 extension is evaluated within this phase, and the learnings record the result.
 
 ### Multi-tenant vector search
 
@@ -203,7 +203,7 @@ formats are refused before inflating if the central directory declares more than
 | Input | Surrogate |
 |---|---|
 | Markdown, plain text | As-is; invalid UTF-8 is refused with a hint |
-| JSON, YAML, XML, CSV, JS, TS | A fenced code block with a language tag — membot's no-key path returned raw text, and a `# comment` in YAML would otherwise become a markdown heading the chunker splits on |
+| JSON, YAML, XML, CSV, JS, TS | A fenced code block with a language tag — membot's no-key path returns raw text, and a `# comment` in YAML would otherwise become a markdown heading the chunker splits on |
 | HTML / XHTML | turndown; inline images become membot's deterministic placeholder |
 | DOCX | mammoth → turndown; images as placeholders |
 | XLSX | One table per sheet. Membot pins npm `xlsx` 0.18.5, which carries published advisories fixed only in releases SheetJS distributes outside npm; 2.0 pins a current release from SheetJS's own tarball, by version and integrity |
@@ -218,8 +218,8 @@ phase 4's 5 MiB interactive write cap.
 
 ### Uploads: bytes in, surrogate out, nothing read from the host
 
-Membot's `add` resolved local paths, directories, and globs **on the machine running membot** — and its MCP
-server exposed that to any connected model. Here the CLI walks the user's own disk and uploads bytes; the
+Membot's `add` resolves local paths, directories, and globs **on the machine running membot** — and its MCP
+server exposes that to any connected model. Here the CLI walks the user's own disk and uploads bytes; the
 server has no notion of a host path. `memory:upload` is a `web.rawBody` action: query parameters carry
 `logicalPath`, the original filename, an optional description, change note, `expectedVersionId`, and a
 `requestId`; the body is counted as it streams and aborted past `MEMORY_UPLOAD_MAX_BYTES` (25 MiB), because a
@@ -250,7 +250,7 @@ shell analogue, and a wrong anchor is worse than none. It takes `content` (text 
 in the call when under 1 MiB) or `content_base64` (queued as an ingest job; `memory_info` shows the pending
 job on that path). Its `requestId` is the tool call's id, so it is **replay-safe**. In this phase a bot's
 binary content comes from text it holds; MCP resources ([phase 10](./phase-0010-mcp-servers-and-approvals.md))
-and code mode ([phase 11](./phase-0011-code-mode.md)) are where base64 documents come from later. The memory
+and code mode ([phase 11](./phase-0011-code-mode.md)) are the other sources of base64 documents. The memory
 prompt section gains the search half of `SERVER_INSTRUCTIONS` — search before you read, read before you
 write — minus the GitHub, Linear, and Apple Notes paragraphs, with tool names generated from the registry.
 
@@ -264,7 +264,7 @@ write — minus the GitHub, Linear, and Apple Notes paragraphs, with tool names 
 | Embedder isolation | One Bun `Worker` thread per process; WASM everywhere; weights baked into the image |
 | Embedding history | Only current versions are embedded; superseded versions keep vectors they already had |
 | Keyword ranking | `ts_rank_cd` under RRF, kept or replaced by what the eval measures |
-| Images and binaries | Refused until captions and original bytes exist |
+| Images and binaries | Refused; captions and original bytes are what admit them |
 | XLSX dependency | Not npm `xlsx` 0.18.5; a current SheetJS release pinned from its own tarball |
 | Upload transport | Raw-body HTTP for files (never MCP); JSON `memory:add` for MCP and bots |
 

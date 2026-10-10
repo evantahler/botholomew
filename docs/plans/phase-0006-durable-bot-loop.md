@@ -18,9 +18,9 @@ make that task durable, and the guards that keep a swarm from spending a project
 The design is a reconciliation loop, like ToolExec's runs, and not a long-lived supervisor. A turn can
 outlive a deploy, a worker restart, and an OOM kill, and Keryx does not retry a crashed job. So every
 transition is a row change. A tick is a short-lived holder of a lease, and two cheap clocks reconcile the
-rows with reality. v1's loop held a conversation in a `messages` array in process memory
-([`src/worker/llm.ts`](https://github.com/evantahler/botholomew/blob/v1/src/worker/llm.ts)), so a crash lost
-the turn, and an approval re-ran the whole task from the top. Both of those stop here.
+rows with reality. v1's loop holds a conversation in a `messages` array in process memory
+([`src/worker/llm.ts`](https://github.com/evantahler/botholomew/blob/v1/src/worker/llm.ts)), so a crash loses
+the turn, and an approval re-runs the whole task from the top. Both of those stop here.
 
 What this phase leaves out is mostly surface. It has no chat UI, no `@mention` routing, no live channels a
 browser can subscribe to, and no notifications table; those are [phase 7](./phase-0007-threads-and-web-chat.md).
@@ -50,7 +50,7 @@ cards; a `Bun.serve` fake model server for CI; and a nightly behaviour-eval harn
   streaming to clients, notifications, and the chat UI ([phase 7](./phase-0007-threads-and-web-chat.md)).
 - Compaction, `reset` entries, the context-window table, memory-backed large results, and `thread_search`
   ([phase 8](./phase-0008-context-management.md)). This phase writes the `compaction` and `reset` entry kinds
-  into the schema and hydrates from them, but nothing writes them yet.
+  into the schema and hydrates from them, but nothing in this phase writes them.
 - The approvals table, approval policy, and MCP tools ([phase 10](./phase-0010-mcp-servers-and-approvals.md)).
 - `delegation` threads, `bot_tasks`, and `event` inbox rows for task reports
   ([phase 13](./phase-0013-leader-and-workers.md)).
@@ -302,7 +302,7 @@ A step runs in this order:
 
 A step that ends with `finishReason: "length"` is not treated as success. Its text is kept as an assistant
 entry, any truncated tool call is dropped, and an `event` entry tells the model its output was cut off. The
-step counts toward the step cap. v1 hid this failure behind a fixed `maxOutputTokens: 4096`, which cut long
+step counts toward the step cap. v1 hides this failure behind a fixed `maxOutputTokens: 4096`, which cuts long
 answers mid-tool-call.
 
 ### Crashes: what recovery finds and what it does
@@ -461,7 +461,7 @@ after an incident:
 | Guard | Default (project setting) | Checked | When it trips |
 |---|---|---|---|
 | Step cap per turn | `maxStepsPerTurn` 40 | before each step | one last step with `toolChoice: "none"` and an `event` entry asking for a summary of what was done and what remains; that text is posted |
-| Repeated identical call | `repeatedCallLimit` 3 | per tool call: `sha256(toolName + canonical JSON input)` within the turn | the call is not executed; a `permanent` error tells the model the result will not change. Repeated past that, the turn is forced to a final step |
+| Repeated identical call | `repeatedCallLimit` 3 | per tool call: `sha256(toolName + canonical JSON input)` within the turn | the call is not executed; a `permanent` error tells the model the result does not change. Repeated past that, the turn is forced to a final step |
 | Bot hops without a person | `maxBotHops` 6 | at routing | the message is posted but not routed to any bot (`metadata.routingSuppressed: "hop_limit"`), with a notice: "Stopped after 6 bot-to-bot hops without a person. Reply here to continue." |
 | Chain size without a person | `maxChainMessages` 30 | at routing | as above, `"chain_limit"`; bounds fan-out, which hops alone do not |
 | Bot message rate | `botMessagesPerMinute` 30 per project | at routing and in `send_message` | `send_message` returns a `retryable` error with the wait; a final post is posted unrouted |
@@ -492,7 +492,7 @@ neutralized before wrapping, so content cannot close its own fence. Fenced sourc
 - bot-to-bot messages;
 - `thread_read` output;
 - tool results whose `ToolDefinition` declares `fence: "external"`: MCP output ([phase 10](./phase-0010-mcp-servers-and-approvals.md)) and fetched pages;
-- later, other people's Slack text ([phase 16](./phase-0016-slack.md)).
+- other people's Slack text (added by [phase 16](./phase-0016-slack.md)).
 
 A member's own message to the bot is an instruction and is not fenced. Fencing is mitigation, not a
 guarantee. The structural guarantees are elsewhere: credentials never enter context, gated calls need a
@@ -516,7 +516,7 @@ text.
 **The tool section cannot drift.** The tools passed to the provider come from the registry. The prose
 section is rendered from per-group guidance that lives beside each group's `ToolDefinition`s, and is
 included only when the bot has a tool of that group. A test asserts that every tool name the prompt mentions
-exists and every registered group the bot holds is described. v1's hand-written prompt sections drifted from
+exists and every registered group the bot holds is described. v1's hand-written prompt sections drift from
 its tools.
 
 **Assembly order is cache order:**
@@ -530,7 +530,7 @@ its tools.
 The volatile tail is an `event` entry written at turn start: the current time, the thread's title, who is
 speaking, keyword-matched `contextual` prompts, and how many thread messages the bot was not addressed in
 since it last looked, with a hint to use `thread_read`. Volatile data lives after the breakpoints, so it
-never invalidates the cached prefix. v1 put the current time in the system prompt, which made every turn a
+never invalidates the cached prefix. v1 puts the current time in the system prompt, which makes every turn a
 cache miss. Each entry's own timestamp is written once, into the entry, and never changes.
 
 Breakpoints, on Anthropic: system, and the last entry of the previous step. Consecutive user-role entries

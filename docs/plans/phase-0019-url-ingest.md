@@ -2,7 +2,7 @@
 
 > **Goal:** A person or a bot hands project memory a public URL, and the page or document behind it lands as a
 > markdown file at `remotes/<host>/<path>` with its provenance attached — fetched once, by the server, through a
-> guard that will not reach anything but the public internet.
+> guard that reaches nothing but the public internet.
 
 > **Status: planned, not built.** Stage F — Memory, later. Depends on
 > [phase 4](./phase-0004-project-memory-core.md) (versions and the reserved source columns),
@@ -10,27 +10,27 @@
 > (sniffing, converters, ingest jobs, `memory:add`, `memory_add`), and
 > [phase 10](./phase-0010-mcp-servers-and-approvals.md) (the ported `NetworkGuardOps`).
 
-[Phase 9](./phase-0009-memory-search-and-ingestion.md) stops at uploads for a reason: until now the server never
-reaches out. Every byte in project memory arrived in a request body. Adding from a URL is the first time the
+[Phase 9](./phase-0009-memory-search-and-ingestion.md) stops at uploads for a reason: with uploads alone the server never
+reaches out, and every byte in project memory arrives in a request body. Adding from a URL is the first time the
 server fetches an address somebody *typed* — and, worse, an address a bot chose, possibly because a page it read
 told it to. That is server-side request forgery in its textbook shape with a prompt-injection delivery mechanism
 attached, so this phase is mostly about the fetch and only a little about the feature.
 
-membot never had this. Its [plan](https://github.com/evantahler/membot/blob/main/docs/plan.md) is explicit that
+membot does not have this. Its [plan](https://github.com/evantahler/membot/blob/main/docs/plan.md) is explicit that
 there is "no generic-web catch-all": an unclaimed URL is an error telling the user to download the file. That is
-right for a local CLI and wrong for a cloud service whose bots have no disk. v1 tried the opposite —
-[milestone 8](https://github.com/evantahler/botholomew/blob/v1/docs/plans/milestone-8-remote-context.md) had a
+right for a local CLI and wrong for a cloud service whose bots have no disk. v1 tries the opposite —
+[milestone 8](https://github.com/evantahler/botholomew/blob/v1/docs/plans/milestone-8-remote-context.md) has a
 model loop *choose* how to fetch each URL — and
 [milestone 13](https://github.com/evantahler/botholomew/blob/v1/docs/plans/milestone-13-replace-context-with-membot.md)
-removed it for membot's deterministic downloaders. 2.0 takes the middle: one deterministic public fetcher, plain
+removes it for membot's deterministic downloaders. 2.0 takes the middle: one deterministic public fetcher, plain
 HTTP, no browser, no model in the loop, behind a guard.
 
 A URL is fetched **once** here; keeping it current is [phase 20](./phase-0020-upstream-refresh.md). Anything that
 needs a credential — a private GitHub issue, a Google Doc — goes through an MCP-backed router in
 [phase 21](./phase-0021-source-routers-and-bulk-sync.md), never through headers or cookies on this fetcher.
-Scanned-PDF conversion waits for [phase 22](./phase-0022-llm-assisted-ingestion.md); the fetched bytes are dropped
-after conversion, and image URLs refused, until [phase 23](./phase-0023-original-bytes-and-blob-policy.md) keeps
-originals.
+Scanned-PDF conversion belongs to [phase 22](./phase-0022-llm-assisted-ingestion.md); here the fetched bytes are
+dropped after conversion and image URLs are refused, and keeping originals belongs to
+[phase 23](./phase-0023-original-bytes-and-blob-policy.md).
 
 ## Scope
 
@@ -82,7 +82,7 @@ link-following or crawling, cookies, caller-supplied headers.
 ### The guard moves into the connection
 
 `assertPublicUrl` resolves a name, judges every address, and then lets `fetch` resolve again. Between the two a
-one-second TTL can change the answer — DNS rebinding — and ToolExec accepted that because its input was a gateway
+one-second TTL can change the answer — DNS rebinding — and ToolExec accepts that because its input is a gateway
 URL an admin typed. Here the input is any URL any member or bot supplies, so the window is closed:
 
 - **One resolution, judged and used.** `guardedFetch` connects through `node:http(s)` with a `lookup` hook that
@@ -126,9 +126,9 @@ anywhere except the reserved namespaces: fetched text in `prompts/` would be a w
 system prompt, and no flag overrides that.
 
 `memory_files` records `sourceType = 'url'` and the reserved `sourceUri` / `sourceSha256` / `sourceMimeType`
-(phase 4 reserved `url` and `router`; membot called the same thing `remote`). `fetcherArgs` holds what a replay
+(phase 4 reserves `url` and `router`; membot calls the same thing `remote`). `fetcherArgs` holds what a replay
 needs beyond the URL, which for a plain fetch is little — routers fill it in phase 21 — and `sourceEtag` /
-`sourceLastModified` are stored now so [phase 20](./phase-0020-upstream-refresh.md) can send conditional requests.
+`sourceLastModified` are stored here so [phase 20](./phase-0020-upstream-refresh.md) can send conditional requests.
 
 Every version a fetch writes has `untrusted = true`. When a bot reads it through `memory_cat`, `memory_search`
 snippets, `memory_diff`, or code mode's `memory.readText` / `readJson`, phase 6's `fenceUntrusted` wraps it with
@@ -151,7 +151,7 @@ A bot's `memory_add url` fetches **inline** and, like phase 9's `content`, conve
 under 1 MiB, returning `{ logical_path, version_id }`; a larger body is queued and the result says so, with
 `memory_info` showing the pending job. Its `requestId` is the tool call id, so a replay finds its job instead of
 fetching twice — `replay: safe`. `fetchPerProjectPerMinute` (30) and `fetchPerHostConcurrency` (2) apply to both
-callers, so the service cannot be used to hammer someone else's site.
+callers, so the service cannot hammer someone else's site.
 
 ## Steps
 
@@ -210,7 +210,7 @@ oversized body. `memory_cat`, `memory_search`, and `memory_diff` fence untrusted
 ### 6. Frontend — `frontend/src/components/memory/AddFromUrlDialog.tsx`
 
 An **Add from URL** button beside upload on the Memory page. The dialog takes a URL and optional path, calls
-`preview` as the person types (debounced) to show where it will land or whose file it would replace, and on submit
+`preview` as the person types (debounced) to show where it lands or whose file it would replace, and on submit
 shows the job in phase 9's list. The info panel gains a **Source** block — URL, final URL, fetch time, mime — and
 an "untrusted (fetched)" badge.
 
@@ -218,7 +218,7 @@ an "untrusted (fetched)" badge.
 
 | Command | Notes |
 |---|---|
-| `botholomew memory add <url…> [--path p] [--replace] [--note n] [--wait]` | Arguments matching `^https?://` go to `memory:add` as `url` (phase 9 refused them with a hint); everything else is still walked and uploaded client-side |
+| `botholomew memory add <url…> [--path p] [--replace] [--note n] [--wait]` | Arguments matching `^https?://` go to `memory:add` as `url` (phase 9 refuses them with a hint); everything else is still walked and uploaded client-side |
 
 ### 8. User docs — `frontend/src/content/docs/memory.md`, `frontend/src/content/docs/security.md`
 

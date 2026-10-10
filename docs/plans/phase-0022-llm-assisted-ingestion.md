@@ -13,7 +13,7 @@
 
 [Phase 9](./phase-0009-memory-search-and-ingestion.md) ports membot's converters without the parts that call a
 model, and that is the right default: every file becomes searchable markdown with no key, no spend, and nothing
-leaving the deployment. It also leaves three holes membot filled with a model. An image is a placeholder. A
+leaving the deployment. It also leaves three holes membot fills with a model. An image is a placeholder. A
 scanned PDF is `(scanned PDF, N bytes — no recognizable text)`. A file without a heading gets a description that
 is its first two hundred characters. Search over those is search over noise.
 
@@ -29,7 +29,7 @@ stays.
 **In:** columns on phase 9's `memory_settings` (opt-in, model choice, budgets, caps, excluded prefixes);
 `backend/llm/ingestion.ts` with membot's three prompts; vision captions for images embedded in HTML and DOCX,
 capped per document; model conversion of scanned PDFs (native document input only) and of structured text;
-model-written descriptions when a file has no title; the caption path standalone image files will use; model
+model-written descriptions when a file has no title; the caption path built for standalone image files; model
 capability flags on `project_models`; the budget check, `usage_events` with `kind = 'ingestion'`, and threshold
 notifications; enrichment provenance on every version; degraded-file tracking; `memory:enrich` to re-run; the
 settings UI, CLI, user docs, and tests on the fake model server.
@@ -75,7 +75,7 @@ without document input; any bot tool that spends the ingestion budget on demand.
 
 `memory_settings.llmEnabled` is false by default and only an admin can set it. Enabling it shows the sentence the
 person is agreeing to, with the provider read from the connection: *document text, images, and scanned pages
-from this project's memory will be sent to Anthropic under this project's key*. Three switches follow —
+from this project's memory are sent to Anthropic under this project's key*. Three switches follow —
 captions, conversion, descriptions — and `llmExcludePrefixes` (`hr/`, `legal/`) keeps whole subtrees
 deterministic. Reserved namespaces (`skills/`, `prompts/`, `bots/`) are never enriched: they are authored
 markdown with their own titles. Privacy is the project's business — the project is the boundary — so this is a
@@ -107,8 +107,8 @@ A file with an H1 never calls the describer — membot's `describer_skip_when_ti
 setting, because it is the main throughput and cost win in bulk ingest and turning it off buys little.
 
 Standalone image files stay refused here, for phase 9's stated reason: without the original kept, accepting one
-would discard the only copy and call it success. `captionImage` is built and tested now and becomes their surrogate
-when [phase 23](./phase-0023-original-bytes-and-blob-policy.md) keeps originals and opens image uploads.
+would discard the only copy and call it success. `captionImage` is built and tested here and is their surrogate in
+[phase 23](./phase-0023-original-bytes-and-blob-policy.md), which keeps originals and opens image uploads.
 
 Calls have membot's 60 s timeout and one retry on `429` / `5xx`. The ingest job's convert step runs on `default`
 rather than `embed` whenever enrichment is on, so a slow provider never holds the CPU-bound embedding slots;
@@ -149,9 +149,9 @@ the file count and a spend estimate. It writes a new version — `systemActor = 
 current version is still the machine-written one; a file someone edited since is skipped and reported, never
 overwritten. Descriptions can always be redone from the stored surrogate. Captions and conversion need the
 original bytes: a remote or router file is re-fetched through [phase 20](./phase-0020-upstream-refresh.md)'s forced
-refresh; an upload is skipped with "re-upload to caption" until
-[phase 23](./phase-0023-original-bytes-and-blob-policy.md) keeps originals. `--degraded` targets files whose last
-enrichment degraded — the "we ran out of budget last week" case.
+refresh; an upload is skipped with "re-upload to caption" unless
+[phase 23](./phase-0023-original-bytes-and-blob-policy.md) has kept its original. `--degraded` targets files whose
+last enrichment degraded — the "we ran out of budget last week" case.
 
 ## Steps
 
@@ -246,7 +246,7 @@ cd .. && bun dev
 
 Manually, with a real provider connection on the project:
 
-1. Upload a DOCX with screenshots and a scanned PDF with enrichment off: placeholders, as before.
+1. Upload a DOCX with screenshots and a scanned PDF with enrichment off: placeholders, as in phase 9.
 2. Settings → Memory ingestion: enable, read the provider sentence, set a $1 budget. Re-upload both: the DOCX has
    captions where its images were, the PDF has text under the "may contain errors" note, and search finds words
    that appear only in the screenshots.

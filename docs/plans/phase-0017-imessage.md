@@ -12,8 +12,8 @@
 
 Slack reaches people at their desks. A phone reaches them everywhere else, and the bots that most need a
 person are the ones whose work outlasts a sitting. Apple publishes no iMessage API. [Linq](https://linqapp.com/)
-operates that side and exposes a REST API and signed webhooks. ToolExec chose Linq and worked out what the
-choice implies in `toolexec:docs/plans/phase-32-remote-interfaces.md`, which never shipped. This phase builds
+operates that side and exposes a REST API and signed webhooks. ToolExec chooses Linq and works out what the
+choice implies in `toolexec:docs/plans/phase-32-remote-interfaces.md`, which is unshipped. This phase builds
 that half on the foundations [phase 16](./phase-0016-slack.md) lays down: `user_remote_identities`,
 `remote_threads`, the `outbox` with `remote:deliver` / `remote:dispatch`, the three kinds of sender, the
 causal-root delivery rule, and the messaging registry. All of them gain a second member here.
@@ -24,7 +24,7 @@ And people text rather than thread, so a chat with a project's number has to beh
 conversation that can be reset, with inline replies as the exception. Those three facts produce three new
 rules: reach rows, opt-out, and `reply_to` threading.
 
-Out of this phase are group chats and attachments, for the audience reason ToolExec gave and for scope. So is
+Out of this phase are group chats and attachments, for the audience reason ToolExec gives and for scope. So is
 any fallback to SMS or RCS, in either direction.
 
 ## Scope
@@ -75,7 +75,7 @@ fan-out as Slack's. Tapback reactions as answers. Retention of iMessage-originat
 
 ### Each project connects its own Linq account and line
 
-Infrastructure belongs to the project that uses it: model keys, MCP credentials, Slack apps, and now a
+Infrastructure belongs to the project that uses it: model keys, MCP credentials, Slack apps, and here a
 number on the project's own Linq bill. `linq` is a connection kind whose encrypted map is `{ apiKey,
 webhookSecret }`, the same one-map shape as [phase 16](./phase-0016-slack.md)'s `slack`. Its metadata holds
 `lineNumber` (E.164), `subscriptionId`, `payloadVersion`, and `defaultBotId` (the leader unless an admin
@@ -100,8 +100,8 @@ routing token that does not exist. Its first delivery gets the 404, which ends L
 the next attempt deletes it. Replacing the key rotates the routing token and recreates the subscription,
 because the secret cannot be read back. Disconnecting decrypts the key and reads the subscription id inside
 the transaction, deletes the row, and then, in `afterCommit` and on a best-effort basis, uses those values to
-delete the subscription. The key is held only in memory, because after commit the row that held it no longer
-exists. If that call fails, the 404 ends Linq's retries on the first delivery anyway.
+delete the subscription. The key is held only in memory, because after commit the row that held it is
+gone. If that call fails, the 404 ends Linq's retries on the first delivery anyway.
 
 ### Linking by texting a code
 
@@ -119,8 +119,8 @@ chat, but our first outbound message is never the first message of a chat.
 `remote_reach` (`identityId`, `connectionId`, `firstInboundAt`, `lastInboundAt`, `optedOutAt`,
 `currentThreadId`) gets a row the first time a verified identity texts that line. The outbox refuses to
 claim a message row for a handle without a live reach row, and that check is defence in depth: every
-delivery in this phase is already a reply to the person's own message. Reach exists for what comes after
-this phase, such as paging, and as the place opt-out lives. A person linked through project A's number has
+delivery in this phase is already a reply to the person's own message. Reach exists for sends that are not
+replies, such as paging, and as the place opt-out lives. A person linked through project A's number has
 never texted project B's number, so B cannot reach them. The account page lists each of the person's
 projects that has a line, with its number, whether it can reach them yet, and any opt-out: *text anything to
 +1 555 0100 to talk to this project's bots on iMessage.*
@@ -147,8 +147,8 @@ a courtesy message.
 Every send sets `preferred_service: "iMessage"` with no fallback. A send Linq fails because the recipient is
 not on iMessage ends `undeliverable: not_imessage`. Inbound, a message whose service is SMS or RCS resolves
 to nobody, because the sending network chooses that identity. It writes no identity, no reach row and no
-thread message, and it gets **no reply**. This departs from ToolExec, which proposed one reply saying
-iMessage is required. Our sends are iMessage-only, so that reply could not reach the person it was for. The
+thread message, and it gets **no reply**. This departs from ToolExec, which proposes one reply saying
+iMessage is required. Our sends are iMessage-only, so that reply cannot reach the person it is for. The
 account page states the requirement instead. The consequence, stated plainly, is that a person without
 iMessage cannot use this channel.
 
@@ -184,7 +184,7 @@ bots named like people, *Botholomew, what's due today?* would open a new convers
 
 Replies make misrouting obvious. A reply from a bot other than the line's default starts with `[Researcher]`.
 The first reply in a thread ends with the thread's web link, which is allowed because it is never the chat's
-first message. A reply in a thread that is **no longer current** (say, a delegation report hours later) is
+first message. A reply in a thread that is **not current** (say, a delegation report hours later) is
 sent as an inline reply to the person's message that started that turn, so it lands visibly in the
 conversation it answers. Outbound text is capped at 2,000 characters, cut at a paragraph boundary with the
 link, because that is readable on a phone.

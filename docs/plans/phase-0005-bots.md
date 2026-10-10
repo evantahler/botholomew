@@ -3,7 +3,7 @@
 > **Goal:** Every project has a roster — the seeded leader, Botholomew, plus any worker bots people define —
 > each with a name, a role, a routing description, access tags, a model, a budget, and a concurrency cap, and
 > each with its identity, goals, and beliefs as versioned files in project memory. The project connects its
-> own model providers and names the models its bots use. Nothing runs yet.
+> own model providers and names the models its bots use. Nothing in this phase runs a bot.
 
 > **Status: planned, not built.** Stage B — One bot that thinks. Depends on
 > [phase 1](./phase-0001-clean-slate-and-shell.md), [phase 3](./phase-0003-organizations.md), and
@@ -11,12 +11,12 @@
 
 [Phase 6](./phase-0006-durable-bot-loop.md) cannot take a single model step without four things: a bot, the
 prompt it sees, a model to call, and a key to call it with. This phase builds all four and stops there, the
-way ToolExec's agent-management phase defined agents before any run existed. The editor, the access rules,
+way ToolExec's agent-management phase defines agents before any run exists. The editor, the access rules,
 model resolution, and prompt assembly can be reviewed — and tested — with no loop in the way.
 
 The `bots` table holds **structured fields only**. Everything a bot is told — identity, goals, beliefs, any
 other instruction — is a file under `bots/<slug>/prompts/`, beside the project-wide `prompts/`. v1 already
-kept prompts as markdown with strict frontmatter; putting them in project memory gives them history, diff,
+keeps prompts as markdown with strict frontmatter; putting them in project memory gives them history, diff,
 restore, search, the editor, and the CLI for free, and lets a bot edit its own goals in phase 6 through the
 same tools and rules a person uses. Keys are the project's own (**BYOK only**): connections are ported from
 ToolExec, and the named model registry from v1.
@@ -43,7 +43,7 @@ derives them), budget enforcement and the usage ledger
 ([phase 10](./phase-0010-mcp-servers-and-approvals.md)); skills in the prompt
 ([phase 12](./phase-0012-skills.md)); the leader creating and hibernating workers
 ([phase 13](./phase-0013-leader-and-workers.md)); per-bot schedules
-([phase 14](./phase-0014-schedules-and-wakeups.md)); uploaded avatar images and bot templates (later).
+([phase 14](./phase-0014-schedules-and-wakeups.md)); uploaded avatar images and bot templates (unscheduled).
 
 ## What already exists
 
@@ -103,7 +103,7 @@ swapping `UPDATE` could trip it.
 
 ### Description is the routing signal
 
-As in ToolExec, `description` is not documentation: it is what the leader and `@everyone` routing will read
+As in ToolExec, `description` is not documentation: it is what the leader and `@everyone` routing read
 to decide who should take a message. A bot described as "research" is a bot nothing routes to correctly.
 `bot:create` accepts an empty description so a first save is just a name; `bot:validate` reports anything
 under 20 characters, alongside a dangling model pin, a project with no default model or no usable connection,
@@ -121,11 +121,11 @@ exactly how Grok Bot's docs put it.
 
 `BotPromptOps.loadPromptFiles` reads the current heads under `prompts/` and `bots/<slug>/prompts/` in one
 query and parses each with phase 4's strict schema. As in v1, a file that fails **fast-fails** the load,
-naming the path; phase 4 validates on write, so this only fires if a schema tightens later.
+naming the path; phase 4 validates on write, so this fires only for a file written before its schema tightened.
 
-v1 built the system prompt as `buildMetaHeader` + prompts + instructions, and the header's first lines were
-`Current time (UTC): <ISO with milliseconds>`. Every request therefore had a unique first line and the
-provider's prompt cache could never hit — the most expensive line in the codebase. `buildPromptLayers(bot,
+v1 builds the system prompt as `buildMetaHeader` + prompts + instructions, and the header's first lines are
+`Current time (UTC): <ISO with milliseconds>`. Every request therefore has a unique first line and the
+provider's prompt cache can never hit — the most expensive line in the codebase. `buildPromptLayers(bot,
 { triggerText })` fixes that by construction:
 
 | Order | Layer | Changes when |
@@ -142,7 +142,7 @@ Ordering by volatility means a bot's self-edit to `beliefs.md` invalidates only 
 prefix. No layer above the breakpoint contains a timestamp, a counter, or anything per-request. Layers 2–5
 are what phase 6 hashes into its `system` entry; layer 6, the current time, and the other per-turn facts go
 into the turn's volatile tail, after the breakpoints. Contextual matching ports `extractKeywords` (lowercased, whitespace-split, longer than three
-characters) and adds a stopword list — v1's matched "that" and "with" — then ranks files by overlap and caps
+characters) and adds a stopword list — v1's matches "that" and "with" — then ranks files by overlap and caps
 the set at 5 files and 16,000 characters. The result carries every layer's `logicalPath` and `versionId`, so
 phase 6 can record exactly which prompt versions the model saw.
 
@@ -185,7 +185,7 @@ leader) tombstones its namespace — history stays — and deletes the row.
 leaks — with two changes. The kinds are `anthropic | openai | openai_compatible`, all `api_key`, so the
 OAuth refresh columns go. And connections are **named**, unique per project, instead of one per kind: a team
 may want two Anthropic keys billed separately, and `openai_compatible` is plural by nature. ToolExec's "no
-free-text names" rule existed so an agent's config could not ask a sandbox for a credential by name; here no
+free-text names" rule exists so an agent's config cannot ask a sandbox for a credential by name; here no
 guest code exists, and a model entry references its connection by foreign key, never by a name a bot can
 type.
 
@@ -208,11 +208,11 @@ unique index. `ModelOps` ports v1's functions over the rows:
 - `resolveModelFor(projectId, { override, pinned })` — `override` (a per-turn `--model`) beats `pinned` (the
   most specific pin: a task's or schedule's, else the bot's `modelName`) beats the default, and returns
   `shadowed` when the override displaces a pin, so the override is logged rather than silent.
-- `resolveFastModel(projectId)` — the fast model, **else the default**. v1 required both; a fresh 2.0
+- `resolveFastModel(projectId)` — the fast model, **else the default**. v1 requires both; a fresh 2.0
   project with a single key should not need two registry entries before it can title a thread.
 
 Resolution happens at boundaries — phase 6 resolves once per turn, before any `model_steps` row exists — so
-an unknown name fails before anything is spent. `bots.modelName` pins by name, as v1's task `model:` did;
+an unknown name fails before anything is spent. `bots.modelName` pins by name, as v1's task `model:` does;
 renaming a model rewrites its pins in the same transaction, and deleting a model is refused while it is the
 default, the fast model, or anyone's pin.
 
@@ -221,7 +221,7 @@ default, the fast model, or anyone's pin.
 `concurrencyCap` (default 3, at least 1) and `monthlyBudgetUsd` are enforced by
 [phase 6](./phase-0006-durable-bot-loop.md): with a cap of 2 or more, one slot is held back for human-priority
 work, and the budget is checked against the month's `usage_events` before each model step. Declaring them now
-keeps the editor complete and avoids a migration against a table that will have rows; the schema comment says
+keeps the editor complete and avoids a migration against a table that already has rows; the schema comment says
 what reads each one. `bots.status` (`hibernating | working | waiting | paused | errored`) is reserved for
 phase 6, which adds it with the pause columns and derives it from conversations; nothing in this phase shows a
 status, because nothing here could make one true.

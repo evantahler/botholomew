@@ -9,9 +9,9 @@
 > (notifications), [phase 9](./phase-0009-memory-search-and-ingestion.md) (conversion and embedding), and
 > [phase 19](./phase-0019-url-ingest.md) (the guarded fetcher and the source columns it persists).
 
-[Phase 19](./phase-0019-url-ingest.md) fetches once. That is enough for a paper or a spec that will not change,
+[Phase 19](./phase-0019-url-ingest.md) fetches once. That is enough for a paper or a spec that does not change,
 and wrong for the things teams actually point bots at: a handbook page, a pricing page, a status doc. membot
-answered this with `refresh_frequency` on each file and a daemon (`membot serve --watch`) that re-reads whatever
+answers this with `refresh_frequency` on each file and a daemon (`membot serve --watch`) that re-reads whatever
 is due. Its runner is the model for this phase — replay the persisted fetcher, compare the source sha, write a
 version only on change — and its daemon is what does not survive the move: a loop in one process, holding a
 DuckDB lock between ticks, with no notion of two workers, a crash halfway through, or one tenant's thousand
@@ -19,10 +19,10 @@ schedules starving another's one.
 
 So the daemon becomes a clock that claims due rows, the way every clock in this system claims work. The refresh
 itself becomes a small machine writer with three outcomes worth naming — changed, unchanged, failed — and two that
-membot never had to think about: the source is **gone**, and somebody **edited** the file since it was fetched.
+membot never has to think about: the source is **gone**, and somebody **edited** the file since it was fetched.
 Neither is allowed to destroy anything.
 
-This phase refreshes what [phase 19](./phase-0019-url-ingest.md) fetched (`sourceType = 'url'`) and builds the
+This phase refreshes what [phase 19](./phase-0019-url-ingest.md) fetches (`sourceType = 'url'`) and builds the
 dispatch table that [phase 21](./phase-0021-source-routers-and-bulk-sync.md)'s routers plug into. It does not
 refresh uploads — the server has no path back to a person's laptop — and it never tombstones on its own.
 
@@ -115,7 +115,7 @@ The window function is the fairness — a project with a thousand due rows gets 
 this tick, a project with one gets its one, and ordering by rank first means every project's most overdue row is
 in the batch before any project's second. Postgres refuses `FOR UPDATE` alongside a window function, so the
 claim is an `UPDATE` whose outer predicate is re-evaluated under each row lock: two overlapping ticks that rank
-the same ids claim disjoint sets, because the loser re-reads a `claimed_at` it can no longer match. Each claimed
+the same ids claim disjoint sets, because the loser re-reads a `claimed_at` it now fails to match. Each claimed
 row enqueues `memory:refresh-one { refreshId, claimEpoch }` on `default` in `afterCommit`. A task that dies leaves
 a claim that expires after `refreshClaimTtlMs` (10 min); every write the task makes — status, `nextRefreshAt`,
 staging the ingest job — is fenced on `claim_epoch = $mine`, so a task that wakes after its claim was retaken

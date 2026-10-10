@@ -9,19 +9,19 @@
 > [phase 6](./phase-0006-durable-bot-loop.md), [phase 7](./phase-0007-threads-and-web-chat.md), and
 > [phase 10](./phase-0010-mcp-servers-and-approvals.md).
 
-Until now every bot works alone: a person or another bot puts a message in its inbox, it thinks, it answers.
+Without delegation, every bot works alone: a person or another bot puts a message in its inbox, it thinks, it answers.
 This phase makes bots a team. It is the 2.0 form of the thing v1's [field notes](https://github.com/evantahler/botholomew/blob/v1/docs/field-notes.md)
 call the best surprise of the project — "watching the agent spin up its own workers when it decides it has
 parallel work to do" — rebuilt on rows and conversations, not on processes and lockfiles.
 
 v1's task system ([src/tasks/schema.ts](https://github.com/evantahler/botholomew/blob/v1/src/tasks/schema.ts),
 [src/tasks/store.ts](https://github.com/evantahler/botholomew/blob/v1/src/tasks/store.ts)) is the model, and its
-four failures are the spec for the port. A failed blocker stranded its dependents forever, because
-`isUnblocked` only ever asks whether every blocker is `complete`. `wait_task` parked a task as `waiting` with no
-wake condition, so only an approval decision ever brought one back. Nobody was told when a task finished: the
+four failures are the spec for the port. A failed blocker strands its dependents forever, because
+`isUnblocked` only ever asks whether every blocker is `complete`. `wait_task` parks a task as `waiting` with no
+wake condition, so only an approval decision ever brings one back. Nobody is told when a task finishes: the
 chat agent's `sleep` tool says, in its own description, that it exists for waiting "after enqueuing tasks for
-workers, before checking results". And work went to whichever worker claimed it next, so "give this to the
-researcher" could not be expressed at all.
+workers, before checking results". And work goes to whichever worker claims it next, so "give this to the
+researcher" cannot be expressed at all.
 
 The other half of the design comes from [pi-durable](https://earendil.com/posts/pi-durable/). There, a
 subagent is "a conversation owned by the tool call that started it", keyed by a deterministic `requestId` so a
@@ -50,7 +50,7 @@ the swarm page with a task DAG; `botholomew task …` and `botholomew swarm`; us
 reports in Slack or iMessage ([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)).
 Retention of settled tasks and their threads ([phase 18](./phase-0018-operations.md)). Delegation across
 projects: the project is the tenancy boundary. Moving a running task to another bot; you cancel it and
-delegate again. Bot templates for leader-created workers (later, unphased).
+delegate again. Bot templates for leader-created workers (unphased).
 
 ## What already exists
 
@@ -69,7 +69,7 @@ delegate again. Bot templates for leader-created workers (later, unphased).
 | Threads and notifications | `threads.parentThreadId`, owner routing, `dm` threads, content-free channels, `notifications` | [phase 7](./phase-0007-threads-and-web-chat.md) |
 | Approvals | `awaiting_approval` tool calls, approval cards, recorded calls replayed exactly | [phase 10](./phase-0010-mcp-servers-and-approvals.md) |
 
-What does not exist yet: any record that one bot asked another for a piece of work, any way for that work to
+What no earlier phase provides: any record that one bot asked another for a piece of work, any way for that work to
 depend on other work, and any way for the asker to hear the answer without polling.
 
 ## What this must not weaken
@@ -127,7 +127,7 @@ it is absent.
 5. The assignee's inbox row, which the brief produces.
 
 The brief is a thread message authored by whoever delegated. It reads as the task's title, description, and
-priority, plus the outputs of any predecessors — the same shape v1's `runAgentLoop` built. When a person creates
+priority, plus the outputs of any predecessors — the same shape v1's `runAgentLoop` builds. When a person creates
 the task, the brief is that person's message and carries human priority. A root task may instead be **placed**
 in an existing thread its assignee already owns. That is how a person runs `task create --thread`, and the
 brief is still their message in that thread. It is also how a schedule firing lands in the schedule's own
@@ -176,7 +176,7 @@ report is how we would learn the clock was broken, not how the task gets woken.
 
 **Turns must end in a status.** A turn in a delegation conversation that started from a brief, a resume, or a
 retry must end in `task_complete`, `task_fail`, or `task_wait`. [Phase 6](./phase-0006-durable-bot-loop.md)
-dropped v1's mandatory terminal-tool nudge for ordinary conversations, where a final tool-free step is the
+drops v1's mandatory terminal-tool nudge for ordinary conversations, where a final tool-free step is the
 normal end. A task turn is the exception, because a parent is waiting on a status, not on prose. When a task
 turn ends without one, v1's single nudge comes back: a
 `system` entry, followed by one more step. If the turn still ends without a status, the task fails as
@@ -185,7 +185,7 @@ delegation thread is exempt, because that turn is a conversation, not the task's
 
 **Predecessor outputs.** `task_complete` takes an `output` of at most 16 KB. A larger deliverable goes into
 memory with `memory_write`, and the output names its `logical_path`. The tool refuses anything over the limit
-and says so. Outputs are injected into the dependent's brief as v1 did — `### <title> (task #id) — succeeded`
+and says so. Outputs are injected into the dependent's brief as v1 does — `### <title> (task #id) — succeeded`
 followed by the text — fenced as bot-authored data.
 
 ### Reports come back as events; `wait_for` folds them
@@ -207,7 +207,7 @@ the parent gets one `tasks.waited` event summarising every task in the group:
 - **`all_settled`** fires when every task has settled.
 - **`fail_fast`** fires on the first failure and may cancel the rest with `cancel_rest: true`.
 - **A timeout** fires with `timedOut: true` and leaves every task running. Failing the wait would strand live
-  work with no handle — the same reasoning ToolExec applied to its own wait (`toolexec:docs/plans/phase-11-agent-stacking.md`).
+  work with no handle — the same reasoning ToolExec applies to its own wait (`toolexec:docs/plans/phase-11-agent-stacking.md`).
 
 ### Guards
 
@@ -216,7 +216,7 @@ handoffs can create duplicate work and noisy updates", and unrestricted swarms a
 Loops meet the depth limit, the assignee-cycle check, and the DM hop limit. Duplicate work meets the duplicate
 refusal. Noise meets `reportMode`, `wait_for` folding, and deduplicated workforce alerts. Quota burn meets the
 budgets and the per-tree spend cap. Each refusal is distinct and actionable, because the consumer is a model
-that will try to recover.
+that tries to recover.
 
 | Guard | Default | Enforced by |
 |---|---|---|
@@ -231,7 +231,7 @@ that will try to recover.
 | Spend per tree | off | Optional `maxSpendPerTree`, checked at `delegate` and at each task turn against `usage_events.taskId` |
 
 The counts and the cycle walk run once as cheap early-outs. They are then taken again behind
-`SELECT … FOR UPDATE` on the **root task row**, in the transaction that inserts. ToolExec learned this from a
+`SELECT … FOR UPDATE` on the **root task row**, in the transaction that inserts. This is a ToolExec learning, from a
 review: lock the caller and two branches of one tree each read the same tree count, and both insert. A root
 delegation has no root row yet, so it takes a per-project advisory lock instead.
 

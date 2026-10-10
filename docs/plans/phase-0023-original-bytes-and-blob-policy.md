@@ -10,26 +10,26 @@
 > [phase 18](./phase-0018-operations.md) (version retention and deletion semantics), and
 > [phase 22](./phase-0022-llm-assisted-ingestion.md) (captions and re-running enrichment).
 
-Until now an ingest is lossy on purpose. [Phase 9](./phase-0009-memory-search-and-ingestion.md) keeps the markdown
-surrogate and the source's sha and throws the bytes away, which kept the first memory phases small and the
-database honest about what it was for. The cost shows up in three places. A person who uploaded a contract cannot
-get the contract back. A converter fix — a better table extractor, phase 22's captions — helps only files
+Without this phase an ingest is lossy on purpose. [Phase 9](./phase-0009-memory-search-and-ingestion.md) keeps the
+markdown surrogate and the source's sha and throws the bytes away, which keeps the first memory phases small and
+the database honest about what it is for. The cost shows up in three places. A person who uploaded a contract
+cannot get the contract back. A converter fix — a better table extractor, phase 22's captions — helps only files
 ingested after it ships. And a bot in code mode that wants the numbers in an XLSX gets a markdown rendering of
 them, not the cells.
 
-membot always kept the bytes, content-addressed in a `blobs` table, and learned to stop keeping *all* of them: its
+membot always keeps the bytes, content-addressed in a `blobs` table, and stops short of keeping *all* of them: its
 blob policy skips anything over 25 MB and any video or audio, still writes the blob row's sha, mime, and size so
 dedupe and refresh keep working, and can strip bytes retroactively when the policy tightens. This phase brings
-that model across nearly verbatim, and spends its design on the questions membot did not have — where the bytes
+that model across nearly verbatim, and spends its design on the questions membot does not have — where the bytes
 live in a multi-tenant service, how they are served without becoming a stored-XSS vector, and how regeneration
 avoids clobbering human edits.
 
 ## Scope
 
-**In:** `memory_blobs` defined (phase 4 reserved it) with `memory_blob_parts` for the bytes; per-project sha
+**In:** `memory_blobs` defined (phase 4 reserves it) with `memory_blob_parts` for the bytes; per-project sha
 dedupe; membot's `shouldPersistBlobBytes` predicate with a per-project policy under a platform ceiling, plus a
 storage quota; metadata-only rows when bytes are skipped; an ingest job's staged payload becoming the blob in
-the version's transaction instead of being nulled; image uploads opened, now that the original is kept; download
+the version's transaction instead of being nulled; image uploads opened, because the original is kept; download
 as an attachment, `memory:read bytes` for MCP clients, `memory.readBytes` in code mode;
 converter revisions and `memory:reconvert`; the retroactive strip; orphan collection coordinated with phase 18;
 storage accounting in `memory:stats`; UI, CLI, user docs, tests.
@@ -78,7 +78,7 @@ The master plan's default stands: bytes live in Postgres. The argument for it is
 api, worker, frontend, Redis, Postgres, nothing else. A blob in Postgres commits atomically with the version that
 names it, is covered by the same backups and point-in-time recovery, is scoped by the same `projectId` foreign key
 and removed by the same cascade when a project is deleted, and can be counted per project with one query.
-ToolExec made the same call for 32 MB session checkpoints for the same reason. Object storage would add a
+ToolExec makes the same call for 32 MB session checkpoints for the same reason. Object storage would add a
 service, a credential, a second deletion path that can drift from the first, and an "orphaned in the bucket"
 failure Postgres cannot have.
 
@@ -87,10 +87,10 @@ materialized whole by the driver. The 25 MiB per-file ceiling and a per-project 
 is why bytes are stored in **1 MiB parts** (`memory_blob_parts`) rather than one column: a download streams part
 by part, no query ever holds more than a part, and a 25 MiB upload is 25 inserts in the version's transaction.
 
-`memory_blobs.storage` is `pg` today, and `BlobStoreOps` is the only code that reads or writes parts. When a
+`memory_blobs.storage` is `pg`, and `BlobStoreOps` is the only code that reads or writes parts. When a
 deployment's blob total or backup time crosses what Postgres should carry — tens of gigabytes, not hundreds of
-megabytes — an S3-compatible driver behind that interface moves cold blobs without touching a caller. That is a
-later decision with a measurable trigger, recorded here so nobody makes it early.
+megabytes — an S3-compatible driver behind that interface moves cold blobs without touching a caller. That decision
+has a measurable trigger, and is recorded here so nobody makes it early.
 
 Bytes are not encrypted by the application. The surrogate in `memory_files.content` is the same text in
 plaintext, so encrypting only its original would buy nothing; both rely on the database's encryption at rest.
@@ -111,19 +111,19 @@ the policy was loosened, the quota freed — the bytes are filled in: **rehydrat
 
 Reaching the quota never fails an ingest; it records `quota` and notifies admins once a day while it persists.
 Where [phase 9](./phase-0009-memory-search-and-ingestion.md)'s `memory:ingest` nulls a job's staged payload on
-success, it now hands the payload to `putBlob` in the transaction that writes the version — the bytes are already
-in Postgres, so keeping them is a move, not a second upload. Sources that emit markdown directly (routers with `docmd`, inline writes) store no blob, as in membot. Fetched
+success, it instead hands the payload to `putBlob` in the transaction that writes the version — the bytes are
+already in Postgres, so keeping them is a move, not a second upload. Sources that emit markdown directly (routers with `docmd`, inline writes) store no blob, as in membot. Fetched
 HTML *does* keep its bytes: turndown's configuration is exactly the kind of converter that improves.
 
 ### Image files, at last
 
-[Phase 9](./phase-0009-memory-search-and-ingestion.md) refused image uploads because accepting one would keep a
-placeholder and discard the only copy. With originals kept that objection is gone, so `memory:upload`,
+[Phase 9](./phase-0009-memory-search-and-ingestion.md) refuses image uploads because accepting one would keep a
+placeholder and discard the only copy. With originals kept that objection does not hold, so `memory:upload`,
 `memory:add`, and a [phase 19](./phase-0019-url-ingest.md) URL accept PNG, JPEG, GIF, and WebP. The surrogate is
 [phase 22](./phase-0022-llm-assisted-ingestion.md)'s caption when enrichment is on and the model can see images,
 otherwise membot's placeholder plus the filename — and a later `memory:enrich` captions it from the stored bytes.
 An image whose bytes the policy would skip is still refused, because accepting it would be exactly the loss phase
-9 refused. Audio and video stay refused: there is no converter, and the default policy skips their bytes.
+9 refuses. Audio and video stay refused: there is no converter, and the default policy skips their bytes.
 
 ### Serving originals
 
@@ -188,7 +188,7 @@ reference checks.
 
 - `shouldPersistBlobBytes(mime, size, policy)` — membot's predicate, unchanged.
 - `putBlob(tx, projectId, bytes, mime)` → `{ blobId, stored, skipReason }` — dedupe, policy, quota, rehydration.
-- `BlobStoreOps.write(tx, blobId, bytes)` / `stream(blobId)` / `drop(tx, blobId)` — the only part access; `pg` now.
+- `BlobStoreOps.write(tx, blobId, bytes)` / `stream(blobId)` / `drop(tx, blobId)` — the only part access, over `pg`.
 - `stripByPolicy(projectId, { dryRun })` → `{ blobs, reclaimedBytes }`.
 - `gcOrphanBlobs(projectId?)` — delete blobs no version references; the sweep's body, and the same predicate
   phase 18's prune applies in its batch.
@@ -232,7 +232,7 @@ behind, each with its four counts and **Run**.
 | `botholomew memory reconvert [prefix] [--mime m] [--apply]` | Dry run unless `--apply` |
 | `botholomew memory blobs strip [--apply]` | Dry run unless `--apply` |
 | `botholomew memory settings --blob-max 10MB --blob-skip 'video/*' --blob-quota 5GB` | Admin |
-| `botholomew memory stats [prefix]` | Now includes storage |
+| `botholomew memory stats [prefix]` | Includes storage |
 
 ### 8. User docs — `frontend/src/content/docs/memory.md`, `frontend/src/content/docs/security.md`
 

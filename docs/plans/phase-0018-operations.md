@@ -18,7 +18,7 @@ a conversation can be audited, replayed or re-compacted. [Phase 4](./phase-0004-
 memory is append-only, and only admin-run retention may remove old versions. Without this phase, every one of
 those promises turns into an unbounded table and an unbounded bill for whoever runs Postgres.
 
-The phase also closes the operational gaps the ToolExec shell left open. ToolExec has no way to delete a
+The phase also closes the operational gaps the ToolExec shell leaves open. ToolExec has no way to delete a
 user, and its `audit_logs.userId` foreign key would block one. Its `CryptoOps` has one key and no key id, so
 the key can never be rotated. Its usage numbers live on a run page and nowhere else. This phase leaves the
 data model alone and puts the lifecycle around it: retention, deletion, rotation, dashboards, alerts, evals,
@@ -27,7 +27,7 @@ observability and restore.
 What it leaves out is anything that changes the shape of the product. A portable project dump and
 organization billing stay on the README's unphased list. Stripping blob bytes belongs to
 [phase 23](./phase-0023-original-bytes-and-blob-policy.md). Provisioning production belongs to the deployment
-work after [phase 2](./phase-0002-deployment.md), and the runbooks here are written so production can adopt them
+work [phase 2](./phase-0002-deployment.md) leaves out, and the runbooks here are written so production can adopt them
 unchanged.
 
 ## Scope
@@ -41,7 +41,7 @@ pages per project, bot and organization; budget and runaway alerts; growing phas
 scored regression suite; tracing, metrics, alerts, Sentry scrubbing and `@keryxjs/resque-admin`; the backup and
 restore runbook; and a rate-limit review backed by an enumeration test.
 
-**Out:** project dump/apply (unphased; ToolExec's `ProjectDumpOps` is the reference when it comes).
+**Out:** project dump/apply (unphased; ToolExec's `ProjectDumpOps` is its reference).
 Organization billing (unphased). Blob-byte stripping ([phase 23](./phase-0023-original-bytes-and-blob-policy.md)).
 A platform-operator web UI over project content. Deliberately never; see "Observability".
 
@@ -182,7 +182,7 @@ for `project:view` and `project:restore` for its admins, and Slack and Linq ingr
 byte-identical 404. `project:restore` (admin, audited) undoes the tombstone within the window. Bots stay
 paused until someone resumes them.
 
-`projects:sweep` (daily) purges what is past `purgeAfter`, in the order ToolExec's `project:delete` taught:
+`projects:sweep` (daily) purges what is past `purgeAfter`, in the order ToolExec's `project:delete` teaches:
 **external cleanup while the credentials still exist.** First it deletes Linq webhook subscriptions and
 revokes MCP OAuth tokens where the server supports revocation (best effort, and failures are logged and
 recorded in metrics). A Slack app belongs to the workspace and cannot be deleted from here, so the
@@ -224,7 +224,7 @@ active one, and updates `WHERE id = $id AND keyId = $old`. A concurrent token re
 idempotent. Parked `code_runs` continuations are signed with a key that phase 11 derives from the master key
 by HKDF, so re-encrypting would not re-sign them. `secrets:status` therefore reports them, and the operator
 either waits (they are short-lived) or runs `secrets:rotate --expire-parked`. That fails each one with phase
-11's "verify before retrying" result, which is the "re-encrypts or expires" choice phase 11 left here.
+11's "verify before retrying" result, which is the "re-encrypts or expires" choice phase 11 leaves here.
 
 Rotation protects future ciphertext. It does not undo a leak of the database together with a key. In that
 case the runbook has every project admin notified with their list of connections to revoke upstream. The
@@ -257,7 +257,7 @@ Phase 6 enforces budgets by refusing the next model step. This phase adds warnin
 notifications at 50%, 80% and 100% of a monthly bot or project budget, **once per threshold per period**
 (`budget_alerts` unique key). It also raises a **runaway** alert when a bot's spend in the last hour exceeds
 ten times its trailing seven-day hourly average and one dollar. That catches the swarm loops Grok Bot warns
-about and phase 6's guards missed. Organizations get an alert-only `monthlyBudgetMicros`. With no billing
+about and phase 6's guards miss. Organizations get an alert-only `monthlyBudgetMicros`. With no billing
 and no organization-level permissions, a hard stop there would be a policy nobody can see.
 
 ### Behaviour evals become a regression suite
@@ -300,7 +300,7 @@ The baseline changes only by pull request, linking the run that justifies it. `b
   10 minutes; an errored-conversation spike; outbox failure rate over 5%; `bots` queue depth growing for 15
   minutes; Redis memory over 80% (`noeviction` means a full Redis refuses writes); Postgres connections over
   80%; and a surge in signature failures, which means either an attack or a secret rotated on one side only.
-- **Sentry** stays errors-only, as ToolExec learned. A `beforeSend` hook drops request bodies for `webhook:*`
+- **Sentry** stays errors-only, per ToolExec's learnings. A `beforeSend` hook drops request bodies for `webhook:*`
   and for message and memory actions, and strips `content`, `text`, `body`, `args` and every `SENSITIVE_KEYS`
   key, because Sentry is a third party outside every project's boundary.
 - **Queues:** `@keryxjs/resque-admin` is mounted on the API only when `RESQUE_ADMIN_ENABLED=true`, behind
@@ -311,7 +311,7 @@ The baseline changes only by pull request, linking the run that justifies it. `b
 ### Backup and restore
 
 Everything durable is in Postgres, including memory bytes (`bytea`), so Render's managed backups are the
-backup. Production will require point-in-time recovery. Redis is not backed up. Losing it costs sessions
+backup. Production requires point-in-time recovery. Redis is not backed up. Losing it costs sessions
 (people sign in again), link codes (minted again) and queued jobs, and the clocks find those again from rows
 (`bots:dispatch`, `remote:dispatch`, `notifications:dispatch`). The runbook in `docs/DEPLOY.md`:
 
@@ -344,8 +344,8 @@ and age, it gains a per-project cap per tick, so one busy project cannot fill th
 
 ### Data export, later
 
-A full project dump/apply format stays unphased, and ToolExec's `ProjectDumpOps` is the starting point when it
-comes. Until then the interim path is documented: `botholomew memory pull <prefix> <dir>` for files, prompts
+A full project dump/apply format stays unphased, and ToolExec's `ProjectDumpOps` is its starting
+point. In its absence the documented path is: `botholomew memory pull <prefix> <dir>` for files, prompts
 and skills; `botholomew thread view <id> --json` per thread; and `botholomew audit list --json`.
 
 ## Steps
@@ -496,7 +496,7 @@ cd .. && bun dev
 Manually, against a project with a few weeks of seeded history:
 
 1. Settings → Data retention: set conversation entries to 7 days. Run `bun keryx.ts retention:sweep`, then
-   drain. In an idle thread, old entries are gone, a `reset` entry sits where history used to start, and the
+   drain. In an idle thread, old entries are gone, a `reset` entry sits at the start of history, and the
    bot still answers there. In a thread used today, nothing is gone yet and the conversation is flagged to
    compact.
 2. `botholomew memory prune --before 2026-09-01` prints counts. Re-run with `--yes`. Current files are
