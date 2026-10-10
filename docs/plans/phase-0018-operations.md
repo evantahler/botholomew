@@ -5,16 +5,16 @@
 > without downtime. Every project sees what its bots cost on its own key. Nightly evals catch behaviour
 > regressions before people do. An operator can see, throttle and restore the whole system.
 
-> **Status: planned, not built.** Stage E — Everywhere. Depends on [phase 2](./phase-02-deployment.md),
-> [phase 3](./phase-03-organizations.md), [phase 6](./phase-06-durable-bot-loop.md),
-> [phase 8](./phase-08-context-management.md), [phase 10](./phase-10-mcp-servers-and-approvals.md),
-> [phase 11](./phase-11-code-mode.md), [phase 16](./phase-16-slack.md) and [phase 17](./phase-17-imessage.md),
+> **Status: planned, not built.** Stage E — Everywhere. Depends on [phase 2](./phase-0002-deployment.md),
+> [phase 3](./phase-0003-organizations.md), [phase 6](./phase-0006-durable-bot-loop.md),
+> [phase 8](./phase-0008-context-management.md), [phase 10](./phase-0010-mcp-servers-and-approvals.md),
+> [phase 11](./phase-0011-code-mode.md), [phase 16](./phase-0016-slack.md) and [phase 17](./phase-0017-imessage.md),
 > because it sweeps, deletes or re-encrypts their tables.
 
-Every earlier phase writes rows, and none of them removes any. [Phase 6](./phase-06-durable-bot-loop.md)
-records every model step and tool call. [Phase 8](./phase-08-context-management.md) compacts in the
+Every earlier phase writes rows, and none of them removes any. [Phase 6](./phase-0006-durable-bot-loop.md)
+records every model step and tool call. [Phase 8](./phase-0008-context-management.md) compacts in the
 background, but following pi-durable it **never deletes the entries it compacted**. Old entries stay so that
-a conversation can be audited, replayed or re-compacted. [Phase 4](./phase-04-project-memory-core.md)'s
+a conversation can be audited, replayed or re-compacted. [Phase 4](./phase-0004-project-memory-core.md)'s
 memory is append-only, and only admin-run retention may remove old versions. Without this phase, every one of
 those promises turns into an unbounded table and an unbounded bill for whoever runs Postgres.
 
@@ -26,8 +26,8 @@ observability and restore.
 
 What it leaves out is anything that changes the shape of the product. A portable project dump and
 organization billing stay on the README's unphased list. Stripping blob bytes belongs to
-[phase 23](./phase-23-original-bytes-and-blob-policy.md). Provisioning production belongs to the deployment
-work after [phase 2](./phase-02-deployment.md), and the runbooks here are written so production can adopt them
+[phase 23](./phase-0023-original-bytes-and-blob-policy.md). Provisioning production belongs to the deployment
+work after [phase 2](./phase-0002-deployment.md), and the runbooks here are written so production can adopt them
 unchanged.
 
 ## Scope
@@ -42,7 +42,7 @@ scored regression suite; tracing, metrics, alerts, Sentry scrubbing and `@keryxj
 restore runbook; and a rate-limit review backed by an enumeration test.
 
 **Out:** project dump/apply (unphased; ToolExec's `ProjectDumpOps` is the reference when it comes).
-Organization billing (unphased). Blob-byte stripping ([phase 23](./phase-23-original-bytes-and-blob-policy.md)).
+Organization billing (unphased). Blob-byte stripping ([phase 23](./phase-0023-original-bytes-and-blob-policy.md)).
 A platform-operator web UI over project content. Deliberately never; see "Observability".
 
 ## What already exists
@@ -55,12 +55,12 @@ A platform-operator web UI over project content. Deliberately never; see "Observ
 | Deleting with external state | `project:delete` destroys provider-side resources while the credentials still exist | `toolexec:backend/actions/project/project-delete.ts` |
 | AES-256-GCM and the boot check | One key, a fresh IV per write, no plaintext fallback, and a bad key fails the deploy | `toolexec:backend/ops/CryptoOps.ts`, `toolexec:backend/initializers/secrets.ts` |
 | Cost estimates | "A wrong price is worse than a missing one, and a silent zero is worst"; cache read and write multipliers | `toolexec:backend/ops/ModelPriceOps.ts`, `toolexec:backend/ops/RunUsageOps.ts` |
-| Sequence repair after restore | Discovers sequences through `pg_get_serial_sequence`, never moves one backwards, safe to re-run | `toolexec:backend/scripts/repair-sequences.ts` (copied in [phase 1](./phase-01-clean-slate-and-shell.md)) |
+| Sequence repair after restore | Discovers sequences through `pg_get_serial_sequence`, never moves one backwards, safe to re-run | `toolexec:backend/scripts/repair-sequences.ts` (copied in [phase 1](./phase-0001-clean-slate-and-shell.md)) |
 | Limits and telemetry config | Rate-limit defaults; `/metrics` with basic auth; errors-only Sentry with per-service names | `toolexec:backend/config/{rateLimit,observability,sentry,plugins}.ts`; `toolexec:docs/plans/phase-02-deployment.md` learnings |
 | Keryx plugins | `@keryxjs/tracing` (OpenTelemetry for HTTP, actions, tasks, Redis, Drizzle) and `@keryxjs/resque-admin` (queues, workers, failed jobs, locks) | <https://keryxjs.com/plugins/> |
 | membot `prune` | `--before`, dry-run by default, the current version never touched | [src/operations/prune.ts](https://github.com/evantahler/membot/blob/main/src/operations/prune.ts) |
 | v1 usage accounting | Cache-token normalization across providers; context breakdown | [src/llm/usage.ts](https://github.com/evantahler/botholomew/blob/v1/src/llm/usage.ts), [src/chat/usage.ts](https://github.com/evantahler/botholomew/blob/v1/src/chat/usage.ts) |
-| The loop's ledger and harness | `usage_events`, per-bot and per-project budgets, the fake model server, the nightly eval harness | [phase 6](./phase-06-durable-bot-loop.md) |
+| The loop's ledger and harness | `usage_events`, per-bot and per-project budgets, the fake model server, the nightly eval harness | [phase 6](./phase-0006-durable-bot-loop.md) |
 
 ## What this must not weaken
 
@@ -111,7 +111,7 @@ forever, and scratch and the inbox are operational and not configurable. Audit r
 ToolExec's 90 days to 365 days. Here the audit log also records what bots changed (prompts, skills,
 workers), and that question gets asked long after the fact. Thread messages outlive conversation entries on
 purpose. A bot whose old context was swept can still recall the human-visible record through
-[phase 8](./phase-08-context-management.md)'s `thread_search`. Slack and iMessage text gets no second rule:
+[phase 8](./phase-0008-context-management.md)'s `thread_search`. Slack and iMessage text gets no second rule:
 it is a thread message.
 
 ### Conversation entries: delete only behind the hydration base
@@ -120,7 +120,7 @@ pi-durable keeps old entries forever and lets compaction change only what is hyd
 inside the window and adds one deleter. For each conversation with entries older than the cutoff:
 
 1. **The base is newer than every expired entry.** Delete the expired entries before it. This is the common
-   case, because [phase 8](./phase-08-context-management.md) compacts long conversations anyway.
+   case, because [phase 8](./phase-0008-context-management.md) compacts long conversations anyway.
 2. **Every entry has expired** (an idle conversation, with or without a base), and it is not leased. Take
    the lease the way a tick does: bump `leaseEpoch` so any racing tick's fenced writes affect zero rows.
    Write a deterministic `reset` entry: *Earlier conversation (before 2026-07-12) was removed by the
@@ -145,7 +145,7 @@ because prompt history is how a person audits what a bot was told. The retention
 the project's `memoryVersions` policy, which is off by default, so nothing is pruned until an admin opts in.
 That keeps phase 4's promise: only admin-run retention removes versions. Pruning a version deletes its
 chunks and embeddings, and a `memory_blobs` row no version references any more is deleted in the same batch.
-Stripping bytes from blobs that are still referenced is [phase 23](./phase-23-original-bytes-and-blob-policy.md)'s.
+Stripping bytes from blobs that are still referenced is [phase 23](./phase-0023-original-bytes-and-blob-policy.md)'s.
 **Scratch** is the one hard purge that bypasses tombstones by design. Large results there are working
 material, not history.
 
@@ -205,8 +205,8 @@ of them. One registry, `ENCRYPTED_COLUMNS`, lists them:
 | `project_connections` | credential and refresh triples (model keys; Slack and Linq secret maps) |
 | `mcp_credentials` | access and refresh tokens |
 | `oauth_client_registrations` | client secret |
-| `approvals` | the encrypted elicitation answer ([phase 10](./phase-10-mcp-servers-and-approvals.md)) |
-| `code_runs` | the parked continuation ([phase 11](./phase-11-code-mode.md)) |
+| `approvals` | the encrypted elicitation answer ([phase 10](./phase-0010-mcp-servers-and-approvals.md)) |
+| `code_runs` | the parked continuation ([phase 11](./phase-0011-code-mode.md)) |
 
 A schema test asserts that every column whose name ends in `ciphertext` belongs to a registered set, so the
 next encrypted column cannot skip rotation. `SECRETS_ENCRYPTION_KEY` stays the active key, and
@@ -232,7 +232,7 @@ Keryx session secret and OAuth signing keys rotate separately and are documented
 
 ### Usage: the customer's own spend
 
-`usage_events` ([phase 6](./phase-06-durable-bot-loop.md)) carries one row per model step: project, bot,
+`usage_events` ([phase 6](./phase-0006-durable-bot-loop.md)) carries one row per model step: project, bot,
 conversation, model, connection, input, output, cache-read and cache-write tokens, an estimated cost in
 micro-dollars or null when the model is unpriced, and `estimated` for abandoned spend. The hourly
 `usage:rollup` recomputes `usage_daily` for the last two UTC days by upsert, so a late event or a rerun is
@@ -396,9 +396,9 @@ trace sample ratio (0.1), `RESQUE_ADMIN_ENABLED`, and the operator basic-auth pa
 | `usage:summary` | `GET /usage` | member (bots filtered by `canReadBot`); organization scope for owners | read | human MCP |
 | `project:retention-edit` | `POST /project/retention` | admin | yes | human MCP |
 | `memory:prune` | `POST /memory/prune` | admin | yes, unless `dryRun` | human MCP |
-| `project:delete` (changed) | `DELETE /project` | admin | yes | as [phase 1](./phase-01-clean-slate-and-shell.md) |
+| `project:delete` (changed) | `DELETE /project` | admin | yes | as [phase 1](./phase-0001-clean-slate-and-shell.md) |
 | `project:restore` | `POST /project/restore` | admin of the tombstoned project | yes | human MCP |
-| `organization:delete` (changed) / `organization:restore` | `DELETE /organization` / `POST /organization/restore` | owner | yes | as [phase 3](./phase-03-organizations.md) / human MCP |
+| `organization:delete` (changed) / `organization:restore` | `DELETE /organization` / `POST /organization/restore` | owner | yes | as [phase 3](./phase-0003-organizations.md) / human MCP |
 | `user:delete` | `DELETE /user`; `password` is a `secret()` field | session | yes | **never** |
 
 ### 5. Clocks / tasks — `backend/actions/{retention,projects,usage,budgets,secrets}/*.ts`

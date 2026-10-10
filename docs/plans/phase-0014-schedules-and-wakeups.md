@@ -6,14 +6,14 @@
 > durable reminders for themselves and for people, and outside systems can wake a bot through its own
 > webhook URL.
 
-> **Status: planned, not built.** Stage D — Swarms. Depends on [phase 5](./phase-05-bots.md),
-> [phase 6](./phase-06-durable-bot-loop.md), [phase 7](./phase-07-threads-and-web-chat.md),
-> [phase 8](./phase-08-context-management.md), and [phase 13](./phase-13-leader-and-workers.md).
+> **Status: planned, not built.** Stage D — Swarms. Depends on [phase 5](./phase-0005-bots.md),
+> [phase 6](./phase-0006-durable-bot-loop.md), [phase 7](./phase-0007-threads-and-web-chat.md),
+> [phase 8](./phase-0008-context-management.md), and [phase 13](./phase-0013-leader-and-workers.md).
 
 Always-on bots need a clock. Until now a bot only wakes when someone writes to it. This phase gives it three
 more reasons to wake: a schedule fires, a reminder comes due, or an external system calls its webhook. All
 three land in the same place every other wake lands — an `event` row in a conversation's inbox. The loop
-from [phase 6](./phase-06-durable-bot-loop.md) does not change. Only the producers of rows are new.
+from [phase 6](./phase-0006-durable-bot-loop.md) does not change. Only the producers of rows are new.
 
 Schedules come from v1. A v1 schedule ([src/schedules/schema.ts](https://github.com/evantahler/botholomew/blob/v1/src/schedules/schema.ts))
 has a name, a description of what to do, a natural-language `frequency`, `enabled`, a model pin, and
@@ -44,7 +44,7 @@ And nothing recorded when a schedule fired, or why.
   "if there is no response".
 
 This phase deliberately leaves out triggers from integration events, such as a Slack message
-([phase 16](./phase-16-slack.md)); a per-bot webhook URL covers the generic case. It also leaves out holiday
+([phase 16](./phase-0016-slack.md)); a per-bot webhook URL covers the generic case. It also leaves out holiday
 and calendar awareness inside the scheduler. Conditions like "except US holidays" become instructions the bot
 checks when the schedule fires.
 
@@ -53,18 +53,18 @@ checks when the schedule fires.
 **In:** `schedules` and `schedule_runs`; natural-language frequency compiled once by the project's fast
 model, previewed, and confirmed by a person; `CronOps`, ported with a minimum-gap scan for the 5-minute
 floor; `schedules:fire`, with ToolExec's three idempotence guards, one-run catch-up, and DST correctness;
-each firing as a root task placed in the schedule's thread ([phase 13](./phase-13-leader-and-workers.md));
+each firing as a root task placed in the schedule's thread ([phase 13](./phase-0013-leader-and-workers.md));
 run records (the last 20), a test run, enable and disable, auto-pause after repeated failures, auto-pause
 after a long owner absence with a keep-alive prompt; the `schedule_create` / `schedule_list` / `schedule_edit`
 bot tools; `bot_wakeups`, which makes `sleep_until` and a new `remind_me` durable rows behind
 `conversations.wakeAt`; per-bot webhook URLs with ToolExec's ingress discipline; an optional reflection
 schedule, off by default; the UI, `botholomew schedule …`, `reminder …`, and `bot webhook …`; user docs.
 
-**Out:** Slack and iMessage triggers ([phase 16](./phase-16-slack.md), [phase 17](./phase-17-imessage.md)).
+**Out:** Slack and iMessage triggers ([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)).
 Provider-specific webhook signatures such as GitHub's `X-Hub-Signature-256`: the token in the path is the
 secret, as in ToolExec, and HMAC verification plugs in later. Email notifications for keep-alive prompts: the
-2.0 shell drops the mail transport ([phase 1](./phase-01-clean-slate-and-shell.md)). Retention of tasks and
-threads that schedules create ([phase 18](./phase-18-operations.md)).
+2.0 shell drops the mail transport ([phase 1](./phase-0001-clean-slate-and-shell.md)). Retention of tasks and
+threads that schedules create ([phase 18](./phase-0018-operations.md)).
 
 ## What already exists
 
@@ -79,9 +79,9 @@ threads that schedules create ([phase 18](./phase-18-operations.md)).
 | ToolExec scheduler | `FOR UPDATE SKIP LOCKED`, the conditional `lastEnqueuedAt` advance with `IS NOT DISTINCT FROM`, the partial unique index backstop, a unique violation logged at `debug` | `toolexec:backend/actions/workflow/workflows-schedule.ts`, `toolexec:backend/actions/workflow/workflow-schedule-preview.ts` |
 | ToolExec webhook ingress | Raw body, token read from the path, a frozen byte-identical 404, per-token `checkRateLimit`, a body cap enforced while reading, a pending cap, a header allowlist, rotation under a row lock, `deliveryKey` dedupe | `toolexec:backend/actions/webhook/webhook-trigger.ts`, `toolexec:backend/actions/webhook/session-event.ts`, `toolexec:backend/ops/WebhookOps.ts`, `toolexec:backend/ops/RawRequestOps.ts`, `toolexec:backend/schema/agent_run_messages.ts` |
 | ToolExec editor panels | A schedule panel with a live "next 5" preview; a webhook panel with a one-time reveal | `toolexec:frontend/src/components/SchedulePanel.tsx`, `toolexec:frontend/src/components/WebhookPanel.tsx` |
-| The loop's wake | `conversations.wakeAt` and `wakeReason`, which `bots:dispatch` claims when due; `sleep_until` (tagged `at`, 1 minute to 30 days, latest call wins); `conversation_inbox` rows with `source = event`; event priority with aging; `conversation:stop` | [phase 6](./phase-06-durable-bot-loop.md) |
-| Tasks | `createTask` with a root task placed in an existing thread, `settleTask`, model pins inherited by children, `bots:workforce-check` | [phase 13](./phase-13-leader-and-workers.md) |
-| Episodic recall | `thread_search` and `thread_read`, which the reflection schedule needs | [phase 8](./phase-08-context-management.md) |
+| The loop's wake | `conversations.wakeAt` and `wakeReason`, which `bots:dispatch` claims when due; `sleep_until` (tagged `at`, 1 minute to 30 days, latest call wins); `conversation_inbox` rows with `source = event`; event priority with aging; `conversation:stop` | [phase 6](./phase-0006-durable-bot-loop.md) |
+| Tasks | `createTask` with a root task placed in an existing thread, `settleTask`, model pins inherited by children, `bots:workforce-check` | [phase 13](./phase-0013-leader-and-workers.md) |
+| Episodic recall | `thread_search` and `thread_read`, which the reflection schedule needs | [phase 8](./phase-0008-context-management.md) |
 
 ## What this must not weaken
 
@@ -139,7 +139,7 @@ schedules, as Grok Bot does.
 **The fast path.** If the text already parses as a cron expression, it is used as is, with no model call.
 
 **Otherwise, the fast model.** The project's fast model is resolved at the boundary
-([phase 5](./phase-05-bots.md)), and it returns structured output:
+([phase 5](./phase-0005-bots.md)), and it returns structured output:
 
 ```
 { cronExpression, timezone, summary, residualConditions, ambiguities[] }
@@ -210,7 +210,7 @@ backs it up: whatever the expression says, two runs are never under five minutes
 ### What a firing hands the bot
 
 The root task is placed in the schedule's thread, so its brief arrives as a `task.assigned` event
-([phase 13](./phase-13-leader-and-workers.md)). The event carries the schedule's name and id, the run id,
+([phase 13](./phase-0013-leader-and-workers.md)). The event carries the schedule's name and id, the run id,
 `firedFor` in the schedule's timezone, `missedFirings`, the description, and the residual conditions. It ends
 with the instruction to do the work directly or split it with `delegate`, chaining steps with `blocked_by`.
 That is v1's "a schedule naturally expands into a chained DAG", now a decision the bot makes when the schedule
@@ -237,7 +237,7 @@ The next time the owner signs in, a banner lists the schedules paused while they
 
 ### Wakeups: `sleep_until` and `remind_me`
 
-[Phase 6](./phase-06-durable-bot-loop.md) gives each conversation one `wakeAt` and `wakeReason`, which
+[Phase 6](./phase-0006-durable-bot-loop.md) gives each conversation one `wakeAt` and `wakeReason`, which
 `sleep_until` sets. It returns at once without ending the turn, the latest call wins, and `null` cancels. That
 single column cannot hold "look at the build again at 14:00" and "remind me Friday about the invoice" at the
 same time.
@@ -249,7 +249,7 @@ recomputes `wakeAt` as the earliest pending one, as does lease release.
 
 `bots:dispatch` is unchanged: it still claims a conversation whose `wakeAt` is due. The tick's INTAKE step
 then turns that conversation's due wakeups into `event` inbox rows, under the lease fence, with `eventKind`
-`wakeup.due` and the `eventKey` `wakeup:<id>` ([phase 13](./phase-13-leader-and-workers.md)'s dedupe
+`wakeup.due` and the `eventKey` `wakeup:<id>` ([phase 13](./phase-0013-leader-and-workers.md)'s dedupe
 column), and marks them delivered. A crash between the claim and the tick therefore delivers each wakeup
 exactly once.
 
@@ -259,12 +259,12 @@ exactly once.
 - **Limits.** A reminder must be at least a minute ahead and at most a year away, and each bot may hold at
   most 100 pending.
 - **Reminders are not tasks.** They carry a note, not a status. Work that must finish belongs in
-  `task_wait` ([phase 13](./phase-13-leader-and-workers.md)).
+  `task_wait` ([phase 13](./phase-0013-leader-and-workers.md)).
 
 ### A webhook URL per bot
 
 `PUT /api/webhook/bot/:token` (`webhook:bot-event`) is 2.0's first unauthenticated write surface; the signed
-Slack and Linq ingress come later ([phase 16](./phase-16-slack.md), [phase 17](./phase-17-imessage.md)). It
+Slack and Linq ingress come later ([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)). It
 ports ToolExec's discipline as it stands after that project's learnings:
 
 - **Raw body.** `web.rawBody: true`. The token is read from the request path, never from `params`, because a
@@ -373,7 +373,7 @@ Other changes:
 - **`createSchedule`**, **`confirmSchedule`**, and **`editSchedule`** cover the lifecycle. An edit that changes
   the frequency or the cron expression clears `confirmedAt`.
 - **`fireDueSchedules(now)`** returns `{ fired, skipped, raced }`. **`fireScheduleNow(id, { test })`** fires one
-  schedule on demand. Both call `createTask` from [phase 13](./phase-13-leader-and-workers.md).
+  schedule on demand. Both call `createTask` from [phase 13](./phase-0013-leader-and-workers.md).
 - **`recordRunOutcome(tx, task)`** is called from `settleTask`. It updates the run, the failure count, and the
   auto-pause.
 - **`checkOwnerAbsence(now)`** handles the absence pause.

@@ -6,10 +6,10 @@
 > same in a terminal.
 
 > **Status: planned, not built.** Stage B — One bot that thinks. Depends on
-> [phase 1](./phase-01-clean-slate-and-shell.md), [phase 5](./phase-05-bots.md), and
-> [phase 6](./phase-06-durable-bot-loop.md).
+> [phase 1](./phase-0001-clean-slate-and-shell.md), [phase 5](./phase-0005-bots.md), and
+> [phase 6](./phase-0006-durable-bot-loop.md).
 
-[Phase 6](./phase-06-durable-bot-loop.md) made a bot think, durably, but a person can only reach it through
+[Phase 6](./phase-0006-durable-bot-loop.md) made a bot think, durably, but a person can only reach it through
 the CLI or an MCP client, every message goes to the thread's owner, and nothing tells a browser that anything
 happened. This phase makes the thread the product surface. Three things change: **who hears a message**
 (owner routing, mentions, participants), **how a client learns something happened** (channels, a token
@@ -20,11 +20,11 @@ phase 6 consumes, every frame is published by phase 6's `ThreadChannelOps` after
 hydrates over HTTP — the socket only decides *when* to ask, which is the lesson of ToolExec's
 dashboard-websockets phase (`toolexec:docs/plans/phase-18-dashboard-websockets.md`) carried over intact.
 
-It deliberately leaves out the terminal chat client ([phase 15](./phase-15-tui-and-cli-publishing.md)), slash
-commands and their popup ([phase 12](./phase-12-skills.md)), thread search ([phase 8](./phase-08-context-management.md)),
-approval policy ("always allow") ([phase 10](./phase-10-mcp-servers-and-approvals.md)), delegation threads
-([phase 13](./phase-13-leader-and-workers.md)), and anything outside the browser and CLI
-([phase 16](./phase-16-slack.md), [phase 17](./phase-17-imessage.md)).
+It deliberately leaves out the terminal chat client ([phase 15](./phase-0015-tui-and-cli-publishing.md)), slash
+commands and their popup ([phase 12](./phase-0012-skills.md)), thread search ([phase 8](./phase-0008-context-management.md)),
+approval policy ("always allow") ([phase 10](./phase-0010-mcp-servers-and-approvals.md)), delegation threads
+([phase 13](./phase-0013-leader-and-workers.md)), and anything outside the browser and CLI
+([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)).
 
 ## Scope
 
@@ -40,13 +40,13 @@ and project home; CLI `thread list / follow / rename / owner / participants` and
 MCP publication; user docs; tests including channel authorization and MCP forwarding.
 
 **Out:**
-- The Ink TUI ([phase 15](./phase-15-tui-and-cli-publishing.md)); slash commands and the composer popup
-  ([phase 12](./phase-12-skills.md)); thread and episodic search ([phase 8](./phase-08-context-management.md)).
-- "Always allow" and approval history ([phase 10](./phase-10-mcp-servers-and-approvals.md)) — this phase
+- The Ink TUI ([phase 15](./phase-0015-tui-and-cli-publishing.md)); slash commands and the composer popup
+  ([phase 12](./phase-0012-skills.md)); thread and episodic search ([phase 8](./phase-0008-context-management.md)).
+- "Always allow" and approval history ([phase 10](./phase-0010-mcp-servers-and-approvals.md)) — this phase
   renders phase 6's gated tool calls inline with Approve / Deny only.
-- `delegation` threads and task reports ([phase 13](./phase-13-leader-and-workers.md)).
+- `delegation` threads and task reports ([phase 13](./phase-0013-leader-and-workers.md)).
 - Email notifications. Phase 1 drops nodemailer with the rest of ToolExec's mail stack; the out-of-app
-  channels are Slack and iMessage DMs ([phase 16](./phase-16-slack.md), [phase 17](./phase-17-imessage.md)),
+  channels are Slack and iMessage DMs ([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)),
   added as new `notifications.channel` values.
 - Editing, withdrawing, or reordering a queued message; archiving threads. Not scheduled.
 - Private threads. Never in this plan; the [README](./README.md#roadmap) lists audience-scoped memory as
@@ -68,7 +68,7 @@ MCP publication; user docs; tests including channel authorization and MCP forwar
 | CLI follow | The polling follower this phase replaces with a socket | `toolexec:cli/src/follow.ts` |
 | v1 thread titles | `generateThreadTitle` on the fast model, fire-and-forget | [src/utils/title.ts](https://github.com/evantahler/botholomew/blob/v1/src/utils/title.ts) |
 | v1 chat surfaces | Queue panel, folded tool-call cards, MCP tool display names | [QueuePanel.tsx](https://github.com/evantahler/botholomew/blob/v1/src/tui/components/QueuePanel.tsx), [ToolCall.tsx](https://github.com/evantahler/botholomew/blob/v1/src/tui/components/ToolCall.tsx) |
-| The loop | Threads, conversations, inbox, `whenBusy`, guards, `tool-call:decide`, `conversation:stop`, `ThreadChannelOps` | [phase 6](./phase-06-durable-bot-loop.md) |
+| The loop | Threads, conversations, inbox, `whenBusy`, guards, `tool-call:decide`, `conversation:stop`, `ThreadChannelOps` | [phase 6](./phase-0006-durable-bot-loop.md) |
 
 ## What this must not weaken
 
@@ -116,7 +116,7 @@ silence — is the expected answer from a bot with nothing to add.
 
 **Bots route by the same rules, minus `@everyone`.** A bot's final text or `send_message` body may
 `@mention` any bot in the project and is subject to phase 6's hop, chain, and rate guards. A bot's
-`@everyone` is not routed: fan-out is a leader's job through delegation ([phase 13](./phase-13-leader-and-workers.md)),
+`@everyone` is not routed: fan-out is a leader's job through delegation ([phase 13](./phase-0013-leader-and-workers.md)),
 where it is a task with an owner rather than a broadcast.
 
 **Mentions are structured.** The web composer's autocomplete inserts a token such as `@{bot:12}` or
@@ -131,8 +131,8 @@ thread) and routes nothing. Bots cannot mention people in this phase.
 |---|---|---|---|
 | `chat` | a person (web, CLI, MCP) | chosen at creation, default the project's leader | the creator, the owner, anyone who posts, anyone mentioned or added |
 | `dm` | `send_message` to a bot | the sending bot | exactly the two bots |
-| `delegation` | [phase 13](./phase-13-leader-and-workers.md) | the delegating bot | leader and worker |
-| `slack` / `imessage` | [phases 16](./phase-16-slack.md) / [17](./phase-17-imessage.md) | the bound bot | mapped remote people |
+| `delegation` | [phase 13](./phase-0013-leader-and-workers.md) | the delegating bot | leader and worker |
+| `slack` / `imessage` | [phases 16](./phase-0016-slack.md) / [17](./phase-0017-imessage.md) | the bound bot | mapped remote people |
 
 Ownership transfers with `thread:edit` (audited), which requires write on both the old and the new owner —
 Grok Bot's "pass ownership of a task" as a deliberate act. The owner cannot be removed while it owns.

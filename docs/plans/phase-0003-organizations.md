@@ -5,13 +5,13 @@
 > empty; the navbar switches between organizations as easily as between projects — and none of it changes who
 > can read or do anything inside a project.
 
-> **Status: planned, not built.** Stage A — Platform. Depends on [phase 1](./phase-01-clean-slate-and-shell.md)
-> and [phase 2](./phase-02-deployment.md): staging already holds projects, so the new column arrives with a
+> **Status: planned, not built.** Stage A — Platform. Depends on [phase 1](./phase-0001-clean-slate-and-shell.md)
+> and [phase 2](./phase-0002-deployment.md): staging already holds projects, so the new column arrives with a
 > backfill rather than an empty table.
 
 Organizations are the thinnest layer this plan adds, and they are added now precisely because they are thin.
 Today the schema has one tenant tier and nothing hangs off a project yet; after
-[phase 4](./phase-04-project-memory-core.md) every memory file, bot, thread, and MCP server does. Putting a
+[phase 4](./phase-0004-project-memory-core.md) every memory file, bot, thread, and MCP server does. Putting a
 grouping above projects costs one foreign key on `projects` before that, and a much harder conversation
 after it. Later work wants the grouping — billing attaches to an organization, not to each project, and a team
 running several projects wants one place that lists them — but none of that later work should get to decide
@@ -42,7 +42,7 @@ project.
 **Out:** billing, plans, and anything a payment provider needs (later, unphased — no placeholder columns
 either); organization-level roles beyond `owner`; organization-wide invites, domain capture, and SSO;
 moving a project to another organization; leaving an organization as a self-service action; what deleting a
-user or an organization with data means operationally ([phase 18](./phase-18-operations.md)).
+user or an organization with data means operationally ([phase 18](./phase-0018-operations.md)).
 
 ## What already exists
 
@@ -56,7 +56,7 @@ user or an organization with data means operationally ([phase 18](./phase-18-ope
 | `AuditedAction` and `auditProjectId` | One transaction for the change and its row; scoping a row to an id that did not exist before the insert | `toolexec:backend/classes/AuditedAction.ts`, `toolexec:backend/actions/project/project-create.ts` |
 | A data migration in the schema history | Hand-written DML beside DDL in a drizzle migration, and a test that reads the migration | `toolexec:backend/drizzle/0015_git_providers_only.sql`, `toolexec:backend/__tests__/actions/workflow-migration.test.ts` |
 | The navbar project switcher and `activeProjectId` | The pattern the organization switcher repeats, including self-healing a stale selection | `toolexec:frontend/src/components/Layout.tsx`, `toolexec:frontend/src/context/AuthContext.tsx` |
-| `buildTestUniverse()` | Peach, Mario, Luigi, Toad, and the outsider Bowser, joined through real invites | `backend/__tests__/setup.ts` from [phase 1](./phase-01-clean-slate-and-shell.md) |
+| `buildTestUniverse()` | Peach, Mario, Luigi, Toad, and the outsider Bowser, joined through real invites | `backend/__tests__/setup.ts` from [phase 1](./phase-0001-clean-slate-and-shell.md) |
 
 What does not exist: anything above a project. A project's creator is recorded only in its first audit row.
 
@@ -91,7 +91,7 @@ Four reasons, in order of weight:
   audience "its members, plus whoever owns the organization today" — a set that changes without the project's
   admins doing anything, and that no project screen shows.
 - **One place to reason.** "Who can see this thread?" is answered by reading `project_memberships`,
-  `user_tags`, and (from [phase 5](./phase-05-bots.md)) the bot's tag lists. A second source makes every
+  `user_tags`, and (from [phase 5](./phase-0005-bots.md)) the bot's tag lists. A second source makes every
   permission a union, and every future check must remember both halves — exactly the kind of rule that is
   forgotten once and leaks from then on.
 - **Bots inherit project semantics.** Bots act with project permissions and carry per-bot tag lists. An
@@ -146,7 +146,7 @@ means inviting them to a project first: invites stay the only door in.
 creator's organization row. Signup calls both, in that order, in its one transaction: "Peach's Organization"
 holding "Peach's Project". It writes two explicit audit rows, as ToolExec's signup already does for its
 bootstrap project — `organization:create` (organization-scoped) and `project:create` (both ids) — so neither
-log opens without a record of its own creation. [Phase 5](./phase-05-bots.md) extends the same project bootstrap
+log opens without a record of its own creation. [Phase 5](./phase-0005-bots.md) extends the same project bootstrap
 to seed the leader bot, which is why it stays the single seam.
 
 ### Creating, renaming, deleting
@@ -191,7 +191,7 @@ ToolExec's `0015` — adds the tables and a nullable column, runs the backfill b
 2. Each project goes to the personal organization of its creator: the user on its earliest `project:create`
    audit row, if that row has not been swept and they are still a member; otherwise its lowest-id `admin`;
    otherwise its lowest-id member. A project with no members at all gets an organization of its own, with no
-   owner, and is named in a `RAISE NOTICE` (inside a `DO` block) for [phase 18](./phase-18-operations.md)'s
+   owner, and is named in a `RAISE NOTICE` (inside a `DO` block) for [phase 18](./phase-0018-operations.md)'s
    orphan handling.
 3. Every project membership yields a non-owner organization membership, `ON CONFLICT DO NOTHING`.
 4. `project_invites.organization_name` and `audit_logs.organization_id` are filled from the projects that still

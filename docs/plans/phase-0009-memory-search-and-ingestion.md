@@ -5,10 +5,10 @@
 > the same way, and can add documents they are handed.
 
 > **Status: planned, not built.** Stage C — Shared capabilities. Depends on
-> [phase 2](./phase-02-deployment.md), [phase 4](./phase-04-project-memory-core.md), and
-> [phase 6](./phase-06-durable-bot-loop.md).
+> [phase 2](./phase-0002-deployment.md), [phase 4](./phase-0004-project-memory-core.md), and
+> [phase 6](./phase-0006-durable-bot-loop.md).
 
-[Phase 4](./phase-04-project-memory-core.md)'s keyword search finds files whose words you remember. Knowledge
+[Phase 4](./phase-0004-project-memory-core.md)'s keyword search finds files whose words you remember. Knowledge
 work asks questions in words the document never used, about documents that arrived as PDFs. This phase ports
 the rest of membot's retrieval stack onto Postgres — the markdown-aware chunker, search text, local
 `bge-small-en-v1.5` embeddings, and hybrid reciprocal-rank fusion over pgvector and `tsvector` — plus the
@@ -20,12 +20,12 @@ keeping that work from hurting them — its own thread, its own queue, bounded j
 trust in the queue.
 
 Ingestion here is **deterministic**: no LLM touches a document, only the markdown surrogate and its sha are
-kept, and nothing is fetched from the network. URL ingest is [phase 19](./phase-19-url-ingest.md), refresh
-[phase 20](./phase-20-upstream-refresh.md), source routers and bulk sync
-[phase 21](./phase-21-source-routers-and-bulk-sync.md), captions and LLM conversion
-[phase 22](./phase-22-llm-assisted-ingestion.md), original bytes and the blob policy
-[phase 23](./phase-23-original-bytes-and-blob-policy.md). The complete membot ledger — what is brought,
-adapted, dropped, and where — is the [feature map in phase 4](./phase-04-project-memory-core.md#membot-feature-map).
+kept, and nothing is fetched from the network. URL ingest is [phase 19](./phase-0019-url-ingest.md), refresh
+[phase 20](./phase-0020-upstream-refresh.md), source routers and bulk sync
+[phase 21](./phase-0021-source-routers-and-bulk-sync.md), captions and LLM conversion
+[phase 22](./phase-0022-llm-assisted-ingestion.md), original bytes and the blob policy
+[phase 23](./phase-0023-original-bytes-and-blob-policy.md). The complete membot ledger — what is brought,
+adapted, dropped, and where — is the [feature map in phase 4](./phase-0004-project-memory-core.md#membot-feature-map).
 
 ## Scope
 
@@ -42,12 +42,12 @@ a reconciler; `memory:stats`; bot tools `memory_search` (rebuilt over hybrid) an
 half of the memory prompt section; upload, search, and job UI; `botholomew memory add/search/jobs/stats/
 reindex`; a deterministic fake embedder; the search-quality eval with a CI gate; docs; tests.
 
-**Out:** fetching URLs ([phase 19](./phase-19-url-ingest.md)); `refresh_frequency` and the refresh clock
-([phase 20](./phase-20-upstream-refresh.md)); MCP-backed routers, bulk import, `--sync`
-([phase 21](./phase-21-source-routers-and-bulk-sync.md)); image captions, the LLM conversion fallback, and the
-LLM describer ([phase 22](./phase-22-llm-assisted-ingestion.md)); original bytes, `read --bytes`,
-re-conversion from source, and the blob policy ([phase 23](./phase-23-original-bytes-and-blob-policy.md));
-pruning versions, chunks, and job payloads ([phase 18](./phase-18-operations.md)); cross-encoder rerank
+**Out:** fetching URLs ([phase 19](./phase-0019-url-ingest.md)); `refresh_frequency` and the refresh clock
+([phase 20](./phase-0020-upstream-refresh.md)); MCP-backed routers, bulk import, `--sync`
+([phase 21](./phase-0021-source-routers-and-bulk-sync.md)); image captions, the LLM conversion fallback, and the
+LLM describer ([phase 22](./phase-0022-llm-assisted-ingestion.md)); original bytes, `read --bytes`,
+re-conversion from source, and the blob policy ([phase 23](./phase-0023-original-bytes-and-blob-policy.md));
+pruning versions, chunks, and job payloads ([phase 18](./phase-0018-operations.md)); cross-encoder rerank
 (later, unphased). Image, audio, and video uploads are refused until captions and original bytes exist.
 
 ## What already exists
@@ -67,7 +67,7 @@ pruning versions, chunks, and job payloads ([phase 18](./phase-18-operations.md)
 | Search eval | Golden queries over a fixed corpus, Recall@1/@3 and MRR, a `--ci` gate (0.90 / 0.95 / 0.93) | [scripts/eval-search.ts](https://github.com/evantahler/membot/blob/main/scripts/eval-search.ts), [test/fixtures/eval/](https://github.com/evantahler/membot/tree/main/test/fixtures/eval) |
 | Test fixtures and suites | `sample.pdf`, `sample-with-image.docx`; chunker, search-text, describer, converter, and hybrid tests to port | [test/fixtures/](https://github.com/evantahler/membot/tree/main/test/fixtures), [test/ingest/](https://github.com/evantahler/membot/tree/main/test/ingest), [test/search/](https://github.com/evantahler/membot/tree/main/test/search) |
 | `SERVER_INSTRUCTIONS` | The search-first half of the memory prompt section | [src/mcp/instructions.ts](https://github.com/evantahler/membot/blob/main/src/mcp/instructions.ts) |
-| Project memory | `MemoryOps` (the one write funnel), the final search contract, namespaces, live frames, the memory tools | [phase 4](./phase-04-project-memory-core.md) |
+| Project memory | `MemoryOps` (the one write funnel), the final search contract, namespaces, live frames, the memory tools | [phase 4](./phase-0004-project-memory-core.md) |
 | Raw-body actions | `web.rawBody` hands an action the untouched stream; the action owns the size limit past `Content-Length` | [Keryx](https://keryxjs.com/) |
 | Native-addon guard | The install compiles no native addon | `toolexec:backend/__tests__/deps/native-addons.test.ts` |
 
@@ -109,9 +109,9 @@ gets embedded.
 `backend/embedding/` wraps one `Embedder` per process, backed by a single Bun `Worker` thread that owns the
 transformers pipeline: `bge-small-en-v1.5`, CLS pooling, normalized, batches of 16, `numThreads = 1`.
 Membot's own comment is the reason for the thread: ONNX WASM holds the JavaScript thread for hundreds of
-milliseconds per batch. On the main thread that would stall [phase 6](./phase-06-durable-bot-loop.md)'s
+milliseconds per batch. On the main thread that would stall [phase 6](./phase-0006-durable-bot-loop.md)'s
 lease renewals and token streaming, and trip Keryx's `maxEventLoopDelay` — the invariant
-[phase 2](./phase-02-deployment.md) reserved memory for. A thread meets that invariant without membot's
+[phase 2](./phase-0002-deployment.md) reserved memory for. A thread meets that invariant without membot's
 subprocess pool — no stdio protocol, no second runtime, no model copy per CPU — and the thread is restarted,
 not the process, if inference throws.
 
@@ -125,7 +125,7 @@ downloads from HuggingFace at runtime — the rate limit membot's CI tripped ove
 The worker process embeds passages; the API process embeds only queries, lazily, with a 1,000-entry LRU per
 process keyed by revision and normalized query. Each process that loads the model holds on the order of
 130 MB of weights plus the WASM heap; this phase measures resident memory on staging and adjusts
-[phase 2](./phase-02-deployment.md)'s instance plans in the same change. If the API cannot load the model,
+[phase 2](./phase-0002-deployment.md)'s instance plans in the same change. If the API cannot load the model,
 `memory:search` answers keyword-only with `semanticCoverage: "unavailable"`.
 
 ### The row is the delivery: embed jobs and their reconciler
@@ -211,8 +211,8 @@ formats are refused before inflating if the central directory declares more than
 | PDF | unpdf text; a scanned PDF becomes membot's "(scanned PDF, N bytes — no recognizable text)" |
 | Images, audio, video, unknown binaries | **Refused** (415) with the list of supported types |
 
-Refusing images is deliberate: without captions ([phase 22](./phase-22-llm-assisted-ingestion.md)) or the
-original bytes ([phase 23](./phase-23-original-bytes-and-blob-policy.md)), accepting one would store a
+Refusing images is deliberate: without captions ([phase 22](./phase-0022-llm-assisted-ingestion.md)) or the
+original bytes ([phase 23](./phase-0023-original-bytes-and-blob-policy.md)), accepting one would store a
 placeholder and discard the only copy — data loss presented as success. Surrogates may be up to 10 MiB, above
 phase 4's 5 MiB interactive write cap.
 
@@ -238,7 +238,7 @@ nulled on success. `memory:ingest-sweep` (every 60 s) re-enqueues `queued` jobs 
 reclaims `running` jobs whose claim is older than ten minutes (attempts capped at three), and nulls failed
 jobs' payloads after seven days. `(projectId, requestId)` is unique, so a CLI retry or a replayed bot tool call
 finds its earlier job instead of ingesting twice. Staging bytes in Postgres is a deliberate stopgap: it adds no
-infrastructure, and [phase 23](./phase-23-original-bytes-and-blob-policy.md) decides where original bytes
+infrastructure, and [phase 23](./phase-0023-original-bytes-and-blob-policy.md) decides where original bytes
 live for good.
 
 ### Bot tools and the memory section
@@ -249,8 +249,8 @@ tag; its description says it searches by meaning and keyword, and its envelope's
 shell analogue, and a wrong anchor is worse than none. It takes `content` (text with a `mime_type`, converted
 in the call when under 1 MiB) or `content_base64` (queued as an ingest job; `memory_info` shows the pending
 job on that path). Its `requestId` is the tool call's id, so it is **replay-safe**. In this phase a bot's
-binary content comes from text it holds; MCP resources ([phase 10](./phase-10-mcp-servers-and-approvals.md))
-and code mode ([phase 11](./phase-11-code-mode.md)) are where base64 documents come from later. The memory
+binary content comes from text it holds; MCP resources ([phase 10](./phase-0010-mcp-servers-and-approvals.md))
+and code mode ([phase 11](./phase-0011-code-mode.md)) are where base64 documents come from later. The memory
 prompt section gains the search half of `SERVER_INSTRUCTIONS` — search before you read, read before you
 write — minus the GitHub, Linear, and Apple Notes paragraphs, with tool names generated from the registry.
 
@@ -291,7 +291,7 @@ Indexes: HNSW `(embedding vector_cosine_ops) WHERE isCurrent AND embedding IS NO
 WHERE isCurrent`; `(projectId, logicalPath) WHERE isCurrent`; `(projectId) WHERE isCurrent AND (embedding IS
 NULL OR embeddingRevision < current)` for the backlog. `memory_ingest_jobs`: `projectId`, `logicalPath`,
 `status` (`queued | running | succeeded | unchanged | failed`), `payload bytea`, `payloadSizeBytes`,
-`kind` (`upload | add`; [phase 19](./phase-19-url-ingest.md) adds `url`), `sourceFilename`, `sourceMimeType`,
+`kind` (`upload | add`; [phase 19](./phase-0019-url-ingest.md) adds `url`), `sourceFilename`, `sourceMimeType`,
 `sourceSha256`, `description`, `changeNote`, `expectedVersionId`,
 `requestId` (`uniqueIndex(projectId, requestId)`), `createdByUserId`, `createdByBotId`, `onBehalfOfUserId`,
 `versionId`, `attempts`, `lastError` (≤ 2 KB, scrubbed), `claimedAt`, `finishedAt`, `createdAt`; indexes

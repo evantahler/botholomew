@@ -13,7 +13,7 @@ one Action class is simultaneously an HTTP endpoint, a WebSocket action, a CLI c
 and an OAuth-protected MCP tool.
 
 > **Status: planned.** Nothing in 2.0 is built. The v1 local CLI/TUI agent (v0.27.3) still occupies this
-> repository until [phase 1](./phase-01-clean-slate-and-shell.md) executes, and lives on permanently on the
+> repository until [phase 1](./phase-0001-clean-slate-and-shell.md) executes, and lives on permanently on the
 > [`v1` branch](https://github.com/evantahler/botholomew/tree/v1). The v1 milestone docs sit beside these
 > files (`milestone-*.md`, indexed by [`v1-milestones.md`](./v1-milestones.md)) until phase 1 removes them.
 
@@ -23,7 +23,7 @@ Three earlier projects, read closely, and two outside ideas:
 
 | Source | What 2.0 takes from it |
 |---|---|
-| **ToolExec** (`arcadeai-labs/toolexec`, private) | The whole plumbing: Bun workspaces (`backend/`, `frontend/`, `cli/`), Keryx actions, users, projects as tenants, tag-based RBAC, invites, `AuditedAction`, MCP OAuth for human clients, WebSocket channels, notifications, encrypted connections, gateway OAuth, the product CLI, CI with one `complete` gate, the Render blueprint, and its planning discipline (this directory's format). Its settled-but-unbuilt Slack/iMessage design becomes [phase 16](./phase-16-slack.md) and [phase 17](./phase-17-imessage.md). |
+| **ToolExec** (`arcadeai-labs/toolexec`, private) | The whole plumbing: Bun workspaces (`backend/`, `frontend/`, `cli/`), Keryx actions, users, projects as tenants, tag-based RBAC, invites, `AuditedAction`, MCP OAuth for human clients, WebSocket channels, notifications, encrypted connections, gateway OAuth, the product CLI, CI with one `complete` gate, the Render blueprint, and its planning discipline (this directory's format). Its settled-but-unbuilt Slack/iMessage design becomes [phase 16](./phase-0016-slack.md) and [phase 17](./phase-0017-imessage.md). |
 | **Botholomew v1** ([`v1` branch](https://github.com/evantahler/botholomew/tree/v1)) | The agent's soul and its lessons: the owl persona; prompts with `loading` / `agent-modification` frontmatter; skills with `$ARGUMENTS`; task DAGs; MCP meta-tools (search → info → exec); the approval gate; the named model registry; `backend/llm/` boundary rules; tools named after bash; and sandboxed TypeScript (`membot_run`) as code mode. |
 | **[membot](https://github.com/evantahler/membot)** | The knowledge model: logical paths, append-only versions, markdown surrogates for every format, local embeddings, hybrid BM25 + semantic search, refreshable sources — ported onto Postgres + pgvector as **project memory**. |
 | **[pi-durable](https://earendil.com/posts/pi-durable/)** | Durable agent mechanics: commit intent → perform effect → commit outcome; per-tool replay safety; exactly-once `requestId`s; follow-up vs steer inboxes; background compaction; system entries recorded where they took effect. |
@@ -54,8 +54,8 @@ Organization                      thin grouping: members, projects, (later) bill
 
 | Topic | Decision |
 |---|---|
-| Repository | Rewrite this repo. v1 is preserved on the `v1` branch. [Phase 1](./phase-01-clean-slate-and-shell.md) is a clean break: the tree is emptied (no `install.sh`, no VitePress site, no v1 workflows) and ToolExec's shell is copied in. |
-| Organizations | A **thin grouping** above projects. No permission is evaluated at the organization level; every check is a project check ([phase 3](./phase-03-organizations.md)). |
+| Repository | Rewrite this repo. v1 is preserved on the `v1` branch. [Phase 1](./phase-0001-clean-slate-and-shell.md) is a clean break: the tree is emptied (no `install.sh`, no VitePress site, no v1 workflows) and ToolExec's shell is copied in. |
+| Organizations | A **thin grouping** above projects. No permission is evaluated at the organization level; every check is a project check ([phase 3](./phase-0003-organizations.md)). |
 | Privacy boundary | **The project is the boundary.** There are no private threads. Anything said to a bot may surface to anyone who can read that bot — the same honesty Grok Bot's docs apply ("do not use separate Bots as a security boundary"). |
 | Model keys | **BYOK only.** Model calls use the project's own encrypted provider connection; the platform holds no model key. |
 | Embeddings | A **local WASM model in the worker** (membot's `bge-small-en-v1.5`, 384-d) — no key, no platform API spend. |
@@ -65,13 +65,13 @@ Organization                      thin grouping: members, projects, (later) bill
 
 ## Core architecture
 
-The details, arguments, and tests live in [phase 6](./phase-06-durable-bot-loop.md); this is the summary every
+The details, arguments, and tests live in [phase 6](./phase-0006-durable-bot-loop.md); this is the summary every
 other phase builds on.
 
 ### Two processes, one image
 
 The API process serves HTTP, WebSockets, and `/mcp`; the worker process runs Keryx tasks and owns
-migrations — ToolExec's topology unchanged ([phase 2](./phase-02-deployment.md)). Postgres holds every fact;
+migrations — ToolExec's topology unchanged ([phase 2](./phase-0002-deployment.md)). Postgres holds every fact;
 Redis holds sessions, the Resque queues, PubSub, and MCP sessions, and is never the only copy of anything.
 
 ### A conversation is leased; a bot is capped
@@ -156,14 +156,14 @@ carries an allowlist of the bots that may use it. Every human message is attribu
 ## Project memory
 
 Project memory is the project's filesystem: a versioned, searchable store addressed by `logical_path`,
-replacing both v1's on-disk project and membot. [Phase 4](./phase-04-project-memory-core.md) builds the
+replacing both v1's on-disk project and membot. [Phase 4](./phase-0004-project-memory-core.md) builds the
 versioned filesystem (and carries the full membot feature map — what is brought, adapted, and dropped);
-[phase 9](./phase-09-memory-search-and-ingestion.md) adds local embeddings, hybrid search, uploads, and the
+[phase 9](./phase-0009-memory-search-and-ingestion.md) adds local embeddings, hybrid search, uploads, and the
 deterministic converters. Everything else membot does arrives later, one phase each, in Stage F: adding from a
-URL ([19](./phase-19-url-ingest.md)), refreshing upstream content ([20](./phase-20-upstream-refresh.md)),
-MCP-backed source routers and bulk sync ([21](./phase-21-source-routers-and-bulk-sync.md)), LLM-assisted
-ingestion ([22](./phase-22-llm-assisted-ingestion.md)), and keeping original bytes
-([23](./phase-23-original-bytes-and-blob-policy.md)).
+URL ([19](./phase-0019-url-ingest.md)), refreshing upstream content ([20](./phase-0020-upstream-refresh.md)),
+MCP-backed source routers and bulk sync ([21](./phase-0021-source-routers-and-bulk-sync.md)), LLM-assisted
+ingestion ([22](./phase-0022-llm-assisted-ingestion.md)), and keeping original bytes
+([23](./phase-0023-original-bytes-and-blob-policy.md)).
 
 ```
 skills/<name>.md                 shared skills        frontmatter: name, description, arguments
@@ -179,7 +179,7 @@ Writes to reserved paths are validated against strict frontmatter schemas; a bot
 where `agent-modification: true` and may never flip that flag; prompt versions seen by the model are
 recorded in the transcript. People manage memory through a browser/editor with history, diff, and restore in
 the web app, and through `botholomew memory …` (including `pull` / `push` to edit in a local editor). Bots
-use `memory_*` tools and, from [phase 11](./phase-11-code-mode.md), `memory.*` inside code mode.
+use `memory_*` tools and, from [phase 11](./phase-0011-code-mode.md), `memory.*` inside code mode.
 
 ## Settled stack
 
@@ -226,36 +226,36 @@ for agents and people; `CLAUDE.md` is only a symlink to it — states them in fu
 | Phase | Title | Deliverable |
 |---|---|---|
 | **Stage A — Platform** | | |
-| [1](./phase-01-clean-slate-and-shell.md) | Clean slate and shell | v1 removed; ToolExec's plumbing copied and renamed; green CI; `AGENTS.md` made true |
-| [2](./phase-02-deployment.md) | Deployment | Render staging: api, worker, frontend, Redis, Postgres + pgvector; botholomew.com points at the app |
-| [3](./phase-03-organizations.md) | Organizations | Thin orgs above projects; signup creates a personal org and project; org switcher |
+| [1](./phase-0001-clean-slate-and-shell.md) | Clean slate and shell | v1 removed; ToolExec's plumbing copied and renamed; green CI; `AGENTS.md` made true |
+| [2](./phase-0002-deployment.md) | Deployment | Render staging: api, worker, frontend, Redis, Postgres + pgvector; botholomew.com points at the app |
+| [3](./phase-0003-organizations.md) | Organizations | Thin orgs above projects; signup creates a personal org and project; org switcher |
 | **Stage B — One bot that thinks** | | |
-| [4](./phase-04-project-memory-core.md) | Project memory core | The versioned filesystem, reserved-path validation, keyword search, memory UI and CLI |
-| [5](./phase-05-bots.md) | Bots | Bot rows, prompts as memory files, BYOK connections, the named model registry, the seeded leader |
-| [6](./phase-06-durable-bot-loop.md) | The durable bot loop | Conversations, leases, the tick state machine, the effect sandwich, guards, `backend/llm/` |
-| [7](./phase-07-threads-and-web-chat.md) | Threads and web chat | Owner routing and mentions, live channels, notifications, the chat UI |
-| [8](./phase-08-context-management.md) | Context management | Background compaction, resets, large results in memory, thread search, cache discipline |
+| [4](./phase-0004-project-memory-core.md) | Project memory core | The versioned filesystem, reserved-path validation, keyword search, memory UI and CLI |
+| [5](./phase-0005-bots.md) | Bots | Bot rows, prompts as memory files, BYOK connections, the named model registry, the seeded leader |
+| [6](./phase-0006-durable-bot-loop.md) | The durable bot loop | Conversations, leases, the tick state machine, the effect sandwich, guards, `backend/llm/` |
+| [7](./phase-0007-threads-and-web-chat.md) | Threads and web chat | Owner routing and mentions, live channels, notifications, the chat UI |
+| [8](./phase-0008-context-management.md) | Context management | Background compaction, resets, large results in memory, thread search, cache discipline |
 | **Stage C — Shared capabilities** | | |
-| [9](./phase-09-memory-search-and-ingestion.md) | Memory search and ingestion | Local embeddings, hybrid search, deterministic converters, uploads |
-| [10](./phase-10-mcp-servers-and-approvals.md) | MCP servers and approvals | Shared MCP servers with gateway OAuth, meta-tools, the approval gate, MCP-backed memory sources |
-| [11](./phase-11-code-mode.md) | Code mode | `run_code`: QuickJS in WASM over `memory.*` and `mcp.*`, encrypted continuations |
-| [12](./phase-12-skills.md) | Skills | Slash commands for people, `skill_read` for bots, the skills editor |
+| [9](./phase-0009-memory-search-and-ingestion.md) | Memory search and ingestion | Local embeddings, hybrid search, deterministic converters, uploads |
+| [10](./phase-0010-mcp-servers-and-approvals.md) | MCP servers and approvals | Shared MCP servers with gateway OAuth, meta-tools, the approval gate, MCP-backed memory sources |
+| [11](./phase-0011-code-mode.md) | Code mode | `run_code`: QuickJS in WASM over `memory.*` and `mcp.*`, encrypted continuations |
+| [12](./phase-0012-skills.md) | Skills | Slash commands for people, `skill_read` for bots, the skills editor |
 | **Stage D — Swarms** | | |
-| [13](./phase-13-leader-and-workers.md) | Leader and workers | Delegation, task DAGs, reporting back, the workforce check, swarm guards |
-| [14](./phase-14-schedules-and-wakeups.md) | Schedules and wakeups | v1's schedules (natural-language recurring work that spawns tasks), compiled once to cron; auto-pause; durable reminders; per-bot webhook triggers |
+| [13](./phase-0013-leader-and-workers.md) | Leader and workers | Delegation, task DAGs, reporting back, the workforce check, swarm guards |
+| [14](./phase-0014-schedules-and-wakeups.md) | Schedules and wakeups | v1's schedules (natural-language recurring work that spawns tasks), compiled once to cron; auto-pause; durable reminders; per-bot webhook triggers |
 | **Stage E — Everywhere** | | |
-| [15](./phase-15-tui-and-cli-publishing.md) | TUI and CLI publishing | `botholomew chat` (Ink), npm `botholomew@2.x`, compiled binaries |
-| [16](./phase-16-slack.md) | Slack | Per-project Slack app, linked identities, threads as conversations, outbox, approval cards |
-| [17](./phase-17-imessage.md) | iMessage | Linq lines, reach and opt-out, reply threading |
-| [18](./phase-18-operations.md) | Operations | Retention, deletion semantics, key rotation, usage dashboards, behaviour evals |
+| [15](./phase-0015-tui-and-cli-publishing.md) | TUI and CLI publishing | `botholomew chat` (Ink), npm `botholomew@2.x`, compiled binaries |
+| [16](./phase-0016-slack.md) | Slack | Per-project Slack app, linked identities, threads as conversations, outbox, approval cards |
+| [17](./phase-0017-imessage.md) | iMessage | Linq lines, reach and opt-out, reply threading |
+| [18](./phase-0018-operations.md) | Operations | Retention, deletion semantics, key rotation, usage dashboards, behaviour evals |
 | **Stage F — Memory, later** | | |
-| [19](./phase-19-url-ingest.md) | URL ingest | "Add from URL": SSRF-guarded fetch, HTML → markdown, `remotes/<host>/…` paths |
-| [20](./phase-20-upstream-refresh.md) | Upstream refresh | Per-file refresh cadence and a refresh clock; a new version only when the source changed |
-| [21](./phase-21-source-routers-and-bulk-sync.md) | Source routers and bulk sync | MCP-backed routers replacing membot's GitHub/Linear downloaders and shell routers; bulk import and sync |
-| [22](./phase-22-llm-assisted-ingestion.md) | LLM-assisted ingestion | Image captions, LLM conversion fallback, LLM-written descriptions — on the project's own model |
-| [23](./phase-23-original-bytes-and-blob-policy.md) | Original bytes and blob policy | Keeping uploaded originals, download and re-convert, the size/mime policy |
+| [19](./phase-0019-url-ingest.md) | URL ingest | "Add from URL": SSRF-guarded fetch, HTML → markdown, `remotes/<host>/…` paths |
+| [20](./phase-0020-upstream-refresh.md) | Upstream refresh | Per-file refresh cadence and a refresh clock; a new version only when the source changed |
+| [21](./phase-0021-source-routers-and-bulk-sync.md) | Source routers and bulk sync | MCP-backed routers replacing membot's GitHub/Linear downloaders and shell routers; bulk import and sync |
+| [22](./phase-0022-llm-assisted-ingestion.md) | LLM-assisted ingestion | Image captions, LLM conversion fallback, LLM-written descriptions — on the project's own model |
+| [23](./phase-0023-original-bytes-and-blob-policy.md) | Original bytes and blob policy | Keeping uploaded originals, download and re-convert, the size/mime policy |
 
-Each phase ends in a reviewable, deployable state. The core of [phase 16](./phase-16-slack.md) — linked
+Each phase ends in a reviewable, deployable state. The core of [phase 16](./phase-0016-slack.md) — linked
 identities, threads as conversations, the outbox — depends only on phases 1–8 and may move up if Slack is
 wanted sooner; its approval cards and slash commands wait for phases 10 and 12.
 
@@ -265,8 +265,8 @@ reranking; private threads with audience-scoped memory.
 
 ## How these documents are maintained
 
-Each phase doc is `phase-NN-<kebab-title>.md`, so a search for "slack" or "refresh" finds the file without
-opening this index, and each follows ToolExec's phase-doc format exactly: the **Goal** and **Status**; the
+Each phase doc is `phase-NNNN-<kebab-title>.md`: four digits so the files list in order, and a title so a search
+for "slack" or "refresh" finds the file without opening this index. Each follows ToolExec's phase-doc format exactly: the **Goal** and **Status**; the
 framing; **Scope** (in and out); **What already exists**; **What this must not weaken**; **Design**; numbered
 **Steps** in the form `` ### N. Title — `path` `` (schema, config, ops, actions, clocks, bot tools, frontend, CLI,
 user docs, tests); **Verification**, which always opens with the same command block —

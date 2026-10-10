@@ -5,12 +5,12 @@
 > guard that will not reach anything but the public internet.
 
 > **Status: planned, not built.** Stage F — Memory, later. Depends on
-> [phase 4](./phase-04-project-memory-core.md) (versions and the reserved source columns),
-> [phase 6](./phase-06-durable-bot-loop.md) (provenance fencing), [phase 9](./phase-09-memory-search-and-ingestion.md)
+> [phase 4](./phase-0004-project-memory-core.md) (versions and the reserved source columns),
+> [phase 6](./phase-0006-durable-bot-loop.md) (provenance fencing), [phase 9](./phase-0009-memory-search-and-ingestion.md)
 > (sniffing, converters, ingest jobs, `memory:add`, `memory_add`), and
-> [phase 10](./phase-10-mcp-servers-and-approvals.md) (the ported `NetworkGuardOps`).
+> [phase 10](./phase-0010-mcp-servers-and-approvals.md) (the ported `NetworkGuardOps`).
 
-[Phase 9](./phase-09-memory-search-and-ingestion.md) stops at uploads for a reason: until now the server never
+[Phase 9](./phase-0009-memory-search-and-ingestion.md) stops at uploads for a reason: until now the server never
 reaches out. Every byte in project memory arrived in a request body. Adding from a URL is the first time the
 server fetches an address somebody *typed* — and, worse, an address a bot chose, possibly because a page it read
 told it to. That is server-side request forgery in its textbook shape with a prompt-injection delivery mechanism
@@ -25,11 +25,11 @@ model loop *choose* how to fetch each URL — and
 removed it for membot's deterministic downloaders. 2.0 takes the middle: one deterministic public fetcher, plain
 HTTP, no browser, no model in the loop, behind a guard.
 
-A URL is fetched **once** here; keeping it current is [phase 20](./phase-20-upstream-refresh.md). Anything that
+A URL is fetched **once** here; keeping it current is [phase 20](./phase-0020-upstream-refresh.md). Anything that
 needs a credential — a private GitHub issue, a Google Doc — goes through an MCP-backed router in
-[phase 21](./phase-21-source-routers-and-bulk-sync.md), never through headers or cookies on this fetcher.
-Scanned-PDF conversion waits for [phase 22](./phase-22-llm-assisted-ingestion.md); the fetched bytes are dropped
-after conversion, and image URLs refused, until [phase 23](./phase-23-original-bytes-and-blob-policy.md) keeps
+[phase 21](./phase-0021-source-routers-and-bulk-sync.md), never through headers or cookies on this fetcher.
+Scanned-PDF conversion waits for [phase 22](./phase-0022-llm-assisted-ingestion.md); the fetched bytes are dropped
+after conversion, and image URLs refused, until [phase 23](./phase-0023-original-bytes-and-blob-policy.md) keeps
 originals.
 
 ## Scope
@@ -44,33 +44,33 @@ and a refusal to overwrite a path owned by another source; phase 4's reserved so
 content in every bot read path; per-project and per-host rate limits; the "Add from URL" dialog;
 `botholomew memory add <url>`; user docs; tests against a local fixture server.
 
-**Out:** scheduled refresh ([phase 20](./phase-20-upstream-refresh.md)); authenticated sources, bulk import, and
-sync ([phase 21](./phase-21-source-routers-and-bulk-sync.md)); model-assisted conversion
-([phase 22](./phase-22-llm-assisted-ingestion.md)); keeping fetched bytes and accepting image URLs
-([phase 23](./phase-23-original-bytes-and-blob-policy.md)). Never: a headless browser or JavaScript rendering,
+**Out:** scheduled refresh ([phase 20](./phase-0020-upstream-refresh.md)); authenticated sources, bulk import, and
+sync ([phase 21](./phase-0021-source-routers-and-bulk-sync.md)); model-assisted conversion
+([phase 22](./phase-0022-llm-assisted-ingestion.md)); keeping fetched bytes and accepting image URLs
+([phase 23](./phase-0023-original-bytes-and-blob-policy.md)). Never: a headless browser or JavaScript rendering,
 link-following or crawling, cookies, caller-supplied headers.
 
 ## What already exists
 
 | Piece | What it gives this work | Where |
 |---|---|---|
-| `assertPublicUrl` / `isPublicIpAddress` | Judge the address, not the hostname; the IANA special-purpose table; embedded-IPv4 unwrapping; fail-closed DNS; the cloud-metadata list. Its JSDoc names DNS rebinding and redirects as the residuals this phase closes | `toolexec:backend/ops/NetworkGuardOps.ts`, ported by [phase 10](./phase-10-mcp-servers-and-approvals.md) |
+| `assertPublicUrl` / `isPublicIpAddress` | Judge the address, not the hostname; the IANA special-purpose table; embedded-IPv4 unwrapping; fail-closed DNS; the cloud-metadata list. Its JSDoc names DNS rebinding and redirects as the residuals this phase closes | `toolexec:backend/ops/NetworkGuardOps.ts`, ported by [phase 10](./phase-0010-mcp-servers-and-approvals.md) |
 | The guard's suite | An exhaustive table test of the pure range check | `toolexec:backend/__tests__/ops/network-guard.test.ts` |
 | Re-check per request | `boundedFetch` guards every URL an upstream names, not only the configured one | `toolexec:backend/ops/McpProbeOps.ts` |
 | Capped reads | Read one byte past the cap, so *at* and *over* the limit differ | `toolexec:backend/ops/RawRequestOps.ts` |
 | HTML → markdown | turndown (ATX, fenced code, `-` bullets) after stripping `script` / `style` / `noscript` | [src/ingest/converter/html.ts](https://github.com/evantahler/membot/blob/main/src/ingest/converter/html.ts) |
 | Default URL path | `defaultLogicalForUrl`: `remotes/{host}/{pathname}`, query and fragment dropped, full URL kept for refresh | [src/ingest/ingest.ts](https://github.com/evantahler/membot/blob/main/src/ingest/ingest.ts) |
 | Replayable fetch identity | `downloader` + `downloader_args` persisted per version so refresh can replay | [src/ingest/sources/types.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/types.ts) |
-| Reserved source columns, `MemoryOps`, `canWritePath` | `sourceType` (`url` and `router` reserved), `sourceUri`, `sourceSha256`, `sourceMimeType`; the one write funnel | [phase 4](./phase-04-project-memory-core.md) |
-| `sniffMime`, converters, `memory_ingest_jobs`, `memory:ingest`, `memory:add`, `memory_add` | Everything after the bytes arrive, including `requestId` idempotency | [phase 9](./phase-09-memory-search-and-ingestion.md) |
-| `<untrusted>` fencing | `fenceUntrusted(text, provenance)`; "fetched pages" already named as a fenced source | [phase 6](./phase-06-durable-bot-loop.md) |
+| Reserved source columns, `MemoryOps`, `canWritePath` | `sourceType` (`url` and `router` reserved), `sourceUri`, `sourceSha256`, `sourceMimeType`; the one write funnel | [phase 4](./phase-0004-project-memory-core.md) |
+| `sniffMime`, converters, `memory_ingest_jobs`, `memory:ingest`, `memory:add`, `memory_add` | Everything after the bytes arrive, including `requestId` idempotency | [phase 9](./phase-0009-memory-search-and-ingestion.md) |
+| `<untrusted>` fencing | `fenceUntrusted(text, provenance)`; "fetched pages" already named as a fenced source | [phase 6](./phase-0006-durable-bot-loop.md) |
 
 ## What this must not weaken
 
 1. **In production the server never connects to a non-public address** — judged on the address actually
    connected to, at every redirect hop.
 2. **A fetch carries no authority.** No cookie, `Authorization`, project secret, or caller-supplied header ever
-   rides on it; anything needing a credential is a [phase 21](./phase-21-source-routers-and-bulk-sync.md) router.
+   rides on it; anything needing a credential is a [phase 21](./phase-0021-source-routers-and-bulk-sync.md) router.
 3. **Fetched text is data, never instruction**: fenced in every bot read path, and never written into `skills/`,
    `prompts/`, or `bots/<slug>/prompts/`.
 4. **No model decides how to fetch.** v1's milestone 8 is the counter-example.
@@ -114,7 +114,7 @@ title-derived describer has something to use), and `<link rel="canonical">` is r
 
 The request identifies itself (`User-Agent: Botholomew/<version> (+https://botholomew.com/bot)`) and does not
 read `robots.txt`: that file governs crawlers, and a one-shot fetch a person or bot asked for, with no
-link-following, is a user agent's request. [Phase 20](./phase-20-upstream-refresh.md) revisits that for schedules.
+link-following, is a user agent's request. [Phase 20](./phase-0020-upstream-refresh.md) revisits that for schedules.
 
 ### Paths, collisions, and provenance
 
@@ -128,7 +128,7 @@ system prompt, and no flag overrides that.
 `memory_files` records `sourceType = 'url'` and the reserved `sourceUri` / `sourceSha256` / `sourceMimeType`
 (phase 4 reserved `url` and `router`; membot called the same thing `remote`). `fetcherArgs` holds what a replay
 needs beyond the URL, which for a plain fetch is little — routers fill it in phase 21 — and `sourceEtag` /
-`sourceLastModified` are stored now so [phase 20](./phase-20-upstream-refresh.md) can send conditional requests.
+`sourceLastModified` are stored now so [phase 20](./phase-0020-upstream-refresh.md) can send conditional requests.
 
 Every version a fetch writes has `untrusted = true`. When a bot reads it through `memory_cat`, `memory_search`
 snippets, `memory_diff`, or code mode's `memory.readText` / `readJson`, phase 6's `fenceUntrusted` wraps it with
@@ -163,8 +163,8 @@ callers, so the service cannot be used to hammer someone else's site.
 |---|---|---|
 | `sourceFinalUri` | `text` | After redirects; shown, never replayed |
 | `fetchedAt` | `timestamp(withTimezone)` | When the bytes were read |
-| `sourceEtag`, `sourceLastModified` | `text` | For [phase 20](./phase-20-upstream-refresh.md)'s conditional requests |
-| `fetcherArgs` | `jsonb` | Canonical URL here; router id and vars in [phase 21](./phase-21-source-routers-and-bulk-sync.md) |
+| `sourceEtag`, `sourceLastModified` | `text` | For [phase 20](./phase-0020-upstream-refresh.md)'s conditional requests |
+| `fetcherArgs` | `jsonb` | Canonical URL here; router id and vars in [phase 21](./phase-0021-source-routers-and-bulk-sync.md) |
 | `untrusted` | `boolean not null default false` | Carried forward as described |
 
 Index `(projectId, sourceUri) WHERE isCurrent` for the collision check. `memory_ingest_jobs` gains `sourceUri`,

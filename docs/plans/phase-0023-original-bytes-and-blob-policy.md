@@ -5,12 +5,12 @@
 > improves an admin regenerates surrogates from the originals — without asking anyone to upload anything again.
 
 > **Status: planned, not built.** Stage F — Memory, later. Depends on
-> [phase 4](./phase-04-project-memory-core.md) (`memory_files`, the reserved `memory_blobs`),
-> [phase 9](./phase-09-memory-search-and-ingestion.md) (uploads, converters, embedding),
-> [phase 18](./phase-18-operations.md) (version retention and deletion semantics), and
-> [phase 22](./phase-22-llm-assisted-ingestion.md) (captions and re-running enrichment).
+> [phase 4](./phase-0004-project-memory-core.md) (`memory_files`, the reserved `memory_blobs`),
+> [phase 9](./phase-0009-memory-search-and-ingestion.md) (uploads, converters, embedding),
+> [phase 18](./phase-0018-operations.md) (version retention and deletion semantics), and
+> [phase 22](./phase-0022-llm-assisted-ingestion.md) (captions and re-running enrichment).
 
-Until now an ingest is lossy on purpose. [Phase 9](./phase-09-memory-search-and-ingestion.md) keeps the markdown
+Until now an ingest is lossy on purpose. [Phase 9](./phase-0009-memory-search-and-ingestion.md) keeps the markdown
 surrogate and the source's sha and throws the bytes away, which kept the first memory phases small and the
 database honest about what it was for. The cost shows up in three places. A person who uploaded a contract cannot
 get the contract back. A converter fix — a better table extractor, phase 22's captions — helps only files
@@ -36,7 +36,7 @@ storage accounting in `memory:stats`; UI, CLI, user docs, tests.
 
 **Out:** object storage (a seam, not a driver — see Design); video and audio processing; serving originals inline
 or as previews; keeping bytes for markdown-direct sources, whose bytes *are* the surrogate; bytes for anything
-ingested before this phase (reconvert reports them); version retention itself ([phase 18](./phase-18-operations.md)
+ingested before this phase (reconvert reports them); version retention itself ([phase 18](./phase-0018-operations.md)
 owns `memory:prune`).
 
 ## What already exists
@@ -51,11 +51,11 @@ owns `memory:prune`).
 | Markdown-direct skip | A source that emits `text/markdown` stores no blob | [src/refresh/runner.ts](https://github.com/evantahler/membot/blob/main/src/refresh/runner.ts) |
 | Bytes in Postgres, precedent | Checkpoints up to 32 MB stored as rows, because "nothing else in this system stores blobs" | `toolexec:backend/schema/agent_session_checkpoints.ts`, `toolexec:docs/plans/phase-31-sleep-and-wake.md` |
 | Capped body reads | The one-byte-past-the-cap upload reader | `toolexec:backend/ops/RawRequestOps.ts` |
-| Versions, path rules, `isCurrent` | What a blob hangs off | [phase 4](./phase-04-project-memory-core.md) |
-| Converters, uploads, embedding, reindex shape | What reconvert re-runs | [phase 9](./phase-09-memory-search-and-ingestion.md) |
-| Staged payloads | `memory_ingest_jobs.payload` holds the bytes until `memory:ingest` nulls it on success — "a deliberate stopgap" that defers this decision here | [phase 9](./phase-09-memory-search-and-ingestion.md) |
-| `memory_settings` | The lazily created per-project row the policy lives in | [phase 9](./phase-09-memory-search-and-ingestion.md) |
-| `captionImage`, enrichment re-run | Captions for image files; re-running from stored originals | [phase 22](./phase-22-llm-assisted-ingestion.md) |
+| Versions, path rules, `isCurrent` | What a blob hangs off | [phase 4](./phase-0004-project-memory-core.md) |
+| Converters, uploads, embedding, reindex shape | What reconvert re-runs | [phase 9](./phase-0009-memory-search-and-ingestion.md) |
+| Staged payloads | `memory_ingest_jobs.payload` holds the bytes until `memory:ingest` nulls it on success — "a deliberate stopgap" that defers this decision here | [phase 9](./phase-0009-memory-search-and-ingestion.md) |
+| `memory_settings` | The lazily created per-project row the policy lives in | [phase 9](./phase-0009-memory-search-and-ingestion.md) |
+| `captionImage`, enrichment re-run | Captions for image files; re-running from stored originals | [phase 22](./phase-0022-llm-assisted-ingestion.md) |
 
 ## What this must not weaken
 
@@ -110,17 +110,17 @@ nullable `bytes` does. When a blob row exists without bytes and a later ingest o
 the policy was loosened, the quota freed — the bytes are filled in: **rehydration**, free on the next upload.
 
 Reaching the quota never fails an ingest; it records `quota` and notifies admins once a day while it persists.
-Where [phase 9](./phase-09-memory-search-and-ingestion.md)'s `memory:ingest` nulls a job's staged payload on
+Where [phase 9](./phase-0009-memory-search-and-ingestion.md)'s `memory:ingest` nulls a job's staged payload on
 success, it now hands the payload to `putBlob` in the transaction that writes the version — the bytes are already
 in Postgres, so keeping them is a move, not a second upload. Sources that emit markdown directly (routers with `docmd`, inline writes) store no blob, as in membot. Fetched
 HTML *does* keep its bytes: turndown's configuration is exactly the kind of converter that improves.
 
 ### Image files, at last
 
-[Phase 9](./phase-09-memory-search-and-ingestion.md) refused image uploads because accepting one would keep a
+[Phase 9](./phase-0009-memory-search-and-ingestion.md) refused image uploads because accepting one would keep a
 placeholder and discard the only copy. With originals kept that objection is gone, so `memory:upload`,
-`memory:add`, and a [phase 19](./phase-19-url-ingest.md) URL accept PNG, JPEG, GIF, and WebP. The surrogate is
-[phase 22](./phase-22-llm-assisted-ingestion.md)'s caption when enrichment is on and the model can see images,
+`memory:add`, and a [phase 19](./phase-0019-url-ingest.md) URL accept PNG, JPEG, GIF, and WebP. The surrogate is
+[phase 22](./phase-0022-llm-assisted-ingestion.md)'s caption when enrichment is on and the model can see images,
 otherwise membot's placeholder plus the filename — and a later `memory:enrich` captions it from the stored bytes.
 An image whose bytes the policy would skip is still refused, because accepting it would be exactly the loss phase
 9 refused. Audio and video stay refused: there is no converter, and the default policy skips their bytes.
@@ -136,7 +136,7 @@ to `MEMORY_BYTES_MCP_MAX` (5 MiB), beyond which the hint points to the CLI or we
 membership, like every other read of memory.
 
 Bots do not get bytes in `memory_cat` — base64 in a model's context is cost with no meaning. Code mode
-([phase 11](./phase-11-code-mode.md)) gains `memory.readBytes(path, { version })`, returning a `Uint8Array` under
+([phase 11](./phase-0011-code-mode.md)) gains `memory.readBytes(path, { version })`, returning a `Uint8Array` under
 phase 11's per-run memory caps, which is where parsing an XLSX's cells belongs.
 
 ### Reconvert: regenerate, never clobber
@@ -144,11 +144,11 @@ phase 11's per-run memory caps, which is where parsing an XLSX's cells belongs.
 Each converter declares a revision (`pdf@3`, `html@2`), and every converted version records `converterRevision`.
 `memory:reconvert` (admin) selects current versions by prefix and mime whose revision is behind, dry-run by
 default, and reports four counts: would change, unchanged, **no bytes** (skipped, stripped, or pre-dating this
-phase — remote ones can use [phase 20](./phase-20-upstream-refresh.md)'s forced refresh instead), and **edited
+phase — remote ones can use [phase 20](./phase-0020-upstream-refresh.md)'s forced refresh instead), and **edited
 since conversion** (the current version is not the machine-written one, so it is left alone). Applied, it runs as
 a resumable batch on `default` / `embed` like phase 9's reindex, writes a version only when the surrogate's sha
 changed — `systemActor = 'reconvert'`, note `reconvert: pdf@2 → pdf@3` — and re-chunks and re-embeds through phase
-9. When [phase 22](./phase-22-llm-assisted-ingestion.md) enrichment is on, reconvert runs it and the dry run
+9. When [phase 22](./phase-0022-llm-assisted-ingestion.md) enrichment is on, reconvert runs it and the dry run
 includes its spend estimate; this is also what lets phase 22 caption uploads from their stored originals.
 
 ### Strip and collect, with phase 18
@@ -159,7 +159,7 @@ bytes reclaimed. It is admin-only, dry-run by default, audited, and the confirma
 
 Blobs follow versions, not paths. A tombstoned file keeps its blob, because undelete must restore the original.
 A blob becomes collectable only when no version references it, which happens only when
-[phase 18](./phase-18-operations.md)'s retention prunes old versions or deletes a project. Phase 18's
+[phase 18](./phase-0018-operations.md)'s retention prunes old versions or deletes a project. Phase 18's
 `memory:prune` already deletes a `memory_blobs` row no version references in the same batch, and parts cascade
 with it; the daily `memory:blob-sweep` (`gcOrphanBlobs`) catches anything a crash left behind. Project
 deletion needs nothing: the cascade from `projects` removes blobs and parts with everything else.

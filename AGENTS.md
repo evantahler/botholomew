@@ -18,7 +18,7 @@ something load-bearing, and where to write when you learn something new. See
 [Where the detail lives](#where-the-detail-lives) for the map.
 
 > **Status: 2.0 is planned, not built.** The plans are complete; the code is not. Until
-> [phase 1](./docs/plans/phase-01-clean-slate-and-shell.md) lands, the tree still holds the **v1** local CLI/TUI
+> [phase 1](./docs/plans/phase-0001-clean-slate-and-shell.md) lands, the tree still holds the **v1** local CLI/TUI
 > agent (`src/`, `test/`, `docs/*.md`), which is frozen — do not extend it. v1 lives permanently on the
 > [`v1` branch](https://github.com/evantahler/botholomew/tree/v1). Sections below that describe `backend/`,
 > `frontend/`, and `cli/` describe the codebase phase 1 creates; where a rule names a file, that file arrives
@@ -271,7 +271,7 @@ inside a shared ops helper — which is how a bot's change to shared state is au
 ## Architecture
 
 **The map is the [plans index](./docs/plans/README.md#core-architecture)**, and the bot loop's full account is
-[phase 6](./docs/plans/phase-06-durable-bot-loop.md). What follows is only the part that is a **rule** while
+[phase 6](./docs/plans/phase-0006-durable-bot-loop.md). What follows is only the part that is a **rule** while
 writing code.
 
 - **All of a bot's state is in Postgres, and nothing holds it in memory.** A conversation outlives deploys,
@@ -394,7 +394,7 @@ differing only by env) + `botholomew-frontend` + `botholomew-redis` + `botholome
 pgvector), staging only, auto-deployed on merge to `main`. **The worker owns migrations** so the web service
 never races a schema change. Values that must be byte-identical across web and worker —
 `SECRETS_ENCRYPTION_KEY` above all — live in the `botholomew-shared` env var group. The runbook will be
-`docs/DEPLOY.md`; the blueprint's invariants are in [phase 2](./docs/plans/phase-02-deployment.md).
+`docs/DEPLOY.md`; the blueprint's invariants are in [phase 2](./docs/plans/phase-0002-deployment.md).
 
 ## CI
 
@@ -450,26 +450,26 @@ Per-feature recipes live in the **Commands** block of the matching plan doc.
 | Topic | Doc |
 |---|---|
 | The roadmap, the data model, the core architecture, the settled stack | [`docs/plans/README.md`](./docs/plans/README.md) |
-| The clean break from v1, the copied platform shell, the test harness, the CI gate | [`phase-01-clean-slate-and-shell.md`](./docs/plans/phase-01-clean-slate-and-shell.md) |
-| The Render blueprint and its invariants | [`phase-02-deployment.md`](./docs/plans/phase-02-deployment.md) |
-| Organizations above projects | [`phase-03-organizations.md`](./docs/plans/phase-03-organizations.md) |
-| Project memory as a versioned filesystem; reserved paths; the membot feature map | [`phase-04-project-memory-core.md`](./docs/plans/phase-04-project-memory-core.md) |
-| Bots, prompts as files, BYOK connections, the named model registry | [`phase-05-bots.md`](./docs/plans/phase-05-bots.md) |
-| Conversations, leases, the tick state machine, the effect sandwich, guards, `backend/llm/` | [`phase-06-durable-bot-loop.md`](./docs/plans/phase-06-durable-bot-loop.md) |
-| Threads, routing and mentions, live channels, notifications, the chat UI | [`phase-07-threads-and-web-chat.md`](./docs/plans/phase-07-threads-and-web-chat.md) |
-| Compaction, resets, large results, thread search, prompt-cache discipline | [`phase-08-context-management.md`](./docs/plans/phase-08-context-management.md) |
-| Embeddings, hybrid search, converters, uploads | [`phase-09-memory-search-and-ingestion.md`](./docs/plans/phase-09-memory-search-and-ingestion.md) |
-| Shared MCP servers, gateway OAuth, MCP meta-tools, the approval gate | [`phase-10-mcp-servers-and-approvals.md`](./docs/plans/phase-10-mcp-servers-and-approvals.md) |
-| Code mode: QuickJS in WASM, host functions, encrypted continuations | [`phase-11-code-mode.md`](./docs/plans/phase-11-code-mode.md) |
-| Skills: slash commands for people, `skill_read` for bots | [`phase-12-skills.md`](./docs/plans/phase-12-skills.md) |
-| Leader and workers: delegation, task DAGs, reporting, swarm guards | [`phase-13-leader-and-workers.md`](./docs/plans/phase-13-leader-and-workers.md) |
-| Schedules, durable wakeups, webhook triggers | [`phase-14-schedules-and-wakeups.md`](./docs/plans/phase-14-schedules-and-wakeups.md) |
-| `botholomew chat`, CLI publishing, binaries | [`phase-15-tui-and-cli-publishing.md`](./docs/plans/phase-15-tui-and-cli-publishing.md) |
-| Slack: linked identities, threads, outbox, approval cards | [`phase-16-slack.md`](./docs/plans/phase-16-slack.md) |
-| iMessage through Linq: reach, opt-out, reply threading | [`phase-17-imessage.md`](./docs/plans/phase-17-imessage.md) |
-| Retention, deletion, key rotation, usage dashboards, evals | [`phase-18-operations.md`](./docs/plans/phase-18-operations.md) |
-| Adding memory from a URL | [`phase-19-url-ingest.md`](./docs/plans/phase-19-url-ingest.md) |
-| Refreshing upstream content on a cadence | [`phase-20-upstream-refresh.md`](./docs/plans/phase-20-upstream-refresh.md) |
-| MCP-backed source routers and bulk sync | [`phase-21-source-routers-and-bulk-sync.md`](./docs/plans/phase-21-source-routers-and-bulk-sync.md) |
-| LLM-assisted ingestion: captions, conversion fallback, descriptions | [`phase-22-llm-assisted-ingestion.md`](./docs/plans/phase-22-llm-assisted-ingestion.md) |
-| Original bytes and the blob policy | [`phase-23-original-bytes-and-blob-policy.md`](./docs/plans/phase-23-original-bytes-and-blob-policy.md) |
+| The clean break from v1, the copied platform shell, the test harness, the CI gate | [`phase-0001-clean-slate-and-shell.md`](./docs/plans/phase-0001-clean-slate-and-shell.md) |
+| The Render blueprint and its invariants | [`phase-0002-deployment.md`](./docs/plans/phase-0002-deployment.md) |
+| Organizations above projects | [`phase-0003-organizations.md`](./docs/plans/phase-0003-organizations.md) |
+| Project memory as a versioned filesystem; reserved paths; the membot feature map | [`phase-0004-project-memory-core.md`](./docs/plans/phase-0004-project-memory-core.md) |
+| Bots, prompts as files, BYOK connections, the named model registry | [`phase-0005-bots.md`](./docs/plans/phase-0005-bots.md) |
+| Conversations, leases, the tick state machine, the effect sandwich, guards, `backend/llm/` | [`phase-0006-durable-bot-loop.md`](./docs/plans/phase-0006-durable-bot-loop.md) |
+| Threads, routing and mentions, live channels, notifications, the chat UI | [`phase-0007-threads-and-web-chat.md`](./docs/plans/phase-0007-threads-and-web-chat.md) |
+| Compaction, resets, large results, thread search, prompt-cache discipline | [`phase-0008-context-management.md`](./docs/plans/phase-0008-context-management.md) |
+| Embeddings, hybrid search, converters, uploads | [`phase-0009-memory-search-and-ingestion.md`](./docs/plans/phase-0009-memory-search-and-ingestion.md) |
+| Shared MCP servers, gateway OAuth, MCP meta-tools, the approval gate | [`phase-0010-mcp-servers-and-approvals.md`](./docs/plans/phase-0010-mcp-servers-and-approvals.md) |
+| Code mode: QuickJS in WASM, host functions, encrypted continuations | [`phase-0011-code-mode.md`](./docs/plans/phase-0011-code-mode.md) |
+| Skills: slash commands for people, `skill_read` for bots | [`phase-0012-skills.md`](./docs/plans/phase-0012-skills.md) |
+| Leader and workers: delegation, task DAGs, reporting, swarm guards | [`phase-0013-leader-and-workers.md`](./docs/plans/phase-0013-leader-and-workers.md) |
+| Schedules, durable wakeups, webhook triggers | [`phase-0014-schedules-and-wakeups.md`](./docs/plans/phase-0014-schedules-and-wakeups.md) |
+| `botholomew chat`, CLI publishing, binaries | [`phase-0015-tui-and-cli-publishing.md`](./docs/plans/phase-0015-tui-and-cli-publishing.md) |
+| Slack: linked identities, threads, outbox, approval cards | [`phase-0016-slack.md`](./docs/plans/phase-0016-slack.md) |
+| iMessage through Linq: reach, opt-out, reply threading | [`phase-0017-imessage.md`](./docs/plans/phase-0017-imessage.md) |
+| Retention, deletion, key rotation, usage dashboards, evals | [`phase-0018-operations.md`](./docs/plans/phase-0018-operations.md) |
+| Adding memory from a URL | [`phase-0019-url-ingest.md`](./docs/plans/phase-0019-url-ingest.md) |
+| Refreshing upstream content on a cadence | [`phase-0020-upstream-refresh.md`](./docs/plans/phase-0020-upstream-refresh.md) |
+| MCP-backed source routers and bulk sync | [`phase-0021-source-routers-and-bulk-sync.md`](./docs/plans/phase-0021-source-routers-and-bulk-sync.md) |
+| LLM-assisted ingestion: captions, conversion fallback, descriptions | [`phase-0022-llm-assisted-ingestion.md`](./docs/plans/phase-0022-llm-assisted-ingestion.md) |
+| Original bytes and the blob policy | [`phase-0023-original-bytes-and-blob-policy.md`](./docs/plans/phase-0023-original-bytes-and-blob-policy.md) |

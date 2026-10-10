@@ -6,7 +6,7 @@
 > line — with every suite green behind one required CI check.
 
 > **Status: planned, not built.** Stage A — Platform. Depends on nothing but the planning PR that wrote these
-> docs; [phase 2](./phase-02-deployment.md) deploys what this phase leaves behind.
+> docs; [phase 2](./phase-0002-deployment.md) deploys what this phase leaves behind.
 
 v1 is a single-user CLI whose every module assumes a project directory on disk, a DuckDB file owned by
 membot, and one process that is both the person's terminal and the agent. None of that survives contact with
@@ -38,13 +38,13 @@ renaming and scrubbing everything ToolExec-specific; Keryx `^0.48`; a Keryx cont
 [AGENTS.md](../../AGENTS.md) with the shell; a new root `README.md`; `docs/cloud-setup.md`; user docs for what
 exists; branch protection on "CI Complete".
 
-**Out:** syncing the blueprint, domains, Sentry, and the pgvector extension ([phase 2](./phase-02-deployment.md));
-organizations ([phase 3](./phase-03-organizations.md)); anything a bot does (phases
-[4](./phase-04-project-memory-core.md)–[8](./phase-08-context-management.md)); `project_connections`,
+**Out:** syncing the blueprint, domains, Sentry, and the pgvector extension ([phase 2](./phase-0002-deployment.md));
+organizations ([phase 3](./phase-0003-organizations.md)); anything a bot does (phases
+[4](./phase-0004-project-memory-core.md)–[8](./phase-0008-context-management.md)); `project_connections`,
 `project_settings`, and gateway OAuth, which return with the features that need them
-([phase 5](./phase-05-bots.md), [phase 10](./phase-10-mcp-servers-and-approvals.md)); the notifications table,
-bell, and channels ([phase 7](./phase-07-threads-and-web-chat.md)); npm publishing and binaries
-([phase 15](./phase-15-tui-and-cli-publishing.md)); project dump/apply (later, unphased).
+([phase 5](./phase-0005-bots.md), [phase 10](./phase-0010-mcp-servers-and-approvals.md)); the notifications table,
+bell, and channels ([phase 7](./phase-0007-threads-and-web-chat.md)); npm publishing and binaries
+([phase 15](./phase-0015-tui-and-cli-publishing.md)); project dump/apply (later, unphased).
 
 ## What already exists
 
@@ -94,11 +94,11 @@ docs site would keep describing v1 at www.botholomew.com while the code undernea
 
 After this phase, `main` publishes nothing: `auto-release.yml` and `docs-deploy.yml` are gone, so the last v1
 release stays the latest one, and GitHub Pages keeps serving the last v1 docs build until
-[phase 2](./phase-02-deployment.md) points the domain at the app. Two things later phases inherit, recorded
+[phase 2](./phase-0002-deployment.md) points the domain at the app. Two things later phases inherit, recorded
 here because this is where they are created: v1's self-updater checks both the npm `botholomew` package and
 the latest GitHub release whose assets are named `botholomew-<os>-<arch>`
 ([src/update/updater.ts](https://github.com/evantahler/botholomew/blob/v1/src/update/updater.ts)), so
-[phase 15](./phase-15-tui-and-cli-publishing.md) must not publish 2.x under either without deciding what a v1
+[phase 15](./phase-0015-tui-and-cli-publishing.md) must not publish 2.x under either without deciding what a v1
 user's `botholomew upgrade` does; and the install URL in v1's README
 (`…/main/install.sh`) stops resolving here — v1 users install from the `v1` branch's copy instead.
 
@@ -115,7 +115,7 @@ from the first commit.
 ### Keryx `^0.48`, and the facts the design leans on
 
 ToolExec pins `^0.45`; the shell moves to `^0.48` in `backend/` and in the frontend's dev dependency (which
-exists for types). The bot loop in [phase 6](./phase-06-durable-bot-loop.md) is shaped around six facts read
+exists for types). The bot loop in [phase 6](./phase-0006-durable-bot-loop.md) is shaped around six facts read
 from Keryx during planning: one-off `enqueue` gets no lock, dedupe, or retry; a failed or crashed job is not
 retried; task connections carry no session; `enqueueIn` / `enqueueAt` default to the `"default"` queue; the
 action timeout defaults to five minutes; PubSub is fire-and-forget and is forwarded to MCP sessions. **They are
@@ -129,7 +129,7 @@ Anything that turns out to be a Keryx bug goes upstream first (AGENTS.md rule 4)
 ToolExec's thirty-three migrations describe tables this repository will never have. The shell's schema is
 seven files, so ToolExec's `backend/drizzle/` and its `meta/` are not copied and `bun run migrations`
 generates one fresh `0000`. `audit_logs` gains `actorBotId` and `onBehalfOfUserId` now — nullable integers, no foreign key yet —
-because every bot-made change from [phase 5](./phase-05-bots.md) on (creating a worker, editing a prompt or a
+because every bot-made change from [phase 5](./phase-0005-bots.md) on (creating a worker, editing a prompt or a
 skill) is audited through them, and adding audit columns later would mean a migration on the one table that is
 deliberately never rewritten. They carry no foreign key for the reason `projectId` has none: the record must
 outlive its subject. A bot table to point at does not exist yet anyway.
@@ -207,7 +207,7 @@ Copy `index.ts`, `keryx.ts`, `migrations.ts`, `tsconfig.json` (drop `mcpApp` fro
 | File | Cut |
 |---|---|
 | `config/index.ts` | The `notifications`, `proxy`, `runs`, and `sandbox` imports and keys; those four files are not copied |
-| `config/tasks.ts` | `queues: ["bots", "orchestrator", "default"]`. The comment's argument is rewritten: `bots` holds conversation ticks a person may be waiting on, `orchestrator` the cheap reconciling clocks, `default` the sweeps. [Phase 2](./phase-02-deployment.md) inserts `embed` and argues the order |
+| `config/tasks.ts` | `queues: ["bots", "orchestrator", "default"]`. The comment's argument is rewritten: `bots` holds conversation ticks a person may be waiting on, `orchestrator` the cheap reconciling clocks, `default` the sweeps. [Phase 2](./phase-0002-deployment.md) inserts `embed` and argues the order |
 | `config/{audit,secrets,sentry,plugins}.ts` | JSDoc only: no `project_secrets`, no ToolExec env group name |
 | `.env.example` | The sandbox, exe.dev, proxy, SMTP, webhook, supervisor, GitHub App, and ngrok blocks; database names; `PROCESS_NAME=botholomew-api`; `WEB_SERVER_THEME`; the fresh dev key |
 
@@ -228,7 +228,7 @@ The other forty-odd ops files, `ops/modelClients/`, and `ops/templates/` stay be
 
 | File | Cut |
 |---|---|
-| `McpToolPolicyOps.ts` | `SANDBOX_ONLY_ACTION_NAMES`, `SANDBOX_ONLY_TOOL_NAMES`, `isSandboxOnly*`. `NEVER_MCP_ACTION_NAMES` shrinks to `user:create`, `session:create`, `session:destroy`, `status`, `swagger`, `actions:permissions`. The `proxy:` and `connection:github-install-` prefix rules go; the `webhook:` and `gateway:oauth-` prefix rules **stay** — AGENTS.md rule 6 names both, the actions they guard return with [phase 14](./phase-14-schedules-and-wakeups.md) and [phase 10](./phase-10-mcp-servers-and-approvals.md), and a rule that is already there cannot be forgotten |
+| `McpToolPolicyOps.ts` | `SANDBOX_ONLY_ACTION_NAMES`, `SANDBOX_ONLY_TOOL_NAMES`, `isSandboxOnly*`. `NEVER_MCP_ACTION_NAMES` shrinks to `user:create`, `session:create`, `session:destroy`, `status`, `swagger`, `actions:permissions`. The `proxy:` and `connection:github-install-` prefix rules go; the `webhook:` and `gateway:oauth-` prefix rules **stay** — AGENTS.md rule 6 names both, the actions they guard return with [phase 14](./phase-0014-schedules-and-wakeups.md) and [phase 10](./phase-0010-mcp-servers-and-approvals.md), and a rule that is already there cannot be forgotten |
 | `AuditOps.ts` | `runToken` leaves `SENSITIVE_KEYS`; `AuditLogEntry` and `serializeAuditLog` gain `actorBotId` and `onBehalfOfUserId` |
 | `CryptoOps.ts` | JSDoc only. It encrypts nothing yet; it exists so the boot check is real from the first deploy |
 
@@ -297,7 +297,7 @@ Not copied: `public/docs/illustrations/` and `scripts/capture-doc-illustrations.
 Copy `client`, `config`, `context`, `helpers`, `output`, `palette`, `banner`, `program`, `index`, `resolve`,
 `interpolate` (kept for the secret-taking commands later phases add: `$VAR` resolution from the environment).
 `follow.ts` is not copied. `package.json`: name `botholomew`, version `2.0.0-alpha.0`, bins `botholomew` and
-`bothy` → `dist/botholomew.js`, and **`"private": true`** until [phase 15](./phase-15-tui-and-cli-publishing.md)
+`bothy` → `dist/botholomew.js`, and **`"private": true`** until [phase 15](./phase-0015-tui-and-cli-publishing.md)
 publishes — so nothing can push 2.0 onto v1 users' npm `latest` by accident.
 
 | Command | Wraps |
@@ -331,7 +331,7 @@ gh api -X PUT repos/evantahler/botholomew/branches/main/protection \
 `render.yaml` is trimmed to `botholomew-api`, `botholomew-worker`, `botholomew-frontend`, `botholomew-redis`,
 `botholomew-db`, and the `botholomew-shared` group (`NODE_ENV`, `LOG_*`, `SECRETS_ENCRYPTION_KEY`,
 `FRONTEND_URL`). It names the `*.botholomew.com` origins but is **not synced** — that is
-[phase 2](./phase-02-deployment.md). No Sentry, GitHub App, SMTP, sandbox, or body-cap keys.
+[phase 2](./phase-0002-deployment.md). No Sentry, GitHub App, SMTP, sandbox, or body-cap keys.
 
 ### 13. Repo docs — [AGENTS.md](../../AGENTS.md), `README.md`, `docs/cloud-setup.md`
 

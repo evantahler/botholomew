@@ -5,9 +5,9 @@
 > work, and without a swarm that loops or burns its budget. People watch the whole swarm as a live task graph,
 > and the leader can grow or rest its team when the project allows it.
 
-> **Status: planned, not built.** Stage D — Swarms. Depends on [phase 5](./phase-05-bots.md),
-> [phase 6](./phase-06-durable-bot-loop.md), [phase 7](./phase-07-threads-and-web-chat.md), and
-> [phase 10](./phase-10-mcp-servers-and-approvals.md).
+> **Status: planned, not built.** Stage D — Swarms. Depends on [phase 5](./phase-0005-bots.md),
+> [phase 6](./phase-0006-durable-bot-loop.md), [phase 7](./phase-0007-threads-and-web-chat.md), and
+> [phase 10](./phase-0010-mcp-servers-and-approvals.md).
 
 Until now every bot works alone: a person or another bot puts a message in its inbox, it thinks, it answers.
 This phase makes bots a team. It is the 2.0 form of the thing v1's [field notes](https://github.com/evantahler/botholomew/blob/v1/docs/field-notes.md)
@@ -29,7 +29,7 @@ re-run does not start a second one, and a background task "belongs to the conver
 current work", so the parent can go idle while the child works. Here, a delegated task is a conversation the
 parent does not wait on, and its result comes back as an `event` row in the parent's inbox.
 
-This phase leaves out recurring work, which [phase 14](./phase-14-schedules-and-wakeups.md) builds on top of
+This phase leaves out recurring work, which [phase 14](./phase-0014-schedules-and-wakeups.md) builds on top of
 these tasks. It also leaves out declared, human-drawn pipelines in the style of
 `toolexec:docs/plans/phase-19-workflows.md`. A task graph here is emergent: bots draw it at runtime, and a
 person can add to it, but nobody authors it in advance.
@@ -46,9 +46,9 @@ per-project caps, duplicate delegation, hop limits on worker DMs, per-tree spend
 clock; leader-managed workers behind a project setting, with an audit trail; the leader's seeded playbook;
 the swarm page with a task DAG; `botholomew task …` and `botholomew swarm`; user docs.
 
-**Out:** schedules that create tasks ([phase 14](./phase-14-schedules-and-wakeups.md)). Surfacing task
-reports in Slack or iMessage ([phase 16](./phase-16-slack.md), [phase 17](./phase-17-imessage.md)).
-Retention of settled tasks and their threads ([phase 18](./phase-18-operations.md)). Delegation across
+**Out:** schedules that create tasks ([phase 14](./phase-0014-schedules-and-wakeups.md)). Surfacing task
+reports in Slack or iMessage ([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)).
+Retention of settled tasks and their threads ([phase 18](./phase-0018-operations.md)). Delegation across
 projects: the project is the tenancy boundary. Moving a running task to another bot; you cancel it and
 delegate again. Bot templates for leader-created workers (later, unphased).
 
@@ -64,10 +64,10 @@ delegate again. Bot templates for leader-created workers (later, unphased).
 | ToolExec DAG execution | The ready set is an equality, not a pick; the ledger row is written before the work; fail-fast cancels siblings | `toolexec:backend/ops/WorkflowRunOps.ts`, `toolexec:docs/plans/phase-19-workflows.md` |
 | ToolExec DAG view | `@xyflow/react` canvas, cycle-safe depth layout, status-coloured edges | `toolexec:frontend/src/utils/workflowDag.ts`, `toolexec:frontend/src/pages/WorkflowRunDetailPage.tsx`, `toolexec:frontend/src/components/WorkflowRunEdge.tsx` |
 | One search for people and agents | A single query builder, so search never advertises a call that would be refused | `toolexec:backend/ops/AgentSearchOps.ts` |
-| Bots and the leader role | `bots.role` with one leader per project, access tags, budgets, concurrency caps, the seeded leader | [phase 5](./phase-05-bots.md) |
-| The loop | Conversations, leases, `conversation_inbox` rows with `source = event`, `eventKind`, and `eventPayload` (declared there, first written here), `requestId` exactly-once for messages, `send_message`, `sleep_until` and `wakeAt`, `hopCount`, `maxBotHops`, the bot-message rate, budgets, `bot:pause`, provenance fencing | [phase 6](./phase-06-durable-bot-loop.md) |
-| Threads and notifications | `threads.parentThreadId`, owner routing, `dm` threads, content-free channels, `notifications` | [phase 7](./phase-07-threads-and-web-chat.md) |
-| Approvals | `awaiting_approval` tool calls, approval cards, recorded calls replayed exactly | [phase 10](./phase-10-mcp-servers-and-approvals.md) |
+| Bots and the leader role | `bots.role` with one leader per project, access tags, budgets, concurrency caps, the seeded leader | [phase 5](./phase-0005-bots.md) |
+| The loop | Conversations, leases, `conversation_inbox` rows with `source = event`, `eventKind`, and `eventPayload` (declared there, first written here), `requestId` exactly-once for messages, `send_message`, `sleep_until` and `wakeAt`, `hopCount`, `maxBotHops`, the bot-message rate, budgets, `bot:pause`, provenance fencing | [phase 6](./phase-0006-durable-bot-loop.md) |
+| Threads and notifications | `threads.parentThreadId`, owner routing, `dm` threads, content-free channels, `notifications` | [phase 7](./phase-0007-threads-and-web-chat.md) |
+| Approvals | `awaiting_approval` tool calls, approval cards, recorded calls replayed exactly | [phase 10](./phase-0010-mcp-servers-and-approvals.md) |
 
 What does not exist yet: any record that one bot asked another for a piece of work, any way for that work to
 depend on other work, and any way for the asker to hear the answer without polling.
@@ -85,7 +85,7 @@ depend on other work, and any way for the asker to hear the answer without polli
 4. **Every change a bot makes to the roster is audited**, with `actorBotId` and `onBehalfOfUserId`, exactly
    as a person's change would be.
 5. **Human messages outrank swarm traffic.** Briefs from bots, reports, and workforce events all ride bot
-   or event priority. The human-reserved slot from [phase 6](./phase-06-durable-bot-loop.md) is untouched.
+   or event priority. The human-reserved slot from [phase 6](./phase-0006-durable-bot-loop.md) is untouched.
 6. **Budgets bind delegated work.** Spending on a task is charged to the assignee bot and to the project
    like any other turn. Delegation is never a way around a budget.
 7. **The project is the privacy boundary, and reads are still filtered by bot.** A task is readable by
@@ -103,10 +103,10 @@ convention cannot give:
 
 - **Routing default.** An unaddressed message in a new thread needs exactly one owner — "Ask for a single
   owner at each stage", in [Grok Bot's words](https://docs.x.ai/grok-bot/chat-and-collaboration). In
-  [phase 7](./phase-07-threads-and-web-chat.md) that owner is the leader.
+  [phase 7](./phase-0007-threads-and-web-chat.md) that owner is the leader.
 - **Monitoring.** `bots:workforce-check` needs a recipient for stall and failure events, and that recipient
   must exist in every project, including one where nobody has written a prompt.
-- **Bootstrap.** A new project seeds exactly one bot ([phase 5](./phase-05-bots.md)), and that bot is the only
+- **Bootstrap.** A new project seeds exactly one bot ([phase 5](./phase-0005-bots.md)), and that bot is the only
   one that may grow the roster when the setting allows it.
 
 The judgement goes into a seeded prompt, `bots/<leader-slug>/prompts/leading.md` (`loading: always`,
@@ -131,12 +131,12 @@ priority, plus the outputs of any predecessors — the same shape v1's `runAgent
 the task, the brief is that person's message and carries human priority. A root task may instead be **placed**
 in an existing thread its assignee already owns. That is how a person runs `task create --thread`, and the
 brief is still their message in that thread. It is also how a schedule firing lands in the schedule's own
-thread ([phase 14](./phase-14-schedules-and-wakeups.md)). A schedule has no author to write a message, so
+thread ([phase 14](./phase-0014-schedules-and-wakeups.md)). A schedule has no author to write a message, so
 its brief arrives as a `task.assigned` event.
 
 It is both a thread and a row because each answers a different question. The thread is where the work happens:
 the assignee's conversation, which a person can read, interrupt, or steer with the chat UI from
-[phase 7](./phase-07-threads-and-web-chat.md). The row holds the facts the swarm runs on — status, the graph,
+[phase 7](./phase-0007-threads-and-web-chat.md). The row holds the facts the swarm runs on — status, the graph,
 priority, attempts, output — and those have to be queryable. A thread alone would make "what is blocked on
 what" a search through prose. A row alone would hide the work.
 
@@ -175,7 +175,7 @@ on the same column, with exponential backoff from 1 minute, capped at 1 hour, fo
 report is how we would learn the clock was broken, not how the task gets woken.
 
 **Turns must end in a status.** A turn in a delegation conversation that started from a brief, a resume, or a
-retry must end in `task_complete`, `task_fail`, or `task_wait`. [Phase 6](./phase-06-durable-bot-loop.md)
+retry must end in `task_complete`, `task_fail`, or `task_wait`. [Phase 6](./phase-0006-durable-bot-loop.md)
 dropped v1's mandatory terminal-tool nudge for ordinary conversations, where a final tool-free step is the
 normal end. A task turn is the exception, because a parent is waiting on a status, not on prose. When a task
 turn ends without one, v1's single nudge comes back: a
@@ -196,7 +196,7 @@ transaction inserts an `event` inbox row into that conversation, with `eventKind
 `task:<id>:settled:<attempt>`. Phase 6's inbox deduplicates only rows that point at a thread message, so this
 phase adds `eventKey`, with a partial unique index on `(conversationId, eventKey)`. The report therefore
 lands exactly once, however many times the settle is retried. The parent's next tick drains every pending
-follow-up row into one turn ([phase 6](./phase-06-durable-bot-loop.md)), so ten reports arriving together cost
+follow-up row into one turn ([phase 6](./phase-0006-durable-bot-loop.md)), so ten reports arriving together cost
 one model call, not ten. `reportMode` (`settled | failures | none`) lets a delegator ask to hear only about
 failures.
 
@@ -235,7 +235,7 @@ The counts and the cycle walk run once as cheap early-outs. They are then taken 
 review: lock the caller and two branches of one tree each read the same tree count, and both insert. A root
 delegation has no root row yet, so it takes a per-project advisory lock instead.
 
-Workers message each other with `send_message` over `dm` threads ([phase 6](./phase-06-durable-bot-loop.md)).
+Workers message each other with `send_message` over `dm` threads ([phase 6](./phase-0006-durable-bot-loop.md)).
 The playbook says how to split the two: questions go in DMs, hand-offs go through tasks. A hand-off sent as a DM
 has no status, no report, and no place in the graph.
 
@@ -257,7 +257,7 @@ system-origin chat thread the leader owns, created lazily the first time it is n
 every five minutes.
 
 The leader gets the event, rather than a person, because the leader can act on it: delegate again, cancel,
-or message a person. People are notified ([phase 7](./phase-07-threads-and-web-chat.md)) only when the leader
+or message a person. People are notified ([phase 7](./phase-0007-threads-and-web-chat.md)) only when the leader
 itself is paused, errored, or out of budget, because then nobody else would hear it.
 
 ### The leader may grow and rest its team
@@ -265,7 +265,7 @@ itself is paused, errored, or out of budget, because then nobody else would hear
 `project_settings.leaderManagesWorkers` is `off | propose | on`, and the default is `propose`:
 
 - **`off`** removes the tools.
-- **`propose`** routes each call through [phase 10](./phase-10-mcp-servers-and-approvals.md)'s approval gate.
+- **`propose`** routes each call through [phase 10](./phase-0010-mcp-servers-and-approvals.md)'s approval gate.
   The tool call parks in `awaiting_approval`, an admin sees a card, and the call that was recorded runs
   exactly as recorded.
 - **`on`** runs the call directly.
@@ -280,7 +280,7 @@ The tools and their limits:
   `accessRead`/`accessWrite`, or a narrower set, and never a wider one. It is on no MCP allowlist. It gets a
   model pin from the project registry and a budget no larger than the leader's remaining budget.
 - **`bot_configure`** changes only structured fields: description, model pin, budget.
-- **`bot_pause`** and **`bot_resume`** rest and restart a worker through [phase 6](./phase-06-durable-bot-loop.md)'s
+- **`bot_pause`** and **`bot_resume`** rest and restart a worker through [phase 6](./phase-0006-durable-bot-loop.md)'s
   `bot:pause` / `bot:resume` ops. The roadmap calls this "hibernating" a worker; on the row it is `paused`,
   because `hibernating` is already the derived name for an idle bot that wakes on its own. Pausing a worker
   that has open tasks requires `cancel_open_tasks: true`.
@@ -290,7 +290,7 @@ The project also caps `maxWorkers` (12) and caps leader-created bots at 3 per da
 
 Every change is audited with `actorBotId` set to the leader. `onBehalfOfUserId` is the person whose message
 started the chain. When a schedule started it, that is the schedule's confirmed owner
-([phase 14](./phase-14-schedules-and-wakeups.md)); when a webhook or other event started it, it is null. A bot
+([phase 14](./phase-0014-schedules-and-wakeups.md)); when a webhook or other event started it, it is null. A bot
 page then reads "created by Botholomew on behalf of Evan, from thread #41".
 
 ### The swarm page
@@ -305,7 +305,7 @@ The swarm page has two parts:
 The layout ports ToolExec's `stepDepths`, which is cycle-safe so that a corrupt edge cannot take the page down.
 Live updates arrive on `project:<id>:tasks` as frames that name nothing (`{ event: "tasks", kinds }`). A frame
 carrying task ids would leak the existence of tasks whose assignee the subscriber cannot read, so this stays a
-membership-only list channel in [phase 7](./phase-07-threads-and-web-chat.md)'s sense, and the page re-reads
+membership-only list channel in [phase 7](./phase-0007-threads-and-web-chat.md)'s sense, and the page re-reads
 its access-filtered tree on each frame. The page subscribes first, then hydrates, as ToolExec's phase 18
 learned to do.
 
@@ -402,8 +402,8 @@ These are environment-overridable ceilings. Project settings may lower them, nev
 | `swarm:view` | `GET /swarm` | member; the roster with open-task counts and spend | — | yes |
 
 There is no `task:delete`. A settled task and its thread are the record of what the swarm did, and retention
-belongs to [phase 18](./phase-18-operations.md). Worker management needs no new human actions:
-[phase 5](./phase-05-bots.md)'s `bot:*` already covers people.
+belongs to [phase 18](./phase-0018-operations.md). Worker management needs no new human actions:
+[phase 5](./phase-0005-bots.md)'s `bot:*` already covers people.
 
 ### 5. Clocks — `backend/actions/task/{tasks-due,workforce-check}.ts`
 
@@ -458,7 +458,7 @@ specific reason goes in the message and the hint, never in a new type:
 | Command | Wraps |
 |---|---|
 | `botholomew task list [--status] [--bot] [--root] [-l] [-o]` | `task:list` |
-| `botholomew task view <id> [--follow]` | `task:view`, then the thread follow from [phase 7](./phase-07-threads-and-web-chat.md) |
+| `botholomew task view <id> [--follow]` | `task:view`, then the thread follow from [phase 7](./phase-0007-threads-and-web-chat.md) |
 | `botholomew task tree <id>` | `task:tree`, drawn as an ASCII tree like ToolExec's run tree |
 | `botholomew task create --bot <slug> --title … [--blocked-by 12,13] [--priority] [--thread <id>]` | `task:create`. The description is read from stdin |
 | `botholomew task edit <id> …` / `cancel <id> [--tree]` / `retry <id>` | `task:edit` / `task:cancel` / `task:retry` |

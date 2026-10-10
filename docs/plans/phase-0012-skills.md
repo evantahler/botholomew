@@ -6,14 +6,14 @@
 > loads one with `skill_read` when it applies. People manage skills in a form editor with history and diff.
 
 > **Status: planned, not built.** Stage C — Shared capabilities. Depends on
-> [phase 4](./phase-04-project-memory-core.md) (`skills/` storage and the reserved-path validator),
-> [phase 5](./phase-05-bots.md) (system-prompt assembly), [phase 6](./phase-06-durable-bot-loop.md) (bot tools),
-> and [phase 7](./phase-07-threads-and-web-chat.md) (the composer and message sending).
+> [phase 4](./phase-0004-project-memory-core.md) (`skills/` storage and the reserved-path validator),
+> [phase 5](./phase-0005-bots.md) (system-prompt assembly), [phase 6](./phase-0006-durable-bot-loop.md) (bot tools),
+> and [phase 7](./phase-0007-threads-and-web-chat.md) (the composer and message sending).
 
 In v1 a skill was a markdown file in `skills/` that the chat TUI rendered and queued as a user message. It worked
 well for the person at the keyboard and not at all for anyone else: rendering lived in the TUI's slash handler, so
 background workers never saw a skill, and the only way a bot learned what skills existed was being told. In 2.0
-skills are files in project memory from [phase 4](./phase-04-project-memory-core.md) onwards — versioned,
+skills are files in project memory from [phase 4](./phase-0004-project-memory-core.md) onwards — versioned,
 searchable, editable in the memory browser — but nothing yet gives them behaviour. This phase does.
 
 Two audiences get the same file. For people, a skill is a parameterized prompt invoked as a slash command; v1's
@@ -37,12 +37,12 @@ and a rendered preview; the skill roster in every bot's system prompt; the bot t
 page (form editor over frontmatter and body, live preview, history from memory); two starter skills;
 `botholomew skill list|view|run`; user docs; tests.
 
-**Out:** `botholomew chat` slash commands and tab completion, which are [phase 15](./phase-15-tui-and-cli-publishing.md)
+**Out:** `botholomew chat` slash commands and tab completion, which are [phase 15](./phase-0015-tui-and-cli-publishing.md)
 calling these actions; Slack's `/botholomew <skill>` with authorized linked identities only,
-[phase 16](./phase-16-slack.md); iMessage, [phase 17](./phase-17-imessage.md). Skills that declare allowed tools,
-carry code (use [code mode](./phase-11-code-mode.md)), or install from a URL (membot's `skill install` is dropped)
+[phase 16](./phase-0016-slack.md); iMessage, [phase 17](./phase-0017-imessage.md). Skills that declare allowed tools,
+carry code (use [code mode](./phase-0011-code-mode.md)), or install from a URL (membot's `skill install` is dropped)
 are not planned. Per-bot skills under `bots/<slug>/` are not planned: a playbook only one bot uses belongs in that
-bot's prompts. Scheduling a skill is [phase 14](./phase-14-schedules-and-wakeups.md), whose schedules carry a
+bot's prompts. Scheduling a skill is [phase 14](./phase-0014-schedules-and-wakeups.md), whose schedules carry a
 description that may invoke one.
 
 ## What already exists
@@ -57,9 +57,9 @@ description that may invoke one.
 | v1 popup | The slash popup's interaction model: filter as you type, arrow keys, Tab or Return to accept, Esc to close | [src/tui/components/SlashCommandPopup.tsx](https://github.com/evantahler/botholomew/blob/v1/src/tui/components/SlashCommandPopup.tsx) |
 | v1 starter skills | `summarize`, `standup`, `capabilities` seeded by `init` | [src/init/templates.ts](https://github.com/evantahler/botholomew/blob/v1/src/init/templates.ts) |
 | v1 docs | File format, substitution table, multi-word arguments | [docs/skills.md](https://github.com/evantahler/botholomew/blob/v1/docs/skills.md), [milestone-7-skills.md](https://github.com/evantahler/botholomew/blob/v1/docs/plans/milestone-7-skills.md) |
-| Project memory | `skills/<name>.md` storage, strict frontmatter on write, versions, diff, restore, the markdown editor, `project:<id>:memory` frames, `LinePatchSchema` | [phase 4](./phase-04-project-memory-core.md) |
-| Messages | Attributed human messages with `requestId`, owner and `@mention` routing, the composer | [phase 7](./phase-07-threads-and-web-chat.md) |
-| Audit for bot changes | `audit_logs.actorBotId` and `onBehalfOfUserId` | [phase 1](./phase-01-clean-slate-and-shell.md) |
+| Project memory | `skills/<name>.md` storage, strict frontmatter on write, versions, diff, restore, the markdown editor, `project:<id>:memory` frames, `LinePatchSchema` | [phase 4](./phase-0004-project-memory-core.md) |
+| Messages | Attributed human messages with `requestId`, owner and `@mention` routing, the composer | [phase 7](./phase-0007-threads-and-web-chat.md) |
+| Audit for bot changes | `audit_logs.actorBotId` and `onBehalfOfUserId` | [phase 1](./phase-0001-clean-slate-and-shell.md) |
 
 What does not exist: a renderer outside a terminal, any way for a bot to know a skill exists, and any record of
 which version of a skill produced a message.
@@ -129,7 +129,7 @@ rendering, not a client approximation.
 
 ### Invoking a skill is sending a message
 
-`skill:run` hands the rendered text to [phase 7](./phase-07-threads-and-web-chat.md)'s message path with the
+`skill:run` hands the rendered text to [phase 7](./phase-0007-threads-and-web-chat.md)'s message path with the
 caller as author. Everything a typed message gets, it gets: the caller must have write on the receiving bot,
 routing reads the rendered text exactly as if typed (an `@mention` in a skill body routes; the preview shows the
 recipients before sending), the `requestId` makes retries exactly-once, and attribution and audit are
@@ -146,7 +146,7 @@ with the current bot). `RESERVED_SKILL_NAMES` is the union of every surface's bu
 cheaper than renaming somebody's skill after a later surface claims its name. The list lives in
 `backend/skills/reserved.ts`, is served by `skill:list` so no client restates it, and a test asserts each
 surface's built-ins are a subset. v1's `/dream` is not a built-in: reflection becomes an optional schedule in
-[phase 14](./phase-14-schedules-and-wakeups.md).
+[phase 14](./phase-0014-schedules-and-wakeups.md).
 
 ### Bots discover skills, then load them
 
@@ -155,7 +155,7 @@ most 50 lines, then "N more; use skill_list". It sits in the cache-stable prefix
 description does. A bot that judges a skill relevant calls `skill_read`, which returns the body, the argument
 definitions, the `versionId`, and the author; given `args`, it also returns the rendering or the same validation
 errors a person would see. The `versionId` a bot read is recorded on the call, beside the prompt versions
-[phase 5](./phase-05-bots.md) records, so "which playbook did it follow" is answerable.
+[phase 5](./phase-0005-bots.md) records, so "which playbook did it follow" is answerable.
 
 Skill bodies are not provenance-fenced. They are project-authored instructions, trusted like prompts — which is
 exactly why bot writes are off by default: a skill written by a bot from content it read elsewhere would be a

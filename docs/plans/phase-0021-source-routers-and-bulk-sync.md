@@ -6,11 +6,11 @@
 > collection and optionally kept in sync — with every credential living only on the project's MCP servers.
 
 > **Status: planned, not built.** Stage F — Memory, later. Depends on
-> [phase 10](./phase-10-mcp-servers-and-approvals.md) (MCP servers, credentials, the backend MCP client, the
-> approval gate), [phase 19](./phase-19-url-ingest.md) (fetcher identity, fencing), and
-> [phase 20](./phase-20-upstream-refresh.md) (the refresh dispatch table and machine authorship).
+> [phase 10](./phase-0010-mcp-servers-and-approvals.md) (MCP servers, credentials, the backend MCP client, the
+> approval gate), [phase 19](./phase-0019-url-ingest.md) (fetcher identity, fencing), and
+> [phase 20](./phase-0020-upstream-refresh.md) (the refresh dispatch table and machine authorship).
 
-[Phase 19](./phase-19-url-ingest.md) reads the public web and nothing else, on purpose: it sends no credential.
+[Phase 19](./phase-0019-url-ingest.md) reads the public web and nothing else, on purpose: it sends no credential.
 But the documents teams most want their bots to know live behind sign-in. membot reached them two ways, and 2.0
 keeps neither as it was. Its built-in downloaders (`github`, `github-repo`, `linear`, `linear-team`) each carry
 an API key in a config slice — a second credential store beside everything else. Its custom routers spawn a
@@ -19,7 +19,7 @@ shell command per URL, and the README's own Google Docs example is a router that
 the way to reach it.
 
 2.0 has no shell on the server and already holds encrypted, OAuth-capable MCP credentials per project
-([phase 10](./phase-10-mcp-servers-and-approvals.md)). So a router here is membot's custom router with the shell
+([phase 10](./phase-0010-mcp-servers-and-approvals.md)). So a router here is membot's custom router with the shell
 replaced by one MCP tool call: a URL regex with named groups, a server, a tool, an arguments template, a mime,
 and a post-processor. The four API-key downloaders become **presets** for routers over GitHub and Linear MCP
 servers, and bulk import becomes a router whose tool *lists* items, each of which is then fetched by an ordinary
@@ -38,7 +38,7 @@ in phase 10's approval and allowlist model; router test with dry match and optio
 `collection …`; user docs; tests against phase 10's fake MCP server.
 
 **Out:** multi-call routers (an issue *and* its comments as two tool calls — choose a tool that returns both, or
-compose in code mode, [phase 11](./phase-11-code-mode.md)); per-asker credentials (later, unphased — routers use
+compose in code mode, [phase 11](./phase-0011-code-mode.md)); per-asker credentials (later, unphased — routers use
 the server's project-level credential); shell routers and shell post-processors, ever; Apple Notes and other
 local-machine sources (the CLI uploads files instead); write-capable tools as routers.
 
@@ -53,9 +53,9 @@ local-machine sources (the CLI uploads files instead); write-capable tools as ro
 | What the downloaders fetched | Issue and PR URLs, Linear issues and projects, their logical paths | [src/ingest/sources/github.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/github.ts), [src/ingest/sources/linear.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/linear.ts) |
 | Bulk + sync | Paginated enumerate, `mtime` probe, selector-scoped sync that tombstones only its own rows | [src/ingest/sources/github-repo.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/github-repo.ts), [src/ingest/sources/linear-team.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/linear-team.ts) |
 | v1's approval policy | Default-deny, allowlist patterns, `auto_allow_read_only` | [src/mcpx/client.ts](https://github.com/evantahler/botholomew/blob/v1/src/mcpx/client.ts), [docs/approvals.md](https://github.com/evantahler/botholomew/blob/v1/docs/approvals.md) |
-| MCP servers, credentials, client, gate, bot allowlist | Everything a router calls through | [phase 10](./phase-10-mcp-servers-and-approvals.md) (from `toolexec:backend/schema/sandbox_mcp_gateways.ts`, `toolexec:backend/schema/gateway_credentials.ts`) |
-| Fetch identity, fencing, collisions | `sourceType` (phase 4 reserved `router`), `sourceUri`, `fetcherArgs`, `untrusted`, path ownership, URL ingest jobs | [phase 19](./phase-19-url-ingest.md) |
-| Refresh | `FETCHERS`, claims, `systemActor`, conflict and gone handling | [phase 20](./phase-20-upstream-refresh.md) |
+| MCP servers, credentials, client, gate, bot allowlist | Everything a router calls through | [phase 10](./phase-0010-mcp-servers-and-approvals.md) (from `toolexec:backend/schema/sandbox_mcp_gateways.ts`, `toolexec:backend/schema/gateway_credentials.ts`) |
+| Fetch identity, fencing, collisions | `sourceType` (phase 4 reserved `router`), `sourceUri`, `fetcherArgs`, `untrusted`, path ownership, URL ingest jobs | [phase 19](./phase-0019-url-ingest.md) |
+| Refresh | `FETCHERS`, claims, `systemActor`, conflict and gone handling | [phase 20](./phase-0020-upstream-refresh.md) |
 
 ## What this must not weaken
 
@@ -68,7 +68,7 @@ local-machine sources (the CLI uploads files instead); write-capable tools as ro
 4. **Router tools only read.** A router is an unattended, pre-approved call; it must not be able to send, write,
    or delete.
 5. **Sync only removes what it created, only after a complete enumeration, and never silently in bulk.**
-   Ordinary refresh still never tombstones ([phase 20](./phase-20-upstream-refresh.md)).
+   Ordinary refresh still never tombstones ([phase 20](./phase-0020-upstream-refresh.md)).
 6. **Router output is untrusted** and fenced exactly like a fetched page.
 7. **Deterministic replay**: refresh re-runs the same router with the persisted vars; no model picks a tool.
 
@@ -90,7 +90,7 @@ local-machine sources (the CLI uploads files instead); write-capable tools as ro
 `json-to-markdown` is new: many MCP tools return structured JSON, which membot handed to a model to tidy when it
 had a key. Here a deterministic renderer turns objects into headings and definition lists and long strings into
 paragraphs. A router that would rather keep the JSON declares `application/json` with `passthrough`, and gets phase
-9's fenced block or, where enabled, [phase 22](./phase-22-llm-assisted-ingestion.md)'s model normalizer.
+9's fenced block or, where enabled, [phase 22](./phase-0022-llm-assisted-ingestion.md)'s model normalizer.
 
 Patterns run on every add against a string a bot may have chosen, so a backtracking regex an admin wrote by
 accident is a CPU denial of service. Patterns compile with an RE2 engine built to WASM — linear time, no native
@@ -100,14 +100,14 @@ matching. Placeholders are checked against named groups at write time, as membot
 
 ### Dispatch and replay
 
-Matching runs scheme enumerators first, then URL routers by `priority`, then [phase 19](./phase-19-url-ingest.md)'s
+Matching runs scheme enumerators first, then URL routers by `priority`, then [phase 19](./phase-0019-url-ingest.md)'s
 public fetch as the catch-all — the inverse of membot, where built-ins beat custom routers, because here routers
 are the specific path and the public fetch the generic one. `--router <name>` and `--fetcher url` override,
 like membot's `--downloader`.
 
 A router-fetched version stores `sourceType = 'router'`, the URL in `sourceUri`, and
 `fetcherArgs = { routerId, routerName, vars, collectionId? }`, staged through the same ingest job as a
-[phase 19](./phase-19-url-ingest.md) fetch. Refresh looks the router up **by id**, not name
+[phase 19](./phase-0019-url-ingest.md) fetch. Refresh looks the router up **by id**, not name
 (membot's name lookup broke on rename), substitutes the persisted vars into the router's *current* template, and
 calls again — so fixing a router's arguments fixes every file it owns, while a pattern change never re-routes an
 existing file. A deleted or disabled router fails refresh with a hint naming it; `memory-router:delete` refuses
@@ -115,7 +115,7 @@ while files reference it unless `force`, and says how many.
 
 ### Approval and the allowlist: the definition is the approval
 
-[Phase 10](./phase-10-mcp-servers-and-approvals.md)'s gate makes a person approve a bot's call before it runs.
+[Phase 10](./phase-0010-mcp-servers-and-approvals.md)'s gate makes a person approve a bot's call before it runs.
 Router calls do **not** go through it, and that is a decision, not an omission:
 
 - Refresh and sync run unattended, at three in the morning, over hundreds of items. A per-call gate would turn
@@ -146,7 +146,7 @@ creates a **collection** row and a parent ingest job; enumeration pages through 
 ordinary URL dispatch — so the GitHub issue preset serves both a pasted URL and a 2 000-issue import, as membot's
 `github-repo` reused `github`'s fetch. When an item's `updatedAt` equals the file's stored `sourceLastModified`,
 the child skips the fetch (membot's `probeUnchanged`). Children run at `collectionConcurrency` (2) per server so a
-credential's rate limit is not spent in a burst. A collection can carry a [phase 20](./phase-20-upstream-refresh.md)
+credential's rate limit is not spent in a burst. A collection can carry a [phase 20](./phase-0020-upstream-refresh.md)
 cadence, which re-enumerates and fetches what is new or changed.
 
 Bots may add single items through routers; creating a collection is a person's decision unless the project

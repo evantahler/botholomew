@@ -6,10 +6,10 @@
 > once.
 
 > **Status: planned, not built.** Stage B — One bot that thinks. Depends on
-> [phase 4](./phase-04-project-memory-core.md), [phase 5](./phase-05-bots.md),
-> [phase 6](./phase-06-durable-bot-loop.md), and [phase 7](./phase-07-threads-and-web-chat.md).
+> [phase 4](./phase-0004-project-memory-core.md), [phase 5](./phase-0005-bots.md),
+> [phase 6](./phase-0006-durable-bot-loop.md), and [phase 7](./phase-0007-threads-and-web-chat.md).
 
-[Phase 6](./phase-06-durable-bot-loop.md) hydrates a conversation's whole transcript on every tick. That is
+[Phase 6](./phase-0006-durable-bot-loop.md) hydrates a conversation's whole transcript on every tick. That is
 fine for a week and fatal for a leader bot that lives in a project's main thread. v1 ran into this and had
 three answers, each of which this phase replaces:
 
@@ -28,9 +28,9 @@ code mode can reduce it. Episodic recall is a search over threads, the 2.0 versi
 
 This phase does not build semantic search over threads: full-text search answers "what did we decide",
 which is a question about facts. Code mode reading scratch files is
-[phase 11](./phase-11-code-mode.md). Ingesting a fetched URL into memory is
-[phase 19](./phase-19-url-ingest.md); a fetched URL's tool result is provenance-fenced here like any other
-external result. Retention for transcripts and messages is [phase 18](./phase-18-operations.md).
+[phase 11](./phase-0011-code-mode.md). Ingesting a fetched URL into memory is
+[phase 19](./phase-0019-url-ingest.md); a fetched URL's tool result is provenance-fenced here like any other
+external result. Retention for transcripts and messages is [phase 18](./phase-0018-operations.md).
 
 ## Scope
 
@@ -60,9 +60,9 @@ external result. Retention for transcripts and messages is [phase 18](./phase-18
 **Out:**
 
 - Semantic (embedding) search over threads. Not scheduled; full-text search is the recall tool.
-- Code mode over scratch files ([phase 11](./phase-11-code-mode.md)).
-- URL ingest into memory ([phase 19](./phase-19-url-ingest.md)).
-- Retention of `thread_messages` and `conversation_entries` ([phase 18](./phase-18-operations.md)). This
+- Code mode over scratch files ([phase 11](./phase-0011-code-mode.md)).
+- URL ingest into memory ([phase 19](./phase-0019-url-ingest.md)).
+- Retention of `thread_messages` and `conversation_entries` ([phase 18](./phase-0018-operations.md)). This
   phase sweeps only `scratch/`.
 - An extended (hour-long) prompt-cache TTL. Not now; the hit rate this phase measures decides whether it is
   needed.
@@ -80,9 +80,9 @@ external result. Retention for transcripts and messages is [phase 18](./phase-18
 | membot reads | Line-based `offset` / `limit` on `read`, which `memory_cat` inherits | [src/operations/read.ts](https://github.com/evantahler/membot/blob/main/src/operations/read.ts) |
 | pi-durable | `reserveTokens` (16,384) and `backgroundTokens` (32,768); the summary placed at the next turn boundary; compact-and-retry-once on a too-long rejection; `reset()` with a handoff; nothing deleted, so history stays searchable | [pi-durable](https://earendil.com/posts/pi-durable/) |
 | Batched sweeps | Delete in batches so a purge never holds a long transaction | `toolexec:backend/actions/run/runs-sweep.ts` |
-| Project memory | `MemoryOps.write` / `read`, reserved-path exclusion from default search, keyword search, the memory browser | [phase 4](./phase-04-project-memory-core.md) |
-| The loop | Entry kinds `compaction` and `reset`, `hydrate`, `assertWellFormed`, fencing, `usage_events`, the context-too-long error class, and the fake model server | [phase 6](./phase-06-durable-bot-loop.md) |
-| Thread UI | Thread page, turn log, bot chips, threads list | [phase 7](./phase-07-threads-and-web-chat.md) |
+| Project memory | `MemoryOps.write` / `read`, reserved-path exclusion from default search, keyword search, the memory browser | [phase 4](./phase-0004-project-memory-core.md) |
+| The loop | Entry kinds `compaction` and `reset`, `hydrate`, `assertWellFormed`, fencing, `usage_events`, the context-too-long error class, and the fake model server | [phase 6](./phase-0006-durable-bot-loop.md) |
+| Thread UI | Thread page, turn log, bot chips, threads list | [phase 7](./phase-0007-threads-and-web-chat.md) |
 
 ## What this must not weaken
 
@@ -115,7 +115,7 @@ was confidently wrong on JSON-heavy turns.
 ### How big the window is
 
 `backend/llm/contextWindows.ts` ports v1's lookup. A `maxInputTokens` override on the model's registry
-entry ([phase 5](./phase-05-bots.md)) comes first, then the known-window table, then a per-provider
+entry ([phase 5](./phase-0005-bots.md)) comes first, then the known-window table, then a per-provider
 fallback: `anthropic` 200,000, `openai` 128,000, `openai_compatible` 32,000. v1's Ollama probe is not
 ported. A test keeps the window table and phase 6's price table in step, so a model with a price always has
 a window.
@@ -148,7 +148,7 @@ to. Otherwise compaction would run every few steps and summarize work the bot is
    [never orphan](#never-orphan-a-tool-result)).
 3. **Summarize, outside the lease.** The task reads the previous summary and the entries after it, up to the
    cut, and asks the project's fast model for a new summary. The model comes from `resolveFastModel`, which
-   falls back to the project's default ([phase 5](./phase-05-bots.md)). The task writes the result to the staging row (`ready`), not to the transcript, and
+   falls back to the project's default ([phase 5](./phase-0005-bots.md)). The task writes the result to the staging row (`ready`), not to the transcript, and
    records `usage_events` with `kind: compaction`. Summaries roll: each one absorbs the previous one, so a
    conversation has exactly one live summary.
 4. **Apply, under the lease.** At the next **turn boundary** the lease holder appends a `compaction` entry
@@ -241,7 +241,7 @@ leaves all three or none. This replaces phase 6's head-and-tail truncation.
 
 Pages are lines, as in membot's `read`, so the file is normalized for paging:
 
-- JSON is pretty-printed, and stays valid JSON for [code mode](./phase-11-code-mode.md). v1 had to warn that
+- JSON is pretty-printed, and stays valid JSON for [code mode](./phase-0011-code-mode.md). v1 had to warn that
   its paged `lr_N` splits were not valid JSON.
 - Other text has lines over 4,000 characters hard-wrapped, and the stub says so.
 
@@ -264,10 +264,10 @@ When the result came from an external tool, the stub is fenced like the result i
 a path, not a process-global counter. A person can open it in the memory browser. Code mode can read it.
 And it sits inside the same project boundary as everything else. `memory_cat` with `offset` / `limit` *is*
 v1's `read_large_result`, so there is no separate paging tool. `memory_cat`'s own output cap
-([phase 4](./phase-04-project-memory-core.md)) keeps a single page from flooding the context again.
+([phase 4](./phase-0004-project-memory-core.md)) keeps a single page from flooding the context again.
 
 **Scratch is working state, not knowledge.** `scratch/` is excluded from default `memory_search` unless a
-`path_prefix` names it, as reserved paths are. [Phase 9](./phase-09-memory-search-and-ingestion.md)'s
+`path_prefix` names it, as reserved paths are. [Phase 9](./phase-0009-memory-search-and-ingestion.md)'s
 chunker skips it, so the worker never spends CPU embedding a raw API dump.
 
 **Retention.** The daily `scratch:sweep` hard-deletes, in batches, every scratch file that meets **both**
@@ -301,11 +301,11 @@ becomes a real query. In 2.0 it is Postgres full-text search:
 
 **Full-text, not embeddings.** Recall questions are about names, numbers, and decisions, and exact words
 find those. Embedding every message would put a model call on every post for a gain no one has measured.
-[Phase 9](./phase-09-memory-search-and-ingestion.md)'s embedder exists if that ever changes.
+[Phase 9](./phase-0009-memory-search-and-ingestion.md)'s embedder exists if that ever changes.
 
 ### Prompt-cache discipline
 
-[Phase 6](./phase-06-durable-bot-loop.md) set the order. This phase keeps it true across compactions and
+[Phase 6](./phase-0006-durable-bot-loop.md) set the order. This phase keeps it true across compactions and
 makes it measurable. On Anthropic there are three breakpoints, of the four allowed:
 
 | Breakpoint | After | Changes when |
@@ -359,7 +359,7 @@ coming instead of being surprised by one.
 | `tool_calls` | `offloadPath text` | set when the result went to scratch |
 | `usage_events` | `kind` gains `compaction` | — |
 | `project_settings` | `compactionReserveTokens` (16 384), `compactionBackgroundTokens` (32 768), `compactionKeepRecentTokens` (20 000), `largeResultInlineChars` (10 000), `scratchRetentionDays` (14) | validated against every model the project's bots may resolve to |
-| project model registry ([phase 5](./phase-05-bots.md)) | `maxInputTokens` override, if that phase did not add it | — |
+| project model registry ([phase 5](./phase-0005-bots.md)) | `maxInputTokens` override, if that phase did not add it | — |
 
 ### 2. Config — `backend/config/context.ts`
 
@@ -410,7 +410,7 @@ their retry.
 | `thread_search` | `[[ bash equivalent command: grep -r ]]` | safe | `query`, `scope?` (`threads` \| `mine`), `thread_id?`, `author?`, `since?`, `until?`, `limit` (≤ 20) | Fenced hits, each with a `thread_read` hint; `input_error` with an example when the query is empty |
 | `context_handoff` | — (no bash equivalent) | safe | `note` (≤ 4,000 chars) | Appends a `reset` at the next step boundary. A second call in the same turn returns `conflict` |
 
-Large-result paging uses `memory_cat` and `memory_search` from [phase 4](./phase-04-project-memory-core.md).
+Large-result paging uses `memory_cat` and `memory_search` from [phase 4](./phase-0004-project-memory-core.md).
 No new paging tool is added. The registry's prompt guidance for the memory group gains one paragraph on
 scratch stubs, generated like the rest of the section.
 
@@ -423,7 +423,7 @@ scratch stubs, generated like the rest of the section.
   - **Start fresh** in a bot chip's menu, with an optional handoff note.
 - **Threads page:** a search box with highlighted snippets. Each result links to `/threads/:id#m<messageId>`.
 - **Bot page:** a seven-day cache hit rate and compaction count; the meter on the conversations card.
-- **Memory browser** ([phase 4](./phase-04-project-memory-core.md)): `scratch/` shown with a "working files,
+- **Memory browser** ([phase 4](./phase-0004-project-memory-core.md)): `scratch/` shown with a "working files,
   swept after 14 days out of context" note.
 
 ### 8. CLI — `cli/src/commands/{thread,conversation}.ts`

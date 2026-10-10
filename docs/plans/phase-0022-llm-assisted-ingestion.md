@@ -5,13 +5,13 @@
 > on the project's own model, inside a budget an admin set, with every token recorded. A project that does not
 > opt in loses nothing: ingestion stays deterministic and complete.
 
-> **Status: planned, not built.** Stage F — Memory, later. Depends on [phase 5](./phase-05-bots.md) (BYOK
-> connections and the named model registry), [phase 6](./phase-06-durable-bot-loop.md) (`backend/llm/`,
-> `usage_events`, budgets, the fake model server), and [phase 9](./phase-09-memory-search-and-ingestion.md) (the
+> **Status: planned, not built.** Stage F — Memory, later. Depends on [phase 5](./phase-0005-bots.md) (BYOK
+> connections and the named model registry), [phase 6](./phase-0006-durable-bot-loop.md) (`backend/llm/`,
+> `usage_events`, budgets, the fake model server), and [phase 9](./phase-0009-memory-search-and-ingestion.md) (the
 > converters, the describer, ingest jobs). Re-running on uploads gets better with
-> [phase 23](./phase-23-original-bytes-and-blob-policy.md).
+> [phase 23](./phase-0023-original-bytes-and-blob-policy.md).
 
-[Phase 9](./phase-09-memory-search-and-ingestion.md) ports membot's converters without the parts that call a
+[Phase 9](./phase-0009-memory-search-and-ingestion.md) ports membot's converters without the parts that call a
 model, and that is the right default: every file becomes searchable markdown with no key, no spend, and nothing
 leaving the deployment. It also leaves three holes membot filled with a model. An image is a placeholder. A
 scanned PDF is `(scanned PDF, N bytes — no recognizable text)`. A file without a heading gets a description that
@@ -51,8 +51,8 @@ without document input; any bot tool that spends the ingestion budget on demand.
 | Capability probing | Per-model capability detection with an explicit override | [src/llm/capabilities.ts](https://github.com/evantahler/botholomew/blob/v1/src/llm/capabilities.ts) |
 | Usage normalization | Cache-aware token accounting across providers | [src/llm/usage.ts](https://github.com/evantahler/botholomew/blob/v1/src/llm/usage.ts) |
 | Pricing discipline | "A wrong price is worse than a missing one, and a silent zero is worst" | `toolexec:backend/ops/ModelPriceOps.ts` |
-| Connections, `project_models` | The project's encrypted key and its `default` / `fast` models | [phase 5](./phase-05-bots.md) |
-| `usage_events`, budgets, fake model server | The ledger and the test double | [phase 6](./phase-06-durable-bot-loop.md) |
+| Connections, `project_models` | The project's encrypted key and its `default` / `fast` models | [phase 5](./phase-0005-bots.md) |
+| `usage_events`, budgets, fake model server | The ledger and the test double | [phase 6](./phase-0006-durable-bot-loop.md) |
 
 ## What this must not weaken
 
@@ -108,7 +108,7 @@ setting, because it is the main throughput and cost win in bulk ingest and turni
 
 Standalone image files stay refused here, for phase 9's stated reason: without the original kept, accepting one
 would discard the only copy and call it success. `captionImage` is built and tested now and becomes their surrogate
-when [phase 23](./phase-23-original-bytes-and-blob-policy.md) keeps originals and opens image uploads.
+when [phase 23](./phase-0023-original-bytes-and-blob-policy.md) keeps originals and opens image uploads.
 
 Calls have membot's 60 s timeout and one retry on `429` / `5xx`. The ingest job's convert step runs on `default`
 rather than `embed` whenever enrichment is on, so a slow provider never holds the CPU-bound embedding slots;
@@ -138,7 +138,7 @@ structured text was normalized, whether the description was written by a model, 
 (`budget`, `unsupported_by_model`, `error`, `timeout`). The info panel shows it ("captions and description by
 `fast` · 12 images"). The ingestion model sees content that may carry instructions; it has no tools, its output is
 only ever stored text, and a version derived from an untrusted source stays `untrusted`
-([phase 19](./phase-19-url-ingest.md)). The worst a hostile page can do is mislead its own caption, and that
+([phase 19](./phase-0019-url-ingest.md)). The worst a hostile page can do is mislead its own caption, and that
 caption is fenced.
 
 ### Re-running on demand
@@ -148,9 +148,9 @@ the file count and a spend estimate. It writes a new version — `systemActor = 
 `enrich: captions, description` — only when the surrogate or description actually changed, and only when the
 current version is still the machine-written one; a file someone edited since is skipped and reported, never
 overwritten. Descriptions can always be redone from the stored surrogate. Captions and conversion need the
-original bytes: a remote or router file is re-fetched through [phase 20](./phase-20-upstream-refresh.md)'s forced
+original bytes: a remote or router file is re-fetched through [phase 20](./phase-0020-upstream-refresh.md)'s forced
 refresh; an upload is skipped with "re-upload to caption" until
-[phase 23](./phase-23-original-bytes-and-blob-policy.md) keeps originals. `--degraded` targets files whose last
+[phase 23](./phase-0023-original-bytes-and-blob-policy.md) keeps originals. `--degraded` targets files whose last
 enrichment degraded — the "we ran out of budget last week" case.
 
 ## Steps

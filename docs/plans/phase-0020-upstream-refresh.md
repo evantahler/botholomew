@@ -5,11 +5,11 @@
 > so shared knowledge neither goes stale quietly nor disappears because someone else's server had a bad day.
 
 > **Status: planned, not built.** Stage F — Memory, later. Depends on
-> [phase 4](./phase-04-project-memory-core.md) (versions, `mv`, undelete), [phase 7](./phase-07-threads-and-web-chat.md)
-> (notifications), [phase 9](./phase-09-memory-search-and-ingestion.md) (conversion and embedding), and
-> [phase 19](./phase-19-url-ingest.md) (the guarded fetcher and the source columns it persists).
+> [phase 4](./phase-0004-project-memory-core.md) (versions, `mv`, undelete), [phase 7](./phase-0007-threads-and-web-chat.md)
+> (notifications), [phase 9](./phase-0009-memory-search-and-ingestion.md) (conversion and embedding), and
+> [phase 19](./phase-0019-url-ingest.md) (the guarded fetcher and the source columns it persists).
 
-[Phase 19](./phase-19-url-ingest.md) fetches once. That is enough for a paper or a spec that will not change,
+[Phase 19](./phase-0019-url-ingest.md) fetches once. That is enough for a paper or a spec that will not change,
 and wrong for the things teams actually point bots at: a handbook page, a pricing page, a status doc. membot
 answered this with `refresh_frequency` on each file and a daemon (`membot serve --watch`) that re-reads whatever
 is due. Its runner is the model for this phase — replay the persisted fetcher, compare the source sha, write a
@@ -22,8 +22,8 @@ itself becomes a small machine writer with three outcomes worth naming — chang
 membot never had to think about: the source is **gone**, and somebody **edited** the file since it was fetched.
 Neither is allowed to destroy anything.
 
-This phase refreshes what [phase 19](./phase-19-url-ingest.md) fetched (`sourceType = 'url'`) and builds the
-dispatch table that [phase 21](./phase-21-source-routers-and-bulk-sync.md)'s routers plug into. It does not
+This phase refreshes what [phase 19](./phase-0019-url-ingest.md) fetched (`sourceType = 'url'`) and builds the
+dispatch table that [phase 21](./phase-0021-source-routers-and-bulk-sync.md)'s routers plug into. It does not
 refresh uploads — the server has no path back to a person's laptop — and it never tombstones on its own.
 
 ## Scope
@@ -37,9 +37,9 @@ auto-pause, and notifications; the gone and conflict states; `memory:refresh-set
 health in the web UI and CLI; user docs; tests.
 
 **Out:** refreshing uploads (re-run `botholomew memory add <file>`; phase 9 dedupes by sha); router and collection
-replay, and the opt-in sync that *does* tombstone ([phase 21](./phase-21-source-routers-and-bulk-sync.md));
-re-converting stored originals when a converter improves ([phase 23](./phase-23-original-bytes-and-blob-policy.md));
-retention of the versions refresh produces ([phase 18](./phase-18-operations.md) owns `memory:prune`).
+replay, and the opt-in sync that *does* tombstone ([phase 21](./phase-0021-source-routers-and-bulk-sync.md));
+re-converting stored originals when a converter improves ([phase 23](./phase-0023-original-bytes-and-blob-policy.md));
+retention of the versions refresh produces ([phase 18](./phase-0018-operations.md) owns `memory:prune`).
 
 ## What already exists
 
@@ -51,10 +51,10 @@ retention of the versions refresh produces ([phase 18](./phase-18-operations.md)
 | Due query and cadence grammar | `listDueRefreshes`; `parseDuration` (`5m`, `1h`, `24h`, `7d`) | [src/db/files.ts](https://github.com/evantahler/membot/blob/main/src/db/files.ts), [src/ingest/ingest.ts](https://github.com/evantahler/membot/blob/main/src/ingest/ingest.ts) |
 | Claim-and-back-off | `FOR UPDATE SKIP LOCKED` claims, `2^attempts` backoff, a `maxAttempts` terminal state | `toolexec:backend/ops/NotificationOps.ts`, `toolexec:backend/actions/notification/notifications-dispatch.ts` |
 | Why `SKIP LOCKED` alone is not a limit | The dispatch claim's reasoning about concurrency caps | `toolexec:backend/ops/RunOps.ts` |
-| The fetcher and its persisted identity | `guardedFetch`, `sourceType` / `sourceUri` / `fetcherArgs`, `sourceSha256`, `sourceEtag`, `sourceLastModified`, URL ingest jobs | [phase 19](./phase-19-url-ingest.md) |
-| Ingest jobs | `memory:ingest` converts staged bytes and writes through `MemoryOps`, honouring the job's `expectedVersionId` | [phase 9](./phase-09-memory-search-and-ingestion.md) |
-| Lease epochs and fenced writes | The `WHERE epoch = $mine` discipline reused for claims | [phase 6](./phase-06-durable-bot-loop.md) |
-| Notifications | Rows, dispatch, the bell | [phase 7](./phase-07-threads-and-web-chat.md) |
+| The fetcher and its persisted identity | `guardedFetch`, `sourceType` / `sourceUri` / `fetcherArgs`, `sourceSha256`, `sourceEtag`, `sourceLastModified`, URL ingest jobs | [phase 19](./phase-0019-url-ingest.md) |
+| Ingest jobs | `memory:ingest` converts staged bytes and writes through `MemoryOps`, honouring the job's `expectedVersionId` | [phase 9](./phase-0009-memory-search-and-ingestion.md) |
+| Lease epochs and fenced writes | The `WHERE epoch = $mine` discipline reused for claims | [phase 6](./phase-0006-durable-bot-loop.md) |
+| Notifications | Rows, dispatch, the bell | [phase 7](./phase-0007-threads-and-web-chat.md) |
 
 ## What this must not weaken
 
@@ -127,7 +127,7 @@ changes nothing. Once staged, the ingest job is phase 9's to deliver, with its o
 
 1. Load the schedule and the file's current version; look up the version the last fetch produced
    (`lastFetchedVersionId`). Dispatch on its `sourceType` through `FETCHERS` — `url` here, `router` in
-   [phase 21](./phase-21-source-routers-and-bulk-sync.md); anything else fails with a hint to re-add.
+   [phase 21](./phase-0021-source-routers-and-bulk-sync.md); anything else fails with a hint to re-add.
 2. Fetch, sending `If-None-Match` / `If-Modified-Since` from the stored `sourceEtag` / `sourceLastModified`. A `304`
    is **unchanged**, with no body downloaded.
 3. Compare the fetched sha to the `sourceSha256` of the last *fetched* version. Equal is **unchanged**: bump

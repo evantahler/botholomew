@@ -5,11 +5,11 @@
 > person with write access to the bot, who sees the exact call, approves or denies it from the inbox, the thread,
 > or the CLI, and the call that runs is the one they saw.
 
-> **Status: planned, not built.** Stage C — Shared capabilities. Depends on [phase 5](./phase-05-bots.md)
-> (bots, `CryptoOps`, `canWriteBot`), [phase 6](./phase-06-durable-bot-loop.md) (`tool_calls`, the tick),
-> [phase 7](./phase-07-threads-and-web-chat.md) (notifications, live channels, the chat transcript),
-> [phase 8](./phase-08-context-management.md) (large-result offload), and
-> [phase 9](./phase-09-memory-search-and-ingestion.md) (the local embedder).
+> **Status: planned, not built.** Stage C — Shared capabilities. Depends on [phase 5](./phase-0005-bots.md)
+> (bots, `CryptoOps`, `canWriteBot`), [phase 6](./phase-0006-durable-bot-loop.md) (`tool_calls`, the tick),
+> [phase 7](./phase-0007-threads-and-web-chat.md) (notifications, live channels, the chat transcript),
+> [phase 8](./phase-0008-context-management.md) (large-result offload), and
+> [phase 9](./phase-0009-memory-search-and-ingestion.md) (the local embedder).
 
 MCP is how a bot does anything outside Botholomew: read a GitHub issue, post to Linear, send an email. In v1 that
 was mcpx — a per-user `servers.json`, stdio and HTTP servers, credentials in a local `auth.json`, and an approval
@@ -22,7 +22,7 @@ ToolExec already solved the first two for its sandboxes: gateways with credentia
 MCP OAuth client, a refresh clock, an SSRF guard, and a probe that tells an admin what a URL actually is the
 moment they type it. This phase ports that machinery and drops the half that existed only because guest code
 ran in a VM — there is no proxy, because the MCP client runs in the worker and no bot ever holds a token.
-[Code mode](./phase-11-code-mode.md) reuses everything here unchanged: the client, the policy, and the approval
+[Code mode](./phase-0011-code-mode.md) reuses everything here unchanged: the client, the policy, and the approval
 record.
 
 The approval half is v1's policy with v1's two worst failures fixed: approval re-ran the whole task, repeating
@@ -49,9 +49,9 @@ section, the approvals inbox, inline approval cards, the CLI, and user docs.
 "act as the asker" — is later and unphased. An auto-review model for approvals is later and unphased.
 Argument-level rules ("allow `send_email` only to our domain") are later; rules here match server and tool
 names. MCP-backed memory source routers, which replace membot's GitHub/Linear downloaders and shell routers, are
-[phase 21](./phase-21-source-routers-and-bulk-sync.md) — they reuse this phase's client, credentials, and SSRF
-guard, and add nothing to it. Calling tools from code mode is [phase 11](./phase-11-code-mode.md). Slack approval
-cards are [phase 16](./phase-16-slack.md); iMessage approvals [phase 17](./phase-17-imessage.md). Exposing a
+[phase 21](./phase-0021-source-routers-and-bulk-sync.md) — they reuse this phase's client, credentials, and SSRF
+guard, and add nothing to it. Calling tools from code mode is [phase 11](./phase-0011-code-mode.md). Slack approval
+cards are [phase 16](./phase-0016-slack.md); iMessage approvals [phase 17](./phase-0017-imessage.md). Exposing a
 project's MCP servers to human OAuth clients as a passthrough gateway is not planned: bots are the only callers.
 
 ## What already exists
@@ -70,8 +70,8 @@ project's MCP servers to human OAuth clients as a passthrough gateway is not pla
 | v1 MCP meta-tools | Search → info → exec discipline, refusal of built-in names routed through `mcp_exec`, PATs envelopes | [src/tools/mcp/](https://github.com/evantahler/botholomew/blob/v1/src/tools/mcp/dispatch.ts) ([search](https://github.com/evantahler/botholomew/blob/v1/src/tools/mcp/search.ts), [info](https://github.com/evantahler/botholomew/blob/v1/src/tools/mcp/info.ts), [list-tools](https://github.com/evantahler/botholomew/blob/v1/src/tools/mcp/list-tools.ts), [exec](https://github.com/evantahler/botholomew/blob/v1/src/tools/mcp/exec.ts)) |
 | v1 approval policy | `buildApprovalPolicy` (default deny, allowlist, opt-in `auto_allow_read_only`) and `matchesAllowlist` (exact, `*` wildcards, bare tool token, `/regex/flags`) — ported verbatim | [src/mcpx/client.ts](https://github.com/evantahler/botholomew/blob/v1/src/mcpx/client.ts) |
 | v1 approval records | What to keep (a pending/approved/denied record a human decides) and what to remove (`callKey` matching, `decideAndRequeue` re-running the task) | [src/approvals/store.ts](https://github.com/evantahler/botholomew/blob/v1/src/approvals/store.ts), [src/approvals/decide.ts](https://github.com/evantahler/botholomew/blob/v1/src/approvals/decide.ts), [src/worker/approval.ts](https://github.com/evantahler/botholomew/blob/v1/src/worker/approval.ts) |
-| The durable tick | `tool_calls` with `awaiting_approval → approved \| denied`, tick step 3 ("run approved calls first, no model call"), per-call `replay`, the `bots:dispatch` reconciler | [phase 6](./phase-06-durable-bot-loop.md) |
-| Notifications and channels | The `notifications` table, dispatch, bell, and content-free frames | [phase 7](./phase-07-threads-and-web-chat.md) |
+| The durable tick | `tool_calls` with `awaiting_approval → approved \| denied`, tick step 3 ("run approved calls first, no model call"), per-call `replay`, the `bots:dispatch` reconciler | [phase 6](./phase-0006-durable-bot-loop.md) |
+| Notifications and channels | The `notifications` table, dispatch, bell, and content-free frames | [phase 7](./phase-0007-threads-and-web-chat.md) |
 
 What does not exist anywhere: an MCP client that runs **calls** (ToolExec's only client probes; its sandboxes
 called servers through a proxy), a tool index, an approval bound to a recorded call, and any handling of
@@ -160,7 +160,7 @@ the server forgot it and did not process the request, so the client re-initializ
 
 A result is kept whole. v1's `formatCallToolResult` flattened `content` to text and dropped `structuredContent`
 entirely, so a tool's machine-readable answer never reached the bot or a program. Here the full `CallToolResult`
-is the call's recorded outcome (offloaded through [phase 8](./phase-08-context-management.md) above its
+is the call's recorded outcome (offloaded through [phase 8](./phase-0008-context-management.md) above its
 threshold), and the bot sees `structuredContent` as JSON when present, otherwise the text blocks; image, audio,
 and blob resources are written to the conversation's scratch path and referenced by logical path.
 
@@ -169,7 +169,7 @@ and blob resources are written to the conversation's scratch path and referenced
 `mcp_tools` holds, per enabled server, every tool's name, title, description, schemas, annotations, and a
 `schemaSha`. `mcp-server:index` rebuilds one server's rows (pagination followed, removed tools deleted) after any
 create, edit, credential change, or `list_changed`, and `mcp-servers:reindex` re-runs it every six hours. Search is
-the memory search shape from [phase 9](./phase-09-memory-search-and-ingestion.md): a `tsvector` over name, title,
+the memory search shape from [phase 9](./phase-0009-memory-search-and-ingestion.md): a `tsvector` over name, title,
 description, parameter names, and the server's admin description, plus a 384-d embedding computed on the `embed`
 queue when `schemaSha` changes, fused with RRF. Results are filtered to the calling bot's servers and to tools not
 disabled. The index is a search aid, not a source of truth — ToolExec's warning that a cached tool list is stale
@@ -199,7 +199,7 @@ an error mentioning an "author" was an auth failure. Classification here reads t
 | JSON-RPC `-32602` | `input_error` | Hint: `mcp_info`, then retry with corrected arguments |
 | JSON-RPC `-32601`, unknown tool, HTTP 404 | `not_found` | Hint: `mcp_search` |
 | JSON-RPC `-32042` | — | URL elicitation gate (below) |
-| JSON-RPC `-32001`, our deadline, a reset after the body was written | `timeout` | For an `unsafe` call this is **outcome unknown** ([phase 6](./phase-06-durable-bot-loop.md)), never `retryable` |
+| JSON-RPC `-32001`, our deadline, a reset after the body was written | `timeout` | For an `unsafe` call this is **outcome unknown** ([phase 6](./phase-0006-durable-bot-loop.md)), never `retryable` |
 | `CallToolResult.isError` | `tool_error` | The tool ran and reported failure; its content is returned |
 | Not allowlisted, tool disabled, server disabled, SSRF refusal | `policy_error` | Hint names who can fix it |
 | Denied or expired approval | `denied` | Hint: do not retry the same call |
@@ -251,7 +251,7 @@ Why park rather than return a placeholder: v1's `mcp_exec` returned "queued for 
 to call `wait_task`; the task parked, and approval re-ran it from the top, repeating every ungated side effect made
 before the gate — v1's own approvals doc warns about exactly that. A parked
 conversation does not answer new messages in that thread until the gate resolves (they queue in its inbox, per
-[phase 7](./phase-07-threads-and-web-chat.md)); the thread shows the approval card at the parked call, so the
+[phase 7](./phase-0007-threads-and-web-chat.md)); the thread shows the approval card at the parked call, so the
 person waiting is looking at the reason and, if they have write on the bot, at the button. Other threads are other
 conversations and are unaffected.
 
@@ -286,7 +286,7 @@ CLI:
 ### What a server says is fenced
 
 Every MCP-derived string reaching the model — results, tool titles and descriptions (capped at 300 characters in
-search, 4 KB in `mcp_info`), elicitation messages — is wrapped by [phase 6](./phase-06-durable-bot-loop.md)'s
+search, 4 KB in `mcp_info`), elicitation messages — is wrapped by [phase 6](./phase-0006-durable-bot-loop.md)'s
 provenance fence (`mcp:<server>/<tool>`, call id) as data. Tool descriptions are included deliberately: a poisoned
 description is the cheapest injection a hostile server has. In the UI, server text is labelled as coming from the
 server and links are never auto-opened.
@@ -356,7 +356,7 @@ Unique `(mcpServerId, name)`; GIN on `searchText`; HNSW on `embedding`.
 | `status` | `pending` \| `approved` \| `denied` \| `expired` |
 | `mcpServerId`, `toolName` | the call's target (server nullable, set null) |
 | `reason` | e.g. `not_allowlisted`, `insufficient_scope` |
-| `payload` | `jsonb` — elicitation message, URL, `elicitationId`, requested schema, required scopes; a direct call's arguments stay on the call (only [phase 11](./phase-11-code-mode.md)'s program gates copy them here); never secrets |
+| `payload` | `jsonb` — elicitation message, URL, `elicitationId`, requested schema, required scopes; a direct call's arguments stay on the call (only [phase 11](./phase-0011-code-mode.md)'s program gates copy them here); never secrets |
 | `answerCiphertext`, `answerIv`, `answerAuthTag` | form answers only; nulled once delivered |
 | `expiresAt`, `requestedAt` | |
 | `decidedByUserId`, `decidedAt`, `decisionScope`, `decisionNote`, `decidedVia`, `ruleId` | `decisionScope`: `once` \| `always_bot` \| `always_project`; `decidedVia`: `web` \| `cli` \| `slack` \| `imessage` |
@@ -460,7 +460,7 @@ why they cannot decide), and `cli.md`.
 
 A fake MCP server (`helpers/fakeMcpServer.ts`, `Bun.serve` with the SDK's server over streamable HTTP and SSE)
 exposes scripted tools — `echo`, `structured`, `slow`, `flaky`, `big`, `url_elicit`, `form_elicit`, `whoami` —
-and an optional fake authorization server; [phase 6](./phase-06-durable-bot-loop.md)'s fake model server drives
+and an optional fake authorization server; [phase 6](./phase-0006-durable-bot-loop.md)'s fake model server drives
 bots.
 
 - `actions/mcp-server.test.ts` — admin-only writes; credential-looking headers refused; a metadata address refused

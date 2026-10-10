@@ -5,16 +5,16 @@
 > Anyone can install the CLI in one line — `botholomew@2.x` from npm, or a standalone binary through an
 > install script — sign in through the browser, and keep it current with `botholomew upgrade`.
 
-> **Status: planned, not built.** Stage E — Everywhere. Depends on [phase 1](./phase-01-clean-slate-and-shell.md),
-> [phase 7](./phase-07-threads-and-web-chat.md), [phase 10](./phase-10-mcp-servers-and-approvals.md),
-> [phase 12](./phase-12-skills.md), and [phase 13](./phase-13-leader-and-workers.md).
+> **Status: planned, not built.** Stage E — Everywhere. Depends on [phase 1](./phase-0001-clean-slate-and-shell.md),
+> [phase 7](./phase-0007-threads-and-web-chat.md), [phase 10](./phase-0010-mcp-servers-and-approvals.md),
+> [phase 12](./phase-0012-skills.md), and [phase 13](./phase-0013-leader-and-workers.md).
 
 The CLI is not new in this phase. Commands ship with every phase, because the product CLI tracks the HTTP
 surface (rule 14 in [AGENTS.md](../../AGENTS.md)). By the time this phase starts, `botholomew memory …`,
 `bot …`, `thread …`, `task …`, and `schedule …` all exist as thin HTTP clients copied from ToolExec's shell.
 What they lack is three things. They have no interactive client. Only one of them is live:
-[phase 7](./phase-07-threads-and-web-chat.md)'s `thread follow` has a small socket client
-(`cli/src/socket.ts`), while `thread send --wait` ([phase 6](./phase-06-durable-bot-loop.md)) and the other
+[phase 7](./phase-0007-threads-and-web-chat.md)'s `thread follow` has a small socket client
+(`cli/src/socket.ts`), while `thread send --wait` ([phase 6](./phase-0006-durable-bot-loop.md)) and the other
 followers still poll, as ToolExec's `follow.ts` does. And there is no way to get them onto anyone's machine.
 This phase adds those three, and nothing else.
 
@@ -27,7 +27,7 @@ process ([src/chat/session.ts](https://github.com/evantahler/botholomew/blob/v1/
 TUI is a pure client: it sends messages through the same actions the web composer uses, and it watches the same
 channels.
 
-**Clean break.** After [phase 1](./phase-01-clean-slate-and-shell.md), the old `install.sh` and the v1
+**Clean break.** After [phase 1](./phase-0001-clean-slate-and-shell.md), the old `install.sh` and the v1
 release pipeline are gone. Nothing on `main` builds, serves, or links to v1 assets. v1 lives on, unchanged, on
 the [`v1` branch](https://github.com/evantahler/botholomew/tree/v1). This phase ships the first artifacts of the
 new line, and it has to do so without silently capturing the people still running v0.27.
@@ -56,7 +56,7 @@ new line, and it has to do so without silently capturing the people still runnin
   CI until then.
 - **Memory and bot editing in the TUI.** The web UI and `memory pull/push` own those.
 - **v1's Tools, Context, Workers, and Schedules tabs.** The web pages and `schedule …` replace them.
-- **Slack and iMessage** ([phase 16](./phase-16-slack.md), [phase 17](./phase-17-imessage.md)).
+- **Slack and iMessage** ([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)).
 - **Any local-agent mode.** That is v1.
 
 ## What already exists
@@ -72,8 +72,8 @@ new line, and it has to do so without silently capturing the people still runnin
 | v1 markdown renderer | `Bun.markdown.ansi`, plus the long-URL fix (#282): URLs are masked with sentinels and spliced back whole, rather than getting newlines baked in at column 80. Tables are pre-rendered to fit the width | [src/tui/markdown.ts](https://github.com/evantahler/botholomew/blob/v1/src/tui/markdown.ts), [src/tui/links.ts](https://github.com/evantahler/botholomew/blob/v1/src/tui/links.ts), [src/tui/markdownTables.ts](https://github.com/evantahler/botholomew/blob/v1/src/tui/markdownTables.ts), [test/tui/markdown.test.ts](https://github.com/evantahler/botholomew/blob/v1/test/tui/markdown.test.ts) |
 | v1 input pieces | Slash completion, the message queue hook, and resize redraw | [src/tui/slashCompletion.ts](https://github.com/evantahler/botholomew/blob/v1/src/tui/slashCompletion.ts), [src/tui/hooks/useMessageQueue.ts](https://github.com/evantahler/botholomew/blob/v1/src/tui/hooks/useMessageQueue.ts), [src/tui/hooks/useResizeRedraw.ts](https://github.com/evantahler/botholomew/blob/v1/src/tui/hooks/useResizeRedraw.ts), [docs/tui.md](https://github.com/evantahler/botholomew/blob/v1/docs/tui.md) |
 | v1 distribution | Compiled binaries (most of [scripts/build.ts](https://github.com/evantahler/botholomew/blob/v1/scripts/build.ts) stages DuckDB and ORT WASM), the install script, an `upgradr` updater, and an npm publish with `--provenance` | [install.sh](https://github.com/evantahler/botholomew/blob/v1/install.sh), [src/update/updater.ts](https://github.com/evantahler/botholomew/blob/v1/src/update/updater.ts), [src/commands/upgrade.ts](https://github.com/evantahler/botholomew/blob/v1/src/commands/upgrade.ts), [.github/workflows/auto-release.yml](https://github.com/evantahler/botholomew/blob/v1/.github/workflows/auto-release.yml) |
-| Live channels and messaging | Content-free `project:<id>:thread:<id>` and `…:bot:<id>` frames; token deltas on the read-authorized `…:thread:<id>:stream`; `cli/src/socket.ts` and `thread follow`; `message:send` with `whenBusy: follow_up \| steer`; `thread send --wait`; `conversation:stop` | [phase 6](./phase-06-durable-bot-loop.md), [phase 7](./phase-07-threads-and-web-chat.md) |
-| Approvals, skills, and tasks | `approval:approve` (`--always bot\|project`) and `approval:deny`; `skill:list`, `skill:render`, `skill:run`; the task list and tree | [phase 10](./phase-10-mcp-servers-and-approvals.md), [phase 12](./phase-12-skills.md), [phase 13](./phase-13-leader-and-workers.md) |
+| Live channels and messaging | Content-free `project:<id>:thread:<id>` and `…:bot:<id>` frames; token deltas on the read-authorized `…:thread:<id>:stream`; `cli/src/socket.ts` and `thread follow`; `message:send` with `whenBusy: follow_up \| steer`; `thread send --wait`; `conversation:stop` | [phase 6](./phase-0006-durable-bot-loop.md), [phase 7](./phase-0007-threads-and-web-chat.md) |
+| Approvals, skills, and tasks | `approval:approve` (`--always bot\|project`) and `approval:deny`; `skill:list`, `skill:render`, `skill:run`; the task list and tree | [phase 10](./phase-0010-mcp-servers-and-approvals.md), [phase 12](./phase-0012-skills.md), [phase 13](./phase-0013-leader-and-workers.md) |
 
 ## What this must not weaken
 
@@ -97,7 +97,7 @@ new line, and it has to do so without silently capturing the people still runnin
 
 ### Signing in from a terminal
 
-The CLI that [phase 1](./phase-01-clean-slate-and-shell.md) copied from ToolExec logs in with an email and
+The CLI that [phase 1](./phase-0001-clean-slate-and-shell.md) copied from ToolExec logs in with an email and
 password and stores the `__session` cookie. That stays as
 `--with-password`, reading the password from stdin, for CI and for the test suite. As the default it has
 three problems. A password is the wrong thing to type into a terminal on a shared machine. It cannot work for
@@ -176,7 +176,7 @@ shortcuts, so muscle memory carries over:
 | Chat | `Ctrl+a` | The thread. Messages from people and bots, each with its author: 2.0 threads are multi-party, and v1's were one-to-one. The bot's streaming text sits in a live block, and the posted final message replaces it. Tool calls render as v1's folded `ToolCall` boxes, driven by `tool_calls` rows. `event` entries — task settled, schedule fired, reminder — appear as dim system lines |
 | Threads | `Ctrl+e` | Your threads with this bot and the others you can read. Enter switches to one |
 | Tasks | `Ctrl+t` | Open tasks as an ASCII tree, read-only. Enter opens the task's thread in Chat |
-| Approvals | `Ctrl+p` | Pending approvals on bots you can write, through `approval:approve` / `approval:deny` ([phase 10](./phase-10-mcp-servers-and-approvals.md)). `y` allow once, `a` always allow for this bot, `n`/`Esc` deny, as in v1 |
+| Approvals | `Ctrl+p` | Pending approvals on bots you can write, through `approval:approve` / `approval:deny` ([phase 10](./phase-0010-mcp-servers-and-approvals.md)). `y` allow once, `a` always allow for this bot, `n`/`Esc` deny, as in v1 |
 | Help | `Ctrl+g` | Keys, connection state, and versions |
 
 Several v1 pieces port nearly as they are:
@@ -187,10 +187,10 @@ Several v1 pieces port nearly as they are:
 - **Inline `ApprovalPrompt`**, for a gated call in the current thread.
 - **The slash popup.** It lists the project's skills from `skill:list` plus the built-ins `/new`, `/bot`,
   `/threads`, `/link`, `/help`, and `/quit`. Argument hints and the preview come from `skill:render`, and
-  Enter calls `skill:run`, exactly as the web composer does ([phase 12](./phase-12-skills.md)). Rendering
+  Enter calls `skill:run`, exactly as the web composer does ([phase 12](./phase-0012-skills.md)). Rendering
   happens only on the server.
 - **An `@` popup**, which is new and reuses the same completion component, completes bot names for routing
-  ([phase 7](./phase-07-threads-and-web-chat.md)).
+  ([phase 7](./phase-0007-threads-and-web-chat.md)).
 
 The status bar shows the project, the bot, the bot's status (including "sleeping until 14:00", which replaces
 v1's `SleepProgress` bar now that sleeping is durable), its model, the queue count, and `live`, `polling`, or
@@ -245,7 +245,7 @@ That covers five targets: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm6
 
 ### Versions, dist-tags, and the v1 line
 
-v1 published `botholomew@0.x` to npm under `latest`. [Phase 1](./phase-01-clean-slate-and-shell.md) left the
+v1 published `botholomew@0.x` to npm under `latest`. [Phase 1](./phase-0001-clean-slate-and-shell.md) left the
 2.x package `"private": true` and named the question this phase must answer before flipping it: what does a
 v1 user's `botholomew upgrade` do? The 2.0 plan:
 
@@ -272,7 +272,7 @@ major version.
 ### Install and upgrade
 
 **The install script.** `frontend/public/install.sh` is served at `https://www.botholomew.com/install.sh` (the
-domain from [phase 2](./phase-02-deployment.md)). It is new, not v1's. It:
+domain from [phase 2](./phase-0002-deployment.md)). It is new, not v1's. It:
 
 1. resolves the version from the npm dist-tag (`latest` by default, or `--channel next`), so one source of
    truth picks the version for both install paths;
@@ -395,7 +395,7 @@ The order matters. The install script resolves the version from npm, so npm move
 exist. A failed npm publish leaves the release a draft that nothing points at.
 
 **Manual steps.** npm's trusted publisher for `botholomew` must name `release-cli.yml`: v1's entry names
-`auto-release.yml`, which [phase 1](./phase-01-clean-slate-and-shell.md) deletes. That change, and the one-time
+`auto-release.yml`, which [phase 1](./phase-0001-clean-slate-and-shell.md) deletes. That change, and the one-time
 `v1` dist-tag, are manual steps in `docs/DEPLOY.md`.
 
 **`ci.yml`.** The CLI job adds the TUI tests and a compile smoke for the host target.

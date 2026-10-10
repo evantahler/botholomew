@@ -6,10 +6,10 @@
 > inside a program pauses it for a person and resumes the same program, not a new one.
 
 > **Status: planned, not built.** Stage C — Shared capabilities. Depends on
-> [phase 4](./phase-04-project-memory-core.md) (`MemoryOps`, write rules), [phase 6](./phase-06-durable-bot-loop.md)
-> (`tool_calls`, replay, the tick), [phase 8](./phase-08-context-management.md) (scratch paths, offload),
-> [phase 9](./phase-09-memory-search-and-ingestion.md) (search), and
-> [phase 10](./phase-10-mcp-servers-and-approvals.md) (the MCP client, the policy, `approvals`).
+> [phase 4](./phase-0004-project-memory-core.md) (`MemoryOps`, write rules), [phase 6](./phase-0006-durable-bot-loop.md)
+> (`tool_calls`, replay, the tick), [phase 8](./phase-0008-context-management.md) (scratch paths, offload),
+> [phase 9](./phase-0009-memory-search-and-ingestion.md) (search), and
+> [phase 10](./phase-0010-mcp-servers-and-approvals.md) (the MCP client, the policy, `approvals`).
 
 v1's field notes put it plainly: big content is the normal case. One test pulled a few megabytes of JSON out of a
 baby tracker, and the only affordable answer was to land the payload in storage and let the agent slice it with a
@@ -18,7 +18,7 @@ running guest JavaScript or type-stripped TypeScript in a worker thread with no 
 host only through supplied functions. 2.0 keeps the design and the limits, renames the tool `run_code`, and gives
 it to every bot.
 
-It comes now because [phase 10](./phase-10-mcp-servers-and-approvals.md) made MCP calls something a bot can make,
+It comes now because [phase 10](./phase-0010-mcp-servers-and-approvals.md) made MCP calls something a bot can make,
 and the useful unit of work is rarely one call: it is "list everything from the last week, group it, join it with
 what memory already says, and tell me the three that matter". As conversational tool calls that is a dozen model
 steps with every payload in context; as one program it is one step and a small result.
@@ -42,7 +42,7 @@ primer generated from the host-function registry and per-tool signature hints fr
 concurrency cap and an optional dedicated `code` queue; transcript and approval-card rendering; CLI; user docs.
 
 **Out:** network access of any kind from the guest — no `fetch`, no URL ingest through `memory.*`, ever; URL
-ingest is the top-level `memory_add` of [phase 19](./phase-19-url-ingest.md). Destructive or structural memory
+ingest is the top-level `memory_add` of [phase 19](./phase-0019-url-ingest.md). Destructive or structural memory
 operations (`rm`, `mv`, `cp`, line patches) stay top-level tools. Guest access to threads, bots, tasks, skills, or
 any other tool registry entry — v1 milestone 18 deliberately did not map every tool into the guest, and neither
 does this. v1's `membot_pipe`, replaced by `mcp.capture` (below). Programs run by people rather than bots, and
@@ -61,7 +61,7 @@ guest state that persists between runs (use memory), are not planned.
 | v1 `membot_pipe` | The envelope bug `mcp.capture` fixes | [src/tools/membot/pipe.ts](https://github.com/evantahler/botholomew/blob/v1/src/tools/membot/pipe.ts) |
 | Run SDK (npm `run`) | `createRunner` with `RunLimits`, `hostFunctions`, `getHostFunctionContext().interrupt` / `resume`, signed continuations bound to an audience and a `continuationContext`, batched interruptions, `RunError` codes | npm `run`, pinned at build time |
 | Encrypted resumable state | Precedent for checkpoints that resume a conversation, AES-256-GCM under `SECRETS_ENCRYPTION_KEY` | `toolexec:backend/schema/agent_session_checkpoints.ts`, `toolexec:backend/ops/CryptoOps.ts` |
-| Phase 10 | `McpClientOps.callTool`, `McpPolicyOps.evaluate`, per-call replay, `approvals` with decide-and-resume, structural classification | [phase 10](./phase-10-mcp-servers-and-approvals.md) |
+| Phase 10 | `McpClientOps.callTool`, `McpPolicyOps.evaluate`, per-call replay, `approvals` with decide-and-resume, structural classification | [phase 10](./phase-0010-mcp-servers-and-approvals.md) |
 
 What does not exist: v1 wrote the continuation to `approvals/<run_id>.run.json` in the project directory, signed
 but not encrypted, so the token carried the program, every settled host result, and the interruption payloads in
@@ -108,7 +108,7 @@ seconds for a slot, then fails `sandbox_busy`, which is retryable. Runs execute 
 | `mcp.listTools(server?)` / `search(query)` | Phase 10's index, filtered to the bot's servers |
 | `mcp.info(server, tool)` | Live schemas, annotations, `needs_approval`, and a generated `signature` |
 | `mcp.exec(server, tool, args?)` | Policy, gate, and dispatch through `McpClientOps.callTool`; returns `structuredContent` when present, else parsed JSON text, else text |
-| `mcp.capture(server, tool, args, path?)` | Same gate and dispatch; writes the payload to memory without it entering QuickJS; returns a write acknowledgment and a 200-character preview. `path` defaults to `scratch/conversations/<id>/mcp/<server>-<tool>-<n>.json`, which [phase 8](./phase-08-context-management.md)'s retention sweeps |
+| `mcp.capture(server, tool, args, path?)` | Same gate and dispatch; writes the payload to memory without it entering QuickJS; returns a write acknowledgment and a 200-character preview. `path` defaults to `scratch/conversations/<id>/mcp/<server>-<tool>-<n>.json`, which [phase 8](./phase-0008-context-management.md)'s retention sweeps |
 
 Every argument is validated in the host; every value crossing the boundary is JSON-serializable; no function,
 stream, or class instance crosses. Logical paths are database keys, not filesystem paths. There is no
@@ -169,7 +169,7 @@ approvals directory be treated as sensitive. Here the signing key is derived by 
 and `continuationContext` binds `{ v, projectId, botId, conversationId, toolCallId, codeRunId }`, so a continuation
 from one conversation cannot resume in another. The token is then encrypted with `CryptoOps` (AES-256-GCM, fresh
 IV) into `code_runs`. It never leaves the worker. Its ciphertext is nulled when the run completes, fails, or the
-conversation is reset; [phase 18](./phase-18-operations.md)'s key rotation re-encrypts or expires parked runs.
+conversation is reset; [phase 18](./phase-0018-operations.md)'s key rotation re-encrypts or expires parked runs.
 
 ### Replay is verified, not trusted
 

@@ -5,16 +5,16 @@
 > fresh one. Approvals are answered with YES or NO. The project never texts anyone who did not text it
 > first, and a STOP is honoured on that line forever after.
 
-> **Status: planned, not built.** Stage E — Everywhere. Depends on [phase 16](./phase-16-slack.md) (identities,
-> remote threads, the outbox, the messaging registry), [phase 6](./phase-06-durable-bot-loop.md),
-> [phase 7](./phase-07-threads-and-web-chat.md), and [phase 10](./phase-10-mcp-servers-and-approvals.md) for
+> **Status: planned, not built.** Stage E — Everywhere. Depends on [phase 16](./phase-0016-slack.md) (identities,
+> remote threads, the outbox, the messaging registry), [phase 6](./phase-0006-durable-bot-loop.md),
+> [phase 7](./phase-0007-threads-and-web-chat.md), and [phase 10](./phase-0010-mcp-servers-and-approvals.md) for
 > approvals.
 
 Slack reaches people at their desks. A phone reaches them everywhere else, and the bots that most need a
 person are the ones whose work outlasts a sitting. Apple publishes no iMessage API. [Linq](https://linqapp.com/)
 operates that side and exposes a REST API and signed webhooks. ToolExec chose Linq and worked out what the
 choice implies in `toolexec:docs/plans/phase-32-remote-interfaces.md`, which never shipped. This phase builds
-that half on the foundations [phase 16](./phase-16-slack.md) lays down: `user_remote_identities`,
+that half on the foundations [phase 16](./phase-0016-slack.md) lays down: `user_remote_identities`,
 `remote_threads`, the `outbox` with `remote:deliver` / `remote:dispatch`, the three kinds of sender, the
 causal-root delivery rule, and the messaging registry. All of them gain a second member here.
 
@@ -39,18 +39,18 @@ approvals answered by reply; a typing indicator; and the UI, CLI and docs for ea
 **Out:** group chats and attachments in either direction (unphased). SMS and RCS as channels, including
 fallback (settled non-goal). Paging people about work that started on the web, which is the same unphased
 fan-out as Slack's. Tapback reactions as answers. Retention of iMessage-originated text, which follows
-[phase 18](./phase-18-operations.md)'s ordinary thread retention.
+[phase 18](./phase-0018-operations.md)'s ordinary thread retention.
 
 ## What already exists
 
 | Piece | What it gives this work | Where |
 |---|---|---|
 | ToolExec's Linq decisions | Per-project account and line; provisioned subscription; Standard Webhooks; iMessage only; reach; opt-out 403/2024; idempotency keys; no first-message links | `toolexec:docs/plans/phase-32-remote-interfaces.md` |
-| Identities, remote threads, outbox, registry | Linking by code, three kinds of sender, `remote_threads`, `outbox` with `remote:deliver` / `remote:dispatch`, the causal-root rule, `send_message` refusal for remote threads | [phase 16](./phase-16-slack.md) |
+| Identities, remote threads, outbox, registry | Linking by code, three kinds of sender, `remote_threads`, `outbox` with `remote:deliver` / `remote:dispatch`, the causal-root rule, `send_message` refusal for remote threads | [phase 16](./phase-0016-slack.md) |
 | Ingress discipline | Raw body, byte-identical 404, body cap, rate limits, dedupe before any transcript line | `toolexec:backend/actions/webhook/session-event.ts`, `toolexec:backend/ops/RawRequestOps.ts` |
 | Encrypted connections and probes | One definition per kind; probe naming the wrong field | `toolexec:backend/connections/registry.ts`, `toolexec:backend/ops/ConnectionProbeOps.ts`, `toolexec:backend/ops/CryptoOps.ts` |
 | Provider calls inside an audited write | Why an external effect sometimes belongs inside the transaction, and how to keep the ledger honest when it does | `toolexec:backend/actions/project/project-delete.ts` |
-| The loop and approvals | `requestId` dedupe, human priority, one output channel, `approvals` decided exactly as recorded | [phase 6](./phase-06-durable-bot-loop.md), [phase 10](./phase-10-mcp-servers-and-approvals.md) |
+| The loop and approvals | `requestId` dedupe, human priority, one output channel, `approvals` decided exactly as recorded | [phase 6](./phase-0006-durable-bot-loop.md), [phase 10](./phase-0010-mcp-servers-and-approvals.md) |
 
 ## What this must not weaken
 
@@ -77,7 +77,7 @@ fan-out as Slack's. Tapback reactions as answers. Retention of iMessage-originat
 
 Infrastructure belongs to the project that uses it: model keys, MCP credentials, Slack apps, and now a
 number on the project's own Linq bill. `linq` is a connection kind whose encrypted map is `{ apiKey,
-webhookSecret }`, the same one-map shape as [phase 16](./phase-16-slack.md)'s `slack`. Its metadata holds
+webhookSecret }`, the same one-map shape as [phase 16](./phase-0016-slack.md)'s `slack`. Its metadata holds
 `lineNumber` (E.164), `subscriptionId`, `payloadVersion`, and `defaultBotId` (the leader unless an admin
 picks another). There is no deployment-level Linq configuration at all.
 
@@ -105,7 +105,7 @@ exists. If that call fails, the 404 ends Linq's retries on the first delivery an
 
 ### Linking by texting a code
 
-The direction is [phase 16](./phase-16-slack.md)'s: **minted in a signed-in session, presented from the
+The direction is [phase 16](./phase-0016-slack.md)'s: **minted in a signed-in session, presented from the
 outside identity.** The person presses *Link iMessage* (or runs `botholomew identity link imessage`) and
 texts the code to any project's number. The signed `message.received` names the handle, the code names the
 person, and one transaction writes the identity (`transport: imessage`, `externalId` = the E.164 handle or
@@ -177,8 +177,8 @@ accepted inbound message from a linked writer:
    starts one with the default bot.
 
 There is no idle expiry. A conversation continues until the person says `new`, which keeps routing
-predictable, and [phase 8](./phase-08-context-management.md)'s compaction keeps a long one affordable. A
-plain-text `@slug` mid-conversation routes within the thread by [phase 7](./phase-07-threads-and-web-chat.md)'s
+predictable, and [phase 8](./phase-0008-context-management.md)'s compaction keeps a long one affordable. A
+plain-text `@slug` mid-conversation routes within the thread by [phase 7](./phase-0007-threads-and-web-chat.md)'s
 rules. The only ToolExec rule this drops is "a message beginning with an agent's name starts a session". With
 bots named like people, *Botholomew, what's due today?* would open a new conversation every time.
 
@@ -293,7 +293,7 @@ are personal data: serializers show `label` (masked) to anyone but their owner.
 | Action | Route | Middleware / RBAC | Audited | MCP |
 |---|---|---|---|---|
 | `connection:linq-connect` | `PUT /connection/linq`; `apiKey` is a `secret()` field | admin | yes | **never** (arms an ingress) |
-| `connection:probe` / `connection:delete` (`linq`) | as [phase 5](./phase-05-bots.md); `delete` removes the subscription after commit | admin | read / yes | as phase 5 |
+| `connection:probe` / `connection:delete` (`linq`) | as [phase 5](./phase-0005-bots.md); `delete` removes the subscription after commit | admin | read / yes | as phase 5 |
 | `identity:link-start` (`transport: imessage`) | as phase 16 | session | no | **never** |
 | `identity:reach-list` | `GET /identity/reach` | session; own rows only | read | human MCP |
 | `webhook:linq` | `POST /webhook/linq/:routingToken`, raw body | signature | machine; decisions audit under their own names | never, by prefix |
@@ -302,7 +302,7 @@ are personal data: serializers show `label` (masked) to anyone but their owner.
 
 ### 5. Clocks / tasks
 
-No new clock. `remote:deliver` and `remote:dispatch` from [phase 16](./phase-16-slack.md) gain the
+No new clock. `remote:deliver` and `remote:dispatch` from [phase 16](./phase-0016-slack.md) gain the
 `imessage` member through the registry. The typing refresh rides the tick's lease renewal.
 
 ### 6. Bot tools

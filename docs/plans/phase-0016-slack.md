@@ -6,9 +6,9 @@
 > command. Every message carries the same person's authority, attribution, and audit trail it would carry on
 > the web.
 
-> **Status: planned, not built.** Stage E — Everywhere. Depends on [phase 6](./phase-06-durable-bot-loop.md)
-> and [phase 7](./phase-07-threads-and-web-chat.md) for the core; approval cards depend on
-> [phase 10](./phase-10-mcp-servers-and-approvals.md) and the slash command on [phase 12](./phase-12-skills.md).
+> **Status: planned, not built.** Stage E — Everywhere. Depends on [phase 6](./phase-0006-durable-bot-loop.md)
+> and [phase 7](./phase-0007-threads-and-web-chat.md) for the core; approval cards depend on
+> [phase 10](./phase-0010-mcp-servers-and-approvals.md) and the slash command on [phase 12](./phase-0012-skills.md).
 
 Grok Bot's pitch is "always-on AI teammates", and a teammate who can only be reached on one website is not
 always on. Slack is where most of the people who will use Botholomew already spend the day, so this is the
@@ -25,7 +25,7 @@ the outbox forwards to Slack, and ToolExec's sandbox invariants become invariant
 
 The phase deliberately leaves out ambient listening. A top-level channel message that does not mention the
 app is never stored. Making that possible is a later, opt-in channel-listening schedule or event trigger
-built on [phase 14](./phase-14-schedules-and-wakeups.md). Grok Bot's own guidance warns against triggers
+built on [phase 14](./phase-0014-schedules-and-wakeups.md). Grok Bot's own guidance warns against triggers
 that react to every new message, and so does the budget.
 
 ## Scope
@@ -38,14 +38,14 @@ thread and a Botholomew `slack` thread; the `outbox` with `remote:deliver` and `
 approval cards; a `/botholomew` slash command over shared skills; a content-free working indicator; and the
 RBAC, audit, MCP policy, CLI, UI and user docs for each.
 
-**Out:** iMessage ([phase 17](./phase-17-imessage.md), which reuses the identity, thread, and outbox
+**Out:** iMessage ([phase 17](./phase-0017-imessage.md), which reuses the identity, thread, and outbox
 foundations built here). Ambient channel listening, which waits for a later schedule or event trigger
-beyond [phase 14](./phase-14-schedules-and-wakeups.md). Paging, meaning Slack DMs for approvals and failures
+beyond [phase 14](./phase-0014-schedules-and-wakeups.md). Paging, meaning Slack DMs for approvals and failures
 that began on the web (unphased; it is one more fan-out row once identities exist). A shared, Marketplace-listed
 Slack app (unphased; see "The per-project app"). Streaming tokens into Slack, and Slack Connect and
 other externally shared channels. Attachments in either direction. Reading channel history from before the
 mention. Retention of Slack-originated text, which is the ordinary thread retention of
-[phase 18](./phase-18-operations.md) with no second rule.
+[phase 18](./phase-0018-operations.md) with no second rule.
 
 ## What already exists
 
@@ -53,14 +53,14 @@ mention. Retention of Slack-originated text, which is the ordinary thread retent
 |---|---|---|
 | ToolExec's remote-interfaces plan | The settled design: identities as links, three senders, signed ingress, the outbox, the per-project manifest app, loops, and the double-post limit | `toolexec:docs/plans/phase-32-remote-interfaces.md` |
 | The event-ingress discipline | Raw body, a byte-identical 404, a per-token rate limit, a body cap, and dedupe before any transcript line | `toolexec:backend/actions/webhook/session-event.ts`, `toolexec:backend/ops/RawRequestOps.ts`, `toolexec:backend/ops/WebhookOps.ts` |
-| Encrypted per-project connections | `project_connections` plus AES-256-GCM, ported in [phase 5](./phase-05-bots.md), with one definition per kind | `toolexec:backend/schema/project_connections.ts`, `toolexec:backend/connections/registry.ts`, `toolexec:backend/ops/CryptoOps.ts` |
+| Encrypted per-project connections | `project_connections` plus AES-256-GCM, ported in [phase 5](./phase-0005-bots.md), with one definition per kind | `toolexec:backend/schema/project_connections.ts`, `toolexec:backend/connections/registry.ts`, `toolexec:backend/ops/CryptoOps.ts` |
 | Notification dispatch | A table instead of a direct send, a `SKIP LOCKED` claim, and backoff ending in a terminal state | `toolexec:backend/ops/NotificationOps.ts`, `toolexec:backend/actions/notification/notifications-dispatch.ts` |
 | The MCP policy | `webhook:*` is never published to MCP, by prefix; the never-MCP list is closed | `toolexec:backend/ops/McpToolPolicyOps.ts` |
 | A fake upstream | The `Bun.serve` stub behind a configurable base URL that the model-proxy tests use | `toolexec:backend/__tests__/actions/proxy-model.test.ts` |
-| The loop | `thread_messages` with `requestId` (unique per project) and `causedByMessageId`; `conversation_inbox`; human priority; one output channel; provenance fencing; the `outbox` named in core architecture §8 | [phase 6](./phase-06-durable-bot-loop.md) |
-| Threads | `message:send`, owner routing and `@bot` mentions, `canWriteBot`, and the notifications table | [phase 7](./phase-07-threads-and-web-chat.md) |
-| Approvals | An `approvals` row per gated `tool_call`; allow once, always allow, or deny; the recorded call runs exactly as recorded | [phase 10](./phase-10-mcp-servers-and-approvals.md); v1 [src/approvals/decide.ts](https://github.com/evantahler/botholomew/blob/v1/src/approvals/decide.ts) |
-| Skills | v1's parser and renderer (`$ARGUMENTS`, `$1`–`$9`, named args, a greedy last argument) | [phase 12](./phase-12-skills.md); v1 [src/skills/parser.ts](https://github.com/evantahler/botholomew/blob/v1/src/skills/parser.ts) |
+| The loop | `thread_messages` with `requestId` (unique per project) and `causedByMessageId`; `conversation_inbox`; human priority; one output channel; provenance fencing; the `outbox` named in core architecture §8 | [phase 6](./phase-0006-durable-bot-loop.md) |
+| Threads | `message:send`, owner routing and `@bot` mentions, `canWriteBot`, and the notifications table | [phase 7](./phase-0007-threads-and-web-chat.md) |
+| Approvals | An `approvals` row per gated `tool_call`; allow once, always allow, or deny; the recorded call runs exactly as recorded | [phase 10](./phase-0010-mcp-servers-and-approvals.md); v1 [src/approvals/decide.ts](https://github.com/evantahler/botholomew/blob/v1/src/approvals/decide.ts) |
+| Skills | v1's parser and renderer (`$ARGUMENTS`, `$1`–`$9`, named args, a greedy last argument) | [phase 12](./phase-0012-skills.md); v1 [src/skills/parser.ts](https://github.com/evantahler/botholomew/blob/v1/src/skills/parser.ts) |
 
 What does not exist: any notion of who a person is outside Botholomew, any way to send something that is not
 a WebSocket frame or an email, and any mapping from an outside conversation to a thread.
@@ -148,7 +148,7 @@ This follows the Grok Bot shape:
 
 New Slack threads are owned by the connection's **default bot**, which is the project's leader unless an
 admin picks another. A plain-text `@slug` in the message still routes to that bot by
-[phase 7](./phase-07-threads-and-web-chat.md)'s rules. Replies are posted with `chat:write.customize`, so a
+[phase 7](./phase-0007-threads-and-web-chat.md)'s rules. Replies are posted with `chat:write.customize`, so a
 worker bot's answer shows that bot's name and avatar instead of the app's. A Slack message is human input:
 human priority, `whenBusy: follow_up` (steering from Slack is unphased), and `causedByMessageId` null. Edits
 and deletions (`message_changed`, `message_deleted`) are dropped, and an edited message is not re-run.
@@ -255,7 +255,7 @@ is written before step 3.
 
 ### Approval cards
 
-When a tool call enters `awaiting_approval` ([phase 10](./phase-10-mcp-servers-and-approvals.md)) in a turn
+When a tool call enters `awaiting_approval` ([phase 10](./phase-0010-mcp-servers-and-approvals.md)) in a turn
 whose causal root is a Slack message, the same transaction writes an `approval_card` outbox row into that
 Slack thread. The card is a Block Kit message with the bot, the MCP server and tool, a 300-character preview
 of the recorded arguments, a link to the full approval on the web, and three buttons: *Allow once*, *Always
@@ -340,10 +340,10 @@ All `serial` PKs and `timestamp(withTimezone)` columns defaulting to `now()`; ev
 |---|---|---|
 | `user_remote_identities` | `userId` (cascade), `transport` (`slack` \| `imessage`), `externalId` (Slack `teamId:userId`), `label`, `verifiedAt` | unique `(transport, externalId)`; index `(userId)` |
 | `remote_channels` | `projectId`, `connectionId` (→ `project_connections`, cascade), `channelId`, `channelName`, `enabledByUserId` (set null) | unique `(connectionId, channelId)`. Disabling deletes the row; the audit log keeps the history |
-| `remote_threads` | `projectId`, `connectionId` (cascade), `transport`, `externalKey` (`teamId/channelId/threadTs`; null only while a slash-command anchor is unsent), `threadId` (→ `threads`, cascade), `channelId`, `identityId` (nullable; iMessage, [phase 17](./phase-17-imessage.md)), `openedByUserId` (set null), `lastInboundAt`, `lastOutboundAt` | unique `(connectionId, externalKey)`; unique `(threadId)` |
+| `remote_threads` | `projectId`, `connectionId` (cascade), `transport`, `externalKey` (`teamId/channelId/threadTs`; null only while a slash-command anchor is unsent), `threadId` (→ `threads`, cascade), `channelId`, `identityId` (nullable; iMessage, [phase 17](./phase-0017-imessage.md)), `openedByUserId` (set null), `lastInboundAt`, `lastOutboundAt` | unique `(connectionId, externalKey)`; unique `(threadId)` |
 | `outbox` | `projectId`, `connectionId`, `transport`, `kind` (`message` \| `ephemeral` \| `update` \| `status`), `remoteThreadId`, `threadMessageId` (cascade; the body is rendered from this row at send time, never copied), `approvalId`, `template` + `payload` (scrubbed by construction), `recipientExternalId`, `replyToExternalId`, `targetExternalId` (the `ts` to update or react to), `status` (`pending` \| `sending` \| `sent` \| `failed` \| `undeliverable`), `attempts`, `maxAttempts` (1 for `status` rows), `nextAttemptAt`, `claimedAt`, `sentAt`, `externalMessageId`, `error` | index `(status, nextAttemptAt)`; unique `(connectionId, externalMessageId)`; unique `(threadMessageId, connectionId)` where not null, so one bot message is one delivery |
 
-`outbox.id` doubles as the idempotency key where a transport accepts one ([phase 17](./phase-17-imessage.md)).
+`outbox.id` doubles as the idempotency key where a transport accepts one ([phase 17](./phase-0017-imessage.md)).
 `project_connections` gains the `slack` kind, `routingToken` (text, unique, nullable), and `state` (`pending |
 active | errored`); Slack metadata is `teamId`, `teamName`, `appId`, `botUserId`, `defaultBotId`.
 
@@ -384,7 +384,7 @@ connection `errored`. Its pending rows then wait, and admins get one notificatio
 | `connection:slack-start` | `PUT /connection/slack` | admin | yes | **never** (arms an ingress) |
 | `connection:slack-manifest` | `GET /connection/slack/manifest` | admin | read | human MCP |
 | `connection:slack-activate` | `POST /connection/slack`; takes `signingSecret` and `botToken` as `secret()` fields | admin | yes | **never** (a Slack install hop that arms the ingress) |
-| `connection:probe` / `connection:delete` | as [phase 5](./phase-05-bots.md); `probe` re-runs `auth.test` | admin | read / yes | as phase 5 |
+| `connection:probe` / `connection:delete` | as [phase 5](./phase-0005-bots.md); `probe` re-runs `auth.test` | admin | read / yes | as phase 5 |
 | `slack-channel:list` | `GET /slack/channels` | member | read | human MCP |
 | `slack-channel:enable` | `PUT /slack/channel` | `canWriteBot` on the default bot | yes | **never** |
 | `slack-channel:disable` | `DELETE /slack/channel` | `canWriteBot` or admin | yes | **never** |

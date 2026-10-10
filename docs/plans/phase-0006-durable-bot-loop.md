@@ -6,8 +6,8 @@
 > threads at once and still answer a person in a sixth.
 
 > **Status: planned, not built.** Stage B — One bot that thinks. Depends on
-> [phase 1](./phase-01-clean-slate-and-shell.md), [phase 2](./phase-02-deployment.md),
-> [phase 4](./phase-04-project-memory-core.md), and [phase 5](./phase-05-bots.md).
+> [phase 1](./phase-0001-clean-slate-and-shell.md), [phase 2](./phase-0002-deployment.md),
+> [phase 4](./phase-0004-project-memory-core.md), and [phase 5](./phase-0005-bots.md).
 
 This is the phase the previous five exist to support, and the one every later phase builds on. Read the
 [core architecture](./README.md#core-architecture) summary first. After phase 5 a bot has a row, prompts in
@@ -23,9 +23,9 @@ rows with reality. v1's loop held a conversation in a `messages` array in proces
 the turn, and an approval re-ran the whole task from the top. Both of those stop here.
 
 What this phase leaves out is mostly surface. It has no chat UI, no `@mention` routing, no live channels a
-browser can subscribe to, and no notifications table; those are [phase 7](./phase-07-threads-and-web-chat.md).
-Compaction and memory-backed large results are [phase 8](./phase-08-context-management.md). The approval
-*policy* and MCP tools are [phase 10](./phase-10-mcp-servers-and-approvals.md). This phase builds the
+browser can subscribe to, and no notifications table; those are [phase 7](./phase-0007-threads-and-web-chat.md).
+Compaction and memory-backed large results are [phase 8](./phase-0008-context-management.md). The approval
+*policy* and MCP tools are [phase 10](./phase-0010-mcp-servers-and-approvals.md). This phase builds the
 approval *states* those later phases plug into, and it proves them with a test-only gated tool.
 
 ## Scope
@@ -47,19 +47,19 @@ cards; a `Bun.serve` fake model server for CI; and a nightly behaviour-eval harn
 **Out:**
 
 - `@mention` / `@everyone` routing, participant management, `thread:list`, channel subscriptions, token
-  streaming to clients, notifications, and the chat UI ([phase 7](./phase-07-threads-and-web-chat.md)).
+  streaming to clients, notifications, and the chat UI ([phase 7](./phase-0007-threads-and-web-chat.md)).
 - Compaction, `reset` entries, the context-window table, memory-backed large results, and `thread_search`
-  ([phase 8](./phase-08-context-management.md)). This phase writes the `compaction` and `reset` entry kinds
+  ([phase 8](./phase-0008-context-management.md)). This phase writes the `compaction` and `reset` entry kinds
   into the schema and hydrates from them, but nothing writes them yet.
-- The approvals table, approval policy, and MCP tools ([phase 10](./phase-10-mcp-servers-and-approvals.md)).
+- The approvals table, approval policy, and MCP tools ([phase 10](./phase-0010-mcp-servers-and-approvals.md)).
 - `delegation` threads, `bot_tasks`, and `event` inbox rows for task reports
-  ([phase 13](./phase-13-leader-and-workers.md)).
-- Recurring schedules ([phase 14](./phase-14-schedules-and-wakeups.md)). `sleep_until` is a one-shot wake on
+  ([phase 13](./phase-0013-leader-and-workers.md)).
+- Recurring schedules ([phase 14](./phase-0014-schedules-and-wakeups.md)). `sleep_until` is a one-shot wake on
   a conversation, not a schedule.
 - Slack and iMessage `requestId`s (the Slack message key `teamId:channelId:ts`, Linq message ids) and the `outbox`
-  ([phase 16](./phase-16-slack.md), [phase 17](./phase-17-imessage.md)). The `(projectId, requestId)`
+  ([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)). The `(projectId, requestId)`
   uniqueness they rely on lands here.
-- Usage dashboards, rollups, and expanding the evals ([phase 18](./phase-18-operations.md)).
+- Usage dashboards, rollups, and expanding the evals ([phase 18](./phase-0018-operations.md)).
 
 ## What already exists
 
@@ -82,7 +82,7 @@ cards; a `Bun.serve` fake model server for CI; and a nightly behaviour-eval harn
 | v1 worker loop | The loop being replaced, and the bugs listed under [what ports](#backendllm-what-ports-from-v1-and-what-changes) | [src/worker/llm.ts](https://github.com/evantahler/botholomew/blob/v1/src/worker/llm.ts) |
 | v1 `ToolDefinition` | `name`, `description`, `group`, Zod in/out, `is_error` soft errors | [src/tools/tool.ts](https://github.com/evantahler/botholomew/blob/v1/src/tools/tool.ts) |
 | v1 fake LLM fixtures | The script shape the fake server keeps: `match`, `text`, `chunks`, `delayMs`, `toolCalls`, `usage` | [src/llm/fake.ts](https://github.com/evantahler/botholomew/blob/v1/src/llm/fake.ts) |
-| Bots, models, prompts | `bots` with access tags, cap, and budget; `resolveModel`; the prompt loader with `versionId`s | [phase 5](./phase-05-bots.md), [phase 4](./phase-04-project-memory-core.md) |
+| Bots, models, prompts | `bots` with access tags, cap, and budget; `resolveModel`; the prompt loader with `versionId`s | [phase 5](./phase-0005-bots.md), [phase 4](./phase-0004-project-memory-core.md) |
 
 What does not exist: anything that runs a bot, any record of what a bot was told, any measure of what it
 cost, and any notion of a thread.
@@ -142,7 +142,7 @@ behind a three-minute MCP call in another thread is the failure this design exis
 
 Two ceilings bound how many leases exist:
 
-- **The bot's cap** (`bots.concurrencyCap` from [phase 5](./phase-05-bots.md), default 3). When the cap is 2
+- **The bot's cap** (`bots.concurrencyCap` from [phase 5](./phase-0005-bots.md), default 3). When the cap is 2
   or more, one slot is **reserved for human-priority work**: bot-, event-, and schedule-priority turns may
   hold at most `cap − 1` leases. A leader fanning work out to itself can therefore never lock its owner out.
   With a cap of 1 there is nothing to reserve, so no slot is held back.
@@ -287,7 +287,7 @@ A step runs in this order:
    request. The two commits are what let recovery tell "never sent, costs nothing" from "sent, probably
    billed".
 2. **Effect.** Stream the response with the tick's `AbortSignal`. Text deltas go to an `onDelta` hook. Here
-   the hook only counts characters; [phase 7](./phase-07-threads-and-web-chat.md) attaches the stream
+   the hook only counts characters; [phase 7](./phase-0007-threads-and-web-chat.md) attaches the stream
    channel.
 3. **Outcome, one commit.** The assistant entry (text plus tool-call parts), one `tool_calls` row per call
    (`pending`, or `awaiting_approval` if the tool is gated), `model_steps → done` with the finish reason, and
@@ -324,7 +324,7 @@ follows, and a takeover does not have to wait for the reaper. It settles every r
 `done` and its tool calls all have outcomes, so it counts consecutive crashes without progress, which is the
 signature of a poison input: a response that OOMs the worker, or a tool that kills the process. At 2, the
 conversation is released `errored`, `bots.status` becomes `errored`, and a notice is posted to the thread
-naming the step and inviting a person to retry. [Phase 7](./phase-07-threads-and-web-chat.md) adds a
+naming the step and inviting a person to retry. [Phase 7](./phase-0007-threads-and-web-chat.md) adds a
 notification row. Nothing runs again until `conversation:retry`, which is audited and resets the counter.
 Retrying automatically would turn one poison message into an unbounded bill.
 
@@ -339,7 +339,7 @@ most likely to repeat.
   that the conversation sleeps with backoff (`wakeAt`) and posts a notice.
 - `401`, `403`, `404`, and other `4xx` errors make the conversation `errored` at once, with the formatted
   message. The message never includes the request body.
-- A context-too-long `400` is `errored` here. [Phase 8](./phase-08-context-management.md) turns it into
+- A context-too-long `400` is `errored` here. [Phase 8](./phase-0008-context-management.md) turns it into
   compaction plus one retry.
 
 ### The row is the delivery; the queue is an accelerant
@@ -382,7 +382,7 @@ An insert either commits before the release, in which case it set `wakeRequested
 `afterCommit` enqueues a tick. Both statements lock the same row, so there is no third ordering. If both
 enqueues are lost, `readyAt` is still set and the dispatcher finds it within 30 s.
 
-**Queue order.** [Phase 2](./phase-02-deployment.md) sets the worker's queue order to
+**Queue order.** [Phase 2](./phase-0002-deployment.md) sets the worker's queue order to
 `bots, orchestrator, embed, default`. Bots come first because a person is waiting on them. That puts the
 reaper behind a busy `bots` queue, which is acceptable for two reasons. A takeover in ACQUIRE does the
 reaper's job for any conversation that gets a new tick, so the reaper is not on the liveness path. And a
@@ -450,7 +450,7 @@ To reach anywhere else, a bot calls `send_message`: another thread in the projec
 a bot uses a `dm` thread with the two bots as participants, created once per pair (`dmKey`) and reused. In
 this phase routing is minimal and deterministic. A message in a thread goes to the thread's owner bot unless
 the owner wrote it. A message in a `dm` thread goes to the other bot. `@mentions` arrive in
-[phase 7](./phase-07-threads-and-web-chat.md).
+[phase 7](./phase-0007-threads-and-web-chat.md).
 
 ### Guards from day one
 
@@ -465,7 +465,7 @@ after an incident:
 | Bot hops without a person | `maxBotHops` 6 | at routing | the message is posted but not routed to any bot (`metadata.routingSuppressed: "hop_limit"`), with a notice: "Stopped after 6 bot-to-bot hops without a person. Reply here to continue." |
 | Chain size without a person | `maxChainMessages` 30 | at routing | as above, `"chain_limit"`; bounds fan-out, which hops alone do not |
 | Bot message rate | `botMessagesPerMinute` 30 per project | at routing and in `send_message` | `send_message` returns a `retryable` error with the wait; a final post is posted unrouted |
-| Budget | `bots` monthly budget ([phase 5](./phase-05-bots.md)), project `monthlyBudgetUsd` | before each model step | no request is sent; the conversation is `blocked` (`budget`) with a notice; the reaper readies it when the period rolls over or the budget is raised |
+| Budget | `bots` monthly budget ([phase 5](./phase-0005-bots.md)), project `monthlyBudgetUsd` | before each model step | no request is sent; the conversation is `blocked` (`budget`) with a notice; the reaper readies it when the period rolls over or the budget is raised |
 
 **Hops and chains.** `hopCount` is 0 for a person's message and for an event, and the cause's `hopCount + 1`
 for a bot's message. `rootMessageId` is the person's or event's message that began the chain. A person
@@ -491,8 +491,8 @@ neutralized before wrapping, so content cannot close its own fence. Fenced sourc
 
 - bot-to-bot messages;
 - `thread_read` output;
-- tool results whose `ToolDefinition` declares `fence: "external"`: MCP output ([phase 10](./phase-10-mcp-servers-and-approvals.md)) and fetched pages;
-- later, other people's Slack text ([phase 16](./phase-16-slack.md)).
+- tool results whose `ToolDefinition` declares `fence: "external"`: MCP output ([phase 10](./phase-0010-mcp-servers-and-approvals.md)) and fetched pages;
+- later, other people's Slack text ([phase 16](./phase-0016-slack.md)).
 
 A member's own message to the bot is an instruction and is not fenced. Fencing is mitigation, not a
 guarantee. The structural guarantees are elsewhere: credentials never enter context, gated calls need a
@@ -503,7 +503,7 @@ person, and MCP servers carry a bot allowlist.
 **System entries.** At the start of a turn, never mid-turn, the tick builds the system prompt and hashes it.
 The inputs are:
 
-- the bot's and project's always-loaded prompts, via the [phase 5](./phase-05-bots.md) loader;
+- the bot's and project's always-loaded prompts, via the [phase 5](./phase-0005-bots.md) loader;
 - the fixed sections: identity of the platform, one output channel, fencing;
 - the tool section, generated from the registry.
 
@@ -523,7 +523,7 @@ its tools.
 
 1. tools, sorted by name, with schemas serialized in a stable key order;
 2. system — no timestamps, nothing per-turn;
-3. the latest `compaction` / `reset` summary ([phase 8](./phase-08-context-management.md));
+3. the latest `compaction` / `reset` summary ([phase 8](./phase-0008-context-management.md));
 4. entries since it, in `seq` order;
 5. a volatile tail.
 
@@ -544,7 +544,7 @@ exactly one result, and no result lacks a call.
 
 | v1 | 2.0 |
 |---|---|
-| `getLanguageModel(cfg)` with keys in config | `getLanguageModel(resolved, credential)`: providers `anthropic`, `openai`, `openai_compatible` (the [phase 5](./phase-05-bots.md) connection kinds; Ollama is reachable as `openai_compatible`), the credential decrypted from `project_connections` at the call. An `openai_compatible` base URL passes `NetworkGuardOps` at call time, not only at save, against DNS rebinding |
+| `getLanguageModel(cfg)` with keys in config | `getLanguageModel(resolved, credential)`: providers `anthropic`, `openai`, `openai_compatible` (the [phase 5](./phase-0005-bots.md) connection kinds; Ollama is reachable as `openai_compatible`), the credential decrypted from `project_connections` at the call. An `openai_compatible` base URL passes `NetworkGuardOps` at call time, not only at save, against DNS rebinding |
 | `withAnthropicCacheBreakpoints` marks system + last assistant message | Same function; breakpoint 2 is the last entry of the *previous* step, and the volatile tail is placed after it |
 | `extractCacheTokens` | Normalizes to four **disjoint** categories: fresh input, cache read, cache write, output. One fixture per provider shape, because Anthropic's categories are disjoint while OpenAI's input includes cached tokens |
 | `toAiSdkTools` (no `execute`) | Unchanged: the loop runs tools itself so each one gets its rows, fence, and replay class |
@@ -563,13 +563,13 @@ returned as a tool result; and the time in the system prompt.
 Every completed or abandoned model step writes one `usage_events` row with the four token categories,
 `costUsd`, and `estimated`. Prices come from the model's registry entry when it sets one, otherwise from a
 boot table ported from ToolExec's `BOOT_MODEL_PRICES`. The OpenRouter catalog fetch is not ported, because
-[phase 1](./phase-01-clean-slate-and-shell.md) drops that dependency. An unpriced model records tokens with
+[phase 1](./phase-0001-clean-slate-and-shell.md) drops that dependency. An unpriced model records tokens with
 `costUsd = null` and is never treated as free.
 
 The budget check sums `costUsd` for the bot, and for the project, over the current calendar month (UTC),
 using indexes on `(botId, createdAt)` and `(projectId, createdAt)`. It adds the next step's estimated input
 cost, so the overshoot is bounded by one step's output. Rollups, if this query ever shows up in a profile,
-belong to [phase 18](./phase-18-operations.md).
+belong to [phase 18](./phase-0018-operations.md).
 
 ### Oversized tool results, minimally
 
@@ -577,7 +577,7 @@ A tool result over 10,000 characters is stored whole on `tool_calls.output` (cap
 model sees carries the first 7,000 and last 2,000 characters around a marker:
 `[truncated: N characters omitted. Narrow the request — a filter, a limit, a path — to get a smaller
 result.]`. This is deliberately less than v1's paging. Paging belongs in memory, and v1's process-global
-`lr_N` store is the thing [phase 8](./phase-08-context-management.md) replaces with
+`lr_N` store is the thing [phase 8](./phase-0008-context-management.md) replaces with
 `scratch/conversations/<id>/…`.
 
 ### Observability
@@ -652,7 +652,7 @@ Changed:
 - **`project_settings`** gains `concurrencyLimit` (6), `maxStepsPerTurn` (40), `repeatedCallLimit` (3),
   `maxBotHops` (6), `maxChainMessages` (30), `botMessagesPerMinute` (30), and `monthlyBudgetUsd` (null).
   If an earlier phase has not ported the settings row from ToolExec, this phase does.
-- **`project_models`** ([phase 5](./phase-05-bots.md)) gains four nullable prices per million tokens
+- **`project_models`** ([phase 5](./phase-0005-bots.md)) gains four nullable prices per million tokens
   (`priceInput`, `priceOutput`, `priceCacheRead`, `priceCacheWrite`), which override the boot table.
 - **`audit_logs`** already carries `actorBotId` and `onBehalfOfUserId` from phase 1. This phase adds their
   foreign keys.
@@ -711,7 +711,7 @@ The port described in [Design](#backendllm-what-ports-from-v1-and-what-changes).
 - `GuardOps`: `checkBudget`, `checkStepCap`, `checkRepeat`, `routingVerdict(message)`.
 - `ThreadChannelOps`: `broadcastThreadUpdate(projectId, threadId, kinds)` and
   `broadcastBotUpdate(projectId, botId)`. They are content-free, never throw, and are called after commit.
-  [Phase 7](./phase-07-threads-and-web-chat.md) registers the channels that let anyone subscribe.
+  [Phase 7](./phase-0007-threads-and-web-chat.md) registers the channels that let anyone subscribe.
 
 ### 5. The loop — `backend/bots/{tick,assemble,systemPrompt,registry,faults}.ts` and `backend/actions/bot/bot-tick.ts`
 
@@ -737,7 +737,7 @@ The port described in [Design](#backendllm-what-ports-from-v1-and-what-changes).
 | `tool-call:decide` | `POST /tool-call/decide` | member + `canWriteBot`; `approve` \| `deny`, `note?`; conflict if not `awaiting_approval` | yes | **never** — a model must not decide another model's gated call; [AGENTS.md](../../AGENTS.md) rule 6's list gains it |
 | `bot:pause` / `bot:resume` | `POST /bot/pause`, `POST /bot/resume` | member + `canWriteBot` | yes | yes |
 
-`tool-call:decide` is the minimal decision path. [Phase 10](./phase-10-mcp-servers-and-approvals.md) wraps it
+`tool-call:decide` is the minimal decision path. [Phase 10](./phase-0010-mcp-servers-and-approvals.md) wraps it
 in an `approvals` row, policy, and UI. `rbac.test.ts` and `McpToolPolicyOps` change in the same commit.
 
 ### 7. Clocks — `backend/actions/bot/{bots-dispatch,bots-reap}.ts`
@@ -754,7 +754,7 @@ Both are plain `Action`s, task-only, never MCP, with no `web` route.
 | Tool | Description tag | Replay | Inputs | Notes |
 |---|---|---|---|---|
 | `send_message` | `[[ bash equivalent command: write ]]` | safe | `to: { thread_id } \| { bot: slug }`, `body` | `requestId = "tool:" + toolCallId`, so a replay returns the original message. It returns `{ thread_id, message_id, routed_to }`, never the body. Errors: `not_found` (with a hint to list bots), `retryable` (rate, with the wait), `permanent` (hop or chain limit, with a hint to ask a person) |
-| `sleep_until` | `[[ bash equivalent command: at ]]` | safe | `at` (ISO time) or `in_minutes`, `reason` | Sets `wakeAt` (latest call wins; `null` cancels) and returns at once. It does not end the turn: the bot still answers, and the wake later opens a new turn with an `event` entry naming the reason. The time is 1 minute to 30 days ahead. Recurring work is [phase 14](./phase-14-schedules-and-wakeups.md) |
+| `sleep_until` | `[[ bash equivalent command: at ]]` | safe | `at` (ISO time) or `in_minutes`, `reason` | Sets `wakeAt` (latest call wins; `null` cancels) and returns at once. It does not end the turn: the bot still answers, and the wake later opens a new turn with an `event` entry naming the reason. The time is 1 minute to 30 days ahead. Recurring work is [phase 14](./phase-0014-schedules-and-wakeups.md) |
 | `thread_read` | `[[ bash equivalent command: tail ]]` | safe | `thread_id?` (default: this thread), `before_id?`, `limit` (≤ 50) | Fenced output; `{ messages, has_more, next_before_id }` |
 
 Every tool answers with the [AGENTS.md](../../AGENTS.md) rule-8 envelope: `is_error`, `error_type`, `message`,
@@ -763,7 +763,7 @@ registered only under `NODE_ENV=test`.
 
 ### 9. Frontend — `frontend/src/pages/BotPage.tsx`, `frontend/src/components/bots/*`
 
-The chat UI is [phase 7](./phase-07-threads-and-web-chat.md). This phase adds what an operator needs to see
+The chat UI is [phase 7](./phase-0007-threads-and-web-chat.md). This phase adds what an operator needs to see
 that the loop is working:
 
 - a status chip on the bot list and bot page;
@@ -949,7 +949,7 @@ runs scenarios with structural assertions:
 - it does not repeat identical calls.
 
 It uploads a JSON report as an artifact. It is not part of the `complete` gate.
-[Phase 18](./phase-18-operations.md) expands it.
+[Phase 18](./phase-0018-operations.md) expands it.
 
 ## Verification
 

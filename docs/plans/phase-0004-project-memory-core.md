@@ -6,14 +6,14 @@
 > file whose frontmatter is wrong.
 
 > **Status: planned, not built.** Stage B — One bot that thinks. Depends on
-> [phase 1](./phase-01-clean-slate-and-shell.md) and [phase 3](./phase-03-organizations.md).
+> [phase 1](./phase-0001-clean-slate-and-shell.md) and [phase 3](./phase-0003-organizations.md).
 
 Project memory replaces two things from v1 at once: the on-disk project tree (`prompts/`, `skills/`, notes)
 and the membot knowledge store. It comes before bots because almost everything after it is a file in it. A
-bot's identity, goals, and beliefs are files ([phase 5](./phase-05-bots.md)). Oversized tool results land in
-`scratch/` ([phase 8](./phase-08-context-management.md)). Skills are `skills/<name>.md`
-([phase 12](./phase-12-skills.md)). Code mode reads and writes it through `memory.*`
-([phase 11](./phase-11-code-mode.md)). Building the store first means none of those phases invents its own
+bot's identity, goals, and beliefs are files ([phase 5](./phase-0005-bots.md)). Oversized tool results land in
+`scratch/` ([phase 8](./phase-0008-context-management.md)). Skills are `skills/<name>.md`
+([phase 12](./phase-0012-skills.md)). Code mode reads and writes it through `memory.*`
+([phase 11](./phase-0011-code-mode.md)). Building the store first means none of those phases invents its own
 storage, history, editor, or CLI. They inherit this phase's.
 
 The model is membot's, moved onto Postgres. A file is a chain of append-only versions addressed by a
@@ -23,10 +23,10 @@ it and why. Writes are guarded by the version the writer last read. People and b
 skill or prompt can never be saved in a shape its loader would reject.
 
 This phase is the filesystem, not the search engine. Search here is keyword-only, over a `tsvector`. Chunks,
-embeddings, hybrid search, uploads, and converters are [phase 9](./phase-09-memory-search-and-ingestion.md).
+embeddings, hybrid search, uploads, and converters are [phase 9](./phase-0009-memory-search-and-ingestion.md).
 Bots cannot write yet. The rules for what a bot may write ship here as complete, tested predicates, but
-nothing constructs a bot writer until [phase 5](./phase-05-bots.md) gives bots identities and
-[phase 6](./phase-06-durable-bot-loop.md) lets them act.
+nothing constructs a bot writer until [phase 5](./phase-0005-bots.md) gives bots identities and
+[phase 6](./phase-0006-durable-bot-loop.md) lets them act.
 
 ## Scope
 
@@ -43,14 +43,14 @@ editor, history, diff, restore, move, delete, undelete); `botholomew memory …`
 user docs; tests.
 
 **Out:** chunks, embeddings, hybrid search, uploads, converters, the describer, `stats`, and `reindex`
-([phase 9](./phase-09-memory-search-and-ingestion.md)). URL ingest ([phase 19](./phase-19-url-ingest.md)).
-Refresh ([phase 20](./phase-20-upstream-refresh.md)). Source routers and bulk sync
-([phase 21](./phase-21-source-routers-and-bulk-sync.md)). LLM-assisted ingestion
-([phase 22](./phase-22-llm-assisted-ingestion.md)). Original bytes: the `memory_blobs` table name is reserved
-for [phase 23](./phase-23-original-bytes-and-blob-policy.md), which defines it. Pruning old versions and sweeping `scratch/`
-([phase 18](./phase-18-operations.md)). Bot identities and namespace ownership
-([phase 5](./phase-05-bots.md)). Bots writing ([phase 6](./phase-06-durable-bot-loop.md)). The `scratch/`
-writer ([phase 8](./phase-08-context-management.md)). Skill behaviour ([phase 12](./phase-12-skills.md)).
+([phase 9](./phase-0009-memory-search-and-ingestion.md)). URL ingest ([phase 19](./phase-0019-url-ingest.md)).
+Refresh ([phase 20](./phase-0020-upstream-refresh.md)). Source routers and bulk sync
+([phase 21](./phase-0021-source-routers-and-bulk-sync.md)). LLM-assisted ingestion
+([phase 22](./phase-0022-llm-assisted-ingestion.md)). Original bytes: the `memory_blobs` table name is reserved
+for [phase 23](./phase-0023-original-bytes-and-blob-policy.md), which defines it. Pruning old versions and sweeping `scratch/`
+([phase 18](./phase-0018-operations.md)). Bot identities and namespace ownership
+([phase 5](./phase-0005-bots.md)). Bots writing ([phase 6](./phase-0006-durable-bot-loop.md)). The `scratch/`
+writer ([phase 8](./phase-0008-context-management.md)). Skill behaviour ([phase 12](./phase-0012-skills.md)).
 
 ## What already exists
 
@@ -81,13 +81,13 @@ directory on one machine.
 1. **The project is the boundary.** Every row carries `projectId`, every query filters on it, and a path is
    unique only within its project. No action reads across projects, even for someone who administers both.
 2. **History is append-only.** No operation rewrites or deletes a version's content. `rm` writes a tombstone.
-   Only admin-run retention ([phase 18](./phase-18-operations.md)) ever removes old versions.
+   Only admin-run retention ([phase 18](./phase-0018-operations.md)) ever removes old versions.
 3. **A guarded write never loses a concurrent edit.** When a caller says which version it read, a mismatch is
    refused, never merged and never overwritten. `edit` always carries a version.
 4. **A reserved path never holds an invalid file.** Validation runs inside the writing transaction on every
    path into a reserved namespace: `write`, `edit`, `cp`, `mv`, `restore`, and `batch`.
 5. **Every change is attributed and audited.** Each version records its author, and each human mutation
-   writes one audit row. Bot changes ([phase 6](./phase-06-durable-bot-loop.md)) fill `actorBotId` /
+   writes one audit row. Bot changes ([phase 6](./phase-0006-durable-bot-loop.md)) fill `actorBotId` /
    `onBehalfOfUserId` through the same funnel.
 6. **Postgres first, then network.** A live frame is broadcast only after its transaction commits, and it
    names paths and versions, never content.
@@ -123,7 +123,7 @@ paths never take that lock.
 
 `parentVersionId` links each version to the previous head at the same path. `derivedFromVersionId` links a
 `cp`, `mv`, or `restore` to its source. `operation` (`create | write | edit | copy | move | delete |
-restore`, with `ingest` added in [phase 9](./phase-09-memory-search-and-ingestion.md)) says which one made
+restore`, with `ingest` added in [phase 9](./phase-0009-memory-search-and-ingestion.md)) says which one made
 it. Following `derivedFromVersionId` across a `move` is what lets `versions --follow` show a renamed file's
 whole life, the way `git log --follow` does. Membot kept history "under both names" but never connected them.
 
@@ -162,12 +162,12 @@ That is the client-side half of `resolveInRoot`.
 
 | Path | Validator | People who may write | Bots that may write (seam) |
 |---|---|---|---|
-| `skills/<name>.md` | Strict skill frontmatter; `name` equals the file stem; flat (no subdirectories) | Any member | Any bot, only when the project setting `botsMayWriteSkills` is on ([phase 12](./phase-12-skills.md) adds it; until then the predicate's input is `false`) |
+| `skills/<name>.md` | Strict skill frontmatter; `name` equals the file stem; flat (no subdirectories) | Any member | Any bot, only when the project setting `botsMayWriteSkills` is on ([phase 12](./phase-0012-skills.md) adds it; until then the predicate's input is `false`) |
 | `prompts/<name>.md` | Strict prompt frontmatter; flat | Admins. A project prompt shapes every bot, so writing it is writing every bot | None |
-| `bots/<slug>/prompts/<name>.md` | Strict prompt frontmatter; flat | Writers of that bot ([phase 5](./phase-05-bots.md)) | That bot, only where the current file says `agent-modification: true`; it may never flip the flag, and a prompt it creates must say `true` |
+| `bots/<slug>/prompts/<name>.md` | Strict prompt frontmatter; flat | Writers of that bot ([phase 5](./phase-0005-bots.md)) | That bot, only where the current file says `agent-modification: true`; it may never flip the flag, and a prompt it creates must say `true` |
 | `bots/<slug>/notes/**` | None | Writers of that bot | That bot |
-| `scratch/conversations/<id>/**` | None | `rm` only | The system, for that conversation ([phase 8](./phase-08-context-management.md)) |
-| everything else | None | Any member | Any bot ([phase 6](./phase-06-durable-bot-loop.md)) |
+| `scratch/conversations/<id>/**` | None | `rm` only | The system, for that conversation ([phase 8](./phase-0008-context-management.md)) |
+| everything else | None | Any member | Any bot ([phase 6](./phase-0006-durable-bot-loop.md)) |
 
 Read access always follows the project boundary: every member, and every bot, may read every path. The
 registry is an ordered list of `{ name, match, validate?, canWrite }`. The first match wins, and "everything
@@ -183,7 +183,7 @@ else" is the fallback. The validators are v1's, with no loosening:
 
 A write that fails validation is refused with v1's `formatZodIssues` text and a hint carrying a minimal
 valid header. Phase 4 has no bot rows, so the human rule for `bots/**` is "refused: bot namespaces are
-created with their bot". [Phase 5](./phase-05-bots.md) replaces it with `canWriteBot`.
+created with their bot". [Phase 5](./phase-0005-bots.md) replaces it with `canWriteBot`.
 
 The bot column is real code. `canWritePath(actor, path, ctx)` takes a `MemoryActor`
 (`{ kind: "user", … } | { kind: "bot", botId, slug, onBehalfOfUserId? }`). Its bot branch is unit-tested
@@ -199,7 +199,7 @@ phrases and `-exclusions`. Ranking is `ts_rank_cd`, and `ts_headline` builds a s
 only.
 
 `memory:search` already takes `mode` (only `keyword` is accepted here), `pathPrefix`, `includeHistory`,
-and `limit`. Each hit already has the shape [phase 9](./phase-09-memory-search-and-ingestion.md) returns
+and `limit`. Each hit already has the shape [phase 9](./phase-0009-memory-search-and-ingestion.md) returns
 (`logicalPath`, `versionId`, `chunkIndex: null`, `snippet`, `score`, `keywordScore`, `semanticScore:
 null`). Phase 9 widens the `mode` enum without breaking a caller. Reserved paths (`skills/`, `prompts/`,
 `bots/*/prompts/`, `scratch/`) are left out unless `pathPrefix` names them. Bot notes are knowledge and are
@@ -216,7 +216,7 @@ read.
 
 ### Membot feature map
 
-This is the whole membot port. [Phase 9](./phase-09-memory-search-and-ingestion.md) points back here.
+This is the whole membot port. [Phase 9](./phase-0009-memory-search-and-ingestion.md) points back here.
 
 | membot | 2.0 | Phase |
 |---|---|---|
@@ -256,8 +256,8 @@ This is the whole membot port. [Phase 9](./phase-09-memory-search-and-ingestion.
 | Version identity | The serial row id, exposed as `versionId` (integer). It is not a timestamp |
 | Writing identical content | A no-op that returns `unchanged: true` and creates no version |
 | A file and a directory with the same name | Refused when the path is created, under a per-project advisory lock |
-| Binary content | Not in this phase; writes must be UTF-8 text of at most `MEMORY_MAX_FILE_BYTES` (5 MiB). Binaries arrive with uploads in [phase 9](./phase-09-memory-search-and-ingestion.md), and their original bytes in [phase 23](./phase-23-original-bytes-and-blob-policy.md) |
-| Project settings | None in this phase. The skills gate reads `botsMayWriteSkills`, which [phase 12](./phase-12-skills.md) adds; memory's own knobs arrive in `memory_settings` with [phase 9](./phase-09-memory-search-and-ingestion.md) |
+| Binary content | Not in this phase; writes must be UTF-8 text of at most `MEMORY_MAX_FILE_BYTES` (5 MiB). Binaries arrive with uploads in [phase 9](./phase-0009-memory-search-and-ingestion.md), and their original bytes in [phase 23](./phase-0023-original-bytes-and-blob-policy.md) |
+| Project settings | None in this phase. The skills gate reads `botsMayWriteSkills`, which [phase 12](./phase-0012-skills.md) adds; memory's own knobs arrive in `memory_settings` with [phase 9](./phase-0009-memory-search-and-ingestion.md) |
 | What the audit row carries | Version metadata only (path, `versionId`, sha, size, change note). The version table is the content record |
 | `rm` across many paths | All-or-nothing in one transaction, capped at 1,000 matches. Membot reported per-entry failures because DuckDB could not do better |
 | `push` | All-or-nothing through `memory:batch` (at most 200 operations), each guarded by the manifest's version |
@@ -279,15 +279,15 @@ This is the whole membot port. [Phase 9](./phase-09-memory-search-and-ingestion.
 | `contentSha256` | `varchar(64)` | Null for tombstones |
 | `sizeBytes`, `lineCount` | `integer` | |
 | `mimeType` | `varchar(128)` | Default `text/markdown`; set from the extension (`.json`, `.yaml`, `.csv`, …) |
-| `description` | `text` | Author-set here; derived when absent from [phase 9](./phase-09-memory-search-and-ingestion.md) on |
+| `description` | `text` | Author-set here; derived when absent from [phase 9](./phase-0009-memory-search-and-ingestion.md) on |
 | `frontmatter` | `jsonb` | Parsed reserved-path frontmatter, so prompt and skill listings do not re-parse |
 | `operation` | `varchar(16)` | `create \| write \| edit \| copy \| move \| delete \| restore` |
 | `parentVersionId`, `derivedFromVersionId` | `integer` | Self-references, `set null` |
 | `authorUserId`, `onBehalfOfUserId` | `integer` | → `users.id`, `set null` |
-| `authorBotId` | `integer` | No foreign key yet; [phase 5](./phase-05-bots.md) adds one with `set null` |
+| `authorBotId` | `integer` | No foreign key yet; [phase 5](./phase-0005-bots.md) adds one with `set null` |
 | `changeNote` | `varchar(1000)` | |
-| `sourceType` | `varchar(16)` | Default `inline`. Reserved for ingestion: `upload` ([phase 9](./phase-09-memory-search-and-ingestion.md)), `url` ([phase 19](./phase-19-url-ingest.md)), `router` ([phase 21](./phase-21-source-routers-and-bulk-sync.md)) — membot called the URL case `remote` |
-| `sourceUri`, `sourceSha256`, `sourceMimeType`, `sourceFilename` | `text`, `varchar(64)`, `varchar(128)`, `text` | Reserved for ingestion: where the bytes came from, the sha of the source bytes, their sniffed mime, and an upload's original name. Declared now so ingestion adds no columns to a table that already has rows; fetch-specific columns (final URI, ETag, fetcher args) arrive with [phase 19](./phase-19-url-ingest.md) |
+| `sourceType` | `varchar(16)` | Default `inline`. Reserved for ingestion: `upload` ([phase 9](./phase-0009-memory-search-and-ingestion.md)), `url` ([phase 19](./phase-0019-url-ingest.md)), `router` ([phase 21](./phase-0021-source-routers-and-bulk-sync.md)) — membot called the URL case `remote` |
+| `sourceUri`, `sourceSha256`, `sourceMimeType`, `sourceFilename` | `text`, `varchar(64)`, `varchar(128)`, `text` | Reserved for ingestion: where the bytes came from, the sha of the source bytes, their sniffed mime, and an upload's original name. Declared now so ingestion adds no columns to a table that already has rows; fetch-specific columns (final URI, ETag, fetcher args) arrive with [phase 19](./phase-0019-url-ingest.md) |
 | `searchTsv` | `tsvector` | Generated, stored |
 | `createdAt` | `timestamp(withTimezone)` | `defaultNow()` |
 
@@ -310,7 +310,7 @@ logicalPath, id DESC)` for history and prefix scans; GIN on `searchTsv WHERE isC
   - `canWritePath(actor, path, ctx)` returns allowed, or denied with a hint.
   - The ported `PromptFrontmatterSchema`, `SkillFrontmatterSchema`, `formatZodIssues`, and
     `RESERVED_SKILL_NAMES`.
-  - `resolveBotNamespace(projectId, slug)`, which returns `null` until [phase 5](./phase-05-bots.md).
+  - `resolveBotNamespace(projectId, slug)`, which returns `null` until [phase 5](./phase-0005-bots.md).
 - `MemoryOps` (each mutation takes `tx` and a `MemoryActor`, and returns the new head)
   - `readFile`, `fileInfo`, `listEntries`, `buildTree`, `listVersions`, `diffVersions`, `manifest`.
   - `writeFile`, `editFile`, `copyFile`, `moveFile`, `movePrefix`, `removePaths`, `restoreVersion`,
@@ -362,7 +362,7 @@ membership row. A malformed name is refused rather than thrown.
 
 `tool.ts` ports v1's `ToolDefinition` shape. Its context carries a `MemoryActor` and `projectId` instead of
 `withMem`. The memory tools are its first members. No bot receives them until
-[phase 6](./phase-06-durable-bot-loop.md) adds the execution half: the registry, replay, and the effect
+[phase 6](./phase-0006-durable-bot-loop.md) adds the execution half: the registry, replay, and the effect
 sandwich. Each tool's `description` begins with a bash tag, and each returns the PATs envelope
 `{ is_error, error_type, message, next_action_hint }`.
 

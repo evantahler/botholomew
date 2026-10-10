@@ -5,12 +5,12 @@
 > owns every migration, Postgres with pgvector proven usable, and errors reported to Sentry. Merging to `main`
 > deploys it.
 
-> **Status: planned, not built.** Stage A — Platform. Depends on [phase 1](./phase-01-clean-slate-and-shell.md),
+> **Status: planned, not built.** Stage A — Platform. Depends on [phase 1](./phase-0001-clean-slate-and-shell.md),
 > which leaves a trimmed, tested, never-synced `render.yaml` behind.
 
 The shell is the cheapest thing this project will ever deploy, which is why it is deployed now. Every later
 phase inherits the deployment's shape — two processes from one image, a single migrator, a queue order, a
-processor count — and the bot loop in [phase 6](./phase-06-durable-bot-loop.md) is designed against that shape.
+processor count — and the bot loop in [phase 6](./phase-0006-durable-bot-loop.md) is designed against that shape.
 Finding out that Render's Postgres refuses `CREATE EXTENSION vector` under the app's role, or that the OAuth
 issuer resolves to an internal hostname, costs an afternoon with a shell and a week with a swarm.
 
@@ -19,7 +19,7 @@ learnings already applied: the worker owns migrations, the encryption key lives 
 two `generateValue` keys are two different keys, `MCP_OAUTH_TRUST_PROXY` is on, instance types are spec ids a
 test pins, and the blueprint is parsed and asserted in `bun test`. What is new is Botholomew's: the worker drains `bots` before anything else
 and runs many processors because a bot tick spends its life waiting on a model; an `embed` queue is reserved
-for local embeddings; pgvector must exist before [phase 9](./phase-09-memory-search-and-ingestion.md) needs it;
+for local embeddings; pgvector must exist before [phase 9](./phase-0009-memory-search-and-ingestion.md) needs it;
 and www.botholomew.com — today v1's VitePress site on GitHub Pages — moves to the app.
 
 It leaves out a production blueprint, more than one worker instance, mail, and a CDN.
@@ -36,17 +36,17 @@ log; the env matrix; Sentry (errors only) and per-role service names; `docs/DEPL
 doc URLs to the `v1` branch; extending `render-blueprint.test.ts`; user docs naming the hosted URLs.
 
 **Out:** a production environment (staging is the only one until a later decision makes a second); more than
-one worker instance and the migration lock that would need ([phase 18](./phase-18-operations.md)); SMTP, which
+one worker instance and the migration lock that would need ([phase 18](./phase-0018-operations.md)); SMTP, which
 arrives with the first feature that sends mail; OpenTelemetry metrics and spans for the loop
-([phase 6](./phase-06-durable-bot-loop.md)); the request-body cap, raised by the phase that first accepts
-uploads ([phase 9](./phase-09-memory-search-and-ingestion.md)); a CDN or edge cache in front of the frontend;
+([phase 6](./phase-0006-durable-bot-loop.md)); the request-body cap, raised by the phase that first accepts
+uploads ([phase 9](./phase-0009-memory-search-and-ingestion.md)); a CDN or edge cache in front of the frontend;
 frontend error reporting.
 
 ## What already exists
 
 | Piece | What it gives this work | Where |
 |---|---|---|
-| `render.yaml` and its test | Five resources and a shared group, renamed and trimmed, asserted by a Zod parse of the real file — never synced | `render.yaml`, `backend/__tests__/deployment/render-blueprint.test.ts` from [phase 1](./phase-01-clean-slate-and-shell.md) |
+| `render.yaml` and its test | Five resources and a shared group, renamed and trimmed, asserted by a Zod parse of the real file — never synced | `render.yaml`, `backend/__tests__/deployment/render-blueprint.test.ts` from [phase 1](./phase-0001-clean-slate-and-shell.md) |
 | ToolExec's deployment learnings | The single migrator, the shared-group key, `MCP_OAUTH_TRUST_PROXY`, apex-for-redirect-only, `COMPUTE_PLANS`, "renaming a service is not a rename" | `toolexec:docs/plans/phase-02-deployment.md`, `toolexec:render.yaml`, `toolexec:docs/DEPLOY.md` |
 | Task config | Keryx task processors, a static queue list whose order is priority | `backend/config/tasks.ts` (from `toolexec:backend/config/tasks.ts`) |
 | `status` | The health action Render probes, with `tracing = false` | `backend/actions/status.ts` (from `toolexec:backend/actions/status.ts`) |
@@ -121,7 +121,7 @@ them: `TASK_PROCESSORS=12`, `BOT_TICK_SLOTS=10`, leaving two processors that alw
 cannot acquire a lease exits in milliseconds and its inbox row waits for dispatch, so running ticks ≤ leased
 conversations ≤ slots. This phase sets the numbers, adds `backend/config/bots.ts` to carry `tickSlots`
 (documented as "read by lease acquisition"), and makes `tickSlots < taskProcessors` both a blueprint-test
-assertion and a boot assertion (step 2); [phase 6](./phase-06-durable-bot-loop.md)'s lease acquisition enforces
+assertion and a boot assertion (step 2); [phase 6](./phase-0006-durable-bot-loop.md)'s lease acquisition enforces
 the slot count alongside the per-bot cap and the project's `concurrencyLimit`.
 
 Twelve processors on one CPU is deliberate. A tick spends almost all of its time awaiting a streamed model
@@ -134,7 +134,7 @@ processor — against the API's 10.
 An idle processor sleeps `TASK_TIMEOUT` between scans; ToolExec's 5 s default would add up to five seconds
 between a person pressing send and any processor seeing the tick. The worker sets `TASK_TIMEOUT=500`. Twelve
 idle processors polling twice a second is about two dozen Redis round trips a second — nothing — and
-[phase 6](./phase-06-durable-bot-loop.md)'s inbox-to-tick latency metric is how the number gets revisited.
+[phase 6](./phase-0006-durable-bot-loop.md)'s inbox-to-tick latency metric is how the number gets revisited.
 
 ### Embeddings never run on the worker's event loop
 
@@ -142,7 +142,7 @@ The worker's one event loop carries every tick's token stream and every lease re
 60–90 s TTL). A synchronous WASM inference batch on that loop delays all of them at once, and enough delay
 loses a lease mid-stream. It also trips Keryx's `maxEventLoopDelay`, which quietly stops new processors from
 spawning — a same-thread embedder would cap tick concurrency without an error anywhere. So
-[phase 9](./phase-09-memory-search-and-ingestion.md) runs inference on one dedicated `Worker` thread per
+[phase 9](./phase-0009-memory-search-and-ingestion.md) runs inference on one dedicated `Worker` thread per
 process (≈50 MB of WASM heap plus the model) — off the event loop, without membot's subprocess pool — and
 bakes the model weights into the image so a deploy never waits on a download. This phase only reserves the
 queue and the memory.
@@ -169,7 +169,7 @@ and written into the learnings.
 ### One key, proven without a secret to decrypt
 
 ToolExec verifies the shared key by writing a secret through the web service and reading it in a worker task.
-Nothing encrypts anything until [phase 5](./phase-05-bots.md), so `initializers/secrets.ts` logs a **fingerprint**
+Nothing encrypts anything until [phase 5](./phase-0005-bots.md), so `initializers/secrets.ts` logs a **fingerprint**
 at boot — the first eight hex characters of SHA-256 over the key — and the runbook compares the two roles' log
 lines. A truncated hash of a 256-bit random key discloses nothing useful, and a mismatch is visible on the first
 deploy instead of the first decryption.
@@ -199,7 +199,7 @@ Sentry is `@keryxjs/sentry`, **errors only**, in a new Botholomew project. Its i
 ignored by Render, so a dashboard-only value could leave one role dark after a sync. `SENTRY_ENVIRONMENT=staging`
 (this is staging, and it says so), `SENTRY_TRACES_SAMPLE_RATE=0`, metrics and logs off. `OTEL_SERVICE_NAME` and
 `PROCESS_NAME` are the Render service names, so Sentry's `serverName` and every log line say which role spoke.
-OpenTelemetry metrics stay disabled until [phase 6](./phase-06-durable-bot-loop.md) has loop spans worth
+OpenTelemetry metrics stay disabled until [phase 6](./phase-0006-durable-bot-loop.md) has loop spans worth
 exporting. Render's health checks and logs are the rest of the observability this phase needs.
 
 ### Env matrix
@@ -226,7 +226,7 @@ exporting. Render's health checks and logs are the rest of the observability thi
 
 Instance types are ToolExec's validated ones: `1c-2g` for both backend roles (the worker's headroom is for
 embedding later), `starter` for the frontend and Redis, `basic-256mb` on `postgresMajorVersion: "18"` for the
-database — revisited when [phase 9](./phase-09-memory-search-and-ingestion.md) builds HNSW indexes.
+database — revisited when [phase 9](./phase-0009-memory-search-and-ingestion.md) builds HNSW indexes.
 
 ## Steps
 

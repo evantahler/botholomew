@@ -6,10 +6,10 @@
 > own model providers and names the models its bots use. Nothing runs yet.
 
 > **Status: planned, not built.** Stage B — One bot that thinks. Depends on
-> [phase 1](./phase-01-clean-slate-and-shell.md), [phase 3](./phase-03-organizations.md), and
-> [phase 4](./phase-04-project-memory-core.md).
+> [phase 1](./phase-0001-clean-slate-and-shell.md), [phase 3](./phase-0003-organizations.md), and
+> [phase 4](./phase-0004-project-memory-core.md).
 
-[Phase 6](./phase-06-durable-bot-loop.md) cannot take a single model step without four things: a bot, the
+[Phase 6](./phase-0006-durable-bot-loop.md) cannot take a single model step without four things: a bot, the
 prompt it sees, a model to call, and a key to call it with. This phase builds all four and stops there, the
 way ToolExec's agent-management phase defined agents before any run existed. The editor, the access rules,
 model resolution, and prompt assembly can be reviewed — and tested — with no loop in the way.
@@ -38,12 +38,12 @@ audit; the Bots pages and editor; Settings → Connections and Models; `botholom
 
 **Out:** model calls, the loop, `bots.status` and the pause columns (reserved for phase 6, which adds and
 derives them), budget enforcement and the usage ledger
-([phase 6](./phase-06-durable-bot-loop.md)); thread ownership and routing by description
-([phase 7](./phase-07-threads-and-web-chat.md)); per-bot MCP allowlists
-([phase 10](./phase-10-mcp-servers-and-approvals.md)); skills in the prompt
-([phase 12](./phase-12-skills.md)); the leader creating and hibernating workers
-([phase 13](./phase-13-leader-and-workers.md)); per-bot schedules
-([phase 14](./phase-14-schedules-and-wakeups.md)); uploaded avatar images and bot templates (later).
+([phase 6](./phase-0006-durable-bot-loop.md)); thread ownership and routing by description
+([phase 7](./phase-0007-threads-and-web-chat.md)); per-bot MCP allowlists
+([phase 10](./phase-0010-mcp-servers-and-approvals.md)); skills in the prompt
+([phase 12](./phase-0012-skills.md)); the leader creating and hibernating workers
+([phase 13](./phase-0013-leader-and-workers.md)); per-bot schedules
+([phase 14](./phase-0014-schedules-and-wakeups.md)); uploaded avatar images and bot templates (later).
 
 ## What already exists
 
@@ -60,15 +60,15 @@ derives them), budget enforcement and the usage ledger
 | Named models | `resolveModel`, `resolveModelFor` (`--model` > pin > default, with `shadowed`), `resolveFastModel`, and error text that lists the available names | [src/config/models.ts](https://github.com/evantahler/botholomew/blob/v1/src/config/models.ts), [milestone-17](https://github.com/evantahler/botholomew/blob/v1/docs/plans/milestone-17-named-models.md) |
 | Prompt loading | `loadPersistentContext` (`always` vs keyword-matched `contextual`), `extractKeywords`, and the bug to fix: `buildMetaHeader` puts a millisecond timestamp at the top of every system prompt | [src/worker/prompt.ts](https://github.com/evantahler/botholomew/blob/v1/src/worker/prompt.ts), [src/chat/agent.ts](https://github.com/evantahler/botholomew/blob/v1/src/chat/agent.ts) |
 | The owl | `GOALS_MD` / `BELIEFS_MD` seed text and the persona reference | [src/init/templates.ts](https://github.com/evantahler/botholomew/blob/v1/src/init/templates.ts), [docs/owl-character-sheet.md](https://github.com/evantahler/botholomew/blob/v1/docs/owl-character-sheet.md) |
-| Project memory | `MemoryOps`, the namespace registry with its bot seams, strict prompt frontmatter, the editor | [phase 4](./phase-04-project-memory-core.md) |
+| Project memory | `MemoryOps`, the namespace registry with its bot seams, strict prompt frontmatter, the editor | [phase 4](./phase-0004-project-memory-core.md) |
 
 ## What this must not weaken
 
 1. **BYOK only.** The platform holds no model key and has no fallback key. A project with no connection can
-   define bots, and [phase 6](./phase-06-durable-bot-loop.md) refuses to run them with a hint.
+   define bots, and [phase 6](./phase-0006-durable-bot-loop.md) refuses to run them with a hint.
 2. **A credential's plaintext lives only in server memory, at the moment of use.** It is never returned,
    logged, audited (only `lastFour`), placed in a prompt, or reachable from a bot tool or
-   [code mode](./phase-11-code-mode.md).
+   [code mode](./phase-0011-code-mode.md).
 3. **The project is the boundary.** A bot pins only its own project's models; a model uses only its own
    project's connection, checked on write.
 4. **Data-dependent access is enforced in the action** (`canReadBot` / `canWriteBot`); middleware gates
@@ -95,8 +95,8 @@ is refused — namespaces are created by their bot, never by a stray path.
 
 `role` is `leader | worker`, and a partial unique index on `(projectId) WHERE role = 'leader'` makes "one
 leader" structural. Being the leader is a convention, not a feature (Grok Bot's framing): the leader becomes
-the default owner of new threads in [phase 7](./phase-07-threads-and-web-chat.md) and watches workers in
-[phase 13](./phase-13-leader-and-workers.md); in this phase it differs only by role and seed. The leader
+the default owner of new threads in [phase 7](./phase-0007-threads-and-web-chat.md) and watches workers in
+[phase 13](./phase-0013-leader-and-workers.md); in this phase it differs only by role and seed. The leader
 cannot be deleted or demoted by `bot:edit`. `bot:make-leader` (admin) demotes the old leader and promotes the
 new one in one transaction, two statements in that order — a unique index is checked per row, so a single
 swapping `UPDATE` could trip it.
@@ -219,7 +219,7 @@ default, the fast model, or anyone's pin.
 ### Declared now, used later
 
 `concurrencyCap` (default 3, at least 1) and `monthlyBudgetUsd` are enforced by
-[phase 6](./phase-06-durable-bot-loop.md): with a cap of 2 or more, one slot is held back for human-priority
+[phase 6](./phase-0006-durable-bot-loop.md): with a cap of 2 or more, one slot is held back for human-priority
 work, and the budget is checked against the month's `usage_events` before each model step. Declaring them now
 keeps the editor complete and avoids a migration against a table that will have rows; the schema comment says
 what reads each one. `bots.status` (`hibernating | working | waiting | paused | errored`) is reserved for
