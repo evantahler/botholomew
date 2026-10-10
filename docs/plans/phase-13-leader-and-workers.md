@@ -212,8 +212,11 @@ the parent gets one `tasks.waited` event summarising every task in the group:
 ### Guards
 
 [Grok Bot](https://docs.x.ai/grok-bot/chat-and-collaboration) names the failure modes: "Too many parallel
-handoffs can create duplicate work and noisy updates". Each guard answers one of them, and each refusal is
-distinct and actionable, because the consumer is a model that will try to recover.
+handoffs can create duplicate work and noisy updates", and unrestricted swarms add loops and quota burn.
+Loops meet the depth limit, the assignee-cycle check, and the DM hop limit. Duplicate work meets the duplicate
+refusal. Noise meets `reportMode`, `wait_for` folding, and deduplicated workforce alerts. Quota burn meets the
+budgets and the per-tree spend cap. Each refusal is distinct and actionable, because the consumer is a model
+that will try to recover.
 
 | Guard | Default | Enforced by |
 |---|---|---|

@@ -332,7 +332,7 @@ The run's output is that list. A reflection that writes no facts completes with 
 | `confirmedAt` / `confirmedByUserId` | timestamptz / int, null | |
 | `ownerUserId` | int, null | → `users`, set null |
 | `pausedAt` / `pauseReason` | timestamptz / text, null | |
-| `lastEnqueuedAt` | timestamptz, null | The fire time enqueued for |
+| `lastEnqueuedAt` | timestamptz, null | v1's `last_run_at`, redefined as the fire time enqueued *for*, never the wall clock |
 | `consecutiveFailures` | int | Default 0 |
 | `keepAlivePromptedAt` / `keepAliveDeadlineAt` | timestamptz, null | |
 | `createdByUserId` / `createdByBotId` | int, null | |

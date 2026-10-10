@@ -1,7 +1,7 @@
 # Phase 22 — LLM-assisted ingestion
 
-> **Goal:** A project that connects a model and opts in gets smarter ingestion — images and embedded figures get
-> captions, scanned PDFs and messy structured text get converted, and untitled files get a written description —
+> **Goal:** A project that connects a model and opts in gets smarter ingestion — images and figures inside documents
+> get captions, scanned PDFs and messy structured text get converted, and untitled files get a written description —
 > on the project's own model, inside a budget an admin set, with every token recorded. A project that does not
 > opt in loses nothing: ingestion stays deterministic and complete.
 
@@ -27,10 +27,10 @@ stays.
 ## Scope
 
 **In:** columns on phase 4's `memory_settings` (opt-in, model choice, budgets, caps, excluded prefixes);
-`backend/llm/ingestion.ts` with membot's three prompts; vision captions for images embedded
-in HTML and DOCX, capped per document; model conversion of scanned PDFs (native document input only) and of
-structured text; model-written descriptions when a file has no title; the caption path standalone image files will
-use; model capability flags on `project_models`; the budget check, `usage_events` with `kind = 'ingestion'`, and threshold
+`backend/llm/ingestion.ts` with membot's three prompts; vision captions for images embedded in HTML and DOCX,
+capped per document; model conversion of scanned PDFs (native document input only) and of structured text;
+model-written descriptions when a file has no title; the caption path standalone image files will use; model
+capability flags on `project_models`; the budget check, `usage_events` with `kind = 'ingestion'`, and threshold
 notifications; enrichment provenance on every version; degraded-file tracking; `memory:enrich` to re-run; the
 settings UI, CLI, user docs, and tests on the fake model server.
 
@@ -157,13 +157,13 @@ enrichment degraded — the "we ran out of budget last week" case.
 
 ### 1. Schema — `backend/schema/{memory_settings,memory_files,project_models,usage_events}.ts`
 
-Phase 4's `memory_settings` gains `llmEnabled` (false), `llmModel` (nullable registry name), `llmCaptions`, `llmConversion`, `llmDescriptions` (true),
-`llmExcludePrefixes text[]`, `llmMonthlyBudgetUsd numeric` (5), `llmMonthlyTokenBudget integer` (2 000 000),
-`llmMaxImageCaptionsPerDocument` (20), `llmMaxPdfPagesPerDocument` (50), and `llmConcurrency` (2).
-`memory_files` gains `enrichment jsonb`; `systemActor` and `operation` gain `enrich`. `project_models` gains `supportsImages`,
-`supportsPdf`. `usage_events.kind` (phase 6: `model_step`) gains `ingestion`, with new nullable `ingestJobId`,
-`logicalPath`, `requestedByUserId`, and `requestedByBotId`; index `(projectId, kind, createdAt)` for the monthly
-sum.
+Phase 4's `memory_settings` gains `llmEnabled` (false), `llmModel` (nullable registry name), `llmCaptions`,
+`llmConversion`, `llmDescriptions` (true), `llmExcludePrefixes text[]`, `llmMonthlyBudgetUsd numeric` (5),
+`llmMonthlyTokenBudget integer` (2 000 000), `llmMaxImageCaptionsPerDocument` (20),
+`llmMaxPdfPagesPerDocument` (50), and `llmConcurrency` (2). `memory_files` gains `enrichment jsonb`;
+`systemActor` and `operation` gain `enrich`. `project_models` gains `supportsImages` and `supportsPdf`.
+`usage_events.kind` (phase 6: `model_step`) gains `ingestion`, with new nullable `ingestJobId`, `logicalPath`,
+`requestedByUserId`, and `requestedByBotId`; index `(projectId, kind, createdAt)` for the monthly sum.
 
 ### 2. LLM — `backend/llm/ingestion.ts`, `backend/llm/capabilities.ts`
 
@@ -224,7 +224,7 @@ Against phase 6's fake model server, which accepts image and document parts:
 - Enabled: a page with 25 images makes 20 caption calls and five skip placeholders; a titled markdown file makes
   no describer call; an untitled one makes one.
 - A scanned PDF goes to the model only when `supportsPdf`; otherwise it degrades with `unsupported_by_model`. An
-  unknown binary is never sent.
+  unknown binary is never sent, and a standalone PNG upload is still refused with phase 9's hint.
 - An exhausted token budget falls back with `degraded: budget` and notifies admins once; an unpriced model shows
   "unpriced", never zero.
 - Every call writes one `usage_events` row with `kind = 'ingestion'` and the requesting bot, and the bot's own
