@@ -8,7 +8,7 @@
 > **Status: planned, not built.** Stage A — Platform. Depends on [phase 1](./phase-0001-clean-slate-and-shell.md),
 > which leaves a trimmed, tested, never-synced `render.yaml` behind.
 
-The shell is the cheapest thing this project will ever deploy, which is why it is deployed now. Every later
+The shell is the cheapest thing this project ever deploys, which is why it is deployed now. Every later
 phase inherits the deployment's shape — two processes from one image, a single migrator, a queue order, a
 processor count — and the bot loop in [phase 6](./phase-0006-durable-bot-loop.md) is designed against that shape.
 Finding out that Render's Postgres refuses `CREATE EXTENSION vector` under the app's role, or that the OAuth
@@ -35,7 +35,7 @@ log; the env matrix; Sentry (errors only) and per-role service names; `docs/DEPL
 `api.botholomew.com`, `www.botholomew.com`, and the apex; retiring GitHub Pages; a not-found page that sends v1
 doc URLs to the `v1` branch; extending `render-blueprint.test.ts`; user docs naming the hosted URLs.
 
-**Out:** a production environment (staging is the only one until a later decision makes a second); more than
+**Out:** a production environment (staging is the only one; a second is a later decision); more than
 one worker instance and the migration lock that would need ([phase 18](./phase-0018-operations.md)); SMTP, which
 arrives with the first feature that sends mail; OpenTelemetry metrics and spans for the loop
 ([phase 6](./phase-0006-durable-bot-loop.md)); the request-body cap, raised by the phase that first accepts
@@ -98,9 +98,9 @@ repo root because `tsc -b` resolves action types through `@backend/*`, so it als
 
 Keryx's task processors are node-resque workers. Each takes **one job at a time**, and when it is free it scans
 the configured queues left to right and takes the first job it finds — so the list's order is priority, and a
-job holds its processor for as long as it runs. ToolExec puts `orchestrator` first because its `runs` queue held
-minutes-long provisioning jobs that the orchestrator itself produced; draining them first would starve the
-dispatcher that created them.
+job holds its processor for as long as it runs. ToolExec puts `orchestrator` first because its `runs` queue holds
+minutes-long provisioning jobs that the orchestrator itself produces; draining them first would starve the
+dispatcher that creates them.
 
 Botholomew's common path is the other way round. A person's message commits an inbox row and its `afterCommit`
 enqueues `bot:tick` directly; `bots:dispatch` on `orchestrator` is the reconciler that catches what the fast
@@ -153,7 +153,7 @@ queue and the memory.
 and only the second matters. So this phase adds a hand-written migration — `CREATE EXTENSION IF NOT EXISTS
 vector;` — and the worker's first boot on staging either applies it or fails loudly, long before a
 `vector(384)` column depends on it. CI already runs `pgvector/pgvector:pg18`, and `docs/cloud-setup.md` already
-installs the package for cloud VMs, so local, CI, and staging agree from this phase on.
+installs the package for cloud VMs, so this phase makes local, CI, and staging agree.
 
 ### Healthy means the schema is at least the image's
 
@@ -169,27 +169,27 @@ and written into the learnings.
 ### One key, proven without a secret to decrypt
 
 ToolExec verifies the shared key by writing a secret through the web service and reading it in a worker task.
-Nothing encrypts anything until [phase 5](./phase-0005-bots.md), so `initializers/secrets.ts` logs a **fingerprint**
+Nothing in this phase encrypts anything (encryption arrives with [phase 5](./phase-0005-bots.md)), so `initializers/secrets.ts` logs a **fingerprint**
 at boot — the first eight hex characters of SHA-256 over the key — and the runbook compares the two roles' log
 lines. A truncated hash of a 256-bit random key discloses nothing useful, and a mismatch is visible on the first
 deploy instead of the first decryption.
 
 ### www.botholomew.com moves from GitHub Pages to the app
 
-Phase 1 removed the Pages workflow, so GitHub Pages serves v1's last docs build until DNS moves. The cutover
+Phase 1 removes the Pages workflow, so GitHub Pages serves v1's last docs build for as long as DNS points at it. The cutover
 order keeps a working site at every step:
 
 1. Sync the blueprint; `api.botholomew.com` is a new name, so its DNS record and certificate go first.
 2. Lower the TTL on `www` and the apex a day ahead.
 3. Point `www` at `botholomew-frontend` and the apex at the record Render names; wait for **Certificate issued**
    on both. During propagation some visitors still reach v1's docs on Pages, which is harmless.
-4. After a week's soak, remove the Pages site (`gh api -X DELETE repos/evantahler/botholomew/pages`). Until then,
-   pointing DNS back at Pages is the rollback.
+4. After a week's soak, remove the Pages site (`gh api -X DELETE repos/evantahler/botholomew/pages`). Through the
+   soak, pointing DNS back at Pages is the rollback.
 
-v1's docs were published with clean URLs at the root — `/getting-started`, `/architecture`, `/skills`, eighteen
+v1's docs use clean URLs at the root — `/getting-started`, `/architecture`, `/skills`, eighteen
 in all. Server-side redirects for them would shadow app routes later phases plausibly want (`/skills`,
 `/prompts`, `/approvals`, `/tools`), so there are none. Instead the SPA's not-found page carries the list: an
-unmatched path whose slug (with or without `.html`) was a v1 page renders "This was Botholomew v1's
+unmatched path whose slug (with or without `.html`) names a v1 page renders "This was Botholomew v1's
 documentation" and links the same file on the `v1` branch. A route a later phase defines simply wins.
 
 ### Observability
@@ -199,8 +199,8 @@ Sentry is `@keryxjs/sentry`, **errors only**, in a new Botholomew project. Its i
 ignored by Render, so a dashboard-only value could leave one role dark after a sync. `SENTRY_ENVIRONMENT=staging`
 (this is staging, and it says so), `SENTRY_TRACES_SAMPLE_RATE=0`, metrics and logs off. `OTEL_SERVICE_NAME` and
 `PROCESS_NAME` are the Render service names, so Sentry's `serverName` and every log line say which role spoke.
-OpenTelemetry metrics stay disabled until [phase 6](./phase-0006-durable-bot-loop.md) has loop spans worth
-exporting. Render's health checks and logs are the rest of the observability this phase needs.
+OpenTelemetry metrics stay disabled; loop spans worth exporting arrive with
+[phase 6](./phase-0006-durable-bot-loop.md). Render's health checks and logs are the rest of the observability this phase needs.
 
 ### Env matrix
 
@@ -276,8 +276,8 @@ why the worker stays at one instance. [AGENTS.md](../../AGENTS.md)'s Deployment 
 
 ### 7. CLI — no new commands
 
-This phase adds no action. `DEFAULT_BASE_URL` has been `https://api.botholomew.com` since phase 1; this is the
-phase that makes it answer.
+This phase adds no action. `DEFAULT_BASE_URL` is `https://api.botholomew.com`, as phase 1 sets it; this is
+the phase that makes it answer.
 
 ### 8. User docs — `frontend/src/content/docs/{getting-started,cli,mcp}.md`
 

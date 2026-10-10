@@ -313,7 +313,7 @@ production).
 - `backend/embedding/embedder.ts`: `embedPassages(texts)`, `embedQuery(text)` (prefix + LRU), backed by
   `embedWorker.ts`; `fakeEmbedder.ts` hashes lowercase unigrams and bigrams into 384 dimensions,
   L2-normalized — deterministic, and lexical overlap still yields similarity.
-- `MemorySearchOps`: `searchSemantic`, `searchKeyword` (now per chunk), `searchHybrid` (ports of `fuseRRF`,
+- `MemorySearchOps`: `searchSemantic`, `searchKeyword` (per chunk rather than per file), `searchHybrid` (ports of `fuseRRF`,
   `diversify`, `makeSnippet`, `extractSnippetTerms`), `semanticCoverage`.
 - `backend/memory/convert/`: `sniffMime`, `convert(bytes, mime)` dispatching to ported converters inside the
   converter thread, `describeDeterministic`.

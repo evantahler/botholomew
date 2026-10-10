@@ -24,9 +24,9 @@ posts to the thread. So "a reply goes where its turn came from" becomes a rule a
 the outbox forwards to Slack, and ToolExec's sandbox invariants become invariants of the bot loop.
 
 The phase deliberately leaves out ambient listening. A top-level channel message that does not mention the
-app is never stored. Making that possible belongs to an unphased, opt-in channel-listening schedule or event trigger
-built on [phase 14](./phase-0014-schedules-and-wakeups.md). Grok Bot's own guidance warns against triggers
-that react to every new message, and so does the budget.
+app is never stored. Making that possible belongs to an unphased, opt-in channel-listening schedule or event
+trigger built on [phase 14](./phase-0014-schedules-and-wakeups.md). Grok Bot's own guidance warns against
+triggers that react to every new message, and so does the budget.
 
 ## Scope
 
@@ -170,7 +170,7 @@ re-checked at every inbound event, because a channel can become shared later. Di
 audited) stops ingress at once. In-flight outbox rows for that channel end `undeliverable` with
 `channel_disabled`.
 
-Nothing here promises redaction. As ToolExec learned with human help, a redactor over model output fails
+Nothing here promises redaction. ToolExec's learning from human help: a redactor over model output fails
 quietly. The audience decision is the control.
 
 ### A Slack thread is a Botholomew thread
@@ -241,9 +241,9 @@ is written before step 3.
    remote thread (30 a minute), on top of phase 6's per-project limits and the pending-inbox cap. Over the
    limit, the sender gets an ephemeral *slow down* and nothing is written.
 5. **Dedupe on the message, not the envelope.** The core architecture names Slack's `event_id` as the
-   `requestId`, and this phase refines that, because ToolExec found one Slack message can arrive as two
-   events: a mention inside a followed thread is delivered as both `app_mention` and `message.channels`, with
-   different `event_id`s. `requestId` is therefore `slack:<teamId>:<channelId>:<ts>`. That value is identical
+   `requestId`, and this phase refines that, because one Slack message can arrive as two events (a
+   ToolExec learning): a mention inside a followed thread is delivered as both `app_mention` and
+   `message.channels`, with different `event_id`s. `requestId` is therefore `slack:<teamId>:<channelId>:<ts>`. That value is identical
    across both events and every retry, and phase 6's `(projectId, requestId)` unique index collapses them to
    one row. `event_id` is kept in `metadata` and used only as a Redis `SET NX` short-circuit (one hour) for
    the cheap no-write paths. Interactivity needs no `requestId`. An approval decision is a conditional update
@@ -310,7 +310,7 @@ credential), and the manifest must be re-renderable. Both secrets are stored as 
 `{ botToken, signingSecret }`, in the connection's credential triple, validated by the `slack` connection
 definition's Zod schema. Putting the signing secret in refresh-token columns would make the schema lie.
 `slack` is not a model kind, `SENSITIVE_KEYS` gains `botToken` and `signingSecret`, and
-`no-secrets.test.ts` covers them. A shared app installed by OAuth (*Add to Slack*) remains a future option,
+`no-secrets.test.ts` covers them. A shared app installed by OAuth (*Add to Slack*) is an unphased option,
 kept open by one rule: everything after the connection row reads a `slack` connection and never asks how it
 was created.
 

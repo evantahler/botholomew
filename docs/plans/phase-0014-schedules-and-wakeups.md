@@ -62,8 +62,8 @@ schedule, off by default; the UI, `botholomew schedule …`, `reminder …`, and
 
 **Out:** Slack and iMessage triggers ([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)).
 Provider-specific webhook signatures such as GitHub's `X-Hub-Signature-256`: the token in the path is the
-secret, as in ToolExec, and HMAC verification plugs in beside it, unphased. Email notifications for keep-alive prompts: the
-2.0 shell drops the mail transport ([phase 1](./phase-0001-clean-slate-and-shell.md)). Retention of tasks and
+secret, as in ToolExec, and HMAC verification plugs in beside it, unphased. Email notifications for
+keep-alive prompts: the 2.0 shell drops the mail transport ([phase 1](./phase-0001-clean-slate-and-shell.md)). Retention of tasks and
 threads that schedules create ([phase 18](./phase-0018-operations.md)).
 
 ## What already exists

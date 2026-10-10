@@ -52,8 +52,7 @@ new line, and it has to do so without silently capturing the people still runnin
 
 - **Install paths this phase does not build.** No Windows install script — the `.exe` and npm cover Windows —
   and no Homebrew tap. Both are unphased.
-- **Long-lived credentials for CI.** Personal access tokens are unphased; `--with-password` covers
-  CI.
+- **Long-lived credentials for CI.** Personal access tokens are unphased; `--with-password` covers CI.
 - **Memory and bot editing in the TUI.** The web UI and `memory pull/push` own those.
 - **v1's Tools, Context, Workers, and Schedules tabs.** The web pages and `schedule …` replace them.
 - **Slack and iMessage** ([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)).

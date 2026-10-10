@@ -10,8 +10,8 @@
 > backfill rather than an empty table.
 
 Organizations are the thinnest layer this plan adds, and they are added now precisely because they are thin.
-Today the schema has one tenant tier and nothing hangs off a project yet; after
-[phase 4](./phase-0004-project-memory-core.md) every memory file, bot, thread, and MCP server does. Putting a
+Today the schema has one tenant tier and nothing hangs off a project yet; in
+[phase 4](./phase-0004-project-memory-core.md) and after, every memory file, bot, thread, and MCP server does. Putting a
 grouping above projects costs one foreign key on `projects` before that, and a much harder conversation
 after it. Later work wants the grouping — billing attaches to an organization, not to each project, and a team
 running several projects wants one place that lists them — but none of that later work should get to decide
@@ -67,7 +67,7 @@ What does not exist: anything above a project. A project's creator is recorded o
    membership or ownership.
 2. **Every project permission is a project check.** `ProjectMemberMiddleware()` and `AdminMiddleware()` read
    project memberships and tags and nothing else.
-3. **Nothing is left unmanageable.** A project always has an admin, as before; an organization always has an
+3. **Nothing is left unmanageable.** A project always has an admin, as it already does; an organization always has an
    owner, by the same guard.
 4. **Signup is one transaction.** A user never exists without their organization, project, membership, and
    `admin` tag.
@@ -92,12 +92,12 @@ Four reasons, in order of weight:
   admins doing anything, and that no project screen shows.
 - **One place to reason.** "Who can see this thread?" is answered by reading `project_memberships`,
   `user_tags`, and (from [phase 5](./phase-0005-bots.md)) the bot's tag lists. A second source makes every
-  permission a union, and every future check must remember both halves — exactly the kind of rule that is
-  forgotten once and leaks from then on.
+  permission a union, and every new check must remember both halves — exactly the kind of rule that is
+  forgotten once and leaks for good.
 - **Bots inherit project semantics.** Bots act with project permissions and carry per-bot tag lists. An
   organization layer would need its own answer for what a bot may do across projects; there is no good one,
   and not having the layer means not needing one.
-- **Paying is not reading.** Billing will attach to organizations. Whoever holds the card should not, by that
+- **Paying is not reading.** Billing attaches to organizations. Whoever holds the card should not, by that
   fact, read every conversation in every project the card pays for.
 
 The cost is real and accepted: an owner cannot see into, or rescue, a project they are not in. Two things keep
@@ -390,7 +390,7 @@ Manually, in two browsers:
    settings. Mario still sees Peach's organization; opening "Castle" by URL is refused; Organization → Projects
    lists "Castle" with "you are not a member".
 5. As Mario, try Organization → Danger → Delete: disabled, naming two projects.
-6. As Peach, delete both projects, then the organization. Mario's switcher no longer lists it, and Peach — now
+6. As Peach, delete both projects, then the organization. Mario's switcher does not list it, and Peach — now
    in no organization — lands on New organization; she creates "Mushroom Kingdom".
 7. In a terminal as Peach: `botholomew org list`, `botholomew project create Garden --org mushroom-kingdom`,
    `botholomew org audit` (it shows the organization's creation and Garden's, nothing from inside Garden).
