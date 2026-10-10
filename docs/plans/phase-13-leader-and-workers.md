@@ -300,8 +300,11 @@ The swarm page has two parts:
   and clicking one opens its delegation thread.
 
 The layout ports ToolExec's `stepDepths`, which is cycle-safe so that a corrupt edge cannot take the page down.
-Live updates arrive as content-free frames on `project:<id>:tasks` carrying `{ taskIds, kinds }`. The page
-subscribes first, then hydrates, as ToolExec's phase 18 learned to do.
+Live updates arrive on `project:<id>:tasks` as frames that name nothing (`{ event: "tasks", kinds }`). A frame
+carrying task ids would leak the existence of tasks whose assignee the subscriber cannot read, so this stays a
+membership-only list channel in [phase 7](./phase-07-threads-and-web-chat.md)'s sense, and the page re-reads
+its access-filtered tree on each frame. The page subscribes first, then hydrates, as ToolExec's phase 18
+learned to do.
 
 ## Steps
 
@@ -378,6 +381,9 @@ These are environment-overridable ceilings. Project settings may lower them, nev
   discovery never offers a bot that `delegate` would refuse.
 - `findWorkforceProblems(projectId, now)` → `{ kind, subjectId, level }[]`
 - `deliverWorkforceAlerts(...)` — writes the alert events.
+- `broadcastTasksUpdate(projectId, kinds)` — after commit; never throws, like ToolExec's `RunChannelOps`. Its
+  channel class is `backend/channels/projectTasks.ts`, with membership middleware and no per-subject
+  `authorize()`, because the frame names nothing.
 
 ### 4. Actions — `backend/actions/task/*.ts`, `backend/actions/swarm/*.ts`
 

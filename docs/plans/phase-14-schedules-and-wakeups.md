@@ -162,8 +162,8 @@ weekday at 7am, except US holidays, unless I'm on vacation") without a model cal
 run with `task_complete` and an output like "skipped: Labor Day".
 
 `schedule:confirm` takes back the exact expression and timezone the person saw. If the stored proposal has
-changed since, it answers 409, so nobody confirms something they did not read. Confirming sets `ownerUserId`
-to the confirmer and resets the anchor to now, so a fresh schedule never catches up on fire times from before
+changed since, it answers 409, so nobody confirms something they did not read. Confirming enables the
+schedule, sets `ownerUserId` to the confirmer, and resets the anchor to now, so a fresh schedule never catches up on fire times from before
 it existed. If no fast model is connected, compiling refuses with a hint to enter cron directly.
 
 A schedule a bot creates starts unconfirmed while `project_settings.botSchedulesNeedConfirmation` is on, which
@@ -253,8 +253,8 @@ then turns that conversation's due wakeups into `event` inbox rows, under the le
 column), and marks them delivered. A crash between the claim and the tick therefore delivers each wakeup
 exactly once.
 
-- **`remind_me`** takes `{ at | in, note, thread? }` and creates a reminder. With `thread` set, it targets
-  that thread's conversation instead of the current one. Reminders serve people as well: "remind me Friday to
+- **`remind_me`** takes `{ at | in, note, thread? }` and creates a reminder. With `thread` set — a thread the
+  bot already takes part in — it targets that thread's conversation instead of the current one. Reminders serve people as well: "remind me Friday to
   send the report" becomes the bot's turn on Friday, which posts in the thread.
 - **Limits.** A reminder must be at least a minute ahead and at most a year away, and each bot may hold at
   most 100 pending.

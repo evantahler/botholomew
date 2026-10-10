@@ -147,8 +147,8 @@ to. Otherwise compaction would run every few steps and summarize work the bot is
    `keepRecentTokens` unsummarized. Turn boundaries are preferred over step boundaries (see
    [never orphan](#never-orphan-a-tool-result)).
 3. **Summarize, outside the lease.** The task reads the previous summary and the entries after it, up to the
-   cut, and asks the project's fast model for a new summary. If no fast model is configured, it uses the
-   bot's default. The task writes the result to the staging row (`ready`), not to the transcript, and
+   cut, and asks the project's fast model for a new summary. The model comes from `resolveFastModel`, which
+   falls back to the project's default ([phase 5](./phase-05-bots.md)). The task writes the result to the staging row (`ready`), not to the transcript, and
    records `usage_events` with `kind: compaction`. Summaries roll: each one absorbs the previous one, so a
    conversation has exactly one live summary.
 4. **Apply, under the lease.** At the next **turn boundary** the lease holder appends a `compaction` entry

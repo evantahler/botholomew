@@ -270,7 +270,7 @@ write — minus the GitHub, Linear, and Apple Notes paragraphs, with tool names 
 
 ## Steps
 
-### 1. Schema — `backend/schema/{memory_chunks,memory_ingest_jobs}.ts`
+### 1. Schema — `backend/schema/{memory_chunks,memory_ingest_jobs,memory_settings}.ts`
 
 `CREATE EXTENSION IF NOT EXISTS vector` in the migration. `memory_chunks`:
 

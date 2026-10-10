@@ -652,8 +652,13 @@ Changed:
 - **`project_settings`** gains `concurrencyLimit` (6), `maxStepsPerTurn` (40), `repeatedCallLimit` (3),
   `maxBotHops` (6), `maxChainMessages` (30), `botMessagesPerMinute` (30), and `monthlyBudgetUsd` (null).
   If an earlier phase has not ported the settings row from ToolExec, this phase does.
+- **`project_models`** ([phase 5](./phase-05-bots.md)) gains four nullable prices per million tokens
+  (`priceInput`, `priceOutput`, `priceCacheRead`, `priceCacheWrite`), which override the boot table.
 - **`audit_logs`** already carries `actorBotId` and `onBehalfOfUserId` from phase 1. This phase adds their
   foreign keys.
+
+A disabled bot (`bots.enabled = false`, phase 5) is treated like a paused one: its messages queue, and
+AUTHORIZE releases without a model call until it is enabled again.
 
 ### 2. Config — `backend/config/bots.ts`
 
