@@ -50,10 +50,10 @@ new line, and it has to do so without silently capturing the people still runnin
 
 **Out:**
 
-- **Install paths we are not building yet.** No Windows install script — the `.exe` and npm cover Windows — and
-  no Homebrew tap. Both come later, unphased.
-- **Long-lived credentials for CI.** Personal access tokens come later, unphased; `--with-password` covers
-  CI until then.
+- **Install paths this phase does not build.** No Windows install script — the `.exe` and npm cover Windows —
+  and no Homebrew tap. Both are unphased.
+- **Long-lived credentials for CI.** Personal access tokens are unphased; `--with-password` covers
+  CI.
 - **Memory and bot editing in the TUI.** The web UI and `memory pull/push` own those.
 - **v1's Tools, Context, Workers, and Schedules tabs.** The web pages and `schedule …` replace them.
 - **Slack and iMessage** ([phase 16](./phase-0016-slack.md), [phase 17](./phase-0017-imessage.md)).
@@ -97,11 +97,11 @@ new line, and it has to do so without silently capturing the people still runnin
 
 ### Signing in from a terminal
 
-The CLI that [phase 1](./phase-0001-clean-slate-and-shell.md) copied from ToolExec logs in with an email and
+The CLI that [phase 1](./phase-0001-clean-slate-and-shell.md) copies from ToolExec logs in with an email and
 password and stores the `__session` cookie. That stays as
 `--with-password`, reading the password from stdin, for CI and for the test suite. As the default it has
 three problems. A password is the wrong thing to type into a terminal on a shared machine. It cannot work for
-a future SSO-only account. And a session dies after the one-day TTL, which kills a TUI left open overnight.
+an SSO-only account. And a session dies after the one-day TTL, which kills a TUI left open overnight.
 
 Keryx's OAuth server, with loopback redirects, is the obvious alternative, and we pass on it. The tokens it
 issues authenticate `/mcp`, while every HTTP action the CLI calls reads the session cookie, so reusing them
@@ -173,7 +173,7 @@ shortcuts, so muscle memory carries over:
 
 | Tab | Key | What it shows |
 |---|---|---|
-| Chat | `Ctrl+a` | The thread. Messages from people and bots, each with its author: 2.0 threads are multi-party, and v1's were one-to-one. The bot's streaming text sits in a live block, and the posted final message replaces it. Tool calls render as v1's folded `ToolCall` boxes, driven by `tool_calls` rows. `event` entries — task settled, schedule fired, reminder — appear as dim system lines |
+| Chat | `Ctrl+a` | The thread. Messages from people and bots, each with its author: 2.0 threads are multi-party, and v1's are one-to-one. The bot's streaming text sits in a live block, and the posted final message replaces it. Tool calls render as v1's folded `ToolCall` boxes, driven by `tool_calls` rows. `event` entries — task settled, schedule fired, reminder — appear as dim system lines |
 | Threads | `Ctrl+e` | Your threads with this bot and the others you can read. Enter switches to one |
 | Tasks | `Ctrl+t` | Open tasks as an ASCII tree, read-only. Enter opens the task's thread in Chat |
 | Approvals | `Ctrl+p` | Pending approvals on bots you can write, through `approval:approve` / `approval:deny` ([phase 10](./phase-0010-mcp-servers-and-approvals.md)). `y` allow once, `a` always allow for this bot, `n`/`Esc` deny, as in v1 |
@@ -198,8 +198,8 @@ v1's `SleepProgress` bar now that sleeping is durable), its model, the queue cou
 
 ### The queue lives on the server now
 
-In v1 the queue was "ephemeral (in-memory, not persisted)". The TUI held messages until the agent finished,
-and `Ctrl+E` / `Ctrl+X` edited or dropped them. In 2.0, Enter while the bot is busy sends the message straight
+In v1 the queue is "ephemeral (in-memory, not persisted)". The TUI holds messages until the agent finishes,
+and `Ctrl+E` / `Ctrl+X` edit or drop them. In 2.0, Enter while the bot is busy sends the message straight
 away with `whenBusy: follow_up`. It becomes an inbox row that survives the terminal closing, and the TUI shows
 it dimmed until a tick claims it.
 
@@ -216,7 +216,7 @@ ToolExec bundles its CLI for Node. We do not, and the reason is the renderer. v1
 `Bun.markdown.ansi`, and both the long-URL fix and the table pre-render are workarounds tuned to exactly that
 renderer's behaviour. Swapping it for a Node renderer means re-earning #282.
 
-v1 already required Bun for npm installs (`bun install -g botholomew`), and the standalone binary embeds Bun
+v1 already requires Bun for npm installs (`bun install -g botholomew`), and the standalone binary embeds Bun
 for everyone else. The npm package's `bin` is a small launcher written so Node can run it:
 
 - under Bun, it imports the bundle;
@@ -238,15 +238,15 @@ bun build --compile --minify --target=bun-<os>-<arch> cli/src/index.ts --outfile
 That covers five targets: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, and `windows-x64`.
 
 - **Building.** All five cross-compile on one Ubuntu runner. A macOS job ad-hoc signs the darwin files
-  (`codesign --force --sign -`), because Apple Silicon will not run unsigned code.
+  (`codesign --force --sign -`), because Apple Silicon does not run unsigned code.
 - **Smoke tests.** One job each on macOS, Linux, and Windows runs `--version` and `chat --help`, and renders
   one TUI frame against a fixture.
 - **Checksums.** `SHA256SUMS` ships beside the binaries.
 
 ### Versions, dist-tags, and the v1 line
 
-v1 published `botholomew@0.x` to npm under `latest`. [Phase 1](./phase-0001-clean-slate-and-shell.md) left the
-2.x package `"private": true` and named the question this phase must answer before flipping it: what does a
+v1 publishes `botholomew@0.x` to npm under `latest`. [Phase 1](./phase-0001-clean-slate-and-shell.md) leaves the
+2.x package `"private": true` and names the question this phase must answer before flipping it: what does a
 v1 user's `botholomew upgrade` do? The 2.0 plan:
 
 1. **Before the first 2.x publish,** add a `v1` dist-tag pointing at 0.27.3. `bun add -g botholomew@v1` then
@@ -277,7 +277,7 @@ domain from [phase 2](./phase-0002-deployment.md)). It is new, not v1's. It:
 1. resolves the version from the npm dist-tag (`latest` by default, or `--channel next`), so one source of
    truth picks the version for both install paths;
 2. downloads `botholomew-<os>-<arch>` and `SHA256SUMS` from that version's GitHub release;
-3. verifies the checksum with `sha256sum` or `shasum -a 256`, which v1 never did;
+3. verifies the checksum with `sha256sum` or `shasum -a 256`, which v1 never does;
 4. installs `botholomew` plus the `bothy` alias into `$BOTHOLOMEW_BIN_DIR`, defaulting to `~/.local/bin`.
 
 **`botholomew upgrade`.** This ports v1's `upgradr` binding, configured with the package `botholomew`, the
@@ -360,7 +360,7 @@ and older than a day, and `cli_sessions` that are revoked or expired and older t
 | `botholomew logout` / `whoami` | `session:destroy` plus `cli-session:revoke` for this session / `me:view` |
 | `botholomew auth sessions` / `auth revoke <id>` | `cli-session:list` / `cli-session:revoke` |
 | `botholomew chat [--bot] [--thread \| --new]` | The TUI |
-| `botholomew thread follow <id>`, `thread send … --wait`, `task view <id> --follow`, `schedule test <id> --follow` | All four move onto the live reader. The command names are unchanged from the phases that added them |
+| `botholomew thread follow <id>`, `thread send … --wait`, `task view <id> --follow`, `schedule test <id> --follow` | All four move onto the live reader. The command names are unchanged from the phases that add them |
 | `botholomew upgrade` / `botholomew --version` | `upgradr`; reports the channel and the server's minimum |
 
 The port of v1's `src/tui/` is copied file by file. Its imports are rewritten from the in-process `ChatSession`
@@ -388,7 +388,7 @@ branch boundary stays legible.
 3. **release** — creates a *draft* GitHub release `v<version>` (marked prerelease if the version contains `-`)
    and uploads the binaries and `SHA256SUMS`.
 4. **npm** — `permissions: id-token: write`, then `npm publish --provenance --tag <next|latest>`. The repo is
-   public, so provenance works; ToolExec needed `--no-provenance` only because its repo is private.
+   public, so provenance works; ToolExec needs `--no-provenance` only because its repo is private.
 5. **publish** — undrafts the release.
 
 The order matters. The install script resolves the version from npm, so npm moves only after the assets

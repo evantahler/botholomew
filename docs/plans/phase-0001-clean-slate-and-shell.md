@@ -92,9 +92,9 @@ workspace grows next to it buys nothing. v1's `auto-release.yml` publishes a rel
 a half-converted `package.json` would ship a broken binary to every v1 user's `botholomew upgrade`. And the
 docs site would keep describing v1 at www.botholomew.com while the code underneath it stopped being v1.
 
-After this phase, `main` publishes nothing: `auto-release.yml` and `docs-deploy.yml` are gone, so the last v1
-release stays the latest one, and GitHub Pages keeps serving the last v1 docs build until
-[phase 2](./phase-0002-deployment.md) points the domain at the app. Two things later phases inherit, recorded
+With this phase, `main` publishes nothing: `auto-release.yml` and `docs-deploy.yml` are gone, so the last v1
+release stays the latest one, and GitHub Pages keeps serving the last v1 docs build;
+[phase 2](./phase-0002-deployment.md) is what points the domain at the app. Two things later phases inherit, recorded
 here because this is where they are created: v1's self-updater checks both the npm `botholomew` package and
 the latest GitHub release whose assets are named `botholomew-<os>-<arch>`
 ([src/update/updater.ts](https://github.com/evantahler/botholomew/blob/v1/src/update/updater.ts)), so
@@ -104,8 +104,8 @@ user's `botholomew upgrade` does; and the install URL in v1's README
 
 ### Copy by manifest, then cut
 
-Files are copied **by explicit list** from a ToolExec checkout at a recorded commit (`c55c332` was its HEAD
-when this plan was written; use whatever is current and record the SHA). A directory is never copied
+Files are copied **by explicit list** from a ToolExec checkout at a recorded commit (`c55c332` is the ToolExec
+commit this plan reads; use whatever is current and record the SHA). A directory is never copied
 wholesale: wholesale is how a sandbox import slips in. Each copied file is then cut by one rule — **delete
 the import of a dropped module, then delete the code that needed it; never stub it.** A stub is a promise
 nobody tracks; a deletion is visible in review and in the type checker. Where a cut changes what a file's
@@ -115,8 +115,8 @@ from the first commit.
 ### Keryx `^0.48`, and the facts the design leans on
 
 ToolExec pins `^0.45`; the shell moves to `^0.48` in `backend/` and in the frontend's dev dependency (which
-exists for types). The bot loop in [phase 6](./phase-0006-durable-bot-loop.md) is shaped around six facts read
-from Keryx during planning: one-off `enqueue` gets no lock, dedupe, or retry; a failed or crashed job is not
+exists for types). The bot loop in [phase 6](./phase-0006-durable-bot-loop.md) is shaped around six facts this plan
+reads from Keryx: one-off `enqueue` gets no lock, dedupe, or retry; a failed or crashed job is not
 retried; task connections carry no session; `enqueueIn` / `enqueueAt` default to the `"default"` queue; the
 action timeout defaults to five minutes; PubSub is fire-and-forget and is forwarded to MCP sessions. **They are
 re-verified against the version this phase actually installs**, by reading `node_modules/keryx`, and the
@@ -126,11 +126,11 @@ Anything that turns out to be a Keryx bug goes upstream first (AGENTS.md rule 4)
 
 ### A fresh `0000`, with the bot columns already in it
 
-ToolExec's thirty-three migrations describe tables this repository will never have. The shell's schema is
+ToolExec's thirty-three migrations describe tables this repository never has. The shell's schema is
 seven files, so ToolExec's `backend/drizzle/` and its `meta/` are not copied and `bun run migrations`
 generates one fresh `0000`. `audit_logs` gains `actorBotId` and `onBehalfOfUserId` now — nullable integers, no foreign key yet —
-because every bot-made change from [phase 5](./phase-0005-bots.md) on (creating a worker, editing a prompt or a
-skill) is audited through them, and adding audit columns later would mean a migration on the one table that is
+because every bot-made change in [phase 5](./phase-0005-bots.md) and every phase after it (creating a worker,
+editing a prompt or a skill) is audited through them, and adding audit columns later would mean a migration on the one table that is
 deliberately never rewritten. They carry no foreign key for the reason `projectId` has none: the record must
 outlive its subject. A bot table to point at does not exist yet anyway.
 
@@ -158,8 +158,8 @@ that stays is AGENTS.md's link to Patterns for Agentic Tools, which is a citatio
 
 ### 1. Confirm the `v1` branch — `refs/heads/v1`
 
-The planning PR's session ran `git push origin origin/main:refs/heads/v1`; `origin/v1` and `origin/main` both
-pointed at `d9dabb0`. Before deleting anything, confirm it is still there and still an ancestor of `main`,
+The `v1` branch is the planning PR session's `git push origin origin/main:refs/heads/v1`: `origin/v1` points at
+`d9dabb0`, the same commit as `origin/main` at that push. Before deleting anything, confirm it is still there and still an ancestor of `main`,
 and protect it from deletion and force-push:
 
 ```bash
@@ -185,7 +185,7 @@ git ls-files | grep -vE '^(AGENTS\.md|CLAUDE\.md|docs/plans/(README|phase-[0-9]{
 That removes v1's 193 source and 72 test files, `scripts/{build,capture}.ts`, the nineteen `docs/*.md` pages,
 the VitePress config and theme, the GIFs and VHS tapes, `docs/public/CNAME`, the seventeen milestone docs,
 `disk-backed-project-layout.md`, `v1-milestones.md`, the four workflows (`auto-release`, `bump-mcpx`, `ci`,
-`docs-deploy`), and the Conductor and VS Code settings that only made sense for v1. `AGENTS.md` and
+`docs-deploy`), and the Conductor and VS Code settings that only make sense for v1. `AGENTS.md` and
 `CLAUDE.md` are not in the list and are never touched as files here; step 13 edits `AGENTS.md`'s content.
 
 ### 3. Repo root — `package.json`, `biome.json`, `.gitignore`, `.dockerignore`
@@ -239,7 +239,7 @@ their JSDoc (the `withTimezone` and no-foreign-key arguments are worth keeping v
 
 | Column | Type | Notes |
 |---|---|---|
-| `audit_logs.actorBotId` | `integer`, nullable, no FK | Set when a bot made the change. Always null until bots exist |
+| `audit_logs.actorBotId` | `integer`, nullable, no FK | Set when a bot made the change. Always null while no bot exists |
 | `audit_logs.onBehalfOfUserId` | `integer`, nullable, no FK | The person whose message caused a bot's change, when there was one |
 
 With no `backend/drizzle/` copied, `bun run migrations` generates `0000`. Review it as a whole file: it is the
@@ -277,7 +277,7 @@ Copy Vite, React, Router, Tailwind, and SCSS setup; `src/ui`, `styles/` (`studio
 layer), `theme/`, `utils/{client,permissions,skeleton}.ts`, `hooks/useFirstLoad.ts`,
 `context/{AuthContext,LiveSocketContext}.tsx`, `ProtectedRoute`, `Layout`, `MarkdownBlock`, `LoadingLabel`,
 `SkeletonBlocks`, `SkeletonRows`, `components/sections/*`, and `components/settings/{context.ts,sections.ts,SettingsSectionNav.tsx}`.
-Pages: SignIn, SignUp, Account, Invites, NewProject, Home (a project placeholder that says what is coming),
+Pages: SignIn, SignUp, Account, Invites, NewProject, Home (a project placeholder that says what is in development),
 Settings, AuditLog, Status, StyleGuide (minus its `RunArtifact` / `RunUsage` / `WorkflowRunUsage` specimens),
 `pages/docs/*`, and a rewritten `pages/marketing/HomePage.tsx`.
 
@@ -286,7 +286,7 @@ Settings, AuditLog, Status, StyleGuide (minus its `RunArtifact` / `RunUsage` / `
 | `components/Layout.tsx` | `NotificationBell` and its slot; the Agents, Workflows, Runs, and Help links. The brand reads "Botholomew" |
 | `App.tsx` | Every agent, workflow, run, help, OAuth-return, and GitHub-install route and import; `NotificationProvider` and `NotificationToasts`. Settings keeps `general`, `members`, `tags`, `mcp`, `danger` |
 | `components/settings/context.ts`, `pages/SettingsPage.tsx` | The `connection:list` types, catalog, and fetch |
-| `pages/marketing/HomePage.tsx` | `SoftwareFactoryDag` and its copy, replaced by what Botholomew 2.0 will be, labeled as in development, with a link to v1 |
+| `pages/marketing/HomePage.tsx` | `SoftwareFactoryDag` and its copy, replaced by what Botholomew 2.0 is, labeled as in development, with a link to v1 |
 | `vite.config.ts`, `package.json` | `viteDevServerTunnel`; `@xyflow/react`; `docs:illustrations`; Keryx dev dependency `^0.48` |
 
 Not copied: `public/docs/illustrations/` and `scripts/capture-doc-illustrations.mjs` (screenshots of ToolExec),
@@ -297,8 +297,8 @@ Not copied: `public/docs/illustrations/` and `scripts/capture-doc-illustrations.
 Copy `client`, `config`, `context`, `helpers`, `output`, `palette`, `banner`, `program`, `index`, `resolve`,
 `interpolate` (kept for the secret-taking commands later phases add: `$VAR` resolution from the environment).
 `follow.ts` is not copied. `package.json`: name `botholomew`, version `2.0.0-alpha.0`, bins `botholomew` and
-`bothy` → `dist/botholomew.js`, and **`"private": true`** until [phase 15](./phase-0015-tui-and-cli-publishing.md)
-publishes — so nothing can push 2.0 onto v1 users' npm `latest` by accident.
+`bothy` → `dist/botholomew.js`, and **`"private": true`**, which [phase 15](./phase-0015-tui-and-cli-publishing.md)
+lifts when it publishes — so nothing can push 2.0 onto v1 users' npm `latest` by accident.
 
 | Command | Wraps |
 |---|---|
@@ -319,7 +319,7 @@ docker, e2e, and `complete` (job id `complete`, name "CI Complete", the `toJSON(
 verbatim). Both service-container Postgres images become **`pgvector/pgvector:pg18`** with database
 `botholomew_test`, so the extension exists in CI before any migration needs it. Gone: `sandbox-image`,
 `kubernetes-test`, the PR-base fetch, the leftover-container check, `publish-cli.yml`, and
-`publish-sandbox-image.yml`. v1's gate reported as `complete`; repoint branch protection to the new name in
+`publish-sandbox-image.yml`. v1's gate reports as `complete`; repoint branch protection to the new name in
 the window between opening this PR and merging it:
 
 ```bash

@@ -11,9 +11,9 @@
 > [phase 10](./phase-0010-mcp-servers-and-approvals.md) and the slash command on [phase 12](./phase-0012-skills.md).
 
 Grok Bot's pitch is "always-on AI teammates", and a teammate who can only be reached on one website is not
-always on. Slack is where most of the people who will use Botholomew already spend the day, so this is the
+always on. Slack is where most of the people who use Botholomew already spend the day, so this is the
 first phase that takes the bots to the people instead of the other way round. The design is not new:
-ToolExec settled it in `toolexec:docs/plans/phase-32-remote-interfaces.md` and never built it. This phase
+ToolExec settles it in `toolexec:docs/plans/phase-32-remote-interfaces.md` and does not build it. This phase
 implements that design, translated from ToolExec's runs and sandboxes into Botholomew's threads and
 conversations, and using ToolExec's "Proposal B" shape (a thread is a conversation) rather than its
 paging-first "Proposal A".
@@ -24,7 +24,7 @@ posts to the thread. So "a reply goes where its turn came from" becomes a rule a
 the outbox forwards to Slack, and ToolExec's sandbox invariants become invariants of the bot loop.
 
 The phase deliberately leaves out ambient listening. A top-level channel message that does not mention the
-app is never stored. Making that possible is a later, opt-in channel-listening schedule or event trigger
+app is never stored. Making that possible belongs to an unphased, opt-in channel-listening schedule or event trigger
 built on [phase 14](./phase-0014-schedules-and-wakeups.md). Grok Bot's own guidance warns against triggers
 that react to every new message, and so does the budget.
 
@@ -39,7 +39,7 @@ approval cards; a `/botholomew` slash command over shared skills; a content-free
 RBAC, audit, MCP policy, CLI, UI and user docs for each.
 
 **Out:** iMessage ([phase 17](./phase-0017-imessage.md), which reuses the identity, thread, and outbox
-foundations built here). Ambient channel listening, which waits for a later schedule or event trigger
+foundations built here). Ambient channel listening, which belongs to an unphased schedule or event trigger
 beyond [phase 14](./phase-0014-schedules-and-wakeups.md). Paging, meaning Slack DMs for approvals and failures
 that began on the web (unphased; it is one more fan-out row once identities exist). A shared, Marketplace-listed
 Slack app (unphased; see "The per-project app"). Streaming tokens into Slack, and Slack Connect and
@@ -106,7 +106,7 @@ from Crockford base32, parked in Redis under `link:<code>` → `userId` with a t
 with `GETDEL`. They DM it to any project's Slack app. The signed event names the Slack identity, the code
 names the person, and the bind is one audited write (`identity:link`, recorded through `writeAuditLog` with
 the minting user as actor and `via: "slack"`). The reverse direction, a "click to link" URL the bot sends, is
-the phishing-shaped one ToolExec rejected: an attacker requests a link for their own Slack identity and a
+the phishing-shaped one ToolExec rejects: an attacker requests a link for their own Slack identity and a
 signed-in victim clicks it. Minting in the session means a victim would have to read the code out instead.
 Codes are accepted only in the app's DM, never in a channel. Presentation attempts are limited to five
 failures per Slack identity per fifteen minutes. **`identity:link-start` is never an MCP tool:** a model that
@@ -127,7 +127,7 @@ A refusal is ephemeral (`chat.postEphemeral`) and says what to do next: link you
 admin for write access to the named bot. The link note is sent at most once per Slack user per channel per
 hour, so an unlinked guest in a busy thread does not get one note per message. The bot's view of a Slack
 thread is therefore the linked writers' messages only, which is also what the thread page shows. Letting
-anyone in a channel post unattributed turns was considered and rejected, as ToolExec did: it would let any
+anyone in a channel post unattributed turns loses, here as in ToolExec: it would let any
 guest steer a bot and spend the project's key.
 
 ### Where the bot listens: DMs, mentions, and followed threads
@@ -135,7 +135,7 @@ guest steer a bot and spend the project's key.
 This follows the Grok Bot shape:
 
 - **The app's DM answers every message.** Each top-level DM message opens its own Botholomew thread, and
-  the bot replies in the Slack thread under it. Separate asks keep separate context, as ToolExec decided for
+  the bot replies in the Slack thread under it. Separate asks keep separate context, as ToolExec does for
   sessions. Replies in that Slack thread continue the conversation.
 - **A channel @mention starts a thread.** `app_mention` at the top level of an enabled channel creates a
   Botholomew thread keyed on the mention's `ts`. A mention inside an existing human thread keys on that
@@ -160,7 +160,7 @@ in it, today and later, and they need not be project members. So a channel must 
 mention there does anything, and enabling is an audited decision (`slack-channel:enable`). It can be made on
 the web or from Slack: a linked writer who mentions the app in a channel that is not enabled gets an
 ephemeral card with an *Enable here* button. Either way the confirmation says it plainly:
-*everyone in #deploys will read what the bots reply here, and everyone in the project can read these threads.* The
+*everyone in #deploys sees what the bots reply here, and everyone in the project can read these threads.* The
 second half is the project boundary seen from the other side. Slack participants should know their messages
 are readable by project members.
 

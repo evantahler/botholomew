@@ -100,7 +100,7 @@ depends on, in the same validator: `name` matches `^[a-z0-9][a-z0-9-]{0,63}$`, e
 reserved; files live directly under `skills/` (no nesting); `description` is required and at most 200
 characters, because it is in every bot's prompt; at most nine arguments, since `$1`–`$9` are the positional
 slots; argument names match `^[A-Za-z_][A-Za-z0-9_]*$`, are unique, and are not `ARGUMENTS`; `required: true`
-with a `default` is refused as a contradiction (v1 accepted it and silently treated the argument as optional); and
+with a `default` is refused as a contradiction (v1 accepts it and silently treats the argument as optional); and
 the body is non-empty. Each refusal is a PATs hint naming the field.
 
 ### The renderer, ported with one fix
@@ -111,11 +111,11 @@ good?` puts the whole sentence in `$1`; named `$arg` placeholders longest-first 
 validation with a usage line; and `detectAmbiguousSplit`, which refuses an unquoted multi-word tail on a
 multi-argument skill and shows the parse breakdown with quoting suggestions.
 
-The fix: v1 substituted in passes — named arguments, then `$ARGUMENTS`, then digits — over the partially rendered
-string, so a value containing `$2` or `$ARGUMENTS` was expanded again, and `$10` rendered as the first argument
+The fix: v1 substitutes in passes — named arguments, then `$ARGUMENTS`, then digits — over the partially rendered
+string, so a value containing `$2` or `$ARGUMENTS` is expanded again, and `$10` renders as the first argument
 followed by `0`. The 2.0 renderer scans the template once, left to right; each placeholder resolves from the
 template alone and inserted values are never rescanned. `$1`–`$9` match only when not followed by another digit,
-and `$$` renders a literal `$`, which v1 could not express (v1 rendered "costs $5" as "costs "). Every v1
+and `$$` renders a literal `$`, which v1 cannot express (v1 renders "costs $5" as "costs "). Every v1
 parser test ports unchanged except the cases this fix deliberately changes.
 
 ### Rendering happens on the server
@@ -167,17 +167,17 @@ persisted injection every bot then trusts.
 project's `botsMayWriteSkills` is on (default off, admin-only). When on, writes go through `MemoryOps` as the
 bot — the validator, `authorBotId`, a required change note — and are audited with `actorBotId` and
 `onBehalfOfUserId` (the person whose message started the turn, when there is one). `skill_edit` applies
-`LinePatchSchema` patches against the version it read and validates the result before writing, as v1 did. People
+`LinePatchSchema` patches against the version it read and validates the result before writing, as v1 does. People
 write skills under phase 4's memory rules for `skills/`; there are no skill-specific write actions, so there is
 one write path and one validator. Bots have no delete tool; people delete in the Skills page or with
 `botholomew memory rm`.
 
 ### Starter skills
 
-v1 seeded `summarize`, `standup`, and `capabilities`. 2.0 seeds two at project bootstrap, authored by the
+v1 seeds `summarize`, `standup`, and `capabilities`. 2.0 seeds two at project bootstrap, authored by the
 project's creator with the change note "starter skill": `summarize` (summarize this thread: decisions, open
 items) and `standup` (what the bots did in the last 24 hours, from `thread_search` and `thread_read`, with what is
-waiting on a person). `capabilities` is dropped: its job was refreshing a generated tool inventory, and 2.0's
+waiting on a person). `capabilities` is dropped: its job is refreshing a generated tool inventory, and 2.0's
 tool lists are generated from the registry on every prompt. Projects created before this phase are not
 backfilled; the Skills page offers "Add starter skills". Seeding is worth its clutter because an empty popup
 teaches nobody what a skill is — v1 milestone 7's argument, still true.
