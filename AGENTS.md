@@ -168,7 +168,7 @@ index, and e2e ports, by writing them into `.env` once. Skipping it is the right
 | Frontend | Vite + React 19 + React Router 7 + local UI primitives + Tailwind CSS v4 + custom SCSS |
 | CLI / TUI | Commander HTTP client (`botholomew`, alias `bothy`); Ink 7 + React 19 for `botholomew chat` |
 | Monorepo | Bun workspaces: `backend/`, `frontend/`, `cli/` |
-| Email | nodemailer over SMTP |
+| Email | nodemailer over SMTP, arriving with notifications |
 | Deploy | Render, one blueprint, staging only |
 
 ## Action conventions
@@ -450,7 +450,7 @@ Per-feature recipes live in the **Commands** block of the matching plan doc.
 | Topic | Doc |
 |---|---|
 | The roadmap, the data model, the core architecture, the settled stack | [`docs/plans/README.md`](./docs/plans/README.md) |
-| The clean break from v1, the ToolExec shell, the test harness, the CI gate | [`phase-01-clean-slate-and-shell.md`](./docs/plans/phase-01-clean-slate-and-shell.md) |
+| The clean break from v1, the copied platform shell, the test harness, the CI gate | [`phase-01-clean-slate-and-shell.md`](./docs/plans/phase-01-clean-slate-and-shell.md) |
 | The Render blueprint and its invariants | [`phase-02-deployment.md`](./docs/plans/phase-02-deployment.md) |
 | Organizations above projects | [`phase-03-organizations.md`](./docs/plans/phase-03-organizations.md) |
 | Project memory as a versioned filesystem; reserved paths; the membot feature map | [`phase-04-project-memory-core.md`](./docs/plans/phase-04-project-memory-core.md) |

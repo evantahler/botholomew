@@ -127,8 +127,8 @@ Anything that turns out to be a Keryx bug goes upstream first (AGENTS.md rule 4)
 ### A fresh `0000`, with the bot columns already in it
 
 ToolExec's thirty-three migrations describe tables this repository will never have. The shell's schema is
-seven files, so `backend/drizzle/` and its `meta/` are deleted and `bun run migrations` generates one fresh
-`0000`. `audit_logs` gains `actorBotId` and `onBehalfOfUserId` now — nullable integers, no foreign key yet —
+seven files, so ToolExec's `backend/drizzle/` and its `meta/` are not copied and `bun run migrations`
+generates one fresh `0000`. `audit_logs` gains `actorBotId` and `onBehalfOfUserId` now — nullable integers, no foreign key yet —
 because every bot-made change from [phase 5](./phase-05-bots.md) on (creating a worker, editing a prompt or a
 skill) is audited through them, and adding audit columns later would mean a migration on the one table that is
 deliberately never rewritten. They carry no foreign key for the reason `projectId` has none: the record must
@@ -228,7 +228,7 @@ The other forty-odd ops files, `ops/modelClients/`, and `ops/templates/` stay be
 
 | File | Cut |
 |---|---|
-| `McpToolPolicyOps.ts` | `SANDBOX_ONLY_ACTION_NAMES`, `SANDBOX_ONLY_TOOL_NAMES`, `isSandboxOnly*`. `NEVER_MCP_ACTION_NAMES` shrinks to `user:create`, `session:create`, `session:destroy`, `status`, `swagger`, `actions:permissions`. The `proxy:`, `gateway:oauth-`, and `connection:github-install-` prefix rules go; the `webhook:` prefix rule **stays**, because machine ingress returns with [phase 14](./phase-14-schedules-and-wakeups.md) and a rule that is already there cannot be forgotten |
+| `McpToolPolicyOps.ts` | `SANDBOX_ONLY_ACTION_NAMES`, `SANDBOX_ONLY_TOOL_NAMES`, `isSandboxOnly*`. `NEVER_MCP_ACTION_NAMES` shrinks to `user:create`, `session:create`, `session:destroy`, `status`, `swagger`, `actions:permissions`. The `proxy:` and `connection:github-install-` prefix rules go; the `webhook:` and `gateway:oauth-` prefix rules **stay** — AGENTS.md rule 6 names both, the actions they guard return with [phase 14](./phase-14-schedules-and-wakeups.md) and [phase 10](./phase-10-mcp-servers-and-approvals.md), and a rule that is already there cannot be forgotten |
 | `AuditOps.ts` | `runToken` leaves `SENSITIVE_KEYS`; `AuditLogEntry` and `serializeAuditLog` gain `actorBotId` and `onBehalfOfUserId` |
 | `CryptoOps.ts` | JSDoc only. It encrypts nothing yet; it exists so the boot check is real from the first deploy |
 
@@ -242,8 +242,8 @@ their JSDoc (the `withTimezone` and no-foreign-key arguments are worth keeping v
 | `audit_logs.actorBotId` | `integer`, nullable, no FK | Set when a bot made the change. Always null until bots exist |
 | `audit_logs.onBehalfOfUserId` | `integer`, nullable, no FK | The person whose message caused a bot's change, when there was one |
 
-Delete `backend/drizzle/` entirely, then `bun run migrations` to generate `0000`. Check it into review as a
-whole file: it is the baseline every staging database starts from.
+With no `backend/drizzle/` copied, `bun run migrations` generates `0000`. Review it as a whole file: it is the
+baseline every staging database starts from.
 
 ### 8. Actions — `backend/actions/**`
 

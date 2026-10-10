@@ -65,7 +65,7 @@ delegate again. Bot templates for leader-created workers (later, unphased).
 | ToolExec DAG view | `@xyflow/react` canvas, cycle-safe depth layout, status-coloured edges | `toolexec:frontend/src/utils/workflowDag.ts`, `toolexec:frontend/src/pages/WorkflowRunDetailPage.tsx`, `toolexec:frontend/src/components/WorkflowRunEdge.tsx` |
 | One search for people and agents | A single query builder, so search never advertises a call that would be refused | `toolexec:backend/ops/AgentSearchOps.ts` |
 | Bots and the leader role | `bots.role` with one leader per project, access tags, budgets, concurrency caps, the seeded leader | [phase 5](./phase-05-bots.md) |
-| The loop | Conversations, leases, `event` inbox rows and entries, `requestId` exactly-once, `send_message`, `sleep_until` and `wakeAt`, `hopCount`, the bot-message rate, budgets, provenance fencing | [phase 6](./phase-06-durable-bot-loop.md) |
+| The loop | Conversations, leases, `conversation_inbox` rows with `source = event`, `eventKind`, and `eventPayload` (declared there, first written here), `requestId` exactly-once for messages, `send_message`, `sleep_until` and `wakeAt`, `hopCount`, `maxBotHops`, the bot-message rate, budgets, `bot:pause`, provenance fencing | [phase 6](./phase-06-durable-bot-loop.md) |
 | Threads and notifications | `threads.parentThreadId`, owner routing, `dm` threads, content-free channels, `notifications` | [phase 7](./phase-07-threads-and-web-chat.md) |
 | Approvals | `awaiting_approval` tool calls, approval cards, recorded calls replayed exactly | [phase 10](./phase-10-mcp-servers-and-approvals.md) |
 
@@ -174,7 +174,10 @@ on the same column, with exponential backoff from 1 minute, capped at 1 hour, fo
 report is how we would learn the clock was broken, not how the task gets woken.
 
 **Turns must end in a status.** A turn in a delegation conversation that started from a brief, a resume, or a
-retry must end in `task_complete`, `task_fail`, or `task_wait`. When one doesn't, v1's single nudge applies: a
+retry must end in `task_complete`, `task_fail`, or `task_wait`. [Phase 6](./phase-06-durable-bot-loop.md)
+dropped v1's mandatory terminal-tool nudge for ordinary conversations, where a final tool-free step is the
+normal end. A task turn is the exception, because a parent is waiting on a status, not on prose. When a task
+turn ends without one, v1's single nudge comes back: a
 `system` entry, followed by one more step. If the turn still ends without a status, the task fails as
 retryable with the reason "ended without reporting". A turn that started from a *person's* message in the
 delegation thread is exempt, because that turn is a conversation, not the task's work.
@@ -187,15 +190,17 @@ followed by the text — fenced as bot-authored data.
 ### Reports come back as events; `wait_for` folds them
 
 `delegate` records `parentConversationId`, the caller's own conversation. When a task settles, its settling
-transaction inserts an `event` inbox row into that conversation, with `eventType: task.settled`, the task's
-id, title, status, and output or reason, and `requestId` `task:<id>:settled:<attempt>`. The report therefore
+transaction inserts an `event` inbox row into that conversation, with `eventKind: task.settled`, an
+`eventPayload` holding the task's id, title, status, and output or reason, and the `eventKey`
+`task:<id>:settled:<attempt>`. Phase 6's inbox deduplicates only rows that point at a thread message, so this
+phase adds `eventKey`, with a partial unique index on `(conversationId, eventKey)`. The report therefore
 lands exactly once, however many times the settle is retried. The parent's next tick drains every pending
 follow-up row into one turn ([phase 6](./phase-06-durable-bot-loop.md)), so ten reports arriving together cost
 one model call, not ten. `reportMode` (`settled | failures | none`) lets a delegator ask to hear only about
 failures.
 
-`wait_for { task_ids, mode, timeout }` registers a `bot_task_waits` row and yields the turn, as `sleep_until`
-does. While the wait is open, individual reports for the tasks it covers are suppressed. When the wait fires,
+`wait_for { task_ids, mode, timeout }` registers a `bot_task_waits` row and returns at once, as `sleep_until`
+does. The bot ends its turn normally, and the event wakes it. While the wait is open, individual reports for the tasks it covers are suppressed. When the wait fires,
 the parent gets one `tasks.waited` event summarising every task in the group:
 
 - **`all_settled`** fires when every task has settled.
@@ -244,7 +249,7 @@ A five-minute clock looks for work that has stopped moving:
 
 Each finding becomes one `workforce.alert` event in the leader's **Workforce** thread. That thread is a
 system-origin chat thread the leader owns, created lazily the first time it is needed. Each event's
-`requestId` is `workforce:<kind>:<subject>:<level>`, so a stall is reported once per escalation level, not
+`eventKey` is `workforce:<kind>:<subject>:<level>`, so a stall is reported once per escalation level, not
 every five minutes.
 
 The leader gets the event, rather than a person, because the leader can act on it: delegate again, cancel,
@@ -271,9 +276,10 @@ The tools and their limits:
   `accessRead`/`accessWrite`, or a narrower set, and never a wider one. It is on no MCP allowlist. It gets a
   model pin from the project registry and a budget no larger than the leader's remaining budget.
 - **`bot_configure`** changes only structured fields: description, model pin, budget.
-- **`bot_hibernate`** and **`bot_wake`** stop and restart a worker. On the row, hibernating is `paused`,
-  because `hibernating` is already the derived name for an idle bot that wakes on its own. Hibernating a
-  worker that has open tasks requires `cancel_open_tasks: true`.
+- **`bot_pause`** and **`bot_resume`** rest and restart a worker through [phase 6](./phase-06-durable-bot-loop.md)'s
+  `bot:pause` / `bot:resume` ops. The roadmap calls this "hibernating" a worker; on the row it is `paused`,
+  because `hibernating` is already the derived name for an idle bot that wakes on its own. Pausing a worker
+  that has open tasks requires `cancel_open_tasks: true`.
 
 After creation, a leader may not edit a worker's prompt files; that stays with people and the worker itself.
 The project also caps `maxWorkers` (12) and caps leader-created bots at 3 per day.
