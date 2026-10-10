@@ -217,8 +217,8 @@ Index `(nextRefreshAt) WHERE enabled` for the clock; `(projectId, lastStatus)` f
 
 | Action | Route | Middleware | Audited | MCP |
 |---|---|---|---|---|
-| `memory:refresh-set` | `POST /memory/refresh-schedule` | `ProjectMemberMiddleware()` + write on the path | Yes | Yes |
-| `memory:refresh` | `POST /memory/refresh` | `RateLimit`, `ProjectMemberMiddleware()` + write | Yes | Yes |
+| `memory:refresh-set` | `POST /memory/refresh-schedule` | member + `canWritePath` | Yes | Yes |
+| `memory:refresh` | `POST /memory/refresh` | `RateLimit`, member + `canWritePath` | Yes | Yes |
 | `memory:refresh-list` | `GET /memory/refreshes` | `ProjectMemberMiddleware()` | — | Yes |
 | `memory:refresh-due` | — (task-only, `orchestrator`, 60 s) | — | No — a clock | No |
 | `memory:refresh-one` | — (task-only child, `default`) | — | No — the version and schedule are the record | No |

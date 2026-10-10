@@ -183,7 +183,7 @@ document limits live in `capabilities.ts`.
 |---|---|---|---|---|
 | `memory:settings-view` | `GET /memory/settings` | `ProjectMemberMiddleware()` | — | Yes |
 | `memory:settings-edit` | `POST /memory/settings` | `AdminMiddleware()` | Yes | Yes |
-| `memory:enrich` | `POST /memory/enrich` | `ProjectMemberMiddleware()` + write | Yes (when not `dryRun`) | Yes |
+| `memory:enrich` | `POST /memory/enrich` | member + `canWritePath` | Yes (when not `dryRun`) | Yes |
 | `memory:enrich-list` | `GET /memory/enrich/degraded` | `ProjectMemberMiddleware()` | — | Yes |
 
 `memory:stats` gains month-to-date ingestion spend and the degraded count.

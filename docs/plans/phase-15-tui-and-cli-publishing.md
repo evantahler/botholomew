@@ -43,7 +43,7 @@ new line, and it has to do so without silently capturing the people still runnin
   for CI and tests.
 - **Packaging.** npm `botholomew@2.x`, published with OIDC trusted publishing and provenance under the
   `next`, `latest`, and `v1` dist-tags; a Bun launcher; standalone binaries for five targets with
-  `SHA256SUMS`; an install script at `botholomew.com/install.sh`.
+  `SHA256SUMS`; an install script at `www.botholomew.com/install.sh`.
 - **Updates.** `botholomew upgrade`, a daily version check, and a server-advertised minimum CLI version.
 - **v1 users.** A one-time notice for anyone who had v1 installed.
 - **Release and verification.** `release-cli.yml`, tests, and user docs.
@@ -77,8 +77,8 @@ new line, and it has to do so without silently capturing the people still runnin
 
 ## What this must not weaken
 
-1. **The CLI tracks HTTP.** The TUI calls the actions the web app calls. The only server surface this phase
-   adds is login, which is a general authentication surface rather than a TUI feature.
+1. **The CLI tracks HTTP.** The TUI calls the actions the web app calls. The only server surfaces this phase
+   adds are sign-in, CLI sessions, and one field on `status` — general authentication, not TUI features.
 2. **The socket is an accelerant.** Every view hydrates over HTTP and reads again from its cursor after a
    reconnect. A dead socket degrades to polling, never to silence.
 3. **A credential is minted only by a person's decision.** Approving a CLI login is an audited action in the
@@ -97,7 +97,8 @@ new line, and it has to do so without silently capturing the people still runnin
 
 ### Signing in from a terminal
 
-ToolExec's CLI logs in with an email and password and stores the `__session` cookie. That stays as
+The CLI that [phase 1](./phase-01-clean-slate-and-shell.md) copied from ToolExec logs in with an email and
+password and stores the `__session` cookie. That stays as
 `--with-password`, reading the password from stdin, for CI and for the test suite. As the default it has
 three problems. A password is the wrong thing to type into a terminal on a shared machine. It cannot work for
 a future SSO-only account. And a session dies after the one-day TTL, which kills a TUI left open overnight.
@@ -244,7 +245,9 @@ That covers five targets: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm6
 
 ### Versions, dist-tags, and the v1 line
 
-v1 published `botholomew@0.x` to npm under `latest`. The 2.0 plan:
+v1 published `botholomew@0.x` to npm under `latest`. [Phase 1](./phase-01-clean-slate-and-shell.md) left the
+2.x package `"private": true` and named the question this phase must answer before flipping it: what does a
+v1 user's `botholomew upgrade` do? The 2.0 plan:
 
 1. **Before the first 2.x publish,** add a `v1` dist-tag pointing at 0.27.3. `bun add -g botholomew@v1` then
    restores v1 at any time.
@@ -268,7 +271,7 @@ major version.
 
 ### Install and upgrade
 
-**The install script.** `frontend/public/install.sh` is served at `https://botholomew.com/install.sh` (the
+**The install script.** `frontend/public/install.sh` is served at `https://www.botholomew.com/install.sh` (the
 domain from [phase 2](./phase-02-deployment.md)). It is new, not v1's. It:
 
 1. resolves the version from the npm dist-tag (`latest` by default, or `--channel next`), so one source of
@@ -369,8 +372,12 @@ branch boundary stays legible.
 
 **Build scripts.**
 
-- `build.ts` writes `dist/botholomew.js`, a Bun-target bundle, and `dist/launcher.js`.
+- `build.ts` writes `dist/botholomew.js`, a Bun-target bundle, and `dist/launcher.js`. The `botholomew` and
+  `bothy` bins move from `dist/botholomew.js` to the launcher.
 - `build-binary.ts --target=bun-<os>-<arch>` writes one compiled file.
+- `cli/package.json` drops phase 1's `"private": true` in the same commit that adds the workflow, and no
+  earlier. `package.test.ts` asserts the flag is absent only once `release-cli.yml` exists, so the two can
+  never land apart.
 
 **`release-cli.yml`** runs on pushes to `main` that touch `cli/**` (or the workflow file), and on
 `workflow_dispatch`. Its jobs:
@@ -499,9 +506,9 @@ Then the edge cases:
 - [ ] A device-code login with an audited, never-MCP approval; refresh tokens with rotation and reuse detection; revocable CLI sessions; `--with-password` kept
 - [ ] A Bun-target npm bundle with a launcher that works under Node; `botholomew` and `bothy` bins
 - [ ] Binaries for five targets, darwin ad-hoc signed, smoke-tested on three operating systems, with `SHA256SUMS`
-- [ ] `install.sh` at botholomew.com resolves the version from the npm dist-tag and verifies checksums
+- [ ] `install.sh` at www.botholomew.com resolves the version from the npm dist-tag and verifies checksums
 - [ ] `botholomew upgrade` follows the installed channel; a server-advertised minimum CLI version
-- [ ] `release-cli.yml`: binaries, then a draft release, then OIDC npm publish with provenance, then undraft; prereleases go to `next`
+- [ ] `release-cli.yml`: binaries, then a draft release, then OIDC npm publish with provenance, then undraft; prereleases go to `next`; `"private": true` dropped in the same commit
 - [ ] The `v1` dist-tag exists before the first 2.x publish; `latest` moves only at 2.0.0; the first-run v1 notice; v0.27.3's `upgrade` checked against staging
 - [ ] `cli.md`, `tui.md`, and `getting-started.md`
 - [ ] Tests cover single-use device codes, refresh reuse revocation, socket follow with no polling, the polling fallback, TUI rendering against a booted server, the launcher, and checksum refusal
@@ -514,8 +521,8 @@ npm dist-tag add botholomew@0.27.3 v1
 npm dist-tag ls botholomew
 
 # Install paths.
-curl -fsSL https://botholomew.com/install.sh | sh                   # latest
-curl -fsSL https://botholomew.com/install.sh | sh -s -- --channel next
+curl -fsSL https://www.botholomew.com/install.sh | sh               # latest
+curl -fsSL https://www.botholomew.com/install.sh | sh -s -- --channel next
 bun add -g botholomew@next                                          # npm channel; needs Bun
 bun add -g botholomew@v1                                            # back to v1
 

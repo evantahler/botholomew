@@ -54,7 +54,7 @@ local-machine sources (the CLI uploads files instead); write-capable tools as ro
 | Bulk + sync | Paginated enumerate, `mtime` probe, selector-scoped sync that tombstones only its own rows | [src/ingest/sources/github-repo.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/github-repo.ts), [src/ingest/sources/linear-team.ts](https://github.com/evantahler/membot/blob/main/src/ingest/sources/linear-team.ts) |
 | v1's approval policy | Default-deny, allowlist patterns, `auto_allow_read_only` | [src/mcpx/client.ts](https://github.com/evantahler/botholomew/blob/v1/src/mcpx/client.ts), [docs/approvals.md](https://github.com/evantahler/botholomew/blob/v1/docs/approvals.md) |
 | MCP servers, credentials, client, gate, bot allowlist | Everything a router calls through | [phase 10](./phase-10-mcp-servers-and-approvals.md) (from `toolexec:backend/schema/sandbox_mcp_gateways.ts`, `toolexec:backend/schema/gateway_credentials.ts`) |
-| Fetcher identity, fencing, collisions | `fetcher` / `fetcherArgs`, `untrusted`, path ownership | [phase 19](./phase-19-url-ingest.md) |
+| Fetch identity, fencing, collisions | `sourceType` (phase 4 reserved `router`), `sourceUri`, `fetcherArgs`, `untrusted`, path ownership, URL ingest jobs | [phase 19](./phase-19-url-ingest.md) |
 | Refresh | `FETCHERS`, claims, `systemActor`, conflict and gone handling | [phase 20](./phase-20-upstream-refresh.md) |
 
 ## What this must not weaken
@@ -85,7 +85,7 @@ local-machine sources (the CLI uploads files instead); write-capable tools as ro
 | `extract` | `text` (concatenate text blocks), `resource` (first embedded resource and its mime), or `json` + a JSON Pointer into `structuredContent` |
 | `mimeType`, `postProcess` | What the extracted bytes are, then `passthrough` \| `html-to-markdown` \| `docmd` \| `json-to-markdown` |
 | `pathTemplate` | Optional, e.g. `github/{owner}/{repo}/issues/{number}.md` (membot's layout); default `remotes/<host>/<path>` |
-| `priority`, `timeoutMs`, `maxBytes`, `enabled` | First match by priority wins; 60 s and 25 MB defaults, as membot's `timeout_ms` and phase 9's cap |
+| `priority`, `timeoutMs`, `maxBytes`, `enabled` | First match by priority wins; 60 s (membot's `timeout_ms`, within the server's own `timeoutMs`) and 25 MiB (phase 9's cap, inside phase 10's 32 MiB response abort) |
 
 `json-to-markdown` is new: many MCP tools return structured JSON, and membot handed JSON to a model to tidy. Here
 a deterministic renderer turns objects into headings and definition lists and long strings into paragraphs;
@@ -104,8 +104,9 @@ public fetch as the catch-all — the inverse of membot, where built-ins beat cu
 are the specific path and the public fetch the generic one. `--router <name>` and `--fetcher url` override,
 like membot's `--downloader`.
 
-A router-fetched version stores `fetcher = 'router'` and
-`fetcherArgs = { routerId, routerName, vars, collectionId? }`. Refresh looks the router up **by id**, not name
+A router-fetched version stores `sourceType = 'router'`, the URL in `sourceUri`, and
+`fetcherArgs = { routerId, routerName, vars, collectionId? }`, staged through the same ingest job as a
+[phase 19](./phase-19-url-ingest.md) fetch. Refresh looks the router up **by id**, not name
 (membot's name lookup broke on rename), substitutes the persisted vars into the router's *current* template, and
 calls again — so fixing a router's arguments fixes every file it owns, while a pattern change never re-routes an
 existing file. A deleted or disabled router fails refresh with a hint naming it; `memory-router:delete` refuses
@@ -121,14 +122,19 @@ Router calls do **not** go through it, and that is a decision, not an omission:
 - The call is fully determined by an **admin-authored, audited** definition — server, tool, template, extraction —
   plus values captured by the admin's own regex. Creating or editing a router *is* the approval of that call
   shape, recorded in `audit_logs` like any other admin decision.
-- The tool must be read-only: the server's `readOnlyHint` annotation, or an admin's explicit
-  `acknowledgeNotReadOnly` with a reason, which the audit row carries. Without one the router is refused.
+- The tool must be read-only: phase 10's indexed `mcp_tools.readOnly` (from `readOnlyHint`), or an admin's
+  explicit `acknowledgeNotReadOnly` with a reason, which the audit row carries. Without one the router is refused.
+  This is the same judgement phase 10's `autoAllowReadOnly` asks an admin to make about a server, made once per
+  router instead.
 
-What the definition does **not** grant is reach. A bot's `memory_add` through a router requires the bot to be on
-that server's allowlist, exactly as `mcp_exec` would. A person's add requires memory write, since people do not
+What the definition does **not** grant is reach. A bot's `memory_add` through a router requires
+`McpServerOps.canBotUse(server, bot)`, exactly as `mcp_exec` would, and a server that is disabled or has the tool
+in `disabledTools` refuses every router on it. A person's add requires memory write, since people do not
 hold server allowlists. The router form says plainly what this means: anyone in the project can read anything the
 server's credential can read *through this pattern*. Unattended refresh runs as the system, replaying only calls
-already made.
+already made. For the same reason phase 10 keeps `mcp-server:create` off MCP, router mutations are **never** MCP
+tools: a router widens who can read through a credential, and a model in someone's MCP client should not be able
+to arrange that.
 
 ### Collections: enumerate, then fetch
 
@@ -149,7 +155,8 @@ should choose.
 ### Sync is opt-in, complete, and guarded
 
 `syncMode = 'tombstone'` on a collection makes each enumeration tombstone files that the collection created
-(`fetcherArgs.collectionId`) and the source no longer lists, with `systemActor = 'sync'` and a note such as
+(`fetcherArgs.collectionId`) and the source no longer lists — `operation = 'delete'`, `systemActor = 'sync'`, and a
+note such as
 `sync: issue #412 no longer listed by github-repo:acme/api:issues`. Three rules keep it from being the worst
 button in the product:
 
@@ -194,8 +201,9 @@ with no second scheduler.
 - `compileRouter(def)` — RE2 compile, placeholder and path-template checks; hinted refusals.
 - `matchSource(projectId, input, { override })` → `{ router, vars } | { fetcher: 'url' } | null`.
 - `renderArgs(template, vars, url)` — substitute in string leaves of the parsed object only.
-- `callRouter(router, vars, url, { actor })` — allowlist check for bot actors, phase 10's client with the
-  server's credential, `timeoutMs`, `maxBytes`, `isError` → hinted failure; extract, post-process, sha.
+- `callRouter(router, vars, url, { actor })` — `canBotUse` for bot actors, then phase 10's
+  `McpClientOps.callTool` with the server's credential, `timeoutMs`, `maxBytes`; failures keep phase 10's
+  `error_kind`s; extract, post-process, sha.
 - `enumerate(collection)` → `{ items, complete }`; `syncCollection(collection, items, { confirm })`.
 - `registerFetcher('router', …)` into phase 20's `FETCHERS`.
 
@@ -203,23 +211,24 @@ with no second scheduler.
 
 | Action | Route | Middleware | Audited | MCP |
 |---|---|---|---|---|
-| `memory-router:create` / `:edit` / `:delete` | `PUT` / `POST` / `DELETE /memory/router` | `AdminMiddleware()` | Yes | Yes |
+| `memory-router:create` / `:edit` / `:delete` | `PUT` / `POST` / `DELETE /memory/router` | `AdminMiddleware()` | Yes | **Never** — widens credential reach |
 | `memory-router:view` / `:list` | `GET /memory/router`, `GET /memory/routers` | `ProjectMemberMiddleware()` | — | Yes |
 | `memory-router:test` | `POST /memory/router/test` | member for match; `AdminMiddleware()` when `exec` | No — writes nothing | Yes |
 | `memory:sources` | `GET /memory/sources` | `ProjectMemberMiddleware()` | — | Yes |
-| `memory-collection:create` / `:edit` / `:delete` | `PUT` / `POST` / `DELETE /memory/collection` | member + write (`edit` of `syncMode`: admin) | Yes | Yes |
+| `memory-collection:create` / `:edit` / `:delete` | `PUT` / `POST` / `DELETE /memory/collection` | member + `canWritePath` (`edit` of `syncMode`: admin) | Yes | Yes |
 | `memory-collection:list` / `:view` | `GET /memory/collections`, `GET /memory/collection` | `ProjectMemberMiddleware()` | — | Yes |
-| `memory-collection:sync` | `POST /memory/collection/sync` | member + write; `confirm` needs admin | Yes | Yes |
+| `memory-collection:sync` | `POST /memory/collection/sync` | member + `canWritePath`; `confirm` needs admin | Yes | Yes |
 | `memory-collection:enumerate` | — (task-only child, `default`) | — | No — the job rows are the record | No |
 
 `memory-router:test` returns the matched router (or which fetcher would win instead), the captured vars, and the
 rendered arguments; with `exec` it makes the call and returns mime, sha, size, the target path, and the first
-4 KB of markdown — writing nothing. `memory:add-url` dispatches through `matchSource`.
+4 KB of markdown — writing nothing. `memory:add` with `url` dispatches through `matchSource`.
 
-### 4. Bot tools — `backend/bots/tools/memory_add.ts`, `memory_sources.ts`
+### 4. Bot tools — `backend/bots/tools/memory/{add,sources}.ts`
 
-`memory_add url` dispatches through routers transparently; refusals carry `not_allowlisted` (naming the server
-and that an admin can allowlist this bot) or `collection_requires_person`. `memory_sources` lists routers,
+`memory_add url` dispatches through routers transparently; refusals are `policy_error` with reason
+`not_allowlisted` (naming the server and that an admin can allowlist this bot) or `collection_requires_person`.
+Router output is fenced as `source="router:<name>"`. `memory_sources` lists routers,
 collections, and the public fetcher with example inputs, as membot's `membot_sources` did; it has no honest bash
 analogue, so no bash tag. Both `replay: safe`.
 
@@ -255,7 +264,8 @@ rules, and the open-only selector caveat. `memory.md` links to it.
 - A captured value containing `"`, `}`, and `{other}` lands as one literal string argument.
 - A tool without `readOnlyHint` is refused unless acknowledged, and the acknowledgement is in the audit row.
 - Dispatch order: a router beats the public fetch; `--fetcher url` overrides; scheme beats URL.
-- A bot not allowlisted on the server is refused with `not_allowlisted`; a person with write succeeds.
+- A bot not allowlisted on the server is refused with `not_allowlisted`; a person with write succeeds; a disabled
+  tool refuses every router on it; router mutations are not MCP tools.
 - Refresh replays by router id after a rename, uses the edited template, and fails with a hint once deleted.
 - `test` with `exec` writes no file and no version.
 
@@ -296,7 +306,7 @@ Then the edge cases:
 
 - [ ] Router and collection tables; RE2 matching; JSON templates substituted in string leaves only
 - [ ] Extraction and the four post-processors, including deterministic `json-to-markdown`
-- [ ] Dispatch order with overrides; `router` fetcher replays by id with persisted vars
+- [ ] Dispatch order with overrides; `sourceType = 'router'` replays by id with persisted vars
 - [ ] Read-only enforcement, the bot allowlist honoured, router definitions audited as the approval
 - [ ] Enumeration with pagination, caps, probe, and per-server concurrency; collections on phase 20's clock
 - [ ] Sync: own files only, complete runs only, edited files spared, mass removal held for confirmation
