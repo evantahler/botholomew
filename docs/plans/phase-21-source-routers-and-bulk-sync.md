@@ -156,10 +156,9 @@ should choose.
 ### Sync is opt-in, complete, and guarded
 
 `syncMode = 'tombstone'` on a collection makes each enumeration tombstone files that the collection created
-(`fetcherArgs.collectionId`) and the source no longer lists — `operation = 'delete'`, `systemActor = 'sync'`, and a
-note such as
-`sync: issue #412 no longer listed by github-repo:acme/api:issues`. Three rules keep it from being the worst
-button in the product:
+(`fetcherArgs.collectionId`) and the source no longer lists — `operation = 'delete'`, `systemActor = 'sync'`, and
+a note such as `sync: issue #412 no longer listed by github-repo:acme/api:issues`. Three rules keep it from being
+the worst button in the product:
 
 1. **Only after a complete enumeration.** Any failed page, a timeout, or hitting `collectionMaxItems` makes the
    run *partial*, and a partial run tombstones nothing. An API hiccup that returns zero items would otherwise
@@ -185,12 +184,13 @@ editable once created.
 ### 1. Schema — `backend/schema/{memory_source_routers,memory_source_collections}.ts`
 
 `memory_source_routers`: `projectId` (cascade), `name` (unique per project; membot's name grammar), `kind`,
-`pattern`, `mcpServerId` (→ `mcp_servers`, `restrict`), `tool`, `argsTemplate jsonb`, `extract jsonb`,
+`pattern`, `mcpServerId` (→ `mcp_servers`, `no action`: phase 10's `mcp-server:delete` is refused while routers
+use the server, naming them, and a project cascade still removes both), `tool`, `argsTemplate jsonb`, `extract jsonb`,
 `mimeType`, `postProcess`, `pathTemplate`, `listSpec jsonb` (enumerators only, Zod-typed), `priority`,
 `timeoutMs`, `maxBytes`, `enabled`, `readOnlyAcknowledgement` (nullable text), `createdByUserId`, timestamps.
 Index `(projectId, enabled, priority)`.
 
-`memory_source_collections`: `projectId`, `routerId` (→ routers, `restrict`), `source`, `vars jsonb`,
+`memory_source_collections`: `projectId`, `routerId` (→ routers, `no action`), `source`, `vars jsonb`,
 `pathPrefix`, `syncMode` (`none` \| `tombstone`), `lastEnumeratedAt`, `lastItemCount`, `lastStatus`
 (`ok` \| `partial` \| `failed` \| `awaiting_confirmation`), `pendingRemovalCount`, `createdByUserId`, timestamps.
 Unique `(projectId, source)`. Phase 20's `memory_refreshes` gains a nullable `collectionId`, with a check that

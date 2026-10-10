@@ -132,7 +132,7 @@ An image whose bytes the policy would skip is still refused, because accepting i
 `Content-Security-Policy: sandbox`. Inline rendering is never offered: an uploaded or fetched HTML or SVG file
 served inline from the API origin would run with the session cookie in scope — stored XSS by design. It is a web
 route only (a raw stream is not an MCP tool result); MCP clients get `memory:read` with `bytes: true`, base64, up
-to `MEMORY_BYTES_MCP_MAX` (5 MB), beyond which the hint points to the CLI or web download. Read access is project
+to `MEMORY_BYTES_MCP_MAX` (5 MiB), beyond which the hint points to the CLI or web download. Read access is project
 membership, like every other read of memory.
 
 Bots do not get bytes in `memory_cat` — base64 in a model's context is cost with no meaning. Code mode
