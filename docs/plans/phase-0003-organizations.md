@@ -9,7 +9,7 @@
 > and [phase 2](./phase-0002-deployment.md): staging already holds projects, so the new column arrives with a
 > backfill rather than an empty table.
 
-Organizations are the thinnest layer this plan adds, and they are added now precisely because they are thin.
+Organizations are the thinnest layer this plan adds, and they come this early precisely because they are thin.
 Today the schema has one tenant tier and nothing hangs off a project yet; in
 [phase 4](./phase-0004-project-memory-core.md) and after, every memory file, bot, thread, and MCP server does. Putting a
 grouping above projects costs one foreign key on `projects` before that, and a much harder conversation
@@ -39,7 +39,7 @@ an owner-only organization activity log; the organization switcher, settings pag
 `botholomew org`; MCP exposure; user docs; `buildTestUniverse()` extended with an owner who belongs to no
 project.
 
-**Out:** billing, plans, and anything a payment provider needs (later, unphased — no placeholder columns
+**Out:** billing, plans, and anything a payment provider needs (unphased — no placeholder columns
 either); organization-level roles beyond `owner`; organization-wide invites, domain capture, and SSO;
 moving a project to another organization; leaving an organization as a self-service action; what deleting a
 user or an organization with data means operationally ([phase 18](./phase-0018-operations.md)).
@@ -152,7 +152,7 @@ to seed the leader bot, which is why it stays the single seam.
 ### Creating, renaming, deleting
 
 Any signed-in user may create an organization and becomes its owner — the analogue of ToolExec letting any
-signed-in user create a project. `project:create` now **requires** `organizationId` and passes only for an owner
+signed-in user create a project. `project:create` **requires** `organizationId` and passes only for an owner
 of that organization; a non-owner who wants a project creates it in their own personal organization.
 
 `organization:delete` is refused while any project remains, with a typed error naming how many and, for the
@@ -182,7 +182,7 @@ project: a `tag:create` in a project the owner is not in stays in that project's
 
 ### The backfill
 
-Staging has users and projects by now. One migration, generated and then hand-edited — the same shape as
+Staging already has users and projects. One migration, generated and then hand-edited — the same shape as
 ToolExec's `0015` — adds the tables and a nullable column, runs the backfill between `-- backfill:begin` and
 `-- backfill:end` markers, then sets `NOT NULL`, the `RESTRICT` foreign key, and the index:
 
@@ -383,14 +383,14 @@ Manually, in two browsers:
 
 1. Sign up as Peach. The navbar reads `Botholomew / Peach's Organization / Peach's Project`.
 2. Create a project "Castle" from the project menu — the organization select offers only Peach's organization.
-3. Invite Mario to "Castle"; sign up as Mario in the second browser and accept. Mario's organization menu now
+3. Invite Mario to "Castle"; sign up as Mario in the second browser and accept. Mario's organization menu
    lists his own organization and Peach's, without an owner badge on Peach's, and Peach's project menu for him
    shows only "Castle".
 4. As Peach, make Mario an owner in Organization → Members, then remove him from "Castle" in its project
    settings. Mario still sees Peach's organization; opening "Castle" by URL is refused; Organization → Projects
    lists "Castle" with "you are not a member".
 5. As Mario, try Organization → Danger → Delete: disabled, naming two projects.
-6. As Peach, delete both projects, then the organization. Mario's switcher does not list it, and Peach — now
+6. As Peach, delete both projects, then the organization. Mario's switcher does not list it, and Peach —
    in no organization — lands on New organization; she creates "Mushroom Kingdom".
 7. In a terminal as Peach: `botholomew org list`, `botholomew project create Garden --org mushroom-kingdom`,
    `botholomew org audit` (it shows the organization's creation and Garden's, nothing from inside Garden).

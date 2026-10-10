@@ -44,7 +44,7 @@ organizations ([phase 3](./phase-0003-organizations.md)); anything a bot does (p
 `project_settings`, and gateway OAuth, which return with the features that need them
 ([phase 5](./phase-0005-bots.md), [phase 10](./phase-0010-mcp-servers-and-approvals.md)); the notifications table,
 bell, and channels ([phase 7](./phase-0007-threads-and-web-chat.md)); npm publishing and binaries
-([phase 15](./phase-0015-tui-and-cli-publishing.md)); project dump/apply (later, unphased).
+([phase 15](./phase-0015-tui-and-cli-publishing.md)); project dump/apply (unphased).
 
 ## What already exists
 
@@ -128,7 +128,7 @@ Anything that turns out to be a Keryx bug goes upstream first (AGENTS.md rule 4)
 
 ToolExec's thirty-three migrations describe tables this repository never has. The shell's schema is
 seven files, so ToolExec's `backend/drizzle/` and its `meta/` are not copied and `bun run migrations`
-generates one fresh `0000`. `audit_logs` gains `actorBotId` and `onBehalfOfUserId` now — nullable integers, no foreign key yet —
+generates one fresh `0000`. `audit_logs` gains `actorBotId` and `onBehalfOfUserId` in this phase — nullable integers, no foreign key yet —
 because every bot-made change in [phase 5](./phase-0005-bots.md) and every phase after it (creating a
 worker, editing a prompt or a skill) is audited through them, and adding audit columns later would mean a
 migration on the one table that is deliberately never rewritten. They carry no foreign key for the reason `projectId` has none: the record must
@@ -336,7 +336,7 @@ gh api -X PUT repos/evantahler/botholomew/branches/main/protection \
 ### 13. Repo docs — [AGENTS.md](../../AGENTS.md), `README.md`, `docs/cloud-setup.md`
 
 AGENTS.md already states the rules; this phase makes its **Local development**, **Commands**, and **Where the
-detail lives** sections true of a tree that now exists. Every command in those blocks is run against the
+detail lives** sections true of the tree this phase creates. Every command in those blocks is run against the
 shell and corrected where the real script, port, or database name differs; lines that name tasks a later phase
 adds stay, under the status note that already says so. The status note's sentence about v1 occupying the tree
 is replaced. Any mention of ToolExec moves into [the plans index](./README.md), which is where credit for the
@@ -396,7 +396,7 @@ Frontend unit tests kept: `client`, `docs-sections`, `layout`, `live-socket`, `s
 `env.ts`, `route.ts`, and the `auth`, `audit`, `docs`, and `smoke` specs (minus the DAG and "Why ToolExec"
 cases), with `settings.spec.ts` rewritten to the five sections: all listed, one mounted at a time, renaming the
 project moves the navbar switcher, and the dirty-guard cases. CLI unit tests keep `client`, `config`, `help`,
-and `package` — the last now asserting the name, both bins, and `private: true`.
+and `package` — the last asserting the name, both bins, and `private: true`.
 
 ## Verification
 

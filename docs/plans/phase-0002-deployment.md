@@ -8,7 +8,7 @@
 > **Status: planned, not built.** Stage A — Platform. Depends on [phase 1](./phase-0001-clean-slate-and-shell.md),
 > which leaves a trimmed, tested, never-synced `render.yaml` behind.
 
-The shell is the cheapest thing this project ever deploys, which is why it is deployed now. Every later
+The shell is the cheapest thing this project ever deploys, which is why it is the first thing deployed. Every later
 phase inherits the deployment's shape — two processes from one image, a single migrator, a queue order, a
 processor count — and the bot loop in [phase 6](./phase-0006-durable-bot-loop.md) is designed against that shape.
 Finding out that Render's Postgres refuses `CREATE EXTENSION vector` under the app's role, or that the OAuth
@@ -226,7 +226,7 @@ this phase needs.
 | `VITE_API_URL` (frontend build arg) | | | `https://api.botholomew.com` |
 
 Instance types are ToolExec's validated ones: `1c-2g` for both backend roles (the worker's headroom is for
-embedding later), `starter` for the frontend and Redis, `basic-256mb` on `postgresMajorVersion: "18"` for the
+phase 9's embedder), `starter` for the frontend and Redis, `basic-256mb` on `postgresMajorVersion: "18"` for the
 database — revisited when [phase 9](./phase-0009-memory-search-and-ingestion.md) builds HNSW indexes.
 
 ## Steps
@@ -264,7 +264,7 @@ apex appears in `domains:` and nowhere else.
 
 `NotFoundPage` moves out of `App.tsx`. `v1Docs.ts` holds the eighteen v1 slugs and builds
 `https://github.com/evantahler/botholomew/blob/v1/docs/<slug>.md`. `index.html` gets a real `<title>`, a
-description, and Open Graph tags, since www.botholomew.com is now a page people share.
+description, and Open Graph tags, since www.botholomew.com is a page people share.
 
 ### 6. Runbook — `docs/DEPLOY.md`
 

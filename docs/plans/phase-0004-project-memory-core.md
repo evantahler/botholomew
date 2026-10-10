@@ -244,12 +244,12 @@ This is the whole membot port. [Phase 9](./phase-0009-memory-search-and-ingestio
 | Image vision captions, LLM conversion fallback, LLM describer | **Bring** on the project's BYOK fast model | 22 |
 | Original bytes, blob policy (25 MB cap, skip video/audio), blob sha dedupe, `read --bytes`, `prune --strip-blob-bytes` | **Bring**: per-project `bytea`; earlier phases keep only the markdown surrogate and its sha | 23 |
 | `prune --before` | **Bring** as admin-only retention | 18 |
-| Cross-encoder rerank | Later, unphased, opt-in | later |
+| Cross-encoder rerank | Unphased, opt-in | unphased |
 | LLM chunker mode (a config knob with no implementation) | **Drop** | dropped |
 | apple-notes, `skill install`, `login`, `config.json` secrets, the serve-mode log, self-update | **Drop**; the audit log and transcripts replace the serve log | dropped |
 | Process-global state, DuckDB file locks, FTS rebuilt on every write and query | **Gone**: Postgres rows with `projectId`, incremental indexes | 4 |
 
-## Decisions so far
+## Decisions
 
 | Question | Decision |
 |---|---|
