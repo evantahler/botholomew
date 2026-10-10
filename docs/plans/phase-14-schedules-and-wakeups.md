@@ -79,7 +79,7 @@ threads that schedules create ([phase 18](./phase-18-operations.md)).
 | ToolExec scheduler | `FOR UPDATE SKIP LOCKED`, the conditional `lastEnqueuedAt` advance with `IS NOT DISTINCT FROM`, the partial unique index backstop, a unique violation logged at `debug` | `toolexec:backend/actions/workflow/workflows-schedule.ts`, `toolexec:backend/actions/workflow/workflow-schedule-preview.ts` |
 | ToolExec webhook ingress | Raw body, token read from the path, a frozen byte-identical 404, per-token `checkRateLimit`, a body cap enforced while reading, a pending cap, a header allowlist, rotation under a row lock, `deliveryKey` dedupe | `toolexec:backend/actions/webhook/webhook-trigger.ts`, `toolexec:backend/actions/webhook/session-event.ts`, `toolexec:backend/ops/WebhookOps.ts`, `toolexec:backend/ops/RawRequestOps.ts`, `toolexec:backend/schema/agent_run_messages.ts` |
 | ToolExec editor panels | A schedule panel with a live "next 5" preview; a webhook panel with a one-time reveal | `toolexec:frontend/src/components/SchedulePanel.tsx`, `toolexec:frontend/src/components/WebhookPanel.tsx` |
-| The loop's wake | `conversations.wakeAt`, which `bots:dispatch` claims when due; `sleep_until`; `event` inbox rows; `requestId` exactly-once; event priority with aging | [phase 6](./phase-06-durable-bot-loop.md) |
+| The loop's wake | `conversations.wakeAt` and `wakeReason`, which `bots:dispatch` claims when due; `sleep_until` (tagged `at`, 1 minute to 30 days, latest call wins); `conversation_inbox` rows with `source = event`; event priority with aging; `conversation:stop` | [phase 6](./phase-06-durable-bot-loop.md) |
 | Tasks | `createTask` with a root task placed in an existing thread, `settleTask`, model pins inherited by children, `bots:workforce-check` | [phase 13](./phase-13-leader-and-workers.md) |
 | Episodic recall | `thread_search` and `thread_read`, which the reflection schedule needs | [phase 8](./phase-08-context-management.md) |
 
@@ -185,7 +185,7 @@ for each schedule that is enabled, confirmed, and not paused (partial index), FO
     WHERE id = $id AND lastEnqueuedAt IS NOT DISTINCT FROM $expected       (guard 2)
   INSERT schedule_runs (firedFor, missedFirings = due.length - 1)          (guard 3: unique index)
   createTask(tx, placed in schedule.threadId, assignee = schedule.botId,
-             requestId = schedule-run:<runId>, modelName = schedule.modelName)
+             requestId = schedule-run:<runId>, modelName = schedule.modelName)   # task.assigned event
   delete runs beyond the newest 20 for this schedule
 ```
 
@@ -237,14 +237,21 @@ The next time the owner signs in, a banner lists the schedules paused while they
 
 ### Wakeups: `sleep_until` and `remind_me`
 
-[Phase 6](./phase-06-durable-bot-loop.md) gives each conversation one `wakeAt`, which `sleep_until` sets.
-That single column cannot hold "continue this at 14:00" and "remind me Friday about the invoice" at the same
-time. This phase adds `bot_wakeups` rows (`kind: sleep | reminder`), and `wakeAt` becomes their cache. Every
-write that adds, delivers, or cancels a wakeup recomputes `wakeAt` as the earliest pending one, as does lease
-release. `bots:dispatch` is unchanged: it still claims a conversation whose `wakeAt` is due. The tick's first
-fenced step then turns that conversation's due wakeups into `event` inbox rows, with `requestId`
-`wakeup:<id>`, and marks them delivered. A crash between the claim and the tick therefore delivers each
-reminder exactly once.
+[Phase 6](./phase-06-durable-bot-loop.md) gives each conversation one `wakeAt` and `wakeReason`, which
+`sleep_until` sets. It returns at once without ending the turn, the latest call wins, and `null` cancels. That
+single column cannot hold "look at the build again at 14:00" and "remind me Friday about the invoice" at the
+same time.
+
+This phase adds `bot_wakeups` rows (`kind: sleep | reminder`), and `wakeAt` and `wakeReason` become their
+cache. `sleep_until` keeps its contract exactly: it writes the conversation's single `sleep` row, replacing
+any earlier one. Reminders accumulate beside it. Every write that adds, delivers, or cancels a wakeup
+recomputes `wakeAt` as the earliest pending one, as does lease release.
+
+`bots:dispatch` is unchanged: it still claims a conversation whose `wakeAt` is due. The tick's INTAKE step
+then turns that conversation's due wakeups into `event` inbox rows, under the lease fence, with `eventKind`
+`wakeup.due` and the `eventKey` `wakeup:<id>` ([phase 13](./phase-13-leader-and-workers.md)'s dedupe
+column), and marks them delivered. A crash between the claim and the tick therefore delivers each wakeup
+exactly once.
 
 - **`remind_me`** takes `{ at | in, note, thread? }` and creates a reminder. With `thread` set, it targets
   that thread's conversation instead of the current one. Reminders serve people as well: "remind me Friday to
@@ -271,11 +278,11 @@ ports ToolExec's discipline as it stands after that project's learnings:
   re-taken under `FOR UPDATE` on the hook row, returns 429.
 - **Deduplication.** A delivery key is required: `X-GitHub-Delivery`, `Linear-Delivery`, or
   `X-Botholomew-Delivery`. Without one the answer is 422, which is specific because the caller holds a valid
-  token. The key becomes the inbox row's `requestId` (`webhook:<hookId>:<key>`), so a retried delivery answers
+  token. The key becomes the inbox row's `eventKey` (`webhook:<hookId>:<key>`), so a retried delivery answers
   202 `{ duplicate: true }` and writes nothing.
 - **What is stored.** An allowlist of headers is stored, never `authorization` or cookies, along with the raw
   body.
-- **How the bot sees it.** The delivery is an `event` row (`webhook.received`) in the hook's target thread,
+- **How the bot sees it.** The delivery is an `event` row (`eventKind: webhook.received`) in the hook's target thread,
   with the hook's standing instructions. It is `follow_up` only, so it can never steer a running turn. It is
   fenced as untrusted data.
 - **No audit rows.** An unauthenticated caller must not be able to append to the audit table.
@@ -363,11 +370,12 @@ fired_for) WHERE NOT is_test`. There is also an index on `(scheduleId, createdAt
 | `dueAt` | timestamptz | |
 | `note` | text, null | |
 | `status` | text | `pending \| delivered \| cancelled` |
-| `requestId` | text | Unique per project |
+| `requestId` | text | Unique per project: the creating tool call's id, so a replayed `remind_me` makes one row |
 | `createdAt` / `deliveredAt` | timestamptz | |
 
-There is a partial index on `(conversationId, dueAt) WHERE status = 'pending'`. Phase 6's `sleep_until` is
-migrated to write a `sleep` row.
+There is a partial index on `(conversationId, dueAt) WHERE status = 'pending'`, and a partial unique index on
+`(conversationId) WHERE kind = 'sleep' AND status = 'pending'`, which is what keeps `sleep_until`'s
+latest-call-wins contract. Phase 6's `sleep_until` is migrated to write that row.
 
 `bot_webhooks`:
 
@@ -457,7 +465,7 @@ All of these are DB-only and keyed by the tool call's id, so they are `replay: s
 | `schedule_create` | `crontab -e` | `name`, `description`, `frequency`, `timezone?`, `model?`, `thread?`, `bot?` (leader only) | v1's `create_schedule`. It compiles, creates the schedule unconfirmed, and posts the confirm card. The result includes the sentence and the next fire times |
 | `schedule_list` | `crontab -l` | `bot?`, `enabled?`, `limit`, `offset` | v1's `list_schedules`. Each entry shows its sentence, next run, and last run status |
 | `schedule_edit` | — | `schedule_id`, `name?`, `description?`, `frequency?`, `model?`, `disable?` | v1's `schedule_edit`, as field updates rather than line patches, because descriptions are short. A new frequency means a new confirmation. It can disable but never enable |
-| `remind_me` | `at` | `at` or `in`, `note`, `thread?` | |
+| `remind_me` | — | `at` or `in`, `note`, `thread?` | No tag: `at` already anchors `sleep_until`, and two tools under one tag would blur the choice |
 | `reminder_list` | `atq` | `limit`, `offset` | This bot's pending reminders |
 | `reminder_cancel` | `atrm` | `reminder_id` | |
 
