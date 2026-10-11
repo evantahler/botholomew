@@ -17,12 +17,12 @@ Every doc there ends in a **Learnings from the build** section, and that is wher
 something load-bearing, and where to write when you learn something new. See
 [Where the detail lives](#where-the-detail-lives) for the map.
 
-> **Status: 2.0 is planned, not built.** The plans are complete; the code is not. The tree holds the frozen
-> **v1** local CLI/TUI agent (`src/`, `test/`, `docs/*.md`) — do not extend it; it lives permanently on the
-> [`v1` branch](https://github.com/evantahler/botholomew/tree/v1), and
-> [phase 1](./docs/plans/phase-0001-clean-slate-and-shell.md) removes it from this one. Sections below that
-> describe `backend/`, `frontend/`, and `cli/` describe the codebase phase 1 creates; a file a rule names
-> belongs to the phase that introduces it.
+> **Status: 2.0 is in development.** The tree holds the platform shell from
+> [phase 1](./docs/plans/phase-0001-clean-slate-and-shell.md) — users, projects, tags, invites, the audit log,
+> MCP for a person's own client, the website, and the CLI — and no bot. The v1 local CLI/TUI agent lives
+> permanently on the [`v1` branch](https://github.com/evantahler/botholomew/tree/v1). Where a section below names
+> something no phase has built yet (bots, the bot loop, memory, the fake model provider), it states the design;
+> a file a rule names belongs to the phase that introduces it.
 
 ## Non-negotiable rules
 
@@ -99,15 +99,15 @@ something load-bearing, and where to write when you learn something new. See
     before (`used to`, `previously`, `originally`, `no longer`, "we changed", "it turned out"). History lives in
     git and in pull requests; intent lives in `docs/plans/`. A learnings section states the decision that
     holds and why it holds — "X holds because Y" — not the story of finding it. A placeholder says what it is
-    for, in the present, as rule 12's example does. Another codebase — v1, membot, ToolExec — is described in
+    for, in the present, as rule 12's example does. Another codebase — v1, membot, the template this shell was copied from — is described in
     the present too, because that code still exists. User-facing copy follows the same rule: "the bot replies",
     never `the bot will reply`.
 
     One slice is mechanical and is asserted: `backend/__tests__/docs/tense.test.ts` scans this file,
-    `README.md`, `docs/**`, and every comment under `backend/`, `frontend/src/`, and `cli/src/`, ignores fenced
-    code and inline code spans, and fails on a closed denylist — `will`, `won't`, `going to`, `used to`,
-    `previously`, `formerly`, `originally`, `no longer`, `in the future`, `eventually`, `for now`, `TODO`,
-    `FIXME`. There is no allowlist: a sentence that trips it is rewritten, even when the word is innocent.
+    `README.md`, `docs/**`, the user docs under `frontend/src/content/docs/`, and every comment under
+    `backend/`, `frontend/src/`, and `cli/src/`, ignores fenced code and inline code spans, and fails on a
+    closed denylist — `will`, `won't`, `going to`, `used to`, `previously`, `formerly`, `originally`,
+    `no longer`, `in the future`, `eventually`, `for now`, `TODO`, `FIXME`. There is no allowlist: a sentence that trips it is rewritten, even when the word is innocent.
     Past tense inside a present description ("the version it was computed against") is fine; the test cannot
     judge narration, so a reviewer does.
 14. **User-facing docs ship with the feature.** Any change that alters something an operator or visitor can
@@ -143,7 +143,8 @@ something load-bearing, and where to write when you learn something new. See
 ## Local development
 
 > **Cloud agent VMs:** the startup caveats (how Postgres and Redis are started there, the `pg_hba.conf` trust
-> setting, and how to run the app) live in `docs/cloud-setup.md`, which phase 1 adds.
+> setting, the unset `$USER` that breaks every database connection, and how to run the app) live in
+> [`docs/cloud-setup.md`](./docs/cloud-setup.md).
 
 **Always use the system's Postgres and Redis — never Docker, and never Docker Compose.** Real services
 everywhere: local, CI, and deployed. Docker is used only to build deployment images. Postgres needs the
@@ -399,7 +400,8 @@ for the bound URL and `HOOK_TIMEOUT` for `beforeAll` / `afterAll`.
   invariants. `docs/links.test.ts` is the same idea pointed at the documentation — every relative link in this
   file, the root `README.md`, and `docs/**` must resolve, and every plan doc keeps its
   `## Learnings from the build` heading. `docs/tense.test.ts` points the same idea at tense: rule 13's
-  denylist, over the same docs and every source comment.
+  denylist, over the same docs, the user docs, and every source comment. `deployment/ci-workflow.test.ts`
+  asserts the "CI Complete" gate needs every other job.
 - **Behaviour evals are not tests.** A nightly harness drives bots against a real model and scores scenarios;
   it never gates CI.
 
@@ -449,15 +451,15 @@ cd backend  && bun run migrations && bun test    # real server over HTTP, isolat
 cd frontend && bun run test:e2e                  # Playwright, on this checkout's own ports
 CI=true bun run test:e2e                         # ...as CI runs it: fresh servers, no reuse
 bun run --cwd cli botholomew --help              # product CLI (HTTP client)
-bun run --cwd cli botholomew login --url http://localhost:8080
+bun run --cwd cli botholomew login --url http://localhost:8080 --email you@example.com --password '$BOTHOLOMEW_PASSWORD'
 
 open http://localhost:3000/docs                  # user-facing docs (public)
 open http://localhost:3000/settings              # project settings; every section is its own URL
 curl localhost:8080/api/actions/permissions      # every action's RBAC level, no auth needed
 
 # Orchestration ticks are task-only — see Action conventions above. Invoke by hand via:
-#   cd backend && bun keryx.ts bots:dispatch
-# (same for bots:reap and every *:sweep)
+#   cd backend && bun keryx.ts invites:sweep
+# (same for audit:sweep, and for bots:dispatch, bots:reap, and every other *:sweep)
 
 cd backend && bun run db:repair-sequences        # after restoring a dump: reconcile every serial sequence
 ```

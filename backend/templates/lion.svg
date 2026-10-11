@@ -1,0 +1,33 @@
+<!--
+  Botholomew's OAuth artwork, replacing Keryx's default lion: the v1 owl.
+
+  The FILENAME is the framework's, not ours: Keryx resolves this partial by the
+  fixed name `lion.svg` — `util/oauthTemplates.ts` calls
+  `resolveTemplate("lion.svg", rootDir, packageDir)`, checking our `templates/`
+  before its own, and hands it to `oauth-authorize.html` as the `lionSvg`
+  partial. Naming the file anything else brings the lion back. Overriding it by
+  filename IS the supported path, so there is nothing here to work around —
+  only a name to explain.
+
+  Three lines of monospace text, the same `{o,o}` the v1 terminal and docs site
+  drew. `currentColor` throughout, so the theme string picks the color.
+  `__tests__/oauth/authorize-theme.test.ts` asserts the rendered page carries
+  the `data-glyph` below and not the lion's 2048x2048 viewBox.
+-->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 48 45"
+  width="48"
+  height="45"
+  fill="currentColor"
+  role="img"
+  aria-label="Botholomew"
+  data-glyph="botholomew"
+  font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace"
+  font-size="12"
+  font-weight="700"
+>
+  <text x="0" y="12" xml:space="preserve">{o,o}</text>
+  <text x="0" y="27" xml:space="preserve">/)_)</text>
+  <text x="0" y="42" xml:space="preserve"> " "</text>
+</svg>

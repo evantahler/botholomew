@@ -1,0 +1,49 @@
+{
+  "name": "botholomew",
+  "version": "2.0.0-alpha.0",
+  "description": "Botholomew CLI — HTTP client for the Botholomew API",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "botholomew": "dist/botholomew.js",
+    "bothy": "dist/botholomew.js"
+  },
+  "files": [
+    "dist/botholomew.js",
+    "README.md"
+  ],
+  "scripts": {
+    "botholomew": "bun src/index.ts",
+    "build": "bun scripts/build.ts",
+    "test": "bun test",
+    "lint": "tsc && biome check .",
+    "format": "tsc && biome check --write ."
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evantahler/botholomew.git",
+    "directory": "cli"
+  },
+  "homepage": "https://github.com/evantahler/botholomew",
+  "bugs": {
+    "url": "https://github.com/evantahler/botholomew/issues"
+  },
+  "keywords": [
+    "botholomew",
+    "cli",
+    "mcp",
+    "bots"
+  ],
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.6",
+    "@types/bun": "latest",
+    "typescript": "^7.0.2"
+  }
+}

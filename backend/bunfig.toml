@@ -1,0 +1,7 @@
+[test]
+# `api.start()` connects to Postgres and Redis and may run migrations, so the
+# default 5s per-test timeout is too tight for suites that boot a real server.
+timeout = 15000
+# Preload the harness so `api.rootDir` is set (via `import "../index"`) and the
+# ioredis teardown filter is installed before any test file runs.
+preload = ["./__tests__/setup.ts"]

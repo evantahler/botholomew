@@ -5,7 +5,7 @@
 > them, read the audit log, connect Claude over MCP, and do all of it again from `botholomew` on the command
 > line — with every suite green behind one required CI check.
 
-> **Status: planned, not built.** Stage A — Platform. Depends on nothing but the planning PR that carries these
+> **Status: built.** Stage A — Platform. Depends on nothing but the planning PR that carries these
 > docs; [phase 2](./phase-0002-deployment.md) deploys what this phase leaves behind.
 
 v1 is a single-user CLI whose every module assumes a project directory on disk, a DuckDB file owned by
@@ -469,5 +469,98 @@ psql botholomew -c "select action, actor_bot_id, on_behalf_of_user_id from audit
 
 ## Learnings from the build
 
-Not built yet. This section records what is load-bearing in the shipped phase; today the plan above is the only
-account.
+### What was copied, from where
+
+The shell is ToolExec at `c55c332`, copied by explicit file list and cut by deletion. Nothing under ToolExec's
+`agents/`, `connections/`, `sandbox/`, `mcpApp/`, `lua/`, `channels/`, `assets/`, or `drizzle/` crossed. The
+`0000` migration (`backend/drizzle/0000_happy_rhino.sql`) is generated fresh from the seven schema files: seven
+tables, eight foreign keys, seven indexes, and `audit_logs.actor_bot_id` / `on_behalf_of_user_id` as nullable
+integers with no foreign key. `schema/indexes.test.ts` reads the indexes and both columns back out of the booted
+database, and asserts `user_id` is the only foreign key on `audit_logs`.
+
+### The six Keryx facts, against what is installed
+
+Keryx resolves to **0.48.0** (`keryx@0.48.0` in `bun.lock`). Paths are inside `node_modules/keryx/`.
+
+| Fact | Holds because | Where |
+|---|---|---|
+| A one-off `enqueue` gets no lock, dedupe, or retry | The job wrapper adds `JobLock`, `QueueLock`, and `DelayQueueLock` only when `task.frequency > 0`; a one-off job carries no plugin | `initializers/resque.ts:461–466`, `initializers/actionts.ts:117–134` |
+| A failed or crashed job is not retried | The worker's `failure` handler logs and nothing re-enqueues; `retryStuckJobs` is `false` | `initializers/resque.ts:230`, `config/tasks.ts:25` |
+| A task connection carries no session | The wrapper builds a `CONNECTION_TYPE.TASK` connection with an in-memory session whose `data` is `{}` | `initializers/resque.ts:351–365` |
+| `enqueueIn` / `enqueueAt` default to `"default"` | Their `queue` parameter defaults to `DEFAULT_QUEUE`; only `enqueue` falls back to the action's own `task.queue` | `initializers/actionts.ts:328–333`, `:355–360`, `:131`; `classes/Action.ts:87` |
+| The action timeout defaults to five minutes | `ACTION_TIMEOUT` defaults to `300_000`, applied per act unless the action sets its own `timeout` | `config/actions.ts:4`, `classes/Connection.ts:553` |
+| PubSub is fire-and-forget and reaches MCP sessions | `broadcast` is a bare Redis `publish`; the subscriber forwards each message with `void api.mcp.sendNotification(…).catch(…)`, which delivers only to sessions authorized for the channel | `initializers/pubsub.ts:47–57`, `:80–96`; `initializers/mcp.ts:223–227` |
+
+`deps/keryx-contract.test.ts` exercises the first and fourth. The plan's wording of the first — enqueue
+`invites:sweep` twice and get two jobs — is false of `invites:sweep` in particular: it has a `frequency`, so its
+job carries `QueueLock`, and a second identical enqueue onto the same queue returns `false`. The fact holds for a
+**one-off** action, which is the shape a conversation tick has, so the test registers a frequency-less probe
+action for its own duration and asserts two jobs from it, and separately asserts that the recurring sweep is
+deduplicated — "Keryx dedupes" is true of exactly the kind of action a tick is not. Every job the test enqueues
+goes to a queue no worker drains (`keryx-contract`), because the test environment runs a task processor.
+
+**One Keryx bug, filed upstream:** `enqueueRecurrent` re-enqueues a recurring action with `enqueueIn(…, undefined,
+true)`, so after its first run a clock moves to `"default"` whatever its `task.queue` says, and the `del` /
+`delDelayed` beside it clear the wrong queue ([actionhero/keryx#549](https://github.com/actionhero/keryx/issues/549)).
+The shell is unaffected — both of its clocks are on `default` — and nothing here works around it. It matters the
+moment a clock lives on `orchestrator` (the bot loop's `bots:dispatch` and `bots:reap`): the fix lands in Keryx
+first.
+
+### Cuts that needed a judgment
+
+- **`AuditedAction` is not byte-identical to ToolExec's.** `refuseAfterCommit` (a typed refusal thrown after the
+  audited transaction commits) had exactly one caller, `run:message`, and is deleted with it from both
+  `classes/AuditedAction.ts` and `RbacConnectionMeta`. Keeping it would have been a branch nothing exercises.
+- **The OAuth artwork is the v1 owl, in a file still named `templates/lion.svg`.** Keryx resolves that partial by
+  the fixed filename `lion.svg` (`util/oauthTemplates.ts`) and hands it to the page as `lionSvg`; an `owl.svg` and
+  an `{{> owlSvg}}` partial would simply bring the lion back. Overriding by filename is the supported path, so the
+  file's own comment explains the name, the class around it is `.owl`, and `oauth/authorize-theme.test.ts`
+  asserts the rendered page carries `data-glyph="botholomew"` and `{o,o}` and not the lion's 2048×2048 viewBox.
+- **Static file serving is off by default** (`WEB_SERVER_STATIC_ENABLED`). ToolExec served a Scalar API page from
+  `assets/`, which is not copied, and an enabled static handler over a missing directory costs two filesystem
+  misses on every `GET` before routing.
+- **`project:delete` is one statement again**, returning `{ success: true }`. Its JSDoc states the condition under
+  which that stops holding: a project-scoped table whose rows describe something outside Postgres.
+- **The task queues are `["bots", "orchestrator", "default"]`.** `bots` drains first without starving the clocks
+  because a tick is enqueued only for a conversation whose lease it holds, so the queue's depth is bounded by
+  lease slots, not by waiting work.
+- **The CLI's `interpolate.ts` is the `$VAR` primitive, not ToolExec's dump walker.** The walker only made sense
+  for `project apply`, which is cut; `resolveSecretValue` is what it was built from, and `login --password` is its
+  first caller, so a password can come from the environment instead of shell history.
+- **`invite create` takes `--tag <name-or-id>`, repeatable,** resolved through `tag:list` the way the server
+  matches names (trimmed, lowercased), rather than ToolExec's `--tag-ids <json>`.
+- **The CLI palette is the slate tokens.** ToolExec's CLI kept the phosphor terminal palette; Botholomew's uses
+  the same hex values as the backend's OAuth theme, and `cli/__tests__/config.test.ts` asserts each one appears
+  in `backend/theme/botholomew-theme.ts`.
+- **`render.yaml` attaches no domain.** It names `api.botholomew.com` and `www.botholomew.com` in its env vars,
+  and `render-blueprint.test.ts` makes `domains:` optional and asserts it absent: attaching a domain needs DNS and a
+  certificate, which is the first sync's work, not a file nothing has deployed.
+
+### What each suite covers, and where it stops
+
+- `actions/rbac.test.ts` asserts `actions:permissions` names exactly the thirty registered actions and the level
+  of each; that every action's live `mcp.tool` equals `shouldPublishAsMcpTool`; that every name on the never-MCP
+  list is a registered, routed action; that the `webhook:` and `gateway:oauth-` prefixes refuse names nothing has
+  registered; that every action taking `projectId` declares `member` or `admin`; and the five RBAC permutations.
+- `actions/mcp-tools.test.ts` asserts a person's `tools/list` equals the policy's published set **and** a
+  spelled-out list of twenty-two names — the first proves Keryx agrees with the policy, the second proves the
+  policy says what was intended — and that an outsider's client is refused another project's `membership-list`.
+- `actions/audit.test.ts` keeps ToolExec's atomicity, rollback, isolation, scrubbing, scoping, and sweep cases,
+  and adds that every row a person's action writes has `actorBotId` and `onBehalfOfUserId` null, in the table and
+  in `audit:list`. Nothing yet writes a non-null value, so the bot half of those columns is asserted only as
+  schema.
+- `deps/native-addons.test.ts` asserts the trust list is exactly `["esbuild"]` and that nothing compiled an
+  addon. ToolExec's `ssh2` cipher assertions went with `ssh2`; the vacuity guard is now that the scanned roots
+  hold the install at all.
+- `docs/tense.test.ts` scans one more place than the plan names: the user docs under
+  `frontend/src/content/docs/`, since rule 13 covers user-facing copy. Its comment extractor skips strings,
+  template literals, and regex literals, and has tests of its own for each.
+- `deployment/ci-workflow.test.ts` asserts the gate `needs` every other job, runs `always()`, asserts success
+  rather than listing failures, and that every Postgres service container is `pgvector/pgvector:pg18`.
+- `cli/cli.test.ts` (in the backend suite, because it needs a booted server) spawns the real CLI: login, the
+  `--url` / `BOTHOLOMEW_URL` / default precedence, a `$VAR` password, a tag, an invite granted by tag name and
+  accepted by a second person, the member list, the audit trail, a slug resolving to an id, and a 403 surfacing
+  the server's reason.
+
+Branch protection and the `v1` branch's protection are repository settings no test reads; they are set on
+GitHub, not here.
