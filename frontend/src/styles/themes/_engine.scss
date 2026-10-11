@@ -1,0 +1,1339 @@
+// Theme engine — rewrites the compiled stylesheet to read from tokens.
+//
+// `theme.scss` hands Bootstrap a set of Sass variables and Bootstrap compiles
+// them into literals: `.card` ends up carrying `--bs-card-bg: #111311`, and
+// `.form-control` carries `background-color: #0a0a0a` with no variable in sight.
+// Bootstrap 5.3 publishes a lot through `--bs-*`, which is what makes this
+// approach possible at all, but the values behind those names froze at compile
+// time. So a second look cannot come from swapping a variable — every declaration
+// that named a colour, a corner, a font, or a padding has to be restated here in
+// terms of `--bh-*`.
+//
+// Which is why this file is long and mechanical rather than clever. The list of
+// selectors is not a design decision; it is the answer to "which rules in the
+// compiled stylesheet carry a literal", and it has to stay in step with
+// `theme.scss`.
+//
+// ---------------------------------------------------------------------------
+// Two layers, and the line between them
+// ---------------------------------------------------------------------------
+// `:is(:root, [data-bh-theme])`  — token plumbing. Applies to all five themes, and for
+//                      terminal every value resolves to what `theme.scss`
+//                      already compiled. Nothing here may change the default.
+// `$bh-modern`       — the decisions that are "not a terminal": the box-drawing
+//                      brackets, the scanlines, the shouting labels, the flat
+//                      heading scale, the `▒` skeletons, the square radio. These
+//                      are not a spectrum the themes sit at points on, so they
+//                      are a selector rather than a token.
+//
+// The first layer's claim is an equality: every element on `/style-guide`
+// computes the same under `data-bh-theme="terminal"` as with no attribute at
+// all. That is what keeps this file from quietly restyling the default, and a
+// property the engine forgot to wire shows up as a divergence there, rather
+// than as one green-on-black element in the middle of a light theme.
+//
+// The modern layer is a **descendant** selector, and that is the one thing about
+// it a reader has to know. Tokens inherit, so a token layer automatically means
+// "the nearest `:is(:root, [data-bh-theme])` ancestor wins" — but `:is(:root, [data-bh-theme]):not(…)
+// .foo` matches from *any* non-terminal ancestor, so a terminal subtree nested in
+// a modern document keeps every modern rule. `/themes` is exactly that subtree,
+// which is how the gallery came to show a Terminal preview with no brackets, no
+// uppercase, and modern weights — on the page whose entire job is fidelity. It
+// was invisible while the document was also terminal.
+//
+// `@scope`'s limit is what CSS gives for "stop at the nearest one of these", and
+// the whole modern layer sits inside `$bh-scope` / `$bh-scope-limit` for it. Every
+// element carrying the attribute is its own scope root, so a modern preview in a
+// terminal document is still modern; a terminal root is the limit, so its subtree
+// is out of scope whatever encloses it. Proximity then settles a nested pair the
+// way a reader would expect, which is the same rule tokens already followed.
+//
+// `:scope:not(…)` rather than a bare `:not(…)`, because the implied prefix inside
+// `@scope` contributes no specificity: spelling it keeps these rules at exactly
+// the weight they had as `:is(:root, [data-bh-theme]):not(…)`, which is what decides them
+// against `_mobile.scss` and the base.
+$bh-scope: "[data-bh-theme]";
+$bh-scope-limit: '[data-bh-theme="terminal"]';
+$bh-modern: ':scope:not([data-bh-theme="terminal"])';
+
+// ---------------------------------------------------------------------------
+// Derived shades
+// ---------------------------------------------------------------------------
+// `color-mix()` against `--bh-hover-mix` rather than a `-hover` token per colour:
+// the direction "hover" moves is a property of the theme (towards white on a dark
+// ground, towards black on a light one), not of the colour, so stating it once
+// per theme is the version that cannot disagree with itself.
+
+/// A token one step towards the theme's hover direction.
+@function bh-hover($token) {
+  @return color-mix(in srgb, var(--bh-#{$token}) 85%, var(--bh-hover-mix));
+}
+
+/// Two steps: the pressed state.
+@function bh-active($token) {
+  @return color-mix(in srgb, var(--bh-#{$token}) 72%, var(--bh-hover-mix));
+}
+
+/// A wash of a token over the card surface — table stripes, row hovers.
+@function bh-wash($token, $amount) {
+  @return color-mix(in srgb, var(--bh-#{$token}) $amount, var(--bh-surface));
+}
+
+/// A translucent tint of a token, for borders and pill fills.
+@function bh-tint($token, $amount) {
+  @return color-mix(in srgb, var(--bh-#{$token}) $amount, transparent);
+}
+
+// The Bootstrap variants that carry a status colour, and the token each resolves
+// to. `secondary`, `light`, and `dark` are deliberately absent: they are
+// neutrals, and a neutral's foreground is not derivable from its background the
+// way a status colour's is, so they get hand-written blocks below.
+$bh-status-variants: (
+  primary: accent,
+  success: success,
+  info: info,
+  warning: warning,
+  danger: danger,
+);
+
+// ---------------------------------------------------------------------------
+// 1. Bootstrap's root variables
+// ---------------------------------------------------------------------------
+:is(:root, [data-bh-theme]) {
+  --bs-body-bg: var(--bh-ground);
+  --bs-body-color: var(--bh-text);
+  --bs-body-font-family: var(--bh-font-body);
+  --bs-body-font-size: var(--bh-font-size);
+  --bs-body-line-height: var(--bh-line-height);
+
+  --bs-secondary-color: var(--bh-muted);
+  --bs-secondary-bg: var(--bh-surface);
+  --bs-tertiary-bg: var(--bh-raise);
+
+  --bs-border-color: var(--bh-border);
+  --bs-border-color-translucent: var(--bh-border);
+  --bs-border-width: var(--bh-border-width);
+  --bs-border-radius: var(--bh-radius);
+  --bs-border-radius-sm: var(--bh-radius-sm);
+  --bs-border-radius-lg: var(--bh-radius-lg);
+  --bs-border-radius-xl: var(--bh-radius-lg);
+  --bs-border-radius-xxl: var(--bh-radius-lg);
+  --bs-border-radius-pill: var(--bh-radius-pill);
+
+  --bs-primary: var(--bh-accent);
+  --bs-secondary: var(--bh-muted);
+  --bs-success: var(--bh-success);
+  --bs-info: var(--bh-info);
+  --bs-warning: var(--bh-warning);
+  --bs-danger: var(--bh-danger);
+
+  --bs-link-color: var(--bh-accent);
+  --bs-link-hover-color: var(--bh-link-hover);
+  --bs-code-color: var(--bh-marker);
+  --bs-focus-ring-color: #{bh-tint(accent, 55%)};
+  --bs-box-shadow: var(--bh-shadow);
+  --bs-box-shadow-lg: var(--bh-shadow-lg);
+
+  // The two background SVGs. A `url("data:image/svg+xml,…")` cannot read a
+  // custom property, so a themed chevron or close cross is a different image
+  // rather than a recoloured one — and one neutral grey contrasts adequately with
+  // every ground in the set, which is why there is one of each and not five.
+  --bh-select-chevron: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23888888' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  --bh-close-glyph: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23888888'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414'/%3e%3c/svg%3e");
+}
+
+// A themed subtree standing in for a page — the previews on `/themes`. Custom
+// properties inherit, so the attribute on a <div> is enough to theme everything
+// inside it; what does not inherit is the ground, because that lives on `body`.
+// These two declarations are the whole difference between a preview and a page.
+:is(:root, [data-bh-theme]).bh-theme-preview {
+  background-color: var(--bh-ground);
+  background-image: var(--bh-body-glow);
+  color: var(--bh-text);
+  font-family: var(--bh-font-body);
+  font-size: var(--bh-font-size);
+  line-height: var(--bh-line-height);
+  border: var(--bh-border-width) solid var(--bh-border);
+  border-radius: var(--bh-radius-lg);
+  padding: var(--bh-card-pad-x);
+  // Contains the preview's own stacking and clips the bloom to the card. Without
+  // it aurora's two radial gradients paint over the page around them.
+  overflow: hidden;
+}
+
+// ---------------------------------------------------------------------------
+// 2. The page frame
+// ---------------------------------------------------------------------------
+:is(:root, [data-bh-theme]) body {
+  // A token whose value is allowed to be `none`: the terminal paints a phosphor
+  // bloom from the top of the tube, aurora paints two coloured ones, and the rest
+  // paint nothing.
+  background-image: var(--bh-body-glow);
+  font-family: var(--bh-font-body);
+  font-size: var(--bh-font-size);
+  line-height: var(--bh-line-height);
+}
+
+:is(:root, [data-bh-theme]) ::selection {
+  background: #{bh-tint(accent, 30%)};
+}
+
+// Firefox and Chromium honour different halves of this, so both are stated.
+// `scrollbar-color` is also the only one that reaches the scrollbar inside a
+// scrolling element such as a wide table on a phone.
+:is(:root, [data-bh-theme]) {
+  scrollbar-color: var(--bh-border-strong) transparent;
+}
+
+:is(:root, [data-bh-theme]) ::-webkit-scrollbar-track {
+  background: var(--bh-ground);
+}
+
+:is(:root, [data-bh-theme]) ::-webkit-scrollbar-thumb {
+  background: var(--bh-border-strong);
+  border-radius: var(--bh-radius-pill);
+}
+
+:is(:root, [data-bh-theme]) ::-webkit-scrollbar-thumb:hover {
+  background: var(--bh-accent);
+}
+
+// ---------------------------------------------------------------------------
+// 3. Type
+// ---------------------------------------------------------------------------
+// `:not(.bh-section-title)` because a section title *is* an `<h2>` and carries
+// its own type treatment. Scoping a bare `h2` under an attribute raises it above
+// that class, so the title quietly took on heading tracking — the sort of thing
+// only a diff of computed styles notices.
+:is(:root, [data-bh-theme]) :is(h1, h2, h3, h4, h5, h6):not(.bh-section-title) {
+  font-family: var(--bh-font-heading);
+  font-weight: var(--bh-heading-weight);
+  letter-spacing: var(--bh-heading-tracking);
+}
+
+// The exclusion list is load-bearing, and its absence is invisible on the default
+// theme. Bootstrap paints an anchor-shaped component's label at one class of
+// specificity — `.btn`, `.dropdown-item`, `.nav-link` — which beats a bare `a`;
+// scoping the same rule under an attribute raises it *above* those, so every one
+// of them loses its own colour. `Button as={Link}` does not type-check, so a link
+// that looks like a button is written `<a className="btn btn-primary">`, and the
+// landing page's only call to action is one: it rendered as an accent label on an
+// accent fill, an empty violet rectangle. Every menu item in the navbar went
+// phosphor-green at the same time.
+//
+// `:where()` so the exclusions cost no specificity of their own — the rule still
+// has to outrank Bootstrap's `a` for the links it does claim.
+$bh-styled-anchors: ".btn, .dropdown-item, .nav-link, .page-link, .list-group-item, .navbar-brand, .badge";
+
+:is(:root, [data-bh-theme]) a:not(:where(#{$bh-styled-anchors})) {
+  color: var(--bh-accent);
+}
+
+:is(:root, [data-bh-theme]) a:not(:where(#{$bh-styled-anchors})):hover {
+  color: var(--bh-link-hover);
+}
+
+:is(:root, [data-bh-theme]) hr {
+  border-top: var(--bh-border-width) solid var(--bh-border);
+}
+
+// `:not(pre) >` because Bootstrap resets `pre code` to `inherit` at two elements
+// of specificity, which an attribute-scoped `code` outranks — so a fenced block's
+// body went marker-coloured, every line of it, in all four themes.
+:is(:root, [data-bh-theme]) :not(pre) > code {
+  background: var(--bh-raise);
+  color: var(--bh-marker);
+  font-family: var(--bh-font-mono);
+}
+
+// Bootstrap resets `pre code` to `color: inherit` but leaves the `background` the
+// bare `code` rule gave it, and that background is a compiled literal — so a
+// fenced block in the docs kept a terminal-coloured fill behind every line, and
+// the pale phosphor body text `$pre-color` put on the `pre` above it. Both are
+// wired here rather than dropped, so the terminal computes what it always did.
+:is(:root, [data-bh-theme]) pre {
+  color: var(--bh-text);
+}
+
+:is(:root, [data-bh-theme]) pre code {
+  background: var(--bh-raise);
+  font-family: var(--bh-font-mono);
+}
+
+:is(:root, [data-bh-theme]) pre,
+:is(:root, [data-bh-theme]) kbd,
+:is(:root, [data-bh-theme]) samp {
+  font-family: var(--bh-font-mono);
+}
+
+// ---------------------------------------------------------------------------
+// 4. Buttons
+// ---------------------------------------------------------------------------
+:is(:root, [data-bh-theme]) .btn {
+  --bs-btn-padding-y: var(--bh-pad-y);
+  --bs-btn-padding-x: var(--bh-pad-x);
+  --bs-btn-font-size: var(--bh-font-size);
+  --bs-btn-line-height: var(--bh-line-height);
+  --bs-btn-border-width: var(--bh-border-width);
+  --bs-btn-focus-box-shadow: var(--bh-focus-ring);
+  // The terminal shouts. Nothing else does, and this one declaration is a
+  // surprising amount of why.
+  text-transform: var(--bh-label-transform);
+  letter-spacing: var(--bh-label-tracking);
+  border-radius: var(--bh-radius);
+}
+
+// Offsets rather than factors, here and for the card and modal below. A factor
+// cannot land on the compiled value exactly — the small button's 0.4rem is
+// two-thirds of 0.6rem, and `calc(0.6rem * 0.667)` computes 6.40032px against a
+// literal 6.4px. Sub-pixel and invisible, but it is a *difference*, and the whole
+// value of the equality check next door is that it has no tolerance to argue
+// about. Subtraction is exact.
+:is(:root, [data-bh-theme]) .btn-sm {
+  --bs-btn-font-size: var(--bh-font-size-sm);
+  --bs-btn-padding-y: calc(var(--bh-pad-y) - 0.1rem);
+  --bs-btn-padding-x: calc(var(--bh-pad-x) - 0.2rem);
+  border-radius: var(--bh-radius-sm);
+}
+
+:is(:root, [data-bh-theme]) .btn-lg {
+  --bs-btn-font-size: var(--bh-font-size-lg);
+  --bs-btn-padding-y: calc(var(--bh-pad-y) + 0.15rem);
+  --bs-btn-padding-x: calc(var(--bh-pad-x) + 0.3rem);
+  border-radius: var(--bh-radius-lg);
+}
+
+@each $variant, $token in $bh-status-variants {
+  :is(:root, [data-bh-theme]) .btn-#{$variant} {
+    --bs-btn-color: var(--bh-#{$token}-fg);
+    --bs-btn-bg: var(--bh-#{$token});
+    --bs-btn-border-color: var(--bh-#{$token});
+    --bs-btn-hover-color: var(--bh-#{$token}-fg);
+    --bs-btn-hover-bg: #{bh-hover($token)};
+    --bs-btn-hover-border-color: #{bh-hover($token)};
+    --bs-btn-active-color: var(--bh-#{$token}-fg);
+    --bs-btn-active-bg: #{bh-active($token)};
+    --bs-btn-active-border-color: #{bh-active($token)};
+    --bs-btn-disabled-color: var(--bh-#{$token}-fg);
+    --bs-btn-disabled-bg: var(--bh-#{$token});
+    --bs-btn-disabled-border-color: var(--bh-#{$token});
+  }
+
+  :is(:root, [data-bh-theme]) .btn-outline-#{$variant} {
+    --bs-btn-color: var(--bh-#{$token});
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: var(--bh-#{$token});
+    --bs-btn-hover-color: var(--bh-#{$token}-fg);
+    --bs-btn-hover-bg: var(--bh-#{$token});
+    --bs-btn-hover-border-color: var(--bh-#{$token});
+    --bs-btn-active-color: var(--bh-#{$token}-fg);
+    --bs-btn-active-bg: #{bh-active($token)};
+    --bs-btn-active-border-color: #{bh-active($token)};
+    --bs-btn-disabled-color: var(--bh-muted);
+    --bs-btn-disabled-border-color: var(--bh-border);
+  }
+}
+
+// The neutrals, hand-written because a neutral's label is not a function of its
+// fill. `outline-secondary` is the most-used button in the product — 25 call
+// sites, every Cancel and every secondary action on a card — and Bootstrap's own
+// recipe paints it in `$secondary`, which on a light theme is a grey label on a
+// white ground and reads as *disabled*. So it is a bordered neutral wearing full
+// body text instead, which is the decision shadcn's outline button makes too.
+:is(:root, [data-bh-theme]) .btn-secondary,
+:is(:root, [data-bh-theme]) .btn-light {
+  --bs-btn-color: var(--bh-text);
+  --bs-btn-bg: var(--bh-raise);
+  --bs-btn-border-color: var(--bh-border-strong);
+  --bs-btn-hover-color: var(--bh-heading);
+  --bs-btn-hover-bg: #{bh-wash(text, 8%)};
+  --bs-btn-hover-border-color: var(--bh-border-strong);
+  --bs-btn-active-color: var(--bh-heading);
+  --bs-btn-active-bg: #{bh-wash(text, 14%)};
+  --bs-btn-active-border-color: var(--bh-border-strong);
+  --bs-btn-disabled-color: var(--bh-muted);
+  --bs-btn-disabled-bg: var(--bh-raise);
+  --bs-btn-disabled-border-color: var(--bh-border);
+}
+
+:is(:root, [data-bh-theme]) .btn-outline-secondary,
+:is(:root, [data-bh-theme]) .btn-outline-light {
+  --bs-btn-color: var(--bh-text);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: var(--bh-border-strong);
+  --bs-btn-hover-color: var(--bh-heading);
+  --bs-btn-hover-bg: var(--bh-raise);
+  --bs-btn-hover-border-color: var(--bh-border-strong);
+  --bs-btn-active-color: var(--bh-heading);
+  --bs-btn-active-bg: #{bh-wash(text, 12%)};
+  --bs-btn-active-border-color: var(--bh-border-strong);
+  --bs-btn-disabled-color: var(--bh-muted);
+  --bs-btn-disabled-border-color: var(--bh-border);
+}
+
+:is(:root, [data-bh-theme]) .btn-dark,
+:is(:root, [data-bh-theme]) .btn-outline-dark {
+  --bs-btn-color: var(--bh-ground);
+  --bs-btn-bg: var(--bh-heading);
+  --bs-btn-border-color: var(--bh-heading);
+  --bs-btn-hover-color: var(--bh-ground);
+  --bs-btn-hover-bg: var(--bh-text);
+  --bs-btn-hover-border-color: var(--bh-text);
+  --bs-btn-active-color: var(--bh-ground);
+  --bs-btn-active-bg: var(--bh-text);
+}
+
+// ---------------------------------------------------------------------------
+// 5. Forms
+// ---------------------------------------------------------------------------
+:is(:root, [data-bh-theme]) .form-label,
+:is(:root, [data-bh-theme]) .col-form-label {
+  color: var(--bh-muted);
+  font-size: var(--bh-label-size);
+  text-transform: var(--bh-label-transform);
+  letter-spacing: var(--bh-label-tracking);
+}
+
+:is(:root, [data-bh-theme]) .form-text {
+  color: var(--bh-muted);
+  font-size: var(--bh-label-size);
+}
+
+// Padding is set per side rather than as the shorthand, because the *end* side is
+// not the theme's to decide: a `.form-select` carries the chevron there, and an
+// `.is-invalid` control carries a validation icon. The shorthand overwrote both
+// and the glyph landed on top of the text.
+:is(:root, [data-bh-theme]) .form-control,
+:is(:root, [data-bh-theme]) .form-select {
+  padding-block: var(--bh-pad-y);
+  padding-inline-start: var(--bh-field-pad-x);
+  font-size: var(--bh-font-size);
+  line-height: var(--bh-line-height);
+  color: var(--bh-text);
+  background-color: var(--bh-sunken);
+  border: var(--bh-border-width) solid var(--bh-border);
+  border-radius: var(--bh-radius);
+  caret-color: var(--bh-accent);
+}
+
+// A plain field is symmetric; a field wearing a validation icon keeps the room
+// Bootstrap measured for it.
+:is(:root, [data-bh-theme]) .form-control:not(.is-invalid):not(.is-valid) {
+  padding-inline-end: var(--bh-field-pad-x);
+}
+
+// 1rem is Bootstrap's own indicator allowance, so this lands on the compiled
+// 24px for the default theme and grows with the token everywhere else.
+:is(:root, [data-bh-theme]) .form-select {
+  padding-inline-end: calc(var(--bh-field-pad-x) + 1rem);
+}
+
+:is(:root, [data-bh-theme]) .form-control:focus,
+:is(:root, [data-bh-theme]) .form-select:focus {
+  color: var(--bh-text);
+  background-color: var(--bh-sunken);
+  border-color: var(--bh-accent);
+  box-shadow: var(--bh-focus-ring);
+}
+
+:is(:root, [data-bh-theme]) .form-control::placeholder {
+  color: var(--bh-muted);
+}
+
+// Disabled has to read as disabled without colour being the only signal, which on
+// the terminal is a dashed border. A dashed input is period-correct there and
+// looks like a rendering fault anywhere else, hence a token.
+:is(:root, [data-bh-theme]) .form-control:disabled,
+:is(:root, [data-bh-theme]) .form-select:disabled {
+  background-color: var(--bh-raise);
+  color: var(--bh-muted);
+  border-style: var(--bh-disabled-border-style);
+}
+
+:is(:root, [data-bh-theme]) .input-group-text {
+  color: var(--bh-muted);
+  background-color: var(--bh-raise);
+  border-color: var(--bh-border);
+  border-radius: var(--bh-radius);
+}
+
+:is(:root, [data-bh-theme]) .form-check-input {
+  --bs-form-check-bg: var(--bh-sunken);
+  border: var(--bh-border-width) solid var(--bh-border);
+  border-radius: var(--bh-radius-sm);
+}
+
+:is(:root, [data-bh-theme]) .form-switch .form-check-input {
+  border-radius: var(--bh-radius-pill);
+}
+
+:is(:root, [data-bh-theme]) .form-check-input:checked {
+  background-color: var(--bh-accent);
+  border-color: var(--bh-accent);
+}
+
+:is(:root, [data-bh-theme]) .form-check-input:focus {
+  border-color: var(--bh-accent);
+  box-shadow: var(--bh-focus-ring);
+}
+
+:is(:root, [data-bh-theme]) .invalid-feedback {
+  color: var(--bh-danger);
+  font-size: var(--bh-label-size);
+}
+
+:is(:root, [data-bh-theme]) .valid-feedback {
+  color: var(--bh-success);
+  font-size: var(--bh-label-size);
+}
+
+:is(:root, [data-bh-theme]) .was-validated .form-control:invalid,
+:is(:root, [data-bh-theme]) .form-control.is-invalid {
+  border-color: var(--bh-danger);
+}
+
+// ---------------------------------------------------------------------------
+// 6. Tables
+// ---------------------------------------------------------------------------
+:is(:root, [data-bh-theme]) .table {
+  --bs-table-color: var(--bh-text);
+  --bs-table-bg: transparent;
+  --bs-table-border-color: var(--bh-border);
+  --bs-table-striped-color: var(--bh-text);
+  --bs-table-active-color: var(--bh-text);
+  --bs-table-hover-color: var(--bh-text);
+}
+
+:is(:root, [data-bh-theme]) .table > :not(caption) > * > * {
+  padding: var(--bh-cell-pad-y) var(--bh-cell-pad-x);
+}
+
+// The row line, but not on a skeleton row: those draw a fainter one of their own,
+// and this selector outranks it.
+:is(:root, [data-bh-theme]) .table > :not(caption) > :not(.bh-skeleton-row) > * {
+  border-bottom-color: var(--bh-border);
+}
+
+// `.table-sm` needs its own rule, not an inherited one: Bootstrap's compact
+// padding lives on a selector this layer outweighs, so without this every dense
+// table in the product — which is most of them — silently grew to full size.
+:is(:root, [data-bh-theme]) .table-sm > :not(caption) > * > * {
+  padding: calc(var(--bh-cell-pad-y) - 0.1rem)
+    calc(var(--bh-cell-pad-x) - 0.15rem);
+}
+
+// The header row. `theme.scss` reaches it with a four-part selector to out-weigh
+// Bootstrap's own `--bs-table-color`; the same shape is needed here, one
+// attribute heavier.
+:is(:root, [data-bh-theme]) th,
+:is(:root, [data-bh-theme]) .table > :not(caption) > * > th {
+  color: var(--bh-muted);
+  font-size: var(--bh-label-size);
+  text-transform: var(--bh-label-transform);
+  letter-spacing: var(--bh-label-tracking);
+}
+
+// ---------------------------------------------------------------------------
+// 7. Cards
+// ---------------------------------------------------------------------------
+// The padding arithmetic looks arbitrary and is not: each factor is chosen so the
+// terminal's compiled value comes back out exactly (0.6 × 0.667 = 0.4rem cap
+// padding, 0.6 × 0.5 = 0.3rem title spacer), which is what lets one density token
+// per theme replace four.
+:is(:root, [data-bh-theme]) .card {
+  --bs-card-bg: var(--bh-surface);
+  --bs-card-color: var(--bh-text);
+  --bs-card-border-color: var(--bh-border);
+  // Bootstrap compiles `$card-cap-bg` to a literal, so a header left unwired keeps
+  // the terminal's own raise colour — which reads as a deliberate dark band on the
+  // three dark themes and as an unreadable black bar over serif type on paper. The
+  // cap colour beside it was already wired, which is what made the omission
+  // survive: the text moved and the fill did not.
+  --bs-card-cap-bg: var(--bh-raise);
+  --bs-card-cap-color: var(--bh-heading);
+  --bs-card-spacer-y: var(--bh-card-pad-y);
+  --bs-card-spacer-x: var(--bh-card-pad-x);
+  --bs-card-cap-padding-y: calc(var(--bh-card-pad-y) - 0.2rem);
+  --bs-card-cap-padding-x: var(--bh-card-pad-x);
+  --bs-card-title-spacer-y: calc(var(--bh-card-pad-y) * 0.5);
+  border-radius: var(--bh-radius-lg);
+  box-shadow: var(--bh-shadow);
+}
+
+// The one border each of these actually has. `border-color` sets all four, and
+// the other three were inheriting `currentColor` — invisible until a theme made
+// the text a different colour from the line.
+:is(:root, [data-bh-theme]) .card-header {
+  border-bottom-color: var(--bh-border);
+}
+
+:is(:root, [data-bh-theme]) .card-footer {
+  border-top-color: var(--bh-border);
+}
+
+// ---------------------------------------------------------------------------
+// 8. Alerts and badges
+// ---------------------------------------------------------------------------
+// The left-border accent survives into every theme, because it is the part of an
+// alert that says *which kind* without relying on a fill — and the fill is what a
+// quiet theme wants to keep faint.
+:is(:root, [data-bh-theme]) .alert {
+  --bs-alert-padding-y: calc(var(--bh-pad-y) * 1.6);
+  --bs-alert-padding-x: var(--bh-pad-x);
+  --bs-alert-margin-bottom: var(--bh-gap);
+  background: var(--bh-surface);
+  color: var(--bh-text);
+  border: var(--bh-border-width) solid var(--bh-border);
+  border-left-width: 3px;
+  border-radius: var(--bh-radius);
+}
+
+@each $variant, $token in $bh-status-variants {
+  :is(:root, [data-bh-theme]) .alert-#{$variant} {
+    border-left-color: var(--bh-#{$token});
+  }
+}
+
+:is(:root, [data-bh-theme]) .alert-heading {
+  color: var(--bh-heading);
+}
+
+:is(:root, [data-bh-theme]) .badge {
+  --bs-badge-font-size: var(--bh-label-size);
+  border-radius: var(--bh-radius-pill);
+}
+
+// `theme.scss` picks a badge's label with Bootstrap's `color-contrast()` at
+// compile time, which is a literal and so wrong for every other theme. Restated
+// as the token pair, so a badge's fill and its label move together.
+@each $variant, $token in $bh-status-variants {
+  :is(:root, [data-bh-theme]) .badge.bg-#{$variant},
+  :is(:root, [data-bh-theme]) .badge.text-bg-#{$variant} {
+    background-color: var(--bh-#{$token}) !important;
+    color: var(--bh-#{$token}-fg) !important;
+  }
+}
+
+// The three colour utilities the product actually uses. Bootstrap drives these off
+// `--bs-*-rgb` triplets, which cannot be derived from a hex custom property in
+// CSS — so they are restated rather than remapped, and anything reaching for a
+// fourth has to add it here. That is the intended amount of friction.
+:is(:root, [data-bh-theme]) .text-danger {
+  color: var(--bh-danger) !important;
+}
+:is(:root, [data-bh-theme]) .text-warning {
+  color: var(--bh-warning) !important;
+}
+:is(:root, [data-bh-theme]) .text-success {
+  color: var(--bh-success) !important;
+}
+
+// ---------------------------------------------------------------------------
+// 9. Overlays, menus, lists, pagination, progress
+// ---------------------------------------------------------------------------
+:is(:root, [data-bh-theme]) .modal {
+  --bs-modal-bg: var(--bh-surface);
+  --bs-modal-color: var(--bh-text);
+  --bs-modal-border-color: var(--bh-border);
+  --bs-modal-border-width: var(--bh-border-width);
+  --bs-modal-header-border-color: var(--bh-border);
+  --bs-modal-footer-border-color: var(--bh-border);
+  --bs-modal-padding: var(--bh-card-pad-x);
+  --bs-modal-header-padding-y: calc(var(--bh-card-pad-y) - 0.1rem);
+  --bs-modal-header-padding-x: var(--bh-card-pad-x);
+}
+
+// **On the backdrop, not on the modal.** `.modal-backdrop` is appended to `<body>`
+// as a sibling of `.modal`, so a `--bs-backdrop-bg` set on the dialog is read by
+// nothing — the scrim kept the value `theme.scss` compiled, which is the default
+// theme's ground, on every theme.
+:is(:root, [data-bh-theme]) .modal-backdrop {
+  --bs-backdrop-bg: var(--bh-backdrop);
+}
+
+:is(:root, [data-bh-theme]) .modal-content {
+  border-radius: var(--bh-radius-lg);
+  box-shadow: var(--bh-shadow-lg);
+}
+
+:is(:root, [data-bh-theme]) .modal-title {
+  color: var(--bh-heading);
+}
+
+:is(:root, [data-bh-theme]) .dropdown-menu {
+  --bs-dropdown-bg: var(--bh-surface);
+  --bs-dropdown-color: var(--bh-text);
+  --bs-dropdown-border-color: var(--bh-border);
+  --bs-dropdown-border-width: var(--bh-border-width);
+  --bs-dropdown-font-size: var(--bh-font-size);
+  --bs-dropdown-padding-y: calc(var(--bh-pad-y) * 0.6);
+  --bs-dropdown-item-padding-y: var(--bh-pad-y);
+  --bs-dropdown-item-padding-x: var(--bh-pad-x);
+  --bs-dropdown-link-color: var(--bh-text);
+  --bs-dropdown-link-hover-color: var(--bh-accent-fg);
+  --bs-dropdown-link-hover-bg: var(--bh-accent);
+  --bs-dropdown-link-active-color: var(--bh-accent-fg);
+  --bs-dropdown-link-active-bg: var(--bh-accent);
+  --bs-dropdown-link-disabled-color: var(--bh-disabled-fg);
+  --bs-dropdown-divider-bg: var(--bh-border);
+  --bs-dropdown-header-color: var(--bh-muted);
+  max-height: min(70dvh, 32rem);
+  overflow-y: auto;
+  border-radius: var(--bh-radius);
+  box-shadow: var(--bh-shadow-lg);
+}
+
+:is(:root, [data-bh-theme]) .list-group {
+  --bs-list-group-color: var(--bh-text);
+  --bs-list-group-bg: var(--bh-surface);
+  --bs-list-group-border-color: var(--bh-border);
+  --bs-list-group-item-padding-y: var(--bh-cell-pad-y);
+  --bs-list-group-item-padding-x: var(--bh-cell-pad-x);
+  --bs-list-group-action-hover-bg: var(--bh-raise);
+  --bs-list-group-action-hover-color: var(--bh-heading);
+  --bs-list-group-disabled-color: var(--bh-muted);
+  --bs-list-group-disabled-bg: var(--bh-surface);
+  --bs-list-group-active-color: var(--bh-accent-fg);
+  --bs-list-group-active-bg: var(--bh-accent);
+  --bs-list-group-active-border-color: var(--bh-accent);
+  border-radius: var(--bh-radius);
+}
+
+:is(:root, [data-bh-theme]) .pagination {
+  --bs-pagination-color: var(--bh-text);
+  --bs-pagination-bg: var(--bh-surface);
+  --bs-pagination-border-color: var(--bh-border);
+  --bs-pagination-font-size: var(--bh-font-size-sm);
+  --bs-pagination-hover-color: var(--bh-heading);
+  --bs-pagination-hover-bg: var(--bh-raise);
+  --bs-pagination-hover-border-color: var(--bh-border-strong);
+  --bs-pagination-focus-color: var(--bh-heading);
+  --bs-pagination-focus-bg: var(--bh-raise);
+  --bs-pagination-focus-box-shadow: var(--bh-focus-ring);
+  --bs-pagination-active-color: var(--bh-accent-fg);
+  --bs-pagination-active-bg: var(--bh-accent);
+  --bs-pagination-active-border-color: var(--bh-accent);
+  --bs-pagination-disabled-color: var(--bh-muted);
+  --bs-pagination-disabled-bg: var(--bh-surface);
+  --bs-pagination-disabled-border-color: var(--bh-border);
+}
+
+:is(:root, [data-bh-theme]) .progress {
+  --bs-progress-bg: var(--bh-raise);
+  --bs-progress-bar-bg: var(--bh-accent);
+  --bs-progress-bar-color: var(--bh-accent-fg);
+  border-radius: var(--bh-radius-pill);
+}
+
+:is(:root, [data-bh-theme]) .nav-link:focus-visible {
+  box-shadow: var(--bh-focus-ring);
+}
+
+// ---------------------------------------------------------------------------
+// 10. The application chrome
+// ---------------------------------------------------------------------------
+:is(:root, [data-bh-theme]) .bh-navbar {
+  background: var(--bh-surface);
+  border-bottom: var(--bh-border-width) solid var(--bh-border);
+}
+
+:is(:root, [data-bh-theme]) .bh-navbar .navbar-brand {
+  color: var(--bh-accent);
+  font-family: var(--bh-font-heading);
+  text-transform: var(--bh-label-transform);
+}
+
+:is(:root, [data-bh-theme]) .bh-navbar .nav-link,
+:is(:root, [data-bh-theme]) .bh-navbar .dropdown-toggle {
+  color: var(--bh-muted);
+  font-size: var(--bh-font-size);
+}
+
+:is(:root, [data-bh-theme]) .bh-navbar .nav-link:hover,
+:is(:root, [data-bh-theme]) .bh-navbar .nav-link:focus,
+:is(:root, [data-bh-theme]) .bh-navbar .dropdown-toggle:hover,
+:is(:root, [data-bh-theme]) .bh-navbar .dropdown-toggle:focus {
+  color: var(--bh-accent);
+}
+
+:is(:root, [data-bh-theme]) .bh-navbar .nav-link.active {
+  color: var(--bh-heading);
+  border-bottom-color: var(--bh-marker);
+}
+
+// The border was wired and the rest of the button was not, which on a phone is the
+// only control in the navbar: Bootstrap paints the toggler and draws its icon from
+// `currentColor` through `--bs-navbar-color`, left at the default theme's muted
+// green. Two `--bs-navbar-*` variables cover the button, the icon, and the brand
+// and link colours restated below them.
+:is(:root, [data-bh-theme]) .bh-navbar {
+  --bs-navbar-color: var(--bh-muted);
+  --bs-navbar-hover-color: var(--bh-accent);
+}
+
+:is(:root, [data-bh-theme]) .bh-navbar .navbar-toggler {
+  border-color: var(--bh-border);
+  color: var(--bh-muted);
+}
+
+// The icon is a background SVG with its stroke colour baked into the data URI, so
+// there is no property a token can reach — the three bars stay the default theme's
+// green whatever the theme, and on a phone this is the only control in the navbar.
+// Redrawn from `currentColor` so it follows the rule above.
+//
+// Not-terminal only, and that exclusion is the point: the baked colour *is* right
+// for the terminal, and swapping the default's SVG for a gradient that merely
+// looks the same breaks the terminal equality described at the top of this
+// file.
+// Scoped in place rather than moved down to the modern layer, because where it
+// sits decides it against the navbar rules above.
+@scope (#{$bh-scope}) to (#{$bh-scope-limit}) {
+  #{$bh-modern} .bh-navbar .navbar-toggler-icon {
+    // Bars at 0–18%, 41–59% and 82–100%: one 41%-tall repeat, drawn twice and
+    // clipped, which is three bars and one declaration.
+    background-image: repeating-linear-gradient(
+      to bottom,
+      currentColor 0 18%,
+      transparent 18% 41%
+    );
+  }
+}
+
+:is(:root, [data-bh-theme]) .bh-footer {
+  background: var(--bh-surface);
+  border-top: var(--bh-border-width) solid var(--bh-border);
+  color: var(--bh-muted);
+  font-size: var(--bh-font-size);
+}
+
+:is(:root, [data-bh-theme]) .bh-rule,
+:is(:root, [data-bh-theme]) .bh-section-title {
+  color: var(--bh-muted);
+}
+
+:is(:root, [data-bh-theme]) .bh-rule {
+  margin: var(--bh-gap) 0;
+}
+
+:is(:root, [data-bh-theme]) .bh-section-title {
+  text-transform: var(--bh-label-transform);
+}
+
+:is(:root, [data-bh-theme]) .bh-section-title::before {
+  color: var(--bh-marker);
+}
+
+:is(:root, [data-bh-theme]) .bh-cursor::after {
+  content: var(--bh-caret);
+  color: var(--bh-accent);
+}
+
+:is(:root, [data-bh-theme]) .bh-loading {
+  color: var(--bh-muted);
+}
+
+:is(:root, [data-bh-theme]) .bh-skeleton-block {
+  border-radius: var(--bh-radius);
+}
+
+// -- Landing page ---------------------------------------------------------
+:is(:root, [data-bh-theme]) .bh-wordmark {
+  color: var(--bh-accent);
+  font-family: var(--bh-font-heading);
+  letter-spacing: var(--bh-heading-tracking);
+  text-transform: var(--bh-label-transform);
+}
+
+:is(:root, [data-bh-theme]) .bh-tagline {
+  color: var(--bh-text);
+}
+
+:is(:root, [data-bh-theme]) .bh-lead {
+  color: var(--bh-muted);
+}
+
+:is(:root, [data-bh-theme]) .bh-kicker {
+  border: var(--bh-border-width) solid var(--bh-marker);
+  color: var(--bh-marker);
+  border-radius: var(--bh-radius-pill);
+  font-size: var(--bh-label-size);
+  letter-spacing: var(--bh-label-tracking);
+}
+
+:is(:root, [data-bh-theme]) .bh-feature-card {
+  border-left: 3px solid var(--bh-marker);
+}
+
+:is(:root, [data-bh-theme]) .bh-feature-card .card-title {
+  color: var(--bh-warning);
+  text-transform: var(--bh-label-transform);
+  letter-spacing: var(--bh-label-tracking);
+}
+
+:is(:root, [data-bh-theme]) .bh-feature-card .card-text {
+  color: var(--bh-muted);
+}
+
+// -- The faux terminal on the landing page --------------------------------
+:is(:root, [data-bh-theme]) .terminal-block {
+  border: var(--bh-border-width) solid var(--bh-border);
+  background: var(--bh-ground);
+  border-radius: var(--bh-radius-lg);
+}
+
+:is(:root, [data-bh-theme]) .terminal-block-bar {
+  background: var(--bh-raise);
+  border-bottom: var(--bh-border-width) solid var(--bh-border);
+  color: var(--bh-muted);
+  font-size: var(--bh-label-size);
+}
+
+:is(:root, [data-bh-theme]) .terminal-block-bar::before {
+  color: var(--bh-muted);
+}
+
+:is(:root, [data-bh-theme]) .terminal-block-body {
+  font-family: var(--bh-font-mono);
+  font-size: var(--bh-font-size-sm);
+}
+
+:is(:root, [data-bh-theme]) .bh-in {
+  color: var(--bh-text);
+}
+:is(:root, [data-bh-theme]) .bh-in::before {
+  color: var(--bh-accent);
+}
+:is(:root, [data-bh-theme]) .bh-out {
+  color: var(--bh-muted);
+}
+:is(:root, [data-bh-theme]) .bh-out-ok {
+  color: var(--bh-success);
+}
+:is(:root, [data-bh-theme]) .bh-out-accent {
+  color: var(--bh-marker);
+}
+:is(:root, [data-bh-theme]) .bh-out-warn {
+  color: var(--bh-warning);
+}
+
+// -- Section sidebar ------------------------------------------------------
+:is(:root, [data-bh-theme]) .bh-sidenav .nav-link {
+  color: var(--bh-muted);
+}
+
+:is(:root, [data-bh-theme]) .bh-sidenav .nav-link:hover,
+:is(:root, [data-bh-theme]) .bh-sidenav .nav-link:focus {
+  color: var(--bh-accent);
+}
+
+:is(:root, [data-bh-theme]) .bh-sidenav .nav-link.active {
+  color: var(--bh-heading);
+  border-left-color: var(--bh-marker);
+}
+
+:is(:root, [data-bh-theme]) .bh-sidenav .nav-link.disabled,
+:is(:root, [data-bh-theme]) .bh-sidenav .nav-link[aria-disabled="true"] {
+  color: var(--bh-muted);
+  border-left: 2px var(--bh-disabled-border-style) var(--bh-border);
+}
+
+:is(:root, [data-bh-theme]) .bh-nav-dirty::after {
+  color: var(--bh-warning);
+}
+
+// -- Utility text ---------------------------------------------------------
+:is(:root, [data-bh-theme]) .bh-muted {
+  color: var(--bh-muted);
+}
+:is(:root, [data-bh-theme]) .bh-warning {
+  color: var(--bh-warning);
+}
+:is(:root, [data-bh-theme]) .bh-danger {
+  color: var(--bh-danger);
+}
+:is(:root, [data-bh-theme]) .bh-mono-label {
+  color: var(--bh-muted);
+  font-size: var(--bh-label-size);
+  letter-spacing: var(--bh-label-tracking);
+  text-transform: var(--bh-label-transform);
+}
+// The twin of the rule in `theme.scss`: the selector above matches at the same
+// specificity and is declared later, so without this the accent row's tagline
+// would go back to the dim color on every theme. The list-group form is the
+// account page's picker; the dropdown form is every menu that can still hover
+// a `.bh-mono-label`.
+:is(:root, [data-bh-theme]) .dropdown-item:where(:hover, :focus, .active, :active) .bh-mono-label,
+:is(:root, [data-bh-theme]) .list-group-item:where(:hover, :focus, .active, :active) .bh-mono-label {
+  color: inherit;
+}
+
+// -- Rendered markdown ----------------------------------------------------
+:is(:root, [data-bh-theme]) .bh-md blockquote {
+  border-left: var(--bh-border-width) solid var(--bh-border);
+  color: var(--bh-muted);
+}
+
+:is(:root, [data-bh-theme]) .bh-md pre {
+  background: var(--bh-raise);
+  border-radius: var(--bh-radius-sm);
+}
+
+:is(:root, [data-bh-theme]) .bh-md img {
+  border: var(--bh-border-width) solid var(--bh-border);
+  border-radius: var(--bh-radius);
+}
+
+// ===========================================================================
+// MODERN — everything below is what "not a terminal" means
+// ===========================================================================
+// Nothing here is a token, because none of it is a spectrum the five themes sit
+// at points on: it is one theme's period detail that the other four drop. Keeping
+// it behind a `:not()` is also what makes the terminal equality at the top of
+// this file hold.
+//
+// All of it is inside one `@scope`, whose limit is a nested terminal root — see
+// the note on `$bh-modern` at the top of this file for why a descendant selector
+// alone gets the gallery wrong. The rules are unindented inside it deliberately:
+// the block wraps four hundred lines, and indenting them would have hidden the
+// change that matters in a diff that touched every one of them.
+@scope (#{$bh-scope}) to (#{$bh-scope-limit}) {
+
+// -- The scanlines and the CRT bloom -------------------------------------
+// Texture on a tube, a rendering artefact on anything else.
+#{$bh-modern} body::after {
+  display: none;
+}
+
+// -- Type ------------------------------------------------------------------
+// A heading scale with some range in it. The terminal's 1.35rem h1 is a
+// deliberate flatness that reads as cramped everywhere else; scaled off the body
+// size so one token still moves the whole page.
+#{$bh-modern} {
+  h1 {
+    font-size: calc(var(--bh-font-size) * 2.1);
+  }
+  h2 {
+    font-size: calc(var(--bh-font-size) * 1.6);
+  }
+  h3 {
+    font-size: calc(var(--bh-font-size) * 1.3);
+  }
+  h4 {
+    font-size: calc(var(--bh-font-size) * 1.12);
+  }
+  h5,
+  h6 {
+    font-size: var(--bh-font-size);
+  }
+}
+
+#{$bh-modern} h1,
+#{$bh-modern} h2,
+#{$bh-modern} h3,
+#{$bh-modern} h4,
+#{$bh-modern} h5,
+#{$bh-modern} h6 {
+  color: var(--bh-heading);
+}
+
+#{$bh-modern} code {
+  padding: 0.1em 0.35em;
+  border-radius: var(--bh-radius-sm);
+}
+
+// -- Weights ---------------------------------------------------------------
+// 700 on every button, label, and table header is the terminal's way of having no
+// other emphasis available. With a proportional face and a real heading scale it
+// just reads as shouting.
+#{$bh-modern} .btn {
+  --bs-btn-font-weight: 500;
+}
+
+#{$bh-modern} .form-label,
+#{$bh-modern} .col-form-label {
+  font-weight: 500;
+}
+
+#{$bh-modern} th,
+#{$bh-modern} .table > :not(caption) > * > th {
+  font-weight: 600;
+}
+
+#{$bh-modern} .badge {
+  --bs-badge-font-weight: 600;
+  --bs-badge-padding-y: 0.15em;
+  --bs-badge-padding-x: 0.65em;
+  padding: 0.15em 0.65em;
+  font-weight: 600;
+}
+
+// A radio is round. `theme.scss` squares it off by hand — Bootstrap writes that
+// `border-radius: 50%` literally, so `$enable-rounded: false` cannot reach it —
+// and every other theme wants the circle back, because a square radio beside a
+// square checkbox gives a reader no way to tell "pick one" from "pick any".
+#{$bh-modern} .form-check-input[type="radio"] {
+  border-radius: 50%;
+}
+
+#{$bh-modern} .form-control:disabled,
+#{$bh-modern} .form-select:disabled {
+  border-color: var(--bh-border);
+}
+
+// -- The box-drawing marks -------------------------------------------------
+// `.bh-rule` repeats `─` for 240 characters and `.bh-section-title` brackets a
+// heading with `┌─ … ─┤`. They are the most distinctly dated marks in the
+// interface, and they are also the easiest to retire cleanly: the glyphs have
+// always come from CSS `content` rather than from JSX, so no component has ever
+// known which character the theme rules with.
+#{$bh-modern} .bh-rule::before,
+#{$bh-modern} .bh-section-title::after {
+  content: none;
+}
+
+#{$bh-modern} .bh-rule {
+  border-top: var(--bh-border-width) solid var(--bh-border);
+}
+
+// With the bracket gone the title needs a mark of its own, or it is a line of
+// grey text floating above a card with nothing tying it to the section.
+#{$bh-modern} .bh-section-title {
+  gap: 0.5rem;
+}
+
+#{$bh-modern} .bh-section-title::before {
+  content: "";
+  display: block;
+  flex: 0 0 auto;
+  width: 3px;
+  height: 0.9em;
+  background: var(--bh-marker);
+  border-radius: var(--bh-radius-pill);
+}
+
+// -- The faint lines and washes --------------------------------------------
+// Every rule in this block restates a value that `theme.scss` compiled as an
+// `rgba()` of a palette colour. The engine's `color-mix()` produces the identical
+// colour, but the browser *serializes* it differently — `color(srgb 0.35 0.48
+// 0.39 / 0.45)` against `rgba(90, 122, 99, 0.45)` — so restating them for the
+// terminal would have traded a byte-identical default for a merely
+// indistinguishable one. Not worth it: the value of the equality next door is
+// that it has no tolerance to argue about. So the terminal keeps its own compiled
+// lines and only the other four themes derive theirs.
+#{$bh-modern} .table {
+  --bs-table-striped-bg: #{bh-wash(accent, 4%)};
+  --bs-table-active-bg: #{bh-wash(marker, 10%)};
+  --bs-table-hover-bg: #{bh-wash(accent, 8%)};
+}
+
+#{$bh-modern} .bh-skeleton-row > td {
+  border-bottom-color: #{bh-tint(border, 40%)};
+}
+
+#{$bh-modern} .bh-skeleton-block {
+  border-color: #{bh-tint(border, 40%)};
+}
+
+// -- The two background SVGs ------------------------------------------------
+// A `url("data:…")` cannot read a custom property, so a themed chevron is a
+// different image rather than a recoloured one. One neutral grey contrasts
+// adequately with all four alternative grounds, and the terminal keeps the
+// phosphor-dim one `theme.scss` encoded.
+#{$bh-modern} .form-select {
+  background-image: var(--bh-select-chevron);
+}
+
+#{$bh-modern} .btn-close {
+  --bs-btn-close-bg: var(--bh-close-glyph);
+}
+
+// -- Label typography ------------------------------------------------------
+// Three marks track out wider than the general label token (0.08em against
+// 0.06em) because the terminal wanted them to. Nothing else does.
+#{$bh-modern} .bh-navbar .navbar-brand,
+#{$bh-modern} .terminal-block-bar {
+  letter-spacing: var(--bh-label-tracking);
+}
+
+// A section title is an `<h2>`, and in these themes it is allowed to look like
+// one. On the terminal it is a 12px uppercase label because that is what fits
+// inside `┌─ … ─┤`; with the bracket dropped there is nothing holding it small,
+// and a 12px grey label above a full-width card reads as a caption for the thing
+// above it rather than a heading for the thing below. `none` even under sandstone,
+// whose smaller labels do still shout: this one is too big to.
+#{$bh-modern} .bh-section-title {
+  font-size: calc(var(--bh-font-size) * 1.15);
+  font-weight: 600;
+  letter-spacing: var(--bh-heading-tracking);
+  text-transform: none;
+  color: var(--bh-heading);
+}
+
+#{$bh-modern} .dropdown-header {
+  font-size: var(--bh-label-size);
+  text-transform: var(--bh-label-transform);
+  letter-spacing: var(--bh-label-tracking);
+}
+
+#{$bh-modern} .badge {
+  letter-spacing: var(--bh-label-tracking);
+}
+
+// `theme.scss` picks these three labels with `color-contrast()`, which for the
+// neutral fills answers `#fff` — a tenth colour, and the right one there.
+#{$bh-modern} .badge.bg-secondary {
+  background-color: var(--bh-muted) !important;
+  color: var(--bh-surface) !important;
+}
+
+#{$bh-modern} .badge.bg-light,
+#{$bh-modern} .badge.bg-dark {
+  background-color: var(--bh-raise) !important;
+  color: var(--bh-text) !important;
+}
+
+// -- Skeletons -------------------------------------------------------------
+// The `▒` fill is the terminal's answer to a shimmer. In a proportional face it
+// reads as mojibake, so the bars become bars — still with no animation, because
+// the reason there was never a shimmer was never the theme.
+#{$bh-modern} .bh-skeleton {
+  background: #{bh-tint(muted, 22%)};
+  border-radius: var(--bh-radius-sm);
+  color: transparent;
+  min-height: 0.85em;
+}
+
+// -- Navbar ----------------------------------------------------------------
+// Sticky, because the nav is how you leave a long page, and a docs article is
+// the longest page in the product. Translucent over a blur so the page reads as
+// continuing underneath rather than being cut off.
+#{$bh-modern} .bh-navbar {
+  background: #{bh-tint(surface, 88%)};
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+#{$bh-modern} .bh-navbar .navbar-brand {
+  color: var(--bh-heading);
+  font-weight: 700;
+}
+
+#{$bh-modern} .bh-navbar .nav-link,
+#{$bh-modern} .bh-navbar .dropdown-toggle {
+  border-radius: var(--bh-radius-sm);
+  padding: 0.3rem 0.65rem;
+}
+
+#{$bh-modern} .bh-navbar .nav-link:hover,
+#{$bh-modern} .bh-navbar .nav-link:focus,
+#{$bh-modern} .bh-navbar .dropdown-toggle:hover,
+#{$bh-modern} .bh-navbar .dropdown-toggle:focus {
+  color: var(--bh-heading);
+  background: var(--bh-raise);
+}
+
+// "You are here" as a filled pill rather than a 2px underline. The nav now has a
+// dropdown toggle in it that cannot carry an underline at all, and on a wrapped
+// navbar row an underline lands under the wrong item at some widths.
+#{$bh-modern} .bh-navbar .nav-link.active {
+  background: #{bh-tint(marker, 15%)};
+  border-bottom: 0;
+  box-shadow: inset 0 0 0 1px #{bh-tint(marker, 40%)};
+}
+
+#{$bh-modern} .bh-footer {
+  font-size: var(--bh-font-size-sm);
+  padding: 1.25rem 0;
+}
+
+// -- Landing page ----------------------------------------------------------
+#{$bh-modern} .bh-hero {
+  padding-block: 4.5rem 3rem;
+}
+
+#{$bh-modern} .bh-wordmark {
+  color: var(--bh-heading);
+  font-size: calc(var(--bh-font-size) * 3.1);
+  font-weight: var(--bh-heading-weight);
+  line-height: 1.05;
+}
+
+#{$bh-modern} .bh-tagline {
+  font-size: calc(var(--bh-font-size) * 1.3);
+}
+
+#{$bh-modern} .bh-lead {
+  font-size: var(--bh-font-size-lg);
+  line-height: 1.65;
+}
+
+#{$bh-modern} .bh-kicker {
+  border-color: #{bh-tint(marker, 45%)};
+  background: #{bh-tint(marker, 10%)};
+  padding: 0.2rem 0.7rem;
+}
+
+#{$bh-modern} .bh-feature-card .card-title {
+  color: var(--bh-heading);
+  font-size: var(--bh-font-size-lg);
+}
+
+// A quoted terminal rather than the page's own surface: it is a picture of a shell
+// session, and a shell session is a dark monospaced panel whatever surrounds it.
+#{$bh-modern} .terminal-block {
+  box-shadow: var(--bh-shadow);
+}
+
+#{$bh-modern} .terminal-block {
+  background: color-mix(in srgb, var(--bh-ground) 88%, var(--bh-heading));
+}
+
+#{$bh-modern} .terminal-block-bar {
+  padding: 0.4rem 0.75rem;
+}
+
+#{$bh-modern} .terminal-block-body {
+  padding: 0.9rem 1rem;
+}
+
+// -- Section sidebar and tabs ---------------------------------------------
+#{$bh-modern} .bh-sidenav .nav-link {
+  border-radius: var(--bh-radius-sm);
+  padding: 0.4rem 0.65rem;
+}
+
+#{$bh-modern} .bh-sidenav .nav-link:hover,
+#{$bh-modern} .bh-sidenav .nav-link:focus {
+  color: var(--bh-heading);
+  background: var(--bh-raise);
+}
+
+#{$bh-modern} .bh-sidenav .nav-link.active {
+  background: #{bh-tint(marker, 14%)};
+}
+
+// -- Depth ----------------------------------------------------------------
+#{$bh-modern} .bh-auth-card {
+  box-shadow: var(--bh-shadow);
+}
+
+#{$bh-modern} .bh-auth-card {
+  box-shadow: var(--bh-shadow-lg);
+}
+
+#{$bh-modern} .alert {
+  background: #{bh-wash(text, 3%)};
+}
+
+@each $variant, $token in $bh-status-variants {
+  #{$bh-modern} .alert-#{$variant} {
+    background: #{bh-wash($token, 8%)};
+  }
+}
+
+// End of the modern `@scope`.
+}

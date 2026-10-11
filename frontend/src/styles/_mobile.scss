@@ -1,0 +1,274 @@
+/* Narrow-viewport chrome — every theme, including the default.
+ *
+ * Deliberately NOT scoped to `[data-bh-theme]`, unlike `themes/_engine.scss`.
+ * "Bad on mobile" is a complaint about the interface as it ships, so the fixes
+ * belong to the interface rather than to the four new looks — a reader who never
+ * touches the theme switcher should still get them.
+ *
+ * That makes them the one part of this change that can affect the default theme,
+ * so every rule here lives inside `media-breakpoint-down(md)` and nothing here
+ * paints a colour.
+ *
+ * Written in tokens where a token exists, so it tracks whichever theme is on.
+ *
+ * `studio.css` is imported *after* this file (`main.tsx`) and is the compact
+ * midnight density every page uses. A floor declared only here loses to
+ * `[data-bh-theme="slate"] .form-control { font-size: 0.75rem }` and friends.
+ * Type and control sizes that a `studio.css` rule also sets are restated at
+ * the end of `studio.css` at a specificity that beats that attribute. Layout
+ * that `studio.css` never names can stay here.
+ *
+ * **A bare selector here does not necessarily win, and that is the trap.** This
+ * file is imported last, which settles ties — but `themes/_engine.scss` scopes
+ * everything it declares under `[data-bh-theme]`, and its second layer adds a
+ * `:not()` on top of that. So `body` here loses to `body` there whatever the
+ * order, and a rule written the obvious way is silently dead the moment a theme
+ * is selected. Not hypothetical: the 16px field size below is the entire
+ * iOS-zoom fix and it reached no theme at all, while the hero kept its 4.5rem
+ * desktop padding on a phone. Neither looked wrong in the source.
+ *
+ * `every-theme` is the answer: it emits each rule three times, once per layer the
+ * engine might have declared the same property in, so the last one always both
+ * matches and outranks. Scoping this file under the attribute instead would be
+ * shorter and wrong — the attribute is absent until the boot script runs, and
+ * those two states must compute identically.
+ */
+
+/// Emit one rule at a specificity that beats both layers of the theme engine.
+///
+/// The bare selector carries the unattributed default, `[data-bh-theme]` ties with
+/// the engine's token layer, and `$bh-modern` ties with its not-terminal layer;
+/// being last in the cascade turns each tie into a win. Only for properties a
+/// theme also sets — layout that no theme touches needs one selector and says so
+/// more clearly with one.
+///
+/// Each selector is passed separately rather than as one comma-separated string,
+/// because a scope has to be prepended to every branch of the list and
+/// interpolating `"a, b"` after `[data-bh-theme] ` would scope only `a`.
+/// @param {String...} $selectors - What to style, each without any theme scope.
+@mixin every-theme($selectors...) {
+  $scoped: ();
+  @each $selector in $selectors {
+    $scoped: append($scoped, unquote($selector), comma);
+    $scoped: append($scoped, unquote("[data-bh-theme] #{$selector}"), comma);
+    $scoped: append($scoped, unquote("#{$bh-modern} #{$selector}"), comma);
+  }
+
+  #{$scoped} {
+    @content;
+  }
+}
+
+@include media-breakpoint-down(md) {
+  // 13px body copy on a phone held at arm's length is the single biggest
+  // legibility problem in the product. The floor is 15px; a theme that already
+  // asks for more keeps it, because `max()` takes the larger.
+  @include every-theme("body") {
+    font-size: max(var(--bh-font-size, 0.8125rem), 0.9375rem);
+  }
+
+  // Under 16px, iOS Safari zooms the page when a field takes focus and does not
+  // zoom back out — so every subsequent tap is on a viewport the layout was
+  // never measured at. This is the whole fix, and it has to be exactly 16px.
+  @include every-theme(".form-control", ".form-select", "textarea.form-control") {
+    font-size: 1rem;
+  }
+
+  // The floor above moves `body` and nothing that sizes itself from a token, so
+  // without these two the page reads at 15px with 13px buttons and 11px labels on
+  // it. A button is also the thing being aimed at, and a label at 11px on glass
+  // is the smallest type in the product.
+  @include every-theme(".btn") {
+    font-size: max(var(--bh-font-size, 0.8125rem), 0.9375rem);
+  }
+
+  // The second selector is Bootstrap's own shape, restated for the same reason
+  // `theme.scss` restates it a few hundred lines up: `.table` reaches its cells
+  // through `.table > :not(caption) > * > *`, which outranks a bare `th`, so the
+  // engine sizes headers through that shape and a plain `th` here never lands.
+  @include every-theme(
+    "th",
+    ".table > :not(caption) > * > th",
+    ".form-label",
+    ".bh-mono-label"
+  ) {
+    font-size: max(var(--bh-label-size, 0.6875rem), 0.8125rem);
+  }
+
+  // A table is the shape many of this product's pages are, and none of them are
+  // wrapped in `.table-responsive`. Without a wrapper the widest row sets the
+  // width of the *document*, so an audit log gives the whole page a horizontal
+  // scrollbar and the navbar scrolls sideways with it.
+  //
+  // `display: block` on the table itself is the fix that needs no wrapper: the
+  // table box becomes a scroll container and the rows lay out inside it as an
+  // anonymous table. Cells stop wrapping, which is the point — an action name,
+  // an actor, and a timestamp read worse as three stacked fragments than as one
+  // line you swipe. `overflow-wrap` stays available to anything that opts in.
+  .table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    // A scroll container with no visible edge looks like clipped content, so the
+    // scrollbar is left visible rather than overlaid.
+    scrollbar-width: thin;
+  }
+
+  // Sticky here for every theme, including the default. On a phone the nav is the
+  // only way out of a long page, such as a docs article — the modern themes make
+  // it sticky at every width, but "you cannot reach the nav" is a
+  // narrow-viewport complaint first.
+  .bh-navbar {
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+  }
+
+  // Nav rows in the collapsed navbar: full width, thumb-sized, and separated, so
+  // "Home" and "Docs" are not two lines of text 4px apart.
+  .bh-navbar .navbar-collapse {
+    padding-bottom: 0.5rem;
+    // A sticky navbar whose menu is longer than the screen traps the last item
+    // out of reach, and this nav holds links plus three dropdowns.
+    max-height: calc(100dvh - 3.5rem);
+    overflow-y: auto;
+  }
+
+  .bh-navbar .navbar-collapse .nav-link,
+  .bh-navbar .navbar-collapse .dropdown-toggle {
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+
+  // A `Dropdown` inside a collapsed navbar renders its menu absolutely
+  // positioned over the rest of the nav, so the project switcher covers the
+  // links under it and can run off the bottom of a short screen. Flattened into
+  // the flow, it reads as an indented sub-list — which is what it is.
+  .bh-navbar .navbar-collapse .dropdown-menu {
+    position: static;
+    float: none;
+    width: 100%;
+    margin: 0;
+    padding-left: 0.75rem;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  // The section sidebar is already a horizontally scrolling strip at this width.
+  // What it lacks is somewhere to put a thumb and any sign that it scrolls.
+  .bh-sidenav {
+    gap: 0.25rem;
+    padding-bottom: 0.35rem;
+    scrollbar-width: thin;
+  }
+
+  .bh-sidenav .nav-link {
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
+  }
+
+  // Two 3rem-wide buttons at opposite ends of a card footer are a miss waiting
+  // to happen. Full-width stacked rows instead, which is also what `d-grid`
+  // would have said if every call site had said it.
+  .card-footer .btn,
+  .modal-footer .btn {
+    flex: 1 1 auto;
+  }
+
+  // The hero is sized for a desktop column; on a phone it is a wall of type
+  // before anything actionable.
+  @include every-theme(".bh-hero") {
+    padding-block: 2.25rem 1.5rem;
+  }
+
+  @include every-theme(".bh-wordmark") {
+    // A ratio rather than a length, because the two families disagree about how
+    // big a wordmark is by an amount worth keeping: the terminal's is 1.9rem of
+    // uppercase mono and the others are a 3.1× display line. Both are too big
+    // here, and both should still look like themselves.
+    font-size: max(1.6rem, calc(var(--bh-font-size, 0.8125rem) * 2.2));
+    letter-spacing: 0.06em;
+  }
+
+  // The modern heading scale is a multiple of the body size, and `h1` at 2.1× is
+  // 31px — a project name in two lines beside a button it now crowds. The
+  // terminal's flat 1.35rem needs nothing, which is why this is scoped rather
+  // than doubled: there is no one length that is right for both.
+  //
+  // In the same `@scope` as the engine's modern layer, and it has to be: outside
+  // one, `$bh-modern`'s `:scope` is the root element, so these would apply to
+  // every heading in a modern document including a nested terminal preview — the
+  // engine stopping at the nearest terminal root and this file not doing so is a
+  // difference that shows up only on a phone, on `/themes`. The `every-theme`
+  // mixin above needs no such treatment: its three branches carry identical
+  // declarations, so its modern branch matching inside a terminal subtree changes
+  // nothing about what that subtree computes.
+  @scope (#{$bh-scope}) to (#{$bh-scope-limit}) {
+    #{$bh-modern} h1 {
+      font-size: calc(var(--bh-font-size) * 1.7);
+    }
+
+    #{$bh-modern} h2 {
+      font-size: calc(var(--bh-font-size) * 1.35);
+    }
+  }
+
+  // Box-drawing rules are as wide as the glyphs they repeat, and the repeat is
+  // 240 characters. Clipped is fine; a horizontal scrollbar on the document is
+  // not, and `overflow: hidden` on the rule alone does not stop a 240ch inline
+  // box from widening its parent.
+  .bh-rule,
+  .bh-section-title {
+    max-width: 100%;
+  }
+
+  // Pagination at default size wraps to three rows on a 390px screen.
+  .pagination {
+    --bs-pagination-padding-x: 0.55rem;
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+  }
+
+  // Title plus an action on one nowrap row slides the action off the right
+  // edge of a 390px screen and shrinks the heading beside it.
+  .bh-page-heading {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .bh-page-heading .bh-page-heading-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  // Filter cards are a row of selects on desktop; on a phone they must stack
+  // or the Reset control sits under the fold of a horizontal scroller.
+  .bh-filter-bar {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .bh-filter-bar .ui-form-group,
+  .bh-filter-bar .form-select,
+  .bh-filter-bar .form-control {
+    width: 100%;
+  }
+
+  .bh-hero-cta {
+    flex-wrap: wrap;
+  }
+
+  .bh-hero-cta .btn {
+    flex: 1 1 auto;
+  }
+
+  .ui-modal-backdrop,
+  .modal-backdrop {
+    padding: 1rem 0.75rem;
+  }
+}
