@@ -540,6 +540,23 @@ first.
   and `render-blueprint.test.ts` makes `domains:` optional and asserts it absent: attaching a domain needs DNS and a
   certificate, which is the first sync's work, not a file nothing has deployed.
 
+### The frontend's cuts
+
+- **Settings has exactly five sections** (`general`, `members`, `tags`, `mcp`, `danger`), and
+  `settings-sections.test.ts` pins the five slugs and that none of them reads an admin-gated endpoint.
+- **The account menu's API reference is the OpenAPI JSON** (`/api/swagger`), because the API serves no static
+  files; a browsable page is ToolExec's `assets/index.html` plus `WEB_SERVER_STATIC_ENABLED=true`, and nothing
+  here needs it.
+- **`LiveSocketContext` holds its registry, provider, and hooks, and nothing subscribes.** The backend has no
+  channel; the run-specific payload parsers went with the run pages.
+- **The theme engine keeps its multi-theme structure** while only the slate theme ships. `studio.css` is the
+  Tailwind import and the `@theme` aliases plus the rules the kept pages use, about a sixth of ToolExec's file.
+- **The marketing page has two labelled halves**, "Designed, in development" and "Works today", and its terminal
+  shows only commands the CLI has. `smoke.spec.ts` asserts the in-development label and the `v1` link.
+- **E2E runs against its own database when it shares a machine with `bun test`.** The spawned backend reads
+  `DATABASE_URL_TEST` / `REDIS_URL_TEST` from the real environment before `.env`, which is how
+  [`docs/cloud-setup.md`](../cloud-setup.md) runs both at once.
+
 ### What each suite covers, and where it stops
 
 - `actions/rbac.test.ts` asserts `actions:permissions` names exactly the thirty registered actions and the level
