@@ -1,0 +1,474 @@
+// Product tokens and historical palette blocks.
+//
+// The React product always carries `data-bh-theme="slate"`. That block is the
+// single fixed midnight system. Older blocks remain while `_engine.scss` is
+// simplified, but no runtime provider, picker, route, or stored choice can
+// activate them.
+//
+// Color, geometry, type, and density travel together. The active block is
+// intentionally compact so every product surface shares one density.
+//
+// ---------------------------------------------------------------------------
+// What is a token, and what is not
+// ---------------------------------------------------------------------------
+// A difference between *one theme and another* is a token. A difference between
+// *the terminal and everything else* is a selector — `_engine.scss` puts those
+// under `:not([data-bh-theme="terminal"])`. That is why there is no
+// `--bh-scanlines: none` here and no `--bh-glyph-display`: scanlines and the
+// `┌─ … ─┤` brackets are not a spectrum the five themes sit at points on, they
+// are one theme's period detail that the other four drop.
+//
+// `[data-bh-theme="terminal"]` still resolves to the historical Sass fallback,
+// but product code never writes that value.
+//
+// ---------------------------------------------------------------------------
+// The token contract. The active block sets every one of these.
+// ---------------------------------------------------------------------------
+//
+// SURFACES   ground, surface, raise, sunken, backdrop — `backdrop` is the scrim
+//            behind a modal, and it is its own token rather than `ground` because
+//            it is the one surface that stays dark on a light theme: a near-white
+//            wash at 80% over a near-white page dims the page instead of covering
+//            it, and the dialog then floats on nothing
+// LINES      border, border-strong
+// TEXT       text, heading, muted, disabled-fg
+// ACCENTS    accent, accent-fg, marker, link-hover
+// STATUS     success, warning, danger, info, and a `-fg` for each
+// MIXING     hover-mix — the colour a hover state moves *towards*: white on a
+//            dark theme, black on a light one. Every derived shade in the engine
+//            is a `color-mix()` against this, so no theme lists a hover value and
+//            none of them can disagree about which direction "hover" is.
+// GEOMETRY   radius, radius-sm, radius-lg, radius-pill, border-width
+// TYPE       font-body, font-heading, font-mono, font-size, font-size-sm,
+//            font-size-lg, line-height, heading-tracking, heading-weight
+// LABELS     label-transform, label-tracking, label-size — `uppercase` with wide
+//            tracking is the terminal idiom, and the modern themes setting `none`
+//            is a surprising amount of why they read as calmer
+// DENSITY    pad-y, pad-x, field-pad-x, card-pad-y, card-pad-x, cell-pad-y,
+//            cell-pad-x, gap — the "crowded" half of the complaint lives here.
+//            `field-pad-x` is separate from `pad-x` because the terminal's inputs
+//            are inset less than its buttons (0.5rem against 0.6rem), and one
+//            token for both silently widened every field on the default theme
+// DEPTH      shadow, shadow-lg, focus-ring
+// CHROME     caret, body-glow, disabled-border-style, container-max
+
+// ---------------------------------------------------------------------------
+// terminal — the default, restated
+// ---------------------------------------------------------------------------
+// Built from the nine base colours and the foreground RGB-channel alias
+// `theme.scss` publishes, and from no hex of its own, which
+// `__tests__/theme-tokens.test.ts` enforces: the default theme still has exactly
+// nine colours in it, and this block cannot quietly become a tenth.
+:root,
+[data-bh-theme="terminal"] {
+  --bh-ground: var(--bh-ground-base);
+  --bh-surface: var(--bh-surface-base);
+  --bh-raise: var(--bh-raise-base);
+  --bh-sunken: var(--bh-ground-base);
+  --bh-backdrop: var(--bh-ground-base);
+
+  --bh-border: var(--bh-dim-base);
+  --bh-border-strong: var(--bh-dim-base);
+
+  --bh-text: var(--bh-text-base);
+  --bh-heading: var(--bh-text-base);
+  --bh-muted: var(--bh-dim-base);
+  --bh-disabled-fg: rgba(var(--bh-fg-base-rgb), 0.5);
+
+  --bh-accent: var(--bh-phosphor-base);
+  --bh-accent-fg: var(--bh-ground-base);
+  --bh-marker: var(--bh-magenta-base);
+  --bh-link-hover: var(--bh-magenta-base);
+
+  --bh-success: var(--bh-phosphor-base);
+  --bh-success-fg: var(--bh-ground-base);
+  --bh-warning: var(--bh-amber-base);
+  --bh-warning-fg: var(--bh-ground-base);
+  --bh-danger: var(--bh-red-base);
+  // Ground, not text: `theme.scss` points `color-contrast()` at these two
+  // palette values, and for this red it picks the dark one — which is what a
+  // `danger` badge and a `danger` button already say on the default theme.
+  --bh-danger-fg: var(--bh-ground-base);
+  --bh-info: var(--bh-magenta-base);
+  --bh-info-fg: var(--bh-ground-base);
+
+  --bh-hover-mix: #fff;
+
+  --bh-radius: 0;
+  --bh-radius-sm: 0;
+  --bh-radius-lg: 0;
+  --bh-radius-pill: 0;
+  --bh-border-width: 1px;
+
+  --bh-font-body: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
+  --bh-font-heading: var(--bh-font-body);
+  --bh-font-mono: var(--bh-font-body);
+  --bh-font-size: 0.8125rem;
+  --bh-font-size-sm: 0.75rem;
+  --bh-font-size-lg: 0.875rem;
+  --bh-line-height: 1.45;
+  --bh-heading-tracking: 0.02em;
+  --bh-heading-weight: 700;
+
+  --bh-label-transform: uppercase;
+  --bh-label-tracking: 0.06em;
+  --bh-label-size: 0.6875rem;
+
+  --bh-pad-y: 0.25rem;
+  --bh-pad-x: 0.6rem;
+  --bh-field-pad-x: 0.5rem;
+  --bh-card-pad-y: 0.6rem;
+  --bh-card-pad-x: 0.75rem;
+  --bh-cell-pad-y: 0.3rem;
+  --bh-cell-pad-x: 0.5rem;
+  --bh-gap: 0.75rem;
+
+  --bh-shadow: none;
+  --bh-shadow-lg: none;
+  --bh-focus-ring: 0 0 0 1px
+    color-mix(in srgb, var(--bh-accent) 35%, transparent);
+
+  --bh-caret: "▊";
+  --bh-body-glow: radial-gradient(
+    900px 380px at 50% -12%,
+    color-mix(in srgb, var(--bh-accent) 5%, transparent),
+    transparent 70%
+  );
+  --bh-disabled-border-style: dashed;
+  --bh-container-max: 1100px;
+}
+
+// ---------------------------------------------------------------------------
+// slate — the fixed midnight system
+// ---------------------------------------------------------------------------
+// Not a selectable look: `index.html` sets `data-bh-theme="slate"` before first
+// paint, and these values define every browser-rendered product page.
+[data-bh-theme="slate"] {
+  --bh-ground: #06070a;
+  --bh-surface: #0f131a;
+  --bh-raise: #151a23;
+  --bh-sunken: #0a0c11;
+  --bh-backdrop: #06070a;
+
+  --bh-border: #222b39;
+  --bh-border-strong: #344155;
+
+  --bh-text: #c9d3e2;
+  --bh-heading: #e9eff8;
+  --bh-muted: #758399;
+  --bh-disabled-fg: var(--bh-muted);
+
+  --bh-accent: #8b7cff;
+  --bh-accent-fg: #ffffff;
+  --bh-marker: #f472b6;
+  --bh-link-hover: #b4a9ff;
+
+  --bh-success: #34d399;
+  --bh-success-fg: #042f2e;
+  --bh-warning: #fbbf24;
+  --bh-warning-fg: #291800;
+  --bh-danger: #fb7185;
+  --bh-danger-fg: #ffffff;
+  --bh-info: #38bdf8;
+  --bh-info-fg: #082f49;
+
+  --bh-hover-mix: #ffffff;
+
+  --bh-radius: 0.35rem;
+  --bh-radius-sm: 0.25rem;
+  --bh-radius-lg: 0.45rem;
+  --bh-radius-pill: 999px;
+  --bh-border-width: 1px;
+
+  --bh-font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --bh-font-heading: var(--bh-font-body);
+  --bh-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
+  // The one size the product reads at. Every density rule in `studio.css` is a
+  // multiple of this, so a page stays as dense as it was and simply gets
+  // bigger — 13px was legible and still made the whole app look far away.
+  --bh-font-size: 0.875rem;
+  --bh-font-size-sm: 0.8125rem;
+  --bh-font-size-lg: 0.9375rem;
+  --bh-line-height: 1.4;
+  --bh-heading-tracking: -0.01em;
+  --bh-heading-weight: 650;
+
+  --bh-label-transform: none;
+  --bh-label-tracking: 0.045em;
+  --bh-label-size: 0.75rem;
+
+  --bh-pad-y: 0.25rem;
+  --bh-pad-x: 0.6rem;
+  --bh-field-pad-x: 0.55rem;
+  --bh-card-pad-y: 0.6rem;
+  --bh-card-pad-x: 0.75rem;
+  --bh-cell-pad-y: 0.32rem;
+  --bh-cell-pad-x: 0.5rem;
+  --bh-gap: 0.6rem;
+
+  --bh-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --bh-shadow-lg: 0 18px 54px rgba(0, 0, 0, 0.58);
+  --bh-focus-ring: 0 0 0 2px var(--bh-ground), 0 0 0 4px
+    color-mix(in srgb, var(--bh-accent) 65%, transparent);
+
+  --bh-caret: "▍";
+  --bh-body-glow: none;
+  --bh-disabled-border-style: solid;
+  --bh-container-max: 1440px;
+}
+
+// ---------------------------------------------------------------------------
+// paper — light, editorial, high contrast
+// ---------------------------------------------------------------------------
+// The only theme with a second typeface: a serif on the headings, because what
+// makes a light interface read as *designed* rather than as unthemed Bootstrap is
+// a type contrast — and it costs nothing here, since the family is a system stack
+// rather than a download.
+[data-bh-theme="paper"] {
+  --bh-ground: #f7f7f5;
+  --bh-surface: #ffffff;
+  --bh-raise: #f0f0ed;
+  --bh-sunken: #ffffff;
+  // Ink, not paper. See the note on `backdrop` in the contract above.
+  --bh-backdrop: #14130f;
+
+  --bh-border: #e0dfd9;
+  --bh-border-strong: #c4c2b8;
+
+  --bh-text: #26251f;
+  --bh-heading: #14130f;
+  --bh-muted: #6a675e;
+  --bh-disabled-fg: var(--bh-muted);
+
+  --bh-accent: #1d4ed8;
+  --bh-accent-fg: #ffffff;
+  --bh-marker: #b45309;
+  --bh-link-hover: #1e3a8a;
+
+  --bh-success: #15803d;
+  --bh-success-fg: #ffffff;
+  --bh-warning: #a16207;
+  --bh-warning-fg: #ffffff;
+  --bh-danger: #b91c1c;
+  --bh-danger-fg: #ffffff;
+  --bh-info: #0369a1;
+  --bh-info-fg: #ffffff;
+
+  --bh-hover-mix: #000000;
+
+  --bh-radius: 0.375rem;
+  --bh-radius-sm: 0.25rem;
+  --bh-radius-lg: 0.5rem;
+  --bh-radius-pill: 999px;
+  --bh-border-width: 1px;
+
+  --bh-font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --bh-font-heading: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+    "Times New Roman", serif;
+  --bh-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
+  --bh-font-size: 0.9375rem;
+  --bh-font-size-sm: 0.8125rem;
+  --bh-font-size-lg: 1.0625rem;
+  --bh-line-height: 1.65;
+  --bh-heading-tracking: -0.01em;
+  --bh-heading-weight: 600;
+
+  --bh-label-transform: none;
+  --bh-label-tracking: 0;
+  --bh-label-size: 0.8125rem;
+
+  --bh-pad-y: 0.375rem;
+  --bh-pad-x: 0.8125rem;
+  --bh-field-pad-x: 0.8125rem;
+  --bh-card-pad-y: 1.125rem;
+  --bh-card-pad-x: 1.25rem;
+  --bh-cell-pad-y: 0.625rem;
+  --bh-cell-pad-x: 0.75rem;
+  --bh-gap: 1rem;
+
+  --bh-shadow: 0 1px 2px rgba(20, 19, 15, 0.06);
+  --bh-shadow-lg: 0 18px 40px rgba(20, 19, 15, 0.14);
+  --bh-focus-ring: 0 0 0 2px var(--bh-surface), 0 0 0 4px
+    color-mix(in srgb, var(--bh-accent) 45%, transparent);
+
+  --bh-caret: "▍";
+  --bh-body-glow: none;
+  --bh-disabled-border-style: solid;
+  --bh-container-max: 1200px;
+}
+
+// ---------------------------------------------------------------------------
+// aurora — vivid dark, roomy, soft-cornered
+// ---------------------------------------------------------------------------
+// The most spacious of the five: a 12px corner, a 1.7 line height, and the
+// largest cell padding. It is "crowded" answered as far as it goes before a runs
+// table stops fitting a laptop, and it sits deliberately at the opposite end of
+// the range from terminal so the switcher demonstrates a choice rather than a
+// preference.
+[data-bh-theme="aurora"] {
+  --bh-ground: #0b1020;
+  --bh-surface: #141b31;
+  --bh-raise: #1c2440;
+  --bh-sunken: #0d1324;
+  --bh-backdrop: #060a15;
+
+  --bh-border: #2a3457;
+  --bh-border-strong: #3f4d7a;
+
+  --bh-text: #e6eaff;
+  --bh-heading: #ffffff;
+  --bh-muted: #98a3c9;
+  --bh-disabled-fg: var(--bh-muted);
+
+  --bh-accent: #7c8cff;
+  --bh-accent-fg: #0b1020;
+  --bh-marker: #ff7ac6;
+  --bh-link-hover: #a5b0ff;
+
+  --bh-success: #3ddc97;
+  --bh-success-fg: #05231a;
+  --bh-warning: #ffc857;
+  --bh-warning-fg: #241a02;
+  --bh-danger: #ff6b6b;
+  --bh-danger-fg: #2b0808;
+  --bh-info: #5ad1ff;
+  --bh-info-fg: #04283a;
+
+  --bh-hover-mix: #ffffff;
+
+  --bh-radius: 0.75rem;
+  --bh-radius-sm: 0.5rem;
+  --bh-radius-lg: 1rem;
+  --bh-radius-pill: 999px;
+  --bh-border-width: 1px;
+
+  --bh-font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --bh-font-heading: var(--bh-font-body);
+  --bh-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
+  --bh-font-size: 0.9375rem;
+  --bh-font-size-sm: 0.8125rem;
+  --bh-font-size-lg: 1.125rem;
+  --bh-line-height: 1.7;
+  --bh-heading-tracking: -0.02em;
+  --bh-heading-weight: 600;
+
+  --bh-label-transform: none;
+  --bh-label-tracking: 0.01em;
+  --bh-label-size: 0.8125rem;
+
+  --bh-pad-y: 0.5rem;
+  --bh-pad-x: 1rem;
+  --bh-field-pad-x: 1rem;
+  --bh-card-pad-y: 1.25rem;
+  --bh-card-pad-x: 1.375rem;
+  --bh-cell-pad-y: 0.75rem;
+  --bh-cell-pad-x: 0.875rem;
+  --bh-gap: 1.25rem;
+
+  --bh-shadow: 0 2px 8px rgba(3, 6, 18, 0.5);
+  --bh-shadow-lg: 0 24px 64px rgba(3, 6, 18, 0.65);
+  --bh-focus-ring: 0 0 0 2px var(--bh-ground), 0 0 0 4px
+    color-mix(in srgb, var(--bh-accent) 70%, transparent);
+
+  --bh-caret: "▍";
+  --bh-body-glow: radial-gradient(
+      1100px 520px at 12% -10%,
+      color-mix(in srgb, var(--bh-accent) 16%, transparent),
+      transparent 68%
+    ),
+    radial-gradient(
+      900px 460px at 92% 4%,
+      color-mix(in srgb, var(--bh-marker) 11%, transparent),
+      transparent 70%
+    );
+  --bh-disabled-border-style: solid;
+  --bh-container-max: 1280px;
+}
+
+// ---------------------------------------------------------------------------
+// sandstone — warm light, low contrast, tight corners
+// ---------------------------------------------------------------------------
+// The light theme for readers who find `paper` glaring: same density, a warmer
+// ground, and a nearly square corner. It is the one alternative that keeps some
+// of terminal's hard-edged feel — including the uppercase labels — with none of
+// its colour.
+[data-bh-theme="sandstone"] {
+  --bh-ground: #f4efe4;
+  --bh-surface: #fdfbf6;
+  --bh-raise: #ece5d6;
+  --bh-sunken: #fffefb;
+  // Ink, not paper. See the note on `backdrop` in the contract above.
+  --bh-backdrop: #1f1a10;
+
+  --bh-border: #dcd2bd;
+  --bh-border-strong: #bdae91;
+
+  --bh-text: #32291a;
+  --bh-heading: #1f1a10;
+  --bh-muted: #756b57;
+  --bh-disabled-fg: var(--bh-muted);
+
+  --bh-accent: #9a3412;
+  --bh-accent-fg: #fdfbf6;
+  --bh-marker: #0f766e;
+  --bh-link-hover: #7c2d12;
+
+  --bh-success: #4d7c0f;
+  --bh-success-fg: #fdfbf6;
+  --bh-warning: #a16207;
+  --bh-warning-fg: #fdfbf6;
+  --bh-danger: #b91c1c;
+  --bh-danger-fg: #fdfbf6;
+  --bh-info: #0e7490;
+  --bh-info-fg: #fdfbf6;
+
+  --bh-hover-mix: #000000;
+
+  --bh-radius: 0.1875rem;
+  --bh-radius-sm: 0.125rem;
+  --bh-radius-lg: 0.25rem;
+  --bh-radius-pill: 999px;
+  --bh-border-width: 1px;
+
+  --bh-font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --bh-font-heading: var(--bh-font-body);
+  --bh-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
+  --bh-font-size: 0.9375rem;
+  --bh-font-size-sm: 0.8125rem;
+  --bh-font-size-lg: 1.0625rem;
+  --bh-line-height: 1.6;
+  --bh-heading-tracking: 0;
+  --bh-heading-weight: 700;
+
+  --bh-label-transform: uppercase;
+  --bh-label-tracking: 0.04em;
+  --bh-label-size: 0.75rem;
+
+  --bh-pad-y: 0.375rem;
+  --bh-pad-x: 0.8125rem;
+  --bh-field-pad-x: 0.8125rem;
+  --bh-card-pad-y: 1rem;
+  --bh-card-pad-x: 1.125rem;
+  --bh-cell-pad-y: 0.5625rem;
+  --bh-cell-pad-x: 0.6875rem;
+  --bh-gap: 0.875rem;
+
+  --bh-shadow: 0 1px 2px rgba(50, 41, 26, 0.08);
+  --bh-shadow-lg: 0 14px 36px rgba(50, 41, 26, 0.18);
+  --bh-focus-ring: 0 0 0 2px var(--bh-surface), 0 0 0 4px
+    color-mix(in srgb, var(--bh-accent) 45%, transparent);
+
+  --bh-caret: "▍";
+  --bh-body-glow: none;
+  --bh-disabled-border-style: solid;
+  --bh-container-max: 1200px;
+}

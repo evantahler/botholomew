@@ -1,0 +1,1270 @@
+// Framework-independent component and utility layer.
+//
+// The React primitives under `src/ui/` own behavior; this file owns their
+// presentation and the small set of layout utility names still present in
+// product markup. Values come from the fixed midnight `--bh-*` contract.
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bh-ground);
+  color: var(--bh-text);
+  font-family: var(--bh-font-body);
+  font-size: var(--bh-font-size);
+  line-height: var(--bh-line-height);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin-block: 0 0.5rem;
+  color: var(--bh-heading);
+  font-family: var(--bh-font-heading);
+  font-weight: var(--bh-heading-weight);
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 2rem;
+}
+
+h2 {
+  font-size: 1.5rem;
+}
+
+h3 {
+  font-size: 1.25rem;
+}
+
+h4,
+.h4 {
+  font-size: 1.1rem;
+}
+
+h5,
+h6 {
+  font-size: 1rem;
+}
+
+p {
+  margin-block: 0 1rem;
+}
+
+a {
+  color: var(--bh-accent);
+  text-decoration: underline;
+}
+
+a:hover {
+  color: var(--bh-link-hover);
+}
+
+hr {
+  margin-block: 1rem;
+  border: 0;
+  border-top: var(--bh-border-width) solid var(--bh-border);
+  opacity: 1;
+}
+
+code,
+pre {
+  font-family: var(--bh-font-mono);
+}
+
+code {
+  color: var(--bh-marker);
+}
+
+pre {
+  margin: 0;
+  color: var(--bh-text);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+.ui-container,
+.container {
+  width: 100%;
+  max-width: var(--bh-container-max);
+  margin-inline: auto;
+  padding-inline: calc(var(--bh-gap) * 1.5);
+}
+
+.ui-container-fluid,
+.container-fluid {
+  max-width: none;
+}
+
+.ui-row,
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  margin-inline: calc(var(--bh-gap) * -0.5);
+}
+
+.ui-row > *,
+.row > * {
+  padding-inline: calc(var(--bh-gap) * 0.5);
+}
+
+.ui-col,
+[class*="ui-col-"] {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+}
+
+@for $i from 1 through 12 {
+  .ui-col-xs-#{$i},
+  .col-#{$i} {
+    flex: 0 0 auto;
+    width: percentage(calc($i / 12));
+  }
+}
+
+@media (min-width: 576px) {
+  @for $i from 1 through 12 {
+    .ui-col-sm-#{$i},
+    .col-sm-#{$i} {
+      flex: 0 0 auto;
+      width: percentage(calc($i / 12));
+    }
+  }
+}
+
+@media (min-width: 768px) {
+  @for $i from 1 through 12 {
+    .ui-col-md-#{$i},
+    .col-md-#{$i} {
+      flex: 0 0 auto;
+      width: percentage(calc($i / 12));
+    }
+  }
+}
+
+@media (min-width: 992px) {
+  @for $i from 1 through 12 {
+    .ui-col-lg-#{$i},
+    .col-lg-#{$i} {
+      flex: 0 0 auto;
+      width: percentage(calc($i / 12));
+    }
+  }
+}
+
+@media (min-width: 1200px) {
+  @for $i from 1 through 12 {
+    .ui-col-xl-#{$i},
+    .col-xl-#{$i} {
+      flex: 0 0 auto;
+      width: percentage(calc($i / 12));
+    }
+  }
+}
+
+.ui-button,
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2.25rem;
+  padding: var(--bh-pad-y) var(--bh-pad-x);
+  border: var(--bh-border-width) solid transparent;
+  border-radius: var(--bh-radius);
+  background: transparent;
+  color: var(--bh-text);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ui-button:hover,
+.btn:hover {
+  text-decoration: none;
+}
+
+.ui-button:focus-visible,
+.btn:focus-visible,
+.ui-form-control:focus,
+.ui-form-select:focus,
+.form-control:focus,
+.form-select:focus {
+  outline: none;
+  box-shadow: var(--bh-focus-ring);
+}
+
+.ui-button:disabled,
+.btn:disabled,
+.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.ui-button:disabled,
+.btn:disabled {
+  border-color: var(--bh-border);
+  background-color: var(--bh-sunken);
+  color: var(--bh-disabled-fg);
+}
+
+// A disabled inline action stays inline. The general disabled fill above is for
+// controls with a box; applying it to the tag/member remove `×` paints every
+// link button as a sunken chip while their shared mutation is in flight.
+.ui-button.ui-variant-link:disabled,
+.btn.btn-link:disabled {
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--bh-disabled-fg);
+}
+
+.ui-button-sm,
+.btn-sm {
+  min-height: 1.75rem;
+  padding: calc(var(--bh-pad-y) * 0.6) calc(var(--bh-pad-x) * 0.75);
+  font-size: var(--bh-font-size-sm);
+}
+
+.ui-button-lg,
+.btn-lg {
+  min-height: 2.75rem;
+  padding: calc(var(--bh-pad-y) * 1.25) calc(var(--bh-pad-x) * 1.25);
+  font-size: var(--bh-font-size-lg);
+}
+
+$ui-tones: (
+  "primary": "accent",
+  "success": "success",
+  "info": "info",
+  "warning": "warning",
+  "danger": "danger",
+  "light": "text",
+  "dark": "ground",
+);
+
+@each $name, $token in $ui-tones {
+  .ui-variant-#{$name},
+  .btn-#{$name},
+  .bg-#{$name} {
+    border-color: var(--bh-#{$token});
+    background-color: var(--bh-#{$token});
+    color: var(--bh-#{$token}-fg, var(--bh-ground));
+  }
+
+  .ui-variant-outline-#{$name},
+  .btn-outline-#{$name} {
+    border-color: var(--bh-#{$token});
+    background-color: transparent;
+    color: var(--bh-#{$token});
+  }
+
+  .ui-variant-outline-#{$name}:hover,
+  .btn-outline-#{$name}:hover {
+    background-color: color-mix(
+      in srgb,
+      var(--bh-#{$token}) 14%,
+      transparent
+    );
+  }
+}
+
+// Secondary means "available, but not the primary path." A muted fill used the
+// same grey family as disabled controls and made Cancel, Save, and card actions
+// look unavailable before opacity was even applied.
+.ui-variant-secondary,
+.btn-secondary {
+  border-color: var(--bh-border-strong);
+  background-color: var(--bh-raise);
+  color: var(--bh-text);
+}
+
+.ui-variant-secondary:hover,
+.btn-secondary:hover {
+  border-color: var(--bh-accent);
+  background-color: color-mix(in srgb, var(--bh-text) 8%, var(--bh-raise));
+  color: var(--bh-heading);
+}
+
+.ui-variant-outline-secondary,
+.btn-outline-secondary {
+  border-color: var(--bh-border-strong);
+  background-color: transparent;
+  color: var(--bh-text);
+}
+
+.ui-variant-outline-secondary:hover,
+.btn-outline-secondary:hover {
+  border-color: var(--bh-accent);
+  background-color: var(--bh-raise);
+  color: var(--bh-heading);
+}
+
+.ui-variant-dark,
+.btn-dark {
+  color: var(--bh-text);
+}
+
+// The tone with no fill and no border: a control that reads as the text it sits
+// in. Every one of them is inline with prose — the × on a tag pill, a table
+// row's "details" reveal — so a fill is not a quieter version of a button here,
+// it is a block over the line being read.
+.ui-variant-link,
+.btn-link {
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--bh-accent);
+  font-weight: inherit;
+}
+
+.ui-variant-link:hover,
+.btn-link:hover {
+  color: var(--bh-link-hover);
+  text-decoration: underline;
+}
+
+.ui-alert,
+.alert {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: calc(var(--bh-card-pad-y) * 0.85) var(--bh-card-pad-x);
+  border: var(--bh-border-width) solid var(--bh-border);
+  border-radius: var(--bh-radius);
+  background: var(--bh-surface);
+}
+
+.ui-alert-content {
+  min-width: 0;
+}
+
+.ui-alert-heading {
+  margin-bottom: 0.35rem;
+  color: inherit;
+}
+
+.ui-close,
+.btn-close {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: currentColor;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ui-badge,
+.badge {
+  display: inline-block;
+  padding: 0.15em 0.6em;
+  border: var(--bh-border-width) solid transparent;
+  border-radius: var(--bh-radius-sm);
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ui-badge-pill,
+.rounded-pill {
+  border-radius: var(--bh-radius-pill);
+}
+
+.ui-badge > .ui-button.ui-variant-link,
+.badge > .btn.btn-link {
+  min-height: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+.ui-card,
+.card {
+  min-width: 0;
+  border: var(--bh-border-width) solid var(--bh-border);
+  border-radius: var(--bh-radius-lg);
+  background: var(--bh-surface);
+  box-shadow: var(--bh-shadow);
+  overflow: hidden;
+}
+
+.ui-card-header,
+.card-header,
+.ui-card-footer,
+.card-footer {
+  padding: calc(var(--bh-card-pad-y) * 0.75) var(--bh-card-pad-x);
+  border-bottom: var(--bh-border-width) solid var(--bh-border);
+  background: var(--bh-raise);
+  color: var(--bh-heading);
+  font-weight: 650;
+}
+
+.ui-card-footer,
+.card-footer {
+  border-top: var(--bh-border-width) solid var(--bh-border);
+  border-bottom: 0;
+}
+
+.ui-card-body,
+.card-body {
+  padding: var(--bh-card-pad-y) var(--bh-card-pad-x);
+}
+
+.ui-card-title,
+.card-title {
+  margin-bottom: 0.5rem;
+}
+
+.ui-card-text:last-child,
+.card-text:last-child {
+  margin-bottom: 0;
+}
+
+.ui-card-border-warning {
+  border-color: var(--bh-warning);
+}
+
+.ui-dropdown,
+.dropdown {
+  position: relative;
+}
+
+.ui-dropdown-toggle {
+  cursor: pointer;
+}
+
+.ui-dropdown-toggle::after,
+.dropdown-toggle::after {
+  content: "";
+  display: inline-block;
+  margin-left: 0.4em;
+  border: 0.28em solid transparent;
+  border-top-color: currentColor;
+  transform: translateY(0.18em);
+}
+
+.ui-dropdown-menu,
+.dropdown-menu {
+  position: absolute;
+  z-index: 1050;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  min-width: 12rem;
+  padding-block: 0.35rem;
+  border: var(--bh-border-width) solid var(--bh-border);
+  border-radius: var(--bh-radius);
+  background: var(--bh-surface);
+  box-shadow: var(--bh-shadow-lg);
+}
+
+.ui-dropdown[data-align="end"] .ui-dropdown-menu,
+.dropdown-menu-end {
+  right: 0;
+  left: auto;
+}
+
+.ui-dropdown-item,
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: var(--bh-pad-y) var(--bh-pad-x);
+  border: 0;
+  background: transparent;
+  color: var(--bh-text);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ui-dropdown-item:hover,
+.ui-dropdown-item.active,
+.dropdown-item:hover,
+.dropdown-item.active {
+  background: color-mix(
+    in srgb,
+    var(--bh-accent) 12%,
+    var(--bh-surface)
+  );
+  color: var(--bh-heading);
+}
+
+.ui-dropdown-header,
+.dropdown-header {
+  padding: 0.4rem var(--bh-pad-x);
+  color: var(--bh-muted);
+  font-size: var(--bh-label-size);
+  text-transform: var(--bh-label-transform);
+}
+
+.ui-dropdown-divider,
+.dropdown-divider {
+  margin-block: 0.35rem;
+}
+
+.ui-form-group {
+  min-width: 0;
+}
+
+.ui-form-label,
+.form-label {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  color: var(--bh-heading);
+}
+
+.ui-form-control,
+.ui-form-select,
+.form-control,
+.form-select {
+  display: block;
+  width: 100%;
+  min-height: 2.25rem;
+  padding: var(--bh-pad-y) var(--bh-field-pad-x);
+  border: var(--bh-border-width) solid var(--bh-border);
+  border-radius: var(--bh-radius);
+  background: var(--bh-sunken);
+  color: var(--bh-text);
+}
+
+.ui-form-select,
+.form-select {
+  appearance: none;
+  padding-inline-end: calc(var(--bh-field-pad-x) + 1rem);
+  background-repeat: no-repeat;
+  background-position: right var(--bh-field-pad-x) center;
+  background-size: 1rem auto;
+}
+
+.ui-form-control-sm,
+.ui-form-select-sm,
+.form-control-sm,
+.form-select-sm {
+  min-height: 1.8rem;
+  padding: calc(var(--bh-pad-y) * 0.6) calc(var(--bh-field-pad-x) * 0.75);
+  font-size: var(--bh-font-size-sm);
+}
+
+.ui-form-control::placeholder,
+.form-control::placeholder {
+  color: var(--bh-muted);
+  opacity: 0.8;
+}
+
+.ui-form-control:disabled,
+.ui-form-select:disabled,
+.form-control:disabled,
+.form-select:disabled {
+  background: var(--bh-raise);
+  color: var(--bh-disabled-fg);
+}
+
+textarea.ui-form-control,
+textarea.form-control {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.ui-form-plaintext {
+  display: block;
+  width: 100%;
+  padding-block: var(--bh-pad-y);
+  border: 0;
+  background: transparent;
+  color: var(--bh-text);
+}
+
+.ui-form-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.ui-form-check-inline {
+  display: inline-flex;
+  margin-right: 1rem;
+}
+
+.ui-form-check-reverse {
+  flex-direction: row-reverse;
+  justify-content: space-between;
+}
+
+.ui-form-check-input,
+.form-check-input {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.15em;
+  accent-color: var(--bh-accent);
+}
+
+.form-switch .form-check-input {
+  appearance: none;
+  width: 2rem;
+  border-radius: var(--bh-radius-pill);
+  background-color: var(--bh-sunken);
+  background-image: radial-gradient(
+    circle at 25% 50%,
+    var(--bh-muted) 0 0.32rem,
+    transparent 0.36rem
+  );
+  transition:
+    background-color 120ms ease,
+    background-position 120ms ease;
+}
+
+.form-switch .form-check-input:checked {
+  background-color: var(--bh-accent);
+  background-image: radial-gradient(
+    circle at 75% 50%,
+    var(--bh-accent-fg) 0 0.32rem,
+    transparent 0.36rem
+  );
+}
+
+.ui-form-text,
+.form-text {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--bh-muted);
+  font-size: var(--bh-font-size-sm);
+}
+
+.ui-form-feedback,
+.invalid-feedback {
+  display: none;
+  margin-top: 0.25rem;
+  color: var(--bh-danger);
+  font-size: var(--bh-font-size-sm);
+}
+
+.is-invalid + .ui-form-feedback,
+.is-invalid ~ .ui-form-feedback,
+.is-invalid + .invalid-feedback {
+  display: block;
+}
+
+.is-invalid {
+  border-color: var(--bh-danger);
+}
+
+.ui-list-group,
+.list-group {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--bh-radius);
+}
+
+.ui-list-group-item,
+.list-group-item {
+  display: block;
+  width: 100%;
+  padding: calc(var(--bh-pad-y) * 1.1) var(--bh-pad-x);
+  border: var(--bh-border-width) solid var(--bh-border);
+  border-bottom: 0;
+  background: var(--bh-surface);
+  color: var(--bh-text);
+  text-align: left;
+  text-decoration: none;
+}
+
+.ui-list-group-item:last-child,
+.list-group-item:last-child {
+  border-bottom: var(--bh-border-width) solid var(--bh-border);
+}
+
+.ui-list-group-action {
+  cursor: pointer;
+}
+
+.ui-list-group-item:hover,
+.ui-list-group-item.active,
+.list-group-item:hover,
+.list-group-item.active {
+  background: var(--bh-raise);
+  color: var(--bh-heading);
+}
+
+.ui-modal-backdrop,
+.modal-backdrop {
+  position: fixed;
+  z-index: 1100;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1rem;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--bh-backdrop) 78%, transparent);
+}
+
+.ui-modal-backdrop.centered {
+  align-items: center;
+}
+
+.ui-modal,
+.modal-content {
+  width: min(100%, 32rem);
+  border: var(--bh-border-width) solid var(--bh-border-strong);
+  border-radius: var(--bh-radius-lg);
+  background: var(--bh-surface);
+  box-shadow: var(--bh-shadow-lg);
+}
+
+.ui-modal-lg {
+  width: min(100%, 50rem);
+}
+
+.ui-modal-xl {
+  width: min(100%, 70rem);
+}
+
+.ui-modal-header,
+.modal-header,
+.ui-modal-footer,
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: var(--bh-card-pad-y) var(--bh-card-pad-x);
+  border-bottom: var(--bh-border-width) solid var(--bh-border);
+}
+
+.ui-modal-footer,
+.modal-footer {
+  justify-content: flex-end;
+  border-top: var(--bh-border-width) solid var(--bh-border);
+  border-bottom: 0;
+}
+
+.ui-modal-body,
+.modal-body {
+  padding: var(--bh-card-pad-y) var(--bh-card-pad-x);
+}
+
+.ui-modal-title,
+.modal-title {
+  margin: 0;
+}
+
+.ui-nav,
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+}
+
+.ui-nav-link,
+.nav-link {
+  display: block;
+  padding: var(--bh-pad-y) var(--bh-pad-x);
+  border: 0;
+  background: transparent;
+  color: var(--bh-muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ui-nav-link:hover,
+.ui-nav-link.active,
+.nav-link:hover,
+.nav-link.active {
+  color: var(--bh-heading);
+}
+
+.ui-nav-tabs,
+.nav-tabs {
+  border-bottom: var(--bh-border-width) solid var(--bh-border);
+}
+
+.ui-nav-tabs .ui-nav-link.active,
+.nav-tabs .nav-link.active {
+  box-shadow: inset 0 calc(var(--bh-border-width) * -2) 0 var(--bh-accent);
+}
+
+.ui-nav-pills .ui-nav-link.active,
+.nav-pills .nav-link.active {
+  background: var(--bh-accent);
+  color: var(--bh-accent-fg);
+}
+
+.ui-nav-fill > *,
+.nav-fill > * {
+  flex: 1 1 auto;
+  text-align: center;
+}
+
+.ui-navbar,
+.navbar {
+  position: relative;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  min-height: 3.2rem;
+  border-bottom: var(--bh-border-width) solid var(--bh-border);
+  background: var(--bh-surface);
+}
+
+.ui-navbar > .ui-container,
+.navbar > .container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.ui-navbar-brand,
+.navbar-brand {
+  color: var(--bh-heading);
+  font-weight: 750;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ui-navbar-toggle,
+.navbar-toggler {
+  margin-left: auto;
+  padding: 0.35rem 0.55rem;
+  border: var(--bh-border-width) solid var(--bh-border);
+  background: transparent;
+  color: var(--bh-text);
+}
+
+.ui-navbar-collapse {
+  display: none;
+  flex: 1 1 auto;
+}
+
+.ui-navbar-collapse.show {
+  display: block;
+}
+
+.ui-navbar-collapse > .ui-nav,
+.navbar-collapse > .nav {
+  align-items: center;
+}
+
+@media (min-width: 768px) {
+  .ui-navbar-toggle {
+    display: none;
+  }
+
+  .ui-navbar-collapse.expand-md {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .ui-navbar > .ui-container {
+    flex-wrap: wrap;
+  }
+
+  .ui-navbar-collapse {
+    flex-basis: 100%;
+  }
+
+  .ui-navbar-collapse > .ui-nav {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ui-navbar-collapse .ui-dropdown-menu {
+    position: static;
+    box-shadow: none;
+  }
+}
+
+.ui-pagination,
+.pagination {
+  display: flex;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ui-page-link,
+.page-link {
+  display: block;
+  min-width: 2rem;
+  padding: 0.4rem 0.65rem;
+  border: var(--bh-border-width) solid var(--bh-border);
+  background: var(--bh-surface);
+  color: var(--bh-text);
+  text-align: center;
+}
+
+.ui-page-link.active,
+.page-link.active {
+  border-color: var(--bh-accent);
+  background: var(--bh-accent);
+  color: var(--bh-accent-fg);
+}
+
+.ui-pagination-sm .ui-page-link {
+  min-width: 1.75rem;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--bh-font-size-sm);
+}
+
+.ui-progress,
+.progress {
+  display: flex;
+  height: 0.5rem;
+  overflow: hidden;
+  background: var(--bh-raise);
+}
+
+.ui-progress-bar,
+.progress-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bh-accent);
+  color: var(--bh-accent-fg);
+  transition: width 0.2s ease;
+}
+
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ui-spinner,
+.spinner-border {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: ui-spin 0.75s linear infinite;
+}
+
+.ui-table-responsive,
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.ui-table,
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--bh-text);
+  vertical-align: top;
+}
+
+.ui-table th,
+.ui-table td,
+.table th,
+.table td {
+  padding: var(--bh-cell-pad-y) var(--bh-cell-pad-x);
+  border-bottom: var(--bh-border-width) solid var(--bh-border);
+  text-align: left;
+}
+
+.ui-table th,
+.table th {
+  color: var(--bh-heading);
+  font-weight: 650;
+}
+
+.ui-table-striped tbody tr:nth-child(odd),
+.table-striped tbody tr:nth-child(odd) {
+  background: color-mix(in srgb, var(--bh-accent) 4%, transparent);
+}
+
+.ui-table-hover tbody tr:hover,
+.table-hover tbody tr:hover,
+.table-active {
+  background: color-mix(in srgb, var(--bh-accent) 9%, transparent);
+}
+
+.ui-table-bordered th,
+.ui-table-bordered td,
+.table-bordered th,
+.table-bordered td {
+  border: var(--bh-border-width) solid var(--bh-border);
+}
+
+.ui-table-borderless th,
+.ui-table-borderless td,
+.table-borderless th,
+.table-borderless td {
+  border: 0;
+}
+
+.ui-table-sm th,
+.ui-table-sm td,
+.table-sm th,
+.table-sm td {
+  padding: calc(var(--bh-cell-pad-y) * 0.65)
+    calc(var(--bh-cell-pad-x) * 0.75);
+}
+
+// Layout utilities still used by existing product markup. New code should use
+// Tailwind's semantic utilities; these keep the migration mechanical and small.
+.d-flex {
+  display: flex !important;
+}
+.d-inline-flex {
+  display: inline-flex !important;
+}
+.d-grid {
+  display: grid !important;
+}
+.d-block {
+  display: block !important;
+}
+.d-inline-block {
+  display: inline-block !important;
+}
+.d-none {
+  display: none !important;
+}
+.flex-wrap {
+  flex-wrap: wrap !important;
+}
+.flex-nowrap {
+  flex-wrap: nowrap !important;
+}
+.flex-column {
+  flex-direction: column !important;
+}
+.flex-grow-1 {
+  flex-grow: 1 !important;
+}
+.flex-shrink-0 {
+  flex-shrink: 0 !important;
+}
+.justify-content-start {
+  justify-content: flex-start !important;
+}
+.justify-content-center {
+  justify-content: center !important;
+}
+.justify-content-between {
+  justify-content: space-between !important;
+}
+.justify-content-end {
+  justify-content: flex-end !important;
+}
+.align-items-start {
+  align-items: flex-start !important;
+}
+.align-items-center {
+  align-items: center !important;
+}
+.align-items-end {
+  align-items: flex-end !important;
+}
+.align-self-center {
+  align-self: center !important;
+}
+.text-start {
+  text-align: left !important;
+}
+.text-center {
+  text-align: center !important;
+}
+.text-end {
+  text-align: right !important;
+}
+.text-nowrap {
+  white-space: nowrap !important;
+}
+.text-break {
+  overflow-wrap: anywhere !important;
+}
+.text-decoration-none {
+  text-decoration: none !important;
+}
+.small {
+  font-size: var(--bh-font-size-sm) !important;
+}
+.fw-bold,
+.fw-semibold {
+  font-weight: 700 !important;
+}
+.fst-italic {
+  font-style: italic !important;
+}
+.w-100 {
+  width: 100% !important;
+}
+.w-auto {
+  width: auto !important;
+}
+.mw-100 {
+  max-width: 100% !important;
+}
+.h-100 {
+  height: 100% !important;
+}
+.position-relative {
+  position: relative !important;
+}
+.position-absolute {
+  position: absolute !important;
+}
+.overflow-auto {
+  overflow: auto !important;
+}
+.overflow-hidden {
+  overflow: hidden !important;
+}
+.border {
+  border: var(--bh-border-width) solid var(--bh-border) !important;
+}
+.border-0 {
+  border: 0 !important;
+}
+.border-top {
+  border-top: var(--bh-border-width) solid var(--bh-border) !important;
+}
+.border-bottom {
+  border-bottom: var(--bh-border-width) solid var(--bh-border) !important;
+}
+.rounded {
+  border-radius: var(--bh-radius) !important;
+}
+.rounded-circle {
+  border-radius: 999px !important;
+}
+
+@for $i from 0 through 5 {
+  $space: if(
+    $i == 0,
+    0,
+    if(
+      $i == 1,
+      0.25rem,
+      if(
+        $i == 2,
+        0.5rem,
+        if($i == 3, 1rem, if($i == 4, 1.5rem, 3rem))
+      )
+    )
+  );
+  .m-#{$i} {
+    margin: $space !important;
+  }
+  .mt-#{$i} {
+    margin-top: $space !important;
+  }
+  .mb-#{$i} {
+    margin-bottom: $space !important;
+  }
+  .ms-#{$i} {
+    margin-left: $space !important;
+  }
+  .me-#{$i} {
+    margin-right: $space !important;
+  }
+  .mx-#{$i} {
+    margin-inline: $space !important;
+  }
+  .my-#{$i} {
+    margin-block: $space !important;
+  }
+  .p-#{$i} {
+    padding: $space !important;
+  }
+  .pt-#{$i} {
+    padding-top: $space !important;
+  }
+  .pb-#{$i} {
+    padding-bottom: $space !important;
+  }
+  .ps-#{$i} {
+    padding-left: $space !important;
+  }
+  .pe-#{$i} {
+    padding-right: $space !important;
+  }
+  .px-#{$i} {
+    padding-inline: $space !important;
+  }
+  .py-#{$i} {
+    padding-block: $space !important;
+  }
+  .gap-#{$i} {
+    gap: $space !important;
+  }
+}
+
+.ms-auto {
+  margin-left: auto !important;
+}
+.me-auto {
+  margin-right: auto !important;
+}
+.mx-auto {
+  margin-inline: auto !important;
+}
+
+@media (min-width: 768px) {
+  .d-md-flex {
+    display: flex !important;
+  }
+  .d-md-block {
+    display: block !important;
+  }
+  .d-md-none {
+    display: none !important;
+  }
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-progress-bar,
+  .progress-bar,
+  .form-switch .form-check-input {
+    transition: none;
+  }
+
+  .ui-spinner,
+  .spinner-border {
+    animation: none;
+  }
+}

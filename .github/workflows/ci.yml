@@ -1,85 +1,245 @@
 name: CI
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
 
 jobs:
-  lint:
+  backend-lint:
+    name: Backend Lint
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun run lint
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      # Cache the embedding model weights so the suite doesn't re-download them
-      # from HuggingFace every run. Without this, repeated CI traffic from
-      # GitHub's runner IP range trips HF's 429 rate limit and every
-      # embedder-touching test fails. Keyed on package.json so a membot bump
-      # (which owns the model name) busts the cache. MEMBOT_MODEL_CACHE_DIR
-      # redirects the tests' cache dir (see test/setup.ts) to this one shared,
-      # cached location.
-      - uses: actions/cache@v4
-        with:
-          path: ~/.membot/models
-          key: membot-models-${{ hashFiles('package.json') }}
-      - run: bun install --frozen-lockfile
-      - name: bun test
-        run: |
-          export MEMBOT_MODEL_CACHE_DIR="$HOME/.membot/models"
-          mkdir -p "$MEMBOT_MODEL_CACHE_DIR"
-          bun test --timeout 30000
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  docs-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun run docs:build
-
-  build-binary:
-    # Compile the standalone binary and smoke-test it on every target platform,
-    # from a dir with no node_modules (proves it's self-contained). Mirrors the
-    # release matrix, so a broken platform is caught here before it ships.
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: macos-latest, target: darwin-arm64, ext: "" }
-          - { os: ubuntu-latest, target: linux-x64, ext: "" }
-          - { os: windows-latest, target: windows-x64, ext: ".exe" }
-    runs-on: ${{ matrix.os }}
     defaults:
       run:
-        shell: bash
+        working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      # The lockfile is at the repo root and governs the whole workspace.
+      - run: bun install --frozen-lockfile
+        working-directory: .
+      - run: bun run lint
+
+  backend-test:
+    name: Backend Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      redis:
+        image: redis
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+      # The pgvector image, so the extension exists before any migration needs
+      # it — the same Postgres the deployed database runs.
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: botholomew_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
+        working-directory: .
+      # Carries SECRETS_ENCRYPTION_KEY, without which the process refuses to
+      # boot. The committed development key is fine here; staging's comes from
+      # the `botholomew-shared` env var group.
+      - run: cp .env.example .env
+      # The `_TEST` overrides win because `loadFromEnvIfSet` checks
+      # `${VAR}_${NODE_ENV}` first and `bun test` sets NODE_ENV=test. This job
+      # also spawns the product CLI against the booted server.
+      - run: bun test
+        env:
+          DATABASE_URL_TEST: postgres://postgres:postgres@localhost:5432/botholomew_test
+          DATABASE_AUTO_MIGRATE_TEST: "true"
+          REDIS_URL_TEST: redis://localhost:6379/1
+
+  backend-docker:
+    name: Backend Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -f backend/Dockerfile .
+
+  cli-lint:
+    name: CLI Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+        working-directory: .
+      - run: bun run lint
+      # Unit tests, including the Node-bundle smoke test. The CLI's HTTP tests
+      # stay in Backend Test, because they need a booted server.
+      - run: bun test
+
+  frontend-lint:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+        working-directory: .
+      - run: bun run lint
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+        working-directory: .
       - run: bun run build
-      - name: Smoke-test the binary
-        run: |
-          BIN="$PWD/dist/bothy${{ matrix.ext }}"
-          cd "$RUNNER_TEMP"
-          "$BIN" --version
-          "$BIN" --help
-          "$BIN" -d "$RUNNER_TEMP/proj" init </dev/null
+
+  frontend-test:
+    name: Frontend Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+        working-directory: .
+      - run: bun run test
+      # A production build as well, so a missing prop the unit suite never
+      # instantiates still fails this job.
+      - run: bun run build
+
+  frontend-docker:
+    name: Frontend Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # VITE_API_URL is inlined at build time; pass a representative value so
+      # the ARG path is actually exercised.
+      - run: docker build -f frontend/Dockerfile --build-arg VITE_API_URL=https://api.botholomew.com .
+
+  e2e-test:
+    name: E2E Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    services:
+      redis:
+        image: redis
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: botholomew_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+        working-directory: .
+      # Playwright boots the real backend and the real Vite dev server (see
+      # playwright.config.ts), so both need their env files — for the values the
+      # e2e stack does not override, above all SECRETS_ENCRYPTION_KEY and the
+      # raised RATE_LIMIT_UNAUTH_LIMIT.
+      - run: cp .env.example .env
+        working-directory: backend
+      - run: cp .env.example .env
+      - run: bunx playwright install --with-deps chromium
+      # The e2e backend runs as NODE_ENV=test, so it reads the same `_TEST`
+      # values the Backend Test job does.
+      - run: bun run test:e2e
+        env:
+          DATABASE_URL_TEST: postgres://postgres:postgres@localhost:5432/botholomew_test
+          REDIS_URL_TEST: redis://localhost:6379/1
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
 
   complete:
+    # The name is the check context branch protection requires, so it is a
+    # contract with the repository settings, not a label: renaming it leaves
+    # `main` waiting on a check that never arrives.
+    name: complete
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, test, docs-build, build-binary]
+    needs:
+      - backend-lint
+      - backend-test
+      - backend-docker
+      - cli-lint
+      - frontend-lint
+      - frontend-build
+      - frontend-test
+      - frontend-docker
+      - e2e-test
     steps:
-      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: exit 1
-      - run: echo "All checks passed"
+      # This is the single required status check for `main`, so adding a CI job
+      # never requires touching branch protection. The check reads the whole
+      # `needs` object rather than naming each job, which makes it structurally
+      # impossible for a job to be in `needs` yet missing from the gate.
+      #
+      # **It asserts every result IS `success`, rather than listing the bad
+      # ones.** A denylist of outcomes (`failure|cancelled|skipped`) fails open
+      # the day the platform reports one nobody wrote down: a job that dies in
+      # `Set up job` can report `abandoned`, which matches no such list, and the
+      # one required check would pass with no CI having run. Allowlist, always.
+      #
+      # `needs` arrives through `env` rather than being interpolated into the
+      # script, so a job output can never be spliced into the shell.
+      - name: Check all jobs passed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS"
+          if echo "$NEEDS" | jq -e 'any(.[]; .result != "success")' > /dev/null; then
+            echo "::error::One or more CI jobs did not succeed"
+            # Named, because "one or more" across many jobs is a log to go read.
+            echo "$NEEDS" | jq -r '
+              to_entries[] | select(.value.result != "success")
+              | "  \(.key): \(.value.result)"'
+            exit 1
+          fi
+          echo "All CI jobs passed"

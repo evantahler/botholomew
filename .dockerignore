@@ -1,0 +1,19 @@
+# Both Dockerfiles build from the repo root, so keep the context small and make
+# sure host artifacts never shadow what `bun install` produces in the image.
+node_modules
+**/node_modules
+**/dist
+**/.cache
+**/*.tsbuildinfo
+
+.git
+.github
+docs
+
+.env
+**/.env
+!**/.env.example
+
+playwright-report
+test-results
+coverage

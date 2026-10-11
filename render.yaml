@@ -1,0 +1,227 @@
+# Botholomew — Render blueprint. One file, one STAGING environment.
+#
+#   botholomew-api        type: web       backend/Dockerfile    HTTP + MCP. No tasks, no migrations.
+#   botholomew-worker     type: worker    backend/Dockerfile    Tasks + migrations. No HTTP.
+#   botholomew-frontend   type: web       frontend/Dockerfile   nginx serving the Vite build.
+#   botholomew-redis      type: keyvalue                        Sessions, rate limits, task queue.
+#   botholomew-db         postgres 18                           Everything else.
+#
+# Web and worker run the SAME image and differ only by environment. The worker
+# owns migrations (`DATABASE_AUTO_MIGRATE=true`) so the web service can never
+# race a schema change; web sets it `false`.
+#
+# This file is parsed and asserted by
+# `backend/__tests__/deployment/render-blueprint.test.ts`, and no Blueprint has
+# been created from it: it names the public origins (`api.botholomew.com`,
+# `www.botholomew.com`) but attaches no domain. Syncing it, the domains, and the
+# runbook are the deployment plan's work (docs/plans/phase-0002-deployment.md).
+
+services:
+  # ---------------------------------------------------------------------------
+  # Backend — HTTP + MCP
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: botholomew-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    # backend/Dockerfile COPYs the root `bun.lock` (it governs the whole Bun
+    # workspace), so the build context has to be the repo root, not backend/.
+    dockerContext: .
+    # 1 CPU / 2 GB, as a spec-based id so the value states its own CPU and RAM.
+    # `starter plus` is not a Render instance type, and the blueprint validator
+    # lets it through; the test's COMPUTE_PLANS enum is what catches it.
+    plan: 1c-2g
+    region: oregon
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /api/status
+    buildFilter:
+      paths:
+        - backend/**
+        - bun.lock
+        - package.json
+    envVars:
+      # NODE_ENV, LOG_*, SECRETS_ENCRYPTION_KEY, FRONTEND_URL — everything that
+      # must be byte-identical across web and worker.
+      - fromGroup: botholomew-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: botholomew-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: botholomew-redis
+          type: keyvalue
+          property: connectionString
+      - key: PROCESS_NAME
+        value: "botholomew-api"
+      # Distinguishes this process from the worker in error reports and in the
+      # core metrics payload.
+      - key: OTEL_SERVICE_NAME
+        value: "botholomew-api"
+      - key: WEB_SERVER_HOST
+        value: "0.0.0.0"
+      - key: WEB_SERVER_PORT
+        value: "10000"
+      - key: WEB_SERVER_API_ROUTE
+        value: "/api"
+      # The theme for the OAuth authorize page. Only the web service renders
+      # HTML, so the worker does not need it. Relative to the app's rootDir,
+      # which in the image is /app/backend.
+      - key: WEB_SERVER_THEME
+        value: "theme/botholomew-theme.ts"
+      # The frontend's public origin, and only it. A mismatch here fails the
+      # browser's CORS preflight.
+      - key: WEB_SERVER_ALLOWED_ORIGINS
+        value: "https://www.botholomew.com"
+      # Our own public origin, and the OAuth/MCP issuer base. Keryx's
+      # `getExternalOrigin()` prefers a non-localhost APPLICATION_URL over the
+      # `X-Forwarded-*` headers, so this is what makes the discovery document
+      # advertise the public origin rather than Render's internal one.
+      - key: APPLICATION_URL
+        value: "https://api.botholomew.com"
+      # The frontend is a different origin, so the session cookie must be
+      # SameSite=None — which browsers only honour together with Secure.
+      # Capitalization matters: it is parsed into the `CookieSameSite` enum.
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: SESSION_COOKIE_SAME_SITE
+        value: "None"
+      - key: MCP_SERVER_ENABLED
+        value: "true"
+      # Keryx defaults this to `false`, and behind Render's proxy that leaves
+      # the OAuth issuer and redirect URIs resolving to the internal origin
+      # whenever APPLICATION_URL is absent or localhost.
+      - key: MCP_OAUTH_TRUST_PROXY
+        value: "true"
+      # The worker migrates. The web service must never race it.
+      - key: DATABASE_AUTO_MIGRATE
+        value: "false"
+      - key: TASKS_ENABLED
+        value: "false"
+      - key: TASK_PROCESSORS
+        value: "0"
+
+  # ---------------------------------------------------------------------------
+  # Backend — tasks + migrations (same image as botholomew-api)
+  # ---------------------------------------------------------------------------
+  - type: worker
+    name: botholomew-worker
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: 1c-2g
+    region: oregon
+    branch: main
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - backend/**
+        - bun.lock
+        - package.json
+    envVars:
+      - fromGroup: botholomew-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: botholomew-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: botholomew-redis
+          type: keyvalue
+          property: connectionString
+      - key: PROCESS_NAME
+        value: "botholomew-worker"
+      - key: OTEL_SERVICE_NAME
+        value: "botholomew-worker"
+      - key: WEB_SERVER_ENABLED
+        value: "false"
+      # This service, and only this service, owns the schema.
+      - key: DATABASE_AUTO_MIGRATE
+        value: "true"
+      - key: TASKS_ENABLED
+        value: "true"
+      - key: TASK_PROCESSORS
+        value: "1"
+
+  # ---------------------------------------------------------------------------
+  # Frontend — static bundle behind nginx
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: botholomew-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: .
+    plan: starter
+    region: oregon
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /
+    buildFilter:
+      paths:
+        - frontend/**
+        # Not a mistake: `tsc -b` resolves action response types through the
+        # `@backend/*` alias, so a backend-only change can break — or fix — the
+        # frontend build. It has to rebuild alongside the backend.
+        - backend/**
+        - bun.lock
+        - package.json
+    envVars:
+      # Vite inlines this at BUILD time, so changing it needs a rebuild, not a
+      # restart. Render exposes a service's env vars to the Docker build as
+      # build args, which is what frontend/Dockerfile's `ARG VITE_API_URL`
+      # picks up.
+      - key: VITE_API_URL
+        value: "https://api.botholomew.com"
+
+  # ---------------------------------------------------------------------------
+  # Redis
+  # ---------------------------------------------------------------------------
+  - type: keyvalue
+    name: botholomew-redis
+    plan: starter
+    region: oregon
+    ipAllowList: []
+    # The task queue lives here. Evicting a queued job under memory pressure
+    # would lose work silently, so refuse writes instead.
+    maxmemoryPolicy: noeviction
+
+# -----------------------------------------------------------------------------
+# Env vars that must be identical on web and worker
+# -----------------------------------------------------------------------------
+envVarGroups:
+  - name: botholomew-shared
+    envVars:
+      - key: NODE_ENV
+        value: "production"
+      - key: LOG_LEVEL
+        value: "info"
+      - key: LOG_INCLUDE_TIMESTAMPS
+        value: "true"
+      # Render's log viewer shows ANSI escapes literally.
+      - key: LOG_COLORIZE
+        value: "false"
+
+      # The AES-256-GCM key for every credential this application holds on a
+      # project's behalf. It lives in a group rather than on each service on
+      # purpose: `generateValue: true` declared twice mints two DIFFERENT keys,
+      # and anything the web service encrypted would then be undecryptable in a
+      # worker task. AES-256-GCM needs 32 bytes, and the process refuses to boot
+      # on anything else.
+      - key: SECRETS_ENCRYPTION_KEY
+        generateValue: true
+
+      # The FRONTEND's public origin. In the shared group rather than on one
+      # service, so both roles read the same value: a link a person clicks can
+      # be built by a web request or by a worker task, and a copy on one
+      # service is a role that builds links to nowhere. Deliberately not
+      # APPLICATION_URL, which is the backend.
+      - key: FRONTEND_URL
+        value: "https://www.botholomew.com"
+
+databases:
+  - name: botholomew-db
+    plan: basic-256mb
+    region: oregon
+    postgresMajorVersion: "18"
+    ipAllowList: []

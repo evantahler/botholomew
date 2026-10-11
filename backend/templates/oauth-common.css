@@ -1,0 +1,164 @@
+/* Styling for the OAuth authorization page. The --keryx-* design tokens this file
+   references are supplied by the framework's shared default theme (DEFAULT_THEME_CSS),
+   inlined ahead of this file, and can be overridden via config.server.web.theme. */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+body {
+  font-family: var(--keryx-font-family);
+  background: var(--keryx-bg);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+.container {
+  background: var(--keryx-surface);
+  border-radius: var(--keryx-radius);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  padding: 36px;
+  width: 100%;
+  max-width: 420px;
+}
+h2 {
+  margin-bottom: 20px;
+  color: var(--keryx-color-primary);
+}
+.error {
+  background: #fef2f0;
+  border: 1px solid #f5c6be;
+  color: #c0392b;
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+.client-info {
+  background: color-mix(in srgb, var(--keryx-color-primary) 6%, transparent);
+  border: 1px solid var(--keryx-color-border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 20px;
+}
+.client-info p:last-child {
+  margin-bottom: 0;
+}
+.client-info strong {
+  color: var(--keryx-color-text);
+}
+.client-detail {
+  font-size: 13px;
+  word-break: break-all;
+}
+.client-warning {
+  font-size: 13px;
+  color: #a15c07;
+}
+.tabs {
+  display: flex;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #eee;
+}
+.tab {
+  flex: 1;
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  color: var(--keryx-color-text-muted);
+  transition:
+    color 0.2s,
+    border-color 0.2s;
+}
+.tab.active {
+  border-bottom-color: var(--keryx-color-primary);
+  color: var(--keryx-color-primary);
+  font-weight: 600;
+}
+.form-section {
+  display: none;
+}
+.form-section.active {
+  display: block;
+}
+label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: var(--keryx-color-text);
+  font-size: 14px;
+}
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--keryx-color-border);
+  border-radius: 6px;
+  font-size: 14px;
+  margin-bottom: 12px;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+input:focus {
+  outline: none;
+  border-color: var(--keryx-color-primary);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--keryx-color-primary) 20%, transparent);
+}
+button {
+  width: 100%;
+  padding: 12px;
+  background: var(--keryx-color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+button:hover {
+  background: var(--keryx-color-primary-hover);
+}
+.checkmark {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--keryx-color-primary) 10%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.checkmark svg {
+  width: 32px;
+  height: 32px;
+  stroke: var(--keryx-color-primary);
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+p {
+  color: var(--keryx-color-text-muted);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.closing {
+  color: #999;
+  font-size: 13px;
+}
+.owl {
+  margin-top: 24px;
+  opacity: 0.85;
+}
+.owl svg {
+  width: 64px;
+  height: 60px;
+}

@@ -1,10 +1,37 @@
+# Dependencies
 node_modules/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Build output
 dist/
+build/
 *.tsbuildinfo
 
-# Botholomew project data (contains API keys and DB)
-.botholomew/
+# Drizzle temp
+**/drizzle/config.tmp.ts
 
-# VitePress build outputs
-docs/.vitepress/cache/
-docs/.vitepress/dist/
+# Keryx caches
+**/.cache/
+
+# Test / coverage / Playwright
+coverage/
+playwright-report/
+test-results/
+.playwright/
+
+# Logs
+*.log
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Redis snapshot from local redis-server
+dump.rdb
+**/dump.rdb

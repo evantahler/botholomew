@@ -1,0 +1,377 @@
+/* Tailwind utilities are opt-in; local primitives own the global reset.
+ *
+ * `source(none)` means no file is scanned until a surface opts in with its own
+ * `@source` line beside this one, so a generated class name is always a
+ * deliberate one. No surface opts in, so the utilities layer compiles empty and
+ * the theme aliases below are what a first one reads. */
+@import "tailwindcss/theme";
+@import "tailwindcss/utilities" source(none);
+
+/*
+ * One product, one density. Every page uses the same midnight palette, compact
+ * type scale, hairlines, and control rhythm.
+ */
+html[data-bh-theme="slate"] {
+  background: #06070a;
+  color-scheme: dark;
+}
+
+[data-bh-theme="slate"] body {
+  background:
+    radial-gradient(
+      900px 420px at 50% -16%,
+      rgb(139 124 255 / 0.055),
+      transparent 70%
+    ),
+    var(--bh-ground);
+}
+
+/*
+ * Every type size below is a multiple of `--bh-font-size`, never a literal.
+ *
+ * The density is a set of *ratios* — a heading is 1.66 body, a column head is
+ * 0.81 of it — and the body size is the one number a person means when they say
+ * the product reads small. Written as literal `rem`, raising it means finding
+ * every rule in this file, and the one somebody forgets stays behind at the old
+ * scale, which does not look like a stale rule: it looks like a deliberately
+ * tiny footer. The ratios live here; the size lives in the `slate` block of
+ * `styles/themes/_tokens.scss`.
+ */
+
+/*
+ * Headings are spacing only, here. Their **size** belongs to the modern layer in
+ * `styles/themes/_engine.scss`, which is inside an `@scope` — and a scoped rule
+ * wins a specificity *tie* on proximity, which is what any heading rule in this
+ * file is against it. A `font-size` declared in these rules never renders: it
+ * says a 1.35rem `h1` and the page draws `calc(var(--bh-font-size) * 2.1)`, and
+ * nothing fails. The engine's scale is already a multiple of the same token, so
+ * there is nothing to keep in sync; a size for one heading in one place needs a
+ * third class-level selector to beat the tie.
+ */
+[data-bh-theme="slate"] h1:not(.bh-wordmark) {
+  margin-bottom: 0.4rem;
+}
+
+[data-bh-theme="slate"] h2:not(.bh-section-title) {
+  margin-bottom: 0.35rem;
+}
+
+[data-bh-theme="slate"] h3 {
+  margin-bottom: 0.3rem;
+}
+
+[data-bh-theme="slate"] p {
+  margin-bottom: 0.65rem;
+}
+
+[data-bh-theme="slate"] .bh-shell > main {
+  width: 100%;
+}
+
+[data-bh-theme="slate"] .bh-shell > main.container {
+  padding-inline: 1rem;
+}
+
+[data-bh-theme="slate"] .card-header,
+[data-bh-theme="slate"] .ui-card-header {
+  min-height: 2rem;
+  padding: 0.42rem 0.7rem;
+  font-size: calc(var(--bh-font-size) * 0.96);
+  letter-spacing: 0.01em;
+}
+
+[data-bh-theme="slate"] .card-body,
+[data-bh-theme="slate"] .ui-card-body {
+  padding: 0.6rem 0.7rem;
+}
+
+[data-bh-theme="slate"] .card,
+[data-bh-theme="slate"] .ui-card {
+  border-color: var(--bh-border);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.015);
+}
+
+[data-bh-theme="slate"] .table,
+[data-bh-theme="slate"] .ui-table {
+  font-size: calc(var(--bh-font-size) * 0.92);
+}
+
+[data-bh-theme="slate"] .table th,
+[data-bh-theme="slate"] .ui-table th {
+  color: var(--bh-muted);
+  font-size: calc(var(--bh-font-size) * 0.81);
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+[data-bh-theme="slate"] .form-control,
+[data-bh-theme="slate"] .form-select,
+[data-bh-theme="slate"] .ui-form-control,
+[data-bh-theme="slate"] .ui-form-select {
+  min-height: 1.95rem;
+  font-size: calc(var(--bh-font-size) * 0.92);
+}
+
+[data-bh-theme="slate"] .form-label,
+[data-bh-theme="slate"] .bh-mono-label {
+  color: var(--bh-muted);
+  font-size: calc(var(--bh-font-size) * 0.81);
+  font-weight: 650;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+[data-bh-theme="slate"] .btn,
+[data-bh-theme="slate"] .ui-button {
+  min-height: 1.9rem;
+  border-radius: 0.3rem;
+  font-size: calc(var(--bh-font-size) * 0.91);
+}
+
+[data-bh-theme="slate"] .btn-sm,
+[data-bh-theme="slate"] .ui-button-sm {
+  min-height: 1.6rem;
+  font-size: calc(var(--bh-font-size) * 0.84);
+}
+
+[data-bh-theme="slate"] .alert,
+[data-bh-theme="slate"] .ui-alert {
+  padding: 0.5rem 0.65rem;
+  font-size: calc(var(--bh-font-size) * 0.91);
+}
+
+/* Secondary section menus keep enough room for their labels without consuming
+ * a quarter of a wide workspace. The content column owns every pixel released
+ * by the cap; below `md`, the existing disclosure remains full width. */
+@media (min-width: 768px) {
+  [data-bh-theme="slate"] .row:has(> .ui-col-md-3 .bh-sidenav) > .ui-col-md-3 {
+    flex: 0 0 min(25%, 16rem);
+    width: min(25%, 16rem);
+  }
+
+  [data-bh-theme="slate"] .row:has(> .ui-col-md-3 .bh-sidenav) > .ui-col-md-9 {
+    flex: 1 1 0;
+    width: auto;
+  }
+}
+
+html[data-bh-theme="slate"] body .bh-navbar {
+  position: sticky;
+  top: 0;
+  min-height: 2.35rem;
+  border-color: #222b39;
+  padding: 0;
+  background: rgb(6 7 10 / 0.96) !important;
+  box-shadow: none;
+  backdrop-filter: blur(14px);
+}
+
+html[data-bh-theme="slate"] body .bh-navbar > .container {
+  max-width: none;
+  gap: 0.55rem;
+  padding-inline: 0.75rem;
+}
+
+html[data-bh-theme="slate"] body .bh-navbar .navbar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--bh-heading);
+  font-size: calc(var(--bh-font-size) * 0.86);
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* The v1 owl, `{o,o}`, which is only an owl in a monospace face. */
+.bh-navbar-brand-mark {
+  color: #8b7cff;
+  font-family: var(--bh-font-mono);
+  font-size: calc(var(--bh-font-size) * 0.92);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.bh-navbar-slash {
+  align-self: center;
+  padding-inline: 0.1rem;
+  color: #344155;
+  font-size: calc(var(--bh-font-size) * 0.86);
+}
+
+html[data-bh-theme="slate"] body .bh-navbar .navbar-collapse {
+  min-height: 2.3rem;
+}
+
+@media (min-width: 768px) {
+  html[data-bh-theme="slate"] body .bh-navbar {
+    height: 2.35rem;
+    max-height: 2.35rem;
+  }
+
+  html[data-bh-theme="slate"] body .bh-navbar > .container,
+  html[data-bh-theme="slate"] body .bh-navbar .navbar-collapse {
+    height: 100%;
+    min-height: 0;
+  }
+}
+
+html[data-bh-theme="slate"] body .bh-navbar .nav {
+  gap: 0.08rem;
+}
+
+html[data-bh-theme="slate"] body .bh-navbar .nav-link {
+  border-radius: 0.28rem;
+  padding: 0.32rem 0.48rem;
+  color: #758399;
+  font-size: calc(var(--bh-font-size) * 0.79);
+  line-height: 1;
+}
+
+html[data-bh-theme="slate"] body .bh-navbar .nav-link:hover {
+  color: #c9d3e2;
+  background: #0f131a;
+}
+
+html[data-bh-theme="slate"] body .bh-navbar .nav-link.active {
+  border-bottom: 0 !important;
+  color: #e9eff8 !important;
+  background: #151a23 !important;
+  box-shadow: inset 0 -1px #8b7cff !important;
+}
+
+html[data-bh-theme="slate"]
+  body
+  .bh-navbar
+  [data-testid="project-switcher"]
+  .nav-link {
+  color: #c9d3e2;
+  font-weight: 650;
+}
+
+html[data-bh-theme="slate"] body .bh-navbar .dropdown-menu {
+  margin-top: 0.2rem;
+  border-color: #222b39;
+  background: #0f131a;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.5);
+}
+
+html[data-bh-theme="slate"] body .bh-navbar .dropdown-item {
+  padding: 0.38rem 0.55rem;
+  font-size: calc(var(--bh-font-size) * 0.81);
+}
+
+[data-bh-theme="slate"] .bh-footer {
+  border-color: #19202a;
+  padding: 0.42rem 0;
+  color: #5f6c7e;
+  background: #06070a;
+  font-size: calc(var(--bh-font-size) * 0.72);
+}
+
+/*
+ * These aliases point Tailwind's color, font, and radius scales at the theme's
+ * semantic tokens. A utility-enabled component asks for a role and the active
+ * `data-bh-theme` supplies its value — no palette literal is allowed in JSX.
+ */
+@theme inline {
+  --color-bh-ground: var(--bh-ground);
+  --color-bh-surface: var(--bh-surface);
+  --color-bh-raise: var(--bh-raise);
+  --color-bh-sunken: var(--bh-sunken);
+  --color-bh-border: var(--bh-border);
+  --color-bh-border-strong: var(--bh-border-strong);
+  --color-bh-text: var(--bh-text);
+  --color-bh-heading: var(--bh-heading);
+  --color-bh-muted: var(--bh-muted);
+  --color-bh-accent: var(--bh-accent);
+  --color-bh-accent-fg: var(--bh-accent-fg);
+  --color-bh-marker: var(--bh-marker);
+  --color-bh-success: var(--bh-success);
+  --color-bh-success-fg: var(--bh-success-fg);
+  --color-bh-warning: var(--bh-warning);
+  --color-bh-warning-fg: var(--bh-warning-fg);
+  --color-bh-danger: var(--bh-danger);
+  --color-bh-danger-fg: var(--bh-danger-fg);
+  --color-bh-info: var(--bh-info);
+  --color-bh-info-fg: var(--bh-info-fg);
+
+  --font-sans: var(--bh-font-body);
+  --font-heading: var(--bh-font-heading);
+  --font-mono: var(--bh-font-mono);
+
+  --radius-bh: var(--bh-radius);
+  --radius-bh-sm: var(--bh-radius-sm);
+  --radius-bh-lg: var(--bh-radius-lg);
+}
+
+/*
+ * Phone chrome — last in this file so it outranks the compact density above.
+ *
+ * `theme.scss` ships a narrow-viewport layer too, but this file is imported
+ * after it and the slate rules above name the same properties at a higher
+ * specificity (`[data-bh-theme="slate"] .form-control`). Without this block the
+ * 16px iOS-zoom floor and the 15px type floor are dead on the look the product
+ * actually ships.
+ */
+@media (max-width: 767.98px) {
+  html[data-bh-theme="slate"] body {
+    font-size: max(var(--bh-font-size), 0.9375rem);
+  }
+
+  /*
+   * Each floor is `max()` of the ratio this file already uses and a length, so
+   * the compact scale still decides the relationship between these sizes and
+   * only the phone minimum is stated outright. A bare length here would be the
+   * type scale written twice, and the second copy is the one that stops
+   * tracking the token.
+   *
+   * A field is the exception that has to be a length: under 16px iOS Safari
+   * zooms on focus and never zooms back, so every later tap lands on a viewport
+   * nothing was measured at.
+   */
+  html[data-bh-theme="slate"] .form-control,
+  html[data-bh-theme="slate"] .form-select,
+  html[data-bh-theme="slate"] .ui-form-control,
+  html[data-bh-theme="slate"] .ui-form-select,
+  html[data-bh-theme="slate"] textarea.form-control {
+    min-height: 2.75rem;
+    font-size: max(calc(var(--bh-font-size) * 0.92), 1rem);
+  }
+
+  html[data-bh-theme="slate"] .btn,
+  html[data-bh-theme="slate"] .ui-button {
+    min-height: 2.5rem;
+    font-size: max(calc(var(--bh-font-size) * 0.91), 0.9375rem);
+  }
+
+  html[data-bh-theme="slate"] .btn-sm,
+  html[data-bh-theme="slate"] .ui-button-sm {
+    min-height: 2.25rem;
+    font-size: max(calc(var(--bh-font-size) * 0.84), 0.875rem);
+  }
+
+  html[data-bh-theme="slate"] .form-label,
+  html[data-bh-theme="slate"] .bh-mono-label,
+  html[data-bh-theme="slate"] .table th,
+  html[data-bh-theme="slate"] .ui-table th {
+    font-size: max(calc(var(--bh-font-size) * 0.81), 0.8125rem);
+  }
+
+  html[data-bh-theme="slate"] body .bh-navbar .nav-link {
+    min-height: 2.5rem;
+    padding: 0.65rem 0.55rem;
+    font-size: max(calc(var(--bh-font-size) * 0.79), 0.9375rem);
+    line-height: 1.2;
+  }
+
+  html[data-bh-theme="slate"] body .bh-navbar .navbar-toggler,
+  html[data-bh-theme="slate"] body .bh-navbar .ui-navbar-toggle {
+    min-height: 2.5rem;
+    min-width: 2.5rem;
+  }
+
+  html[data-bh-theme="slate"] .bh-shell > main.container {
+    padding-inline: 0.75rem;
+  }
+}

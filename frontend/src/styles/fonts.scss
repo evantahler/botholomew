@@ -1,0 +1,26 @@
+// JetBrains Mono, self-hosted.
+//
+// Self-hosted rather than pulled from a CDN so product pages can use the same
+// mono stack everywhere without an external dependency. The backend OAuth/MCP
+// theme names this family in its monospace fallback stack, so keeping the files
+// in-repo keeps the frontend and backend typography contract aligned even though
+// Keryx-rendered pages do not load this stylesheet directly.
+//
+// The files are the `latin` subset from `@fontsource/jetbrains-mono@5`;
+// `fonts/OFL.txt` is the SIL Open Font License they ship under.
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin-700-normal.woff2") format("woff2");
+}

@@ -12,11 +12,10 @@ teammates" — rebuilt as a multi-tenant service on **[Keryx](https://keryxjs.co
 one Action class is simultaneously an HTTP endpoint, a WebSocket action, a CLI command, a background task,
 and an OAuth-protected MCP tool.
 
-> **Status: planned.** Nothing in 2.0 is built. The v1 local CLI/TUI agent (v0.27.3) occupies this repository
-> and lives permanently on the [`v1` branch](https://github.com/evantahler/botholomew/tree/v1);
-> [phase 1](./phase-0001-clean-slate-and-shell.md) removes it from this one. The v1 milestone docs sit beside
-> these files (`milestone-*.md`, indexed by [`v1-milestones.md`](./v1-milestones.md)), and phase 1 removes them
-> too.
+> **Status: in development.** [Phase 1](./phase-0001-clean-slate-and-shell.md) is built: the tree is ToolExec's
+> platform shell under Botholomew's name, and no bot runs yet. Phases 2 onward are planned. The v1 local CLI/TUI
+> agent (v0.27.3), its docs site, and its milestone docs live permanently on the
+> [`v1` branch](https://github.com/evantahler/botholomew/tree/v1).
 
 ## What we are building on
 
