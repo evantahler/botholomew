@@ -62,12 +62,11 @@ const buildFilterSchema = z.strictObject({ paths: z.array(z.string()).min(1) });
  * Every instance type Render accepts for a web service or worker — the
  * spec-based ids plus the legacy names still honoured for them.
  *
- * An enum rather than `z.string()`, because the value that broke a Blueprint
- * sync was `starter plus`: a plausible-looking name for a tier Render does not
- * have. `render blueprints validate` rejects `starter_plus` and accepts
- * `starter plus`, so nothing upstream of this list catches it — the sync
- * reports success, creates every other service, and leaves the two that named
- * it missing.
+ * An enum rather than `z.string()`, because a plausible-looking name for a
+ * tier Render does not have — `starter plus` — gets past every other check:
+ * `render blueprints validate` rejects `starter_plus` and accepts
+ * `starter plus`, and the sync then reports success, creates every other
+ * service, and leaves the ones that named it missing.
  */
 const COMPUTE_PLANS = [
   "free",

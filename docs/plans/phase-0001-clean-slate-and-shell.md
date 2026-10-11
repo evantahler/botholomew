@@ -527,6 +527,10 @@ first.
 - **The CLI's `interpolate.ts` is the `$VAR` primitive, not ToolExec's dump walker.** The walker only made sense
   for `project apply`, which is cut; `resolveSecretValue` is what it was built from, and `login --password` is its
   first caller, so a password can come from the environment instead of shell history.
+- **The CLI wraps every routed action a signed-in member uses, except three on purpose:** `user:create` (signing
+  up is a browser act, and the CLI signs in to an account that exists), `user:edit` (account settings, which the
+  website's Account page owns), and the unauthenticated introspection actions (`status`, `swagger`,
+  `actions:permissions`), which `curl` answers. The sweeps are task-only and have no route to wrap.
 - **`invite create` takes `--tag <name-or-id>`, repeatable,** resolved through `tag:list` the way the server
   matches names (trimmed, lowercased), rather than ToolExec's `--tag-ids <json>`.
 - **The CLI palette is the slate tokens.** ToolExec's CLI kept the phosphor terminal palette; Botholomew's uses

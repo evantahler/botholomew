@@ -8,9 +8,9 @@
  *   DATABASE_URL=postgres://... bun run db:repair-sequences
  *
  * Discovery does **not** rely on `pg_depend` ownership. A restore can leave
- * `nextval(...)` defaults in place while dropping the OWNED BY link, which is
- * why a catalog walk of owned sequences reported `checked: 0` against a
- * database that was still colliding on `agent_runs_id_seq`.
+ * `nextval(...)` defaults in place while dropping the OWNED BY link, so a
+ * catalog walk of owned sequences can report `checked: 0` against a database
+ * whose sequences still collide.
  *
  * Each table is locked against concurrent inserts while its maximum value and
  * sequence state are compared. A sequence that is already ahead is never moved
