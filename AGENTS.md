@@ -401,7 +401,7 @@ for the bound URL and `HOOK_TIMEOUT` for `beforeAll` / `afterAll`.
   file, the root `README.md`, and `docs/**` must resolve, and every plan doc keeps its
   `## Learnings from the build` heading. `docs/tense.test.ts` points the same idea at tense: rule 13's
   denylist, over the same docs, the user docs, and every source comment. `deployment/ci-workflow.test.ts`
-  asserts the "CI Complete" gate needs every other job.
+  asserts the `complete` gate needs every other job.
 - **Behaviour evals are not tests.** A nightly harness drives bots against a real model and scores scenarios;
   it never gates CI.
 
@@ -419,8 +419,9 @@ never races a schema change. Values that must be byte-identical across web and w
 
 ## CI
 
-Parallel jobs plus a **"CI Complete"** gate, which is the single required status check on `main` — so adding a
-job never requires touching branch protection. The gate reads `toJSON(needs)` and asserts every result **is**
+Parallel jobs plus a **`complete`** gate, which is the single required status check on `main` — so adding a
+job never requires touching branch protection. The job's `name` is that check's context, so it is a contract
+with the repository settings: `deployment/ci-workflow.test.ts` pins it. The gate reads `toJSON(needs)` and asserts every result **is**
 `success`, rather than listing the results that are not: a denylist of outcomes fails open the day the
 platform invents one.
 

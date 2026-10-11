@@ -536,6 +536,10 @@ first.
 - **The CLI palette is the slate tokens.** ToolExec's CLI kept the phosphor terminal palette; Botholomew's uses
   the same hex values as the backend's OAuth theme, and `cli/__tests__/config.test.ts` asserts each one appears
   in `backend/theme/botholomew-theme.ts`.
+- **The CI gate reports as `complete`, not "CI Complete".** v1's gate was a job with id `complete` and no
+  display name, so `main`'s branch protection already requires the context `complete`. Naming this gate the same
+  keeps that one required check meaningful without a settings change, where a gate named "CI Complete" leaves
+  every pull request waiting on a check that never reports. `deployment/ci-workflow.test.ts` pins the name.
 - **`render.yaml` attaches no domain.** It names `api.botholomew.com` and `www.botholomew.com` in its env vars,
   and `render-blueprint.test.ts` makes `domains:` optional and asserts it absent: attaching a domain needs DNS and a
   certificate, which is the first sync's work, not a file nothing has deployed.
@@ -576,8 +580,9 @@ first.
 - `docs/tense.test.ts` scans one more place than the plan names: the user docs under
   `frontend/src/content/docs/`, since rule 13 covers user-facing copy. Its comment extractor skips strings,
   template literals, and regex literals, and has tests of its own for each.
-- `deployment/ci-workflow.test.ts` asserts the gate `needs` every other job, runs `always()`, asserts success
-  rather than listing failures, and that every Postgres service container is `pgvector/pgvector:pg18`.
+- `deployment/ci-workflow.test.ts` asserts the gate is named `complete`, `needs` every other job, runs
+  `always()`, asserts success rather than listing failures, and that every Postgres service container is
+  `pgvector/pgvector:pg18`.
 - `cli/cli.test.ts` (in the backend suite, because it needs a booted server) spawns the real CLI: login, the
   `--url` / `BOTHOLOMEW_URL` / default precedence, a `$VAR` password, a tag, an invite granted by tag name and
   accepted by a second person, the member list, the audit trail, a slug resolving to an id, and a 403 surfacing

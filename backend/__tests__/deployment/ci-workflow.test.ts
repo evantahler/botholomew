@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * `ci.yml` has one required status check — "CI Complete" — and the whole
+ * `ci.yml` has one required status check — `complete` — and the whole
  * arrangement rests on two properties no other test would notice drifting:
  * the gate `needs` every other job, and it asserts each result **is**
  * `success` rather than listing outcomes that are not. A job left out of
@@ -28,8 +28,11 @@ const workflow = Bun.YAML.parse(
 const gate = workflow.jobs.complete;
 
 describe("ci.yml — the one required check", () => {
-  test("the gate is named CI Complete and runs whatever happened upstream", () => {
-    expect(gate?.name).toBe("CI Complete");
+  test("the gate reports as `complete` and runs whatever happened upstream", () => {
+    // `complete` is the context `main`'s branch protection requires. A job's
+    // check run carries its `name`, so a different name here is a required
+    // check that never reports, and every pull request waits on it forever.
+    expect(gate?.name).toBe("complete");
     // Without `always()`, a failed dependency skips the gate, and a skipped
     // required check is not a red one.
     expect(gate?.if).toBe("always()");

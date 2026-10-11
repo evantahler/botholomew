@@ -199,7 +199,10 @@ jobs:
           retention-days: 7
 
   complete:
-    name: CI Complete
+    # The name is the check context branch protection requires, so it is a
+    # contract with the repository settings, not a label: renaming it leaves
+    # `main` waiting on a check that never arrives.
+    name: complete
     runs-on: ubuntu-latest
     if: always()
     needs:
