@@ -56,7 +56,7 @@ An AI agent for knowledge work. See `docs/plans/README.md` for the milestone roa
 - **On-disk state we own**: markdown w/ frontmatter for tasks/schedules/prompts/skills; CSV for threads; JSON for worker pidfiles.
 - **LLM**: Vercel AI SDK (`ai`) with pluggable providers — Anthropic (`@ai-sdk/anthropic`), Ollama (`ollama-ai-provider-v2`), and OpenAI-compatible endpoints (`@ai-sdk/openai-compatible`). All access is wrapped by `src/llm/`. Models are a **named registry** in config (`models` + `default_model` + `fast_model`), resolved via `src/config/models.ts`.
 - **CLI**: Commander.js
-- **TUI**: Ink 7 + React 19
+- **TUI**: Ink 8 + React 19
 - **External tools**: MCPX
 
 ## Conventions
